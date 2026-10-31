@@ -46,7 +46,8 @@ use super::drm::Monitor;
 /// The command line: the console with its mirror, no PS/2 keyboard, and the
 /// kernel console at 800x600.
 const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
-    zbm.console_mirror=/dev/ttyS1 zbm.timeout=60 i8042.nokbd video=Virtual-1:800x600";
+    zbm.console_serial=off zbm.console_mirror=/dev/ttyS1 zbm.timeout=60 i8042.nokbd \
+    video=Virtual-1:800x600";
 
 /// The mode of the kernel console, which the console keeps.
 const MODE: &str = "800x600";

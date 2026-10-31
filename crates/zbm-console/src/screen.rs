@@ -51,10 +51,12 @@ mod config;
 mod events;
 mod history;
 mod look;
+mod place;
 mod scroll;
 pub(super) mod seek;
 mod shot;
 mod status;
+pub mod styled;
 mod text;
 pub mod zoom;
 
@@ -126,6 +128,10 @@ pub struct Console {
     blank_after: Option<std::time::Duration>,
     /// The cells of the client of the channel, while they are shown.
     cells: Option<cells::Surface>,
+    /// The size the screen is held to, centred on the display, while a
+    /// smaller terminal is the one typed on: the serial console's
+    /// (ROADMAP.md UI9).
+    held: Option<(u16, u16)>,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -186,6 +192,7 @@ impl Console {
             hashes: Vec::new(),
             blank_after: None,
             cells: None,
+            held: None,
         };
         console.warm();
         console.draw();
@@ -422,11 +429,12 @@ impl Console {
         next.extend((0..rows).map(|line| self.row_hash(line, cursor)));
         let shift = scroll::best_shift(&self.drawn_rows, &next);
         let (_, cell) = self.grid.cell();
+        let top = self.grid.grid().origin().1;
         let pixels = |rows: usize| u32::try_from(rows).unwrap_or(u32::MAX).saturating_mul(cell);
         match shift {
             Shift::None => {}
-            Shift::Up(by) => self.frame.shift_rows(0, pixels(rows), pixels(by), true),
-            Shift::Down(by) => self.frame.shift_rows(0, pixels(rows), pixels(by), false),
+            Shift::Up(by) => self.frame.shift_rows(top, pixels(rows), pixels(by), true),
+            Shift::Down(by) => self.frame.shift_rows(top, pixels(rows), pixels(by), false),
         }
         scroll::shift_hashes(&mut self.drawn_rows, shift);
         let mut drawn = usize::from(shift != Shift::None);

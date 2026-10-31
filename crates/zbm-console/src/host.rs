@@ -33,10 +33,16 @@ use state::StateDir;
 
 mod cells;
 mod modes;
+mod outgoing;
+mod serial;
 mod state;
 mod status;
 
 pub use modes::Modes;
+#[cfg(test)]
+use outgoing::OUTGOING;
+pub use outgoing::Outgoing;
+pub use serial::SerialPort;
 
 pub use status::POWER_SUPPLY;
 
@@ -77,78 +83,6 @@ pub fn read_output(master: &mut impl Read) -> io::Result<Input> {
             Ok(Input::Nothing)
         }
         Err(error) => Err(error),
-    }
-}
-
-/// How much typed text waits for the programs, at most: what is typed
-/// beyond it while they read nothing is lost, as the kernel's terminal
-/// loses it.
-const OUTGOING: usize = 64 * 1024;
-
-/// What was typed for the programs and not yet taken by the terminal. The
-/// controlling side of the pseudo-terminal does not block, so that a
-/// program that reads nothing cannot stop the console; the bytes wait here
-/// and are wiped: they may be a passphrase.
-#[derive(Debug)]
-pub struct Outgoing {
-    bytes: Vec<u8>,
-}
-
-impl Default for Outgoing {
-    fn default() -> Outgoing {
-        Outgoing {
-            bytes: Vec::with_capacity(OUTGOING),
-        }
-    }
-}
-
-impl Drop for Outgoing {
-    fn drop(&mut self) {
-        zbm_sys::wipe_vec(&mut self.bytes);
-    }
-}
-
-impl Outgoing {
-    /// Whether nothing waits.
-    pub fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
-    }
-
-    /// Queues `bytes`, as much as there is room for.
-    pub fn push(&mut self, bytes: &[u8]) {
-        let room = OUTGOING.saturating_sub(self.bytes.len());
-        self.bytes
-            .extend_from_slice(bytes.get(..room.min(bytes.len())).unwrap_or(&[]));
-    }
-
-    /// Writes what waits to `master`, as much as it takes now.
-    ///
-    /// # Errors
-    ///
-    /// When `master` cannot be written other than for want of room.
-    pub fn flush(&mut self, master: &mut impl Write) -> io::Result<()> {
-        let mut written = 0;
-        let outcome = loop {
-            let Some(rest) = self.bytes.get(written..).filter(|rest| !rest.is_empty()) else {
-                break Ok(());
-            };
-            match master.write(rest) {
-                Ok(0) => break Ok(()),
-                Ok(length) => written += length,
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => break Ok(()),
-                Err(error) => break Err(error),
-            }
-        };
-        if written > 0 {
-            self.bytes.drain(..written);
-            // Draining moved the rest down; the old bytes behind it are
-            // overwritten.
-            for slot in self.bytes.spare_capacity_mut() {
-                slot.write(0);
-            }
-        }
-        outcome
     }
 }
 
@@ -252,6 +186,8 @@ pub struct RealHost<'h, M> {
     is_client_gone: bool,
     /// Writes a line to the kernel log.
     notes: Option<Notes<'h>>,
+    /// The serial terminal served too (ROADMAP.md UI9).
+    serial: Option<SerialPort>,
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -285,6 +221,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             client: None,
             is_client_gone: false,
             notes: None,
+            serial: None,
         }
     }
 
@@ -390,6 +327,13 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         if let Some(devices) = &self.devices {
             watches.push(Watch::read(devices.as_fd()));
         }
+        if let Some(serial) = &self.serial {
+            watches.push(Watch {
+                fd: serial.fd(),
+                read: serial.is_read(),
+                write: serial.is_pending(),
+            });
+        }
         // Last, as `is_client_ready` finds it.
         if let Some(client) = self.client {
             watches.push(Watch::read(client.as_fd()));
@@ -448,11 +392,16 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         let (keyboards, rest) = ready.split_at(count.min(ready.len()));
         let master = rest.first().copied().unwrap_or_default();
         self.take_wake_ups(rest.get(1..).unwrap_or_default());
+        let serial = 1 + usize::from(self.wake.is_some()) + usize::from(self.devices.is_some());
+        let serial = rest.get(serial).copied().filter(|_| self.serial.is_some());
         if master.write {
             self.outgoing.flush(&mut self.master)?;
         }
         if let Some(keys) = self.keys(keyboards)? {
             return Ok(keys);
+        }
+        if let Some(keys) = self.serial_keys(serial) {
+            return Ok(Input::SerialKeys(keys));
         }
         if self.is_client_ready(&ready) {
             return Ok(self.read_client());
@@ -479,10 +428,26 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         } else {
             crate::run::TICK
         };
-        // A tone stops on time.
-        self.beeper
-            .remaining(Instant::now())
-            .map_or(idle, |remaining| remaining.min(idle))
+        // A tone stops on time; a key's sequence on the serial line is
+        // taken as it is on time, and its screen written further.
+        let now = Instant::now();
+        let idle = self
+            .beeper
+            .remaining(now)
+            .map_or(idle, |remaining| remaining.min(idle));
+        self.serial
+            .as_ref()
+            .map_or(idle, |serial| serial.idle(now, idle))
+    }
+
+    fn serial_size(&self) -> Option<(u16, u16)> {
+        self.serial.as_ref().map(SerialPort::size)
+    }
+
+    fn show_serial(&mut self, console: &crate::screen::Console) {
+        if let Some(serial) = &mut self.serial {
+            serial.show(console);
+        }
     }
 
     fn send(&mut self, bytes: &[u8]) -> io::Result<()> {

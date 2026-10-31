@@ -26,6 +26,7 @@ fn the_console_keeps_two_capabilities_and_reaches_its_places_alone() {
         sockets: "/run/zfsbootmenu".into(),
         share: "/usr/share/zfsbootmenu".into(),
         mirror: Some("/nowhere/mirror".into()),
+        serial: Some("/dev/ttyS0".into()),
     };
 
     let confinement = console.confinement();
@@ -46,6 +47,8 @@ fn the_console_keeps_two_capabilities_and_reaches_its_places_alone() {
     assert_eq!(access("/zfsbootmenu"), Some(Access::Full));
     assert_eq!(access("/dev/tty7"), Some(Access::Device));
     assert_eq!(access("/dev/input"), Some(Access::Device));
+    // The serial console it serves too.
+    assert_eq!(access("/dev/ttyS0"), Some(Access::Device));
     assert_eq!(access("/usr/share/zfsbootmenu"), Some(Access::Read));
     // A mirror not made yet: its directory.
     assert_eq!(access("/nowhere"), Some(Access::Full));

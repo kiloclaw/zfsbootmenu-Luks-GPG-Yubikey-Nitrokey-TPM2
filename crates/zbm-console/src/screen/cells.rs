@@ -17,6 +17,7 @@ use zbm_display::palette;
 use zbm_display::render::CellRenderer;
 
 use super::Console;
+use super::styled::StyledCell;
 use crate::scheme::Scheme;
 
 /// A cell of the surface: its text, a grapheme, or empty for the second
@@ -274,6 +275,40 @@ impl Surface {
             }
             each(None);
         }
+    }
+}
+
+impl Surface {
+    /// The cells as the serial console gets them, row after row, with
+    /// what `over` draws over them; and the client's cursor.
+    pub(super) fn styled(
+        &self,
+        over: impl Fn(usize, usize) -> Option<char>,
+        reversed: CellStyle,
+    ) -> (Vec<Vec<StyledCell>>, Option<(u16, u16)>) {
+        let columns = usize::from(self.columns).max(1);
+        let rows = self
+            .cells
+            .chunks(columns)
+            .enumerate()
+            .map(|(row, cells)| {
+                cells
+                    .iter()
+                    .enumerate()
+                    .map(|(column, cell)| match over(row, column) {
+                        Some(c) => StyledCell {
+                            text: c.to_string(),
+                            style: reversed,
+                        },
+                        None => StyledCell {
+                            text: cell.text.clone(),
+                            style: cell.style,
+                        },
+                    })
+                    .collect()
+            })
+            .collect();
+        (rows, self.cursor)
     }
 }
 

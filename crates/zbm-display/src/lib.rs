@@ -52,4 +52,5 @@ pub mod psf;
 pub mod render;
 pub mod seat;
 pub mod speaker;
+pub mod term_keys;
 pub mod vt;

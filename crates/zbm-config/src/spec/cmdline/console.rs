@@ -171,6 +171,15 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   **setterm -blank** and **-powerdown** do; a key turns it on again, and reaches the programs. The
   screen does not blank by default.
 
+**zbm.console_serial=off**
+
+  With a serial console on the command line too (**console=ttyS0,115200**), the console on the
+  display serves it as well, unless this is **off**: the screen is written there as text, in
+  **zbm.columns** by **zbm.lines** (80 by 25 by default), and keys typed there reach the programs.
+  The screen has the size of the terminal typed on last: the serial terminal's from its first key,
+  centred on the display, until a key is typed on the display's keyboard again. Ctrl+L on the serial
+  terminal writes the whole screen there again.
+
 Print Screen saves the screen's text and image in ``/zfsbootmenu/screenshot-N.txt`` and
 ``screenshot-N.png``, which **zbm report** adds to its report; there is none at a secret prompt.
 
@@ -312,6 +321,21 @@ pub static CONSOLE_STATUS: OptionSpec = OptionSpec {
     doc: Doc::Within("zbm.console"),
     deprecation: None,
     examples: &["zbm.console_status=on"],
+};
+
+/// `zbm.console_serial`: whether the console on the display serves the
+/// serial console too (ROADMAP.md UI9).
+pub static CONSOLE_SERIAL: OptionSpec = OptionSpec {
+    name: "zbm.console_serial",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(&["on", "off"]),
+    default: Some("on"),
+    summary: "Whether the console on the display serves the serial console too",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_serial=off"],
 };
 
 /// The keys that can be the compose key.

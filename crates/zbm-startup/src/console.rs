@@ -7,7 +7,8 @@
 //! colour scheme (`zbm.console_palette`), large text
 //! (`zbm.console_large`), the status line (`zbm.console_status`), the bell
 //! (`zbm.console_bell`), the display's mode (`zbm.console_mode`), blanking
-//! (`zbm.console_blank`), and the mirror of the VM tests.
+//! (`zbm.console_blank`), the serial console served too
+//! (`zbm.console_serial`, ROADMAP.md UI9), and the mirror of the VM tests.
 
 use std::path::Path;
 
@@ -15,10 +16,11 @@ use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::{
-    AUTOSIZE, BELLS, COMPOSE_KEYS, CONSOLE_BELL, CONSOLE_BLANK, CONSOLE_LARGE, CONSOLE_MIRROR,
-    CONSOLE_MODE, CONSOLE_PALETTE, CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE,
-    DISPLAY_CONSOLE_FONT, KEYBOARD_COMPOSE, KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KEYBOARD_REPEAT,
-    MAX_BLANK_MINUTES, MAX_SCROLLBACK, NUM_LOCK, PALETTES, is_layout_name, mode_size,
+    AUTOSIZE, BELLS, COLUMNS, COMPOSE_KEYS, CONSOLE_BELL, CONSOLE_BLANK, CONSOLE_LARGE,
+    CONSOLE_MIRROR, CONSOLE_MODE, CONSOLE_PALETTE, CONSOLE_SCROLLBACK, CONSOLE_SERIAL,
+    CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_COMPOSE, KEYBOARD_LAYOUT,
+    KEYBOARD_LAYOUTS, KEYBOARD_REPEAT, LINES, MAX_BLANK_MINUTES, MAX_SCROLLBACK, NUM_LOCK,
+    PALETTES, is_layout_name, mode_size,
 };
 use zbm_platform::System;
 
@@ -67,7 +69,40 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
             arguments.push(flag.to_owned());
         }
     }
+    let serial = args.lookup(&CONSOLE_SERIAL, &mut messages);
+    if serial.as_deref().map(str::trim) != Some("off")
+        && let Some(device) = serial_console(kcl)
+    {
+        arguments.extend(["--serial".to_owned(), format!("/dev/{device}")]);
+        let mut number = |spec, default: u16| {
+            args.lookup(spec, &mut messages)
+                .and_then(|value| value.trim().parse::<u16>().ok())
+                .filter(|&value| value > 0)
+                .unwrap_or(default)
+        };
+        let (columns, rows) = (number(&COLUMNS, 80), number(&LINES, 25));
+        arguments.extend(["--serial-size".to_owned(), format!("{columns}x{rows}")]);
+    }
     Some(arguments)
+}
+
+/// The serial console of the command line `kcl`: the device of the last
+/// `console=` that names no virtual terminal (`tty`, `tty0` to `tty63`)
+/// and is not `null`, without its options (`ttyS0,115200n8`).
+pub fn serial_console(kcl: &str) -> Option<String> {
+    let (cmdline, _) = zbm_types::KernelCommandLine::lenient(kcl);
+    cmdline
+        .args()
+        .iter()
+        .filter(|arg| arg.name() == "console")
+        .filter_map(|arg| arg.value())
+        .map(|value| value.split(',').next().unwrap_or_default().to_owned())
+        .rfind(|device| {
+            let virtual_terminal = device
+                .strip_prefix("tty")
+                .is_some_and(|number| number.bytes().all(|byte| byte.is_ascii_digit()));
+            !device.is_empty() && !virtual_terminal && device != "null" && !device.contains('/')
+        })
 }
 
 /// The rules of `value` (`046d:c31c=de,1a2c:0e24=fr`) that name a USB
@@ -136,16 +171,19 @@ pub fn repeat(value: &str) -> Option<(u32, u32)> {
 
 /// The arguments of the console the image below `root` starts, from the
 /// command line that start-up saved; `None` for the kernel console, and
-/// when the control terminal is not a virtual console. In an image with
-/// graphics drivers, the console draws on the card of the GPU `zbm.gpu`
-/// chooses (`--card`, [`crate::graphics::console_card`]).
+/// when the control terminal is not a virtual console, unless the console
+/// serves the serial console too (`--serial`): then the session is on the
+/// display and on the serial line both. In an image with graphics drivers,
+/// the console draws on the card of the GPU `zbm.gpu` chooses (`--card`,
+/// [`crate::graphics::console_card`]).
 pub fn from_image(system: &System<'_>, root: &Path, conf: &Conf) -> Option<Vec<String>> {
     let options = preinit::saved_options(system, root, conf);
-    if !preinit::is_virtual_console(&options.control_term) {
-        return None;
-    }
     let kcl = preinit::saved_commandline(system, root, conf);
     let mut arguments = arguments(&kcl)?;
+    let serves_serial = arguments.iter().any(|argument| argument == "--serial");
+    if !preinit::is_virtual_console(&options.control_term) && !serves_serial {
+        return None;
+    }
     let gpu = crate::graphics::option(&kcl);
     if let Some(card) = crate::graphics::console_card(system.files, root, gpu.as_deref()) {
         arguments.extend(["--card".to_owned(), card.display().to_string()]);
@@ -244,6 +282,44 @@ mod tests {
     }
 
     #[test]
+    fn a_serial_console_on_the_command_line_is_served_too_unless_turned_off() {
+        assert_eq!(
+            console("zbm.console=drm console=tty0 console=ttyS0,115200n8"),
+            words("console --serial /dev/ttyS0 --serial-size 80x25")
+        );
+        assert_eq!(
+            console("zbm.console=drm console=ttyAMA0 console=tty1 zbm.columns=132 zbm.lines=43"),
+            words("console --serial /dev/ttyAMA0 --serial-size 132x43")
+        );
+        assert_eq!(
+            console("zbm.console=drm console=hvc0 zbm.columns=x"),
+            words("console --serial /dev/hvc0 --serial-size 80x25")
+        );
+        assert_eq!(
+            console("zbm.console=drm console=ttyS0 zbm.console_serial=off"),
+            words("console")
+        );
+        // Virtual terminals and nothing are no serial console.
+        for line in [
+            "console=tty",
+            "console=tty12",
+            "console=null",
+            "console=",
+            "",
+        ] {
+            assert_eq!(
+                console(&format!("zbm.console=drm {line}")),
+                words("console"),
+                "{line}"
+            );
+        }
+        assert_eq!(
+            serial_console("console=ttyS1 console=ttyS0,9600"),
+            Some("ttyS0".to_owned())
+        );
+    }
+
+    #[test]
     fn the_key_repeat_is_a_delay_and_a_rate() {
         assert_eq!(repeat("250,30"), Some((250, 33)));
         assert_eq!(repeat(" 500 , 1 "), Some((500, 1000)));
@@ -269,6 +345,17 @@ mod tests {
         assert_eq!(
             from_image(&system, Path::new("/"), &conf("/dev/ttyS0")),
             None
+        );
+        // The session on the serial line too: the console on the display
+        // starts for both.
+        fake.files.file(
+            "/zfsbootmenu/zbm.cmdline",
+            "zbm.console=drm\nconsole=tty0\nconsole=ttyS0,115200\n",
+        );
+        let system = fake.system();
+        assert_eq!(
+            from_image(&system, Path::new("/"), &conf("/dev/ttyS0")),
+            words("console --serial /dev/ttyS0 --serial-size 80x25")
         );
     }
 

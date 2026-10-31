@@ -117,6 +117,9 @@ pub struct Settings {
     /// The descriptor of the console's end of the client channel, which
     /// the supervisor passed it (`--cells-fd`).
     pub cells_fd: Option<i32>,
+    /// The serial console served too (ROADMAP.md UI9, `--serial`): its
+    /// device and its size, columns and rows.
+    pub serial: Option<(PathBuf, (u16, u16))>,
 }
 
 impl Settings {
@@ -479,6 +482,9 @@ fn on_display(
             .with_client(cells)
             .with_notes(|text| places.log(6, text));
     }
+    if let Some(port) = serial_port(settings, places, console.scheme()) {
+        host = host.with_serial(port);
+    }
     let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
     let ended = run_with_client(&mut console, held.screen(), &mut host, shown, client)?;
     let layout = host.keyboard_layout().to_owned();
@@ -489,6 +495,35 @@ fn on_display(
         *kept = Some(console);
     }
     Ok((ended, text, layout))
+}
+
+/// The serial console of `settings` to serve too, open, in the colours of
+/// `scheme`; `None` without one, or when it cannot be opened, which is
+/// logged.
+fn serial_port(
+    settings: &Settings,
+    places: &Places,
+    scheme: &'static crate::scheme::Scheme,
+) -> Option<crate::host::SerialPort> {
+    let (path, size) = settings.serial.as_ref()?;
+    let name = path.display();
+    match crate::host::SerialPort::open(path, *size, scheme) {
+        Ok(port) => {
+            let (columns, rows) = port.size();
+            places.log(
+                6,
+                &format!("serving the serial console {name} too, {columns}x{rows}"),
+            );
+            Some(port)
+        }
+        Err(error) => {
+            places.log(
+                4,
+                &format!("not serving the serial console {name}: {error}"),
+            );
+            None
+        }
+    }
 }
 
 /// The host of the loop on the display: the programs' terminal `master`,

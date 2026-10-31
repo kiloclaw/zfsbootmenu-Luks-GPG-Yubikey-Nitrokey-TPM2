@@ -44,7 +44,7 @@ use super::drm::Monitor;
 
 /// The command line of both boots, before the timeout.
 const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
-    zbm.console_mirror=/dev/ttyS1";
+    zbm.console_serial=off zbm.console_mirror=/dev/ttyS1";
 
 /// The label of the FAT disk the virtio boot saves its logs on, when it
 /// boots the environment: only when the console showed nothing.

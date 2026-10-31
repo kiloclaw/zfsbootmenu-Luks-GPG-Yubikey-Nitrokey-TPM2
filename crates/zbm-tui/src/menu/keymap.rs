@@ -227,12 +227,6 @@ impl std::ops::BitOr for Modifiers {
     }
 }
 
-impl std::ops::BitOrAssign for Modifiers {
-    fn bitor_assign(&mut self, other: Modifiers) {
-        self.0 |= other.0;
-    }
-}
-
 /// `key` pressed with `modifiers`.
 pub fn press(key: Key, modifiers: Modifiers) -> KeyPress {
     KeyPress {

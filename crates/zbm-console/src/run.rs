@@ -23,9 +23,11 @@ use crate::screen::{Console, Status};
 use crate::typing::{Preview, Taken, Typing};
 use blank::Blanking;
 pub use client::{Client, GREETED};
+use frame::{Pacing, draw_frame};
 
 mod blank;
 mod client;
+mod frame;
 
 /// How long the loop waits when nothing is due, so that a request to hand
 /// the display back is seen soon.
@@ -42,6 +44,8 @@ pub enum Input {
     Output(Vec<u8>),
     /// These keys were pressed.
     Keys(Vec<KeyPress>),
+    /// These keys were typed on the serial console (ROADMAP.md UI9).
+    SerialKeys(Vec<KeyPress>),
     /// No program holds the terminal any more.
     Hangup,
     /// The display must be handed back (`zbm console release`).
@@ -74,6 +78,18 @@ pub trait Host {
     /// host is woken by what it waits for, requests included.
     fn idle(&self) -> Duration {
         TICK
+    }
+
+    /// The size of the serial console the console serves too, if it does:
+    /// the screen is held to it while keys come from there.
+    fn serial_size(&self) -> Option<(u16, u16)> {
+        None
+    }
+
+    /// Writes the screen of `console` to the serial console, if the host
+    /// serves one, after each frame.
+    fn show_serial(&mut self, console: &Console) {
+        let _ = console;
     }
 
     /// Switches the keyboards to the image's next layout (Super+Space).
@@ -321,6 +337,7 @@ pub fn run_with_client(
 ) -> io::Result<Ended> {
     screen.present(console.frame_mut())?;
     show(console, &mut shown);
+    host.show_serial(console);
     // When the output read since the last frame started coming.
     let mut burst: Option<Instant> = None;
     let mut typing = Typing::default();
@@ -336,13 +353,17 @@ pub fn run_with_client(
         let input = host.wait(timeout)?;
         console.set_secret(host.is_secret() || client.is_secret());
         let is_output = matches!(input, Input::Output(_));
-        if matches!(input, Input::Keys(_)) && blanking.is_woken_by_key(Instant::now()) {
+        if matches!(input, Input::Keys(_) | Input::SerialKeys(_))
+            && blanking.is_woken_by_key(Instant::now())
+        {
             screen.set_power(true);
             console.unblank();
         }
         if let Some(ended) = take(console, host, (&mut typing, &mut *client), input)? {
             // A frame that waited for its time is not lost.
-            pacing.present(console, screen, &mut shown, None)?;
+            if pacing.present(console, screen, &mut shown, None)? {
+                host.show_serial(console);
+            }
             return Ok(ended);
         }
         zoom(console, host, client)?;
@@ -356,14 +377,12 @@ pub fn run_with_client(
             continue;
         }
         burst = None;
-        pacing.waiting |= console.draw() > 0;
-        if blanking.is_due(now) {
-            blank(console, screen)?;
-            blanking.blanked();
-        }
-        if !blanking.is_blanked() {
-            pacing.present(console, screen, &mut shown, Some(now))?;
-        }
+        draw_frame(
+            (console, screen, host),
+            (&mut pacing, &mut blanking),
+            &mut shown,
+            now,
+        )?;
     }
 }
 
@@ -397,53 +416,6 @@ fn blank(console: &mut Console, screen: &mut dyn Screen) -> io::Result<()> {
     screen.present(console.frame_mut())?;
     screen.set_power(false);
     Ok(())
-}
-
-/// Frames presented at the display's refresh rate at most (C75): when the
-/// last was, and whether one drawn since waits for its time.
-struct Pacing {
-    interval: Duration,
-    presented: Instant,
-    waiting: bool,
-}
-
-impl Pacing {
-    /// Frames `interval` apart; the first is presented at once.
-    fn new(interval: Duration) -> Pacing {
-        let presented = Instant::now()
-            .checked_sub(interval)
-            .unwrap_or_else(Instant::now);
-        Pacing {
-            interval,
-            presented,
-            waiting: false,
-        }
-    }
-
-    /// When the frame that waits is due, if one does.
-    fn due(&self) -> Option<Instant> {
-        self.waiting.then(|| self.presented + self.interval)
-    }
-
-    /// Presents the frame that waits, if its time came at `now`, or at once
-    /// without `now`, and shows its text.
-    fn present(
-        &mut self,
-        console: &mut Console,
-        screen: &mut dyn Screen,
-        shown: &mut Option<&mut dyn Shown>,
-        now: Option<Instant>,
-    ) -> io::Result<()> {
-        let is_due = now.is_none_or(|now| now.duration_since(self.presented) >= self.interval);
-        if !self.waiting || !is_due {
-            return Ok(());
-        }
-        screen.present(console.frame_mut())?;
-        show(console, shown);
-        self.presented = now.unwrap_or_else(Instant::now);
-        self.waiting = false;
-        Ok(())
-    }
 }
 
 /// Takes `presses`: the console's own keys through `typing`, the rest to
@@ -490,6 +462,23 @@ fn take_keys(
     typed
 }
 
+/// Holds the screen to `size`, that of the terminal typed on, or lets it
+/// fill the display with `None` (ROADMAP.md UI9: the session has the size
+/// of the terminal last typed on); the programs and the client are told
+/// when it changed.
+fn hold(
+    console: &mut Console,
+    host: &mut dyn Host,
+    client: &Client,
+    size: Option<(u16, u16)>,
+) -> io::Result<()> {
+    let Some(window) = console.hold_size(size) else {
+        return Ok(());
+    };
+    client.resized(console, host);
+    host.font_shown(&console.font_text(), &window)
+}
+
 /// Sends the programs the answers the terminal owes them, if any.
 fn send_replies(console: &mut Console, host: &mut dyn Host) -> io::Result<()> {
     let replies = console.take_replies();
@@ -517,7 +506,15 @@ fn take(
             send_replies(console, host)?;
         }
         Input::Keys(mut presses) => {
-            let typed = take_keys(console, host, typing, &presses);
+            let typed = hold(console, host, client, None)
+                .and_then(|()| take_keys(console, host, typing, &presses));
+            zbm_sys::wipe_values(&mut presses, KeyPress::BLANK);
+            typed?;
+        }
+        Input::SerialKeys(mut presses) => {
+            let size = host.serial_size();
+            let typed = hold(console, host, client, size)
+                .and_then(|()| take_keys(console, host, typing, &presses));
             zbm_sys::wipe_values(&mut presses, KeyPress::BLANK);
             typed?;
         }

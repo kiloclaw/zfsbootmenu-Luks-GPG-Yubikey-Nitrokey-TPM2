@@ -145,6 +145,13 @@ layouts and its state, can run no program, and makes only the system calls it ne
 kernel logs it as an audit record (type 1326), which `dmesg` shows. The keyholder and the programs it runs can gain
 no privileges.
 
+The console on the display also serves a serial console named on the command line (`console=ttyS0,115200` with
+`zbm.console=drm`; `zbm.console_serial=off` turns it off): the screen is written there as text, in `zbm.columns` by
+`zbm.lines`, and keys typed there reach the menu and the programs. The screen takes the size of the terminal typed on
+last, the serial terminal's centred on the display, and Ctrl+L on the serial terminal writes all of it there again. The
+console now starts too when the serial console is the last `console=`, as it often is; before, the menu ran on the
+serial console alone.
+
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 

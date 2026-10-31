@@ -9,6 +9,23 @@ fn args(line: &str) -> Vec<String> {
 }
 
 #[test]
+fn the_serial_console_and_its_size_are_parsed() {
+    let serial = parse(&args("--serial /dev/ttyS0 --serial-size 132x43")).unwrap();
+    assert_eq!(
+        (serial.serial, serial.serial_size),
+        (Some(PathBuf::from("/dev/ttyS0")), Some((132, 43)))
+    );
+    for wrong in [
+        "--serial-size 80",
+        "--serial-size 0x25",
+        "--serial-size axb",
+        "--serial",
+    ] {
+        assert_eq!(parse(&args(wrong)), None, "{wrong}");
+    }
+}
+
+#[test]
 fn options_are_parsed_and_wrong_ones_refused() {
     assert_eq!(
         parse(&args(
@@ -32,6 +49,8 @@ fn options_are_parsed_and_wrong_ones_refused() {
             mode: None,
             blank_minutes: None,
             cells_fd: None,
+            serial: None,
+            serial_size: None,
         })
     );
     let keys = parse(&args("--numlock on --repeat 250,30")).unwrap();

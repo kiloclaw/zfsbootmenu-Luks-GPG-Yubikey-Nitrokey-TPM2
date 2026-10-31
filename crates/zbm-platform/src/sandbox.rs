@@ -93,6 +93,8 @@ pub struct Console {
     pub share: PathBuf,
     /// Where test builds mirror the screen's text, if anywhere.
     pub mirror: Option<PathBuf>,
+    /// The serial console it serves too, if any (ROADMAP.md UI9).
+    pub serial: Option<PathBuf>,
 }
 
 /// The calls of the console: its loop (`ppoll`, `read`, `write`, `ioctl`
@@ -245,6 +247,9 @@ impl Console {
                 Some(parent) if !mirror.exists() => (parent.to_owned(), Access::Full),
                 _ => (mirror.clone(), Access::Device),
             });
+        }
+        if let Some(serial) = &self.serial {
+            files.push((serial.clone(), Access::Device));
         }
         files
     }

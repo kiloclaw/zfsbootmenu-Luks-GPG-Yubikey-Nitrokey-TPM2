@@ -380,6 +380,14 @@ Following a boot
   the terminal's cells hold its characters a cell apart; this shows the search works. ``stty -echo`` opens a prompt
   without echo and a key is typed: the same search must then find nothing in the console's memory.
 
+* ``runtime-rust-console-serial`` checks the serial console the console on the display serves too (ROADMAP.md UI9),
+  with the image of ``runtime-rust-console`` booted with ``console=tty1 console=ttyS0``: the countdown and the menu
+  must show on the serial console's screen; Escape, ``!`` and Enter typed there must open the menu and the recovery
+  shell. ``echo zbm-serial-$(stty size)`` typed there must see 80 columns and 25 rows, with no wider line in the
+  display's mirror; typed on QEMU's keyboard, more columns; typed on the serial console again, 80 again. Ctrl+L typed
+  there must clear the serial console's screen and write it again. The other console scenarios boot with
+  ``zbm.console_serial=off``, so that the serial console stays theirs.
+
 * ``integrity-setup``, ``integrity-unattended``, ``integrity-lockdown``, ``integrity-measured`` and
   ``integrity-hookroot`` check the boot's
   integrity in the Rust runtime (ROADMAP.md SE10). ``setup`` formats a LUKS2 volume on d0 on the host and enrols it

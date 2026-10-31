@@ -469,3 +469,47 @@ fn a_screen_opened_from_the_palette_starts_at_its_top() {
 
     assert_eq!((model.screen, model.scroll), (Screen::Log, 0));
 }
+
+#[test]
+fn the_filter_is_edited_moved_in_and_cleared_with_escape() {
+    let mut session = started();
+    let filter = |session: &Session| {
+        let list = session.model().list().unwrap();
+        (list.filter.clone(), list.filtering)
+    };
+    session.key(Key::Char('/'));
+    session.type_text("ubx");
+
+    session.key(Key::Backspace);
+    assert_eq!(filter(&session), ("ub".to_owned(), true));
+    session.press(KeyPress::new(Key::Char('u')).with_ctrl());
+    assert_eq!(filter(&session), (String::new(), true));
+
+    // The selection moves while the field keeps the focus.
+    session.key(Key::Down);
+    assert_eq!(session.model().list().map(|list| list.selected), Some(1));
+    session.key(Key::Up);
+    assert_eq!(session.model().list().map(|list| list.selected), Some(0));
+
+    session.type_text("arch");
+    session.key(Key::Escape);
+    assert_eq!(filter(&session), (String::new(), false));
+    assert_eq!(session.actions, []);
+}
+
+#[test]
+fn the_palette_s_selection_moves_and_escape_closes_it() {
+    let mut session = started();
+    session.key(Key::Char(':'));
+    let selected = |session: &Session| session.model().palette.as_ref().map(|p| p.selected);
+
+    session.key(Key::Down);
+    session.key(Key::Down);
+    assert_eq!(selected(&session), Some(2));
+    session.key(Key::Up);
+    assert_eq!(selected(&session), Some(1));
+    session.key(Key::Escape);
+
+    assert_eq!(selected(&session), None);
+    assert_eq!(session.actions, []);
+}

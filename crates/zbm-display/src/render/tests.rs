@@ -140,3 +140,29 @@ fn a_cell_a_neighbour_reaches_into_is_drawn_with_it() {
     renderer.draw_mark(&mut frame, 1, 0, '\u{301}', italic.fg);
     assert_eq!(renderer.grid().name(), "ttf");
 }
+
+#[test]
+fn a_screen_with_an_origin_draws_its_cells_there_from_the_cache_too() {
+    for make in [psf as fn() -> Grid, ttf] {
+        let mut renderer = CellRenderer::new(make());
+        let (width, height) = renderer.cell();
+        let lit = style(Rgb(250, 250, 250), FontFace::Regular, false);
+        // At the top left first, which caches the cell.
+        let mut plain = Frame::new(width * 4, height * 3);
+        renderer.draw(&mut plain, 0, 0, 'M', lit);
+        renderer.set_origin((width, height));
+        assert_eq!(renderer.grid().origin(), (width, height));
+        assert_eq!(renderer.area(1, 1).x, width * 2);
+        let mut moved = Frame::new(width * 4, height * 3);
+        renderer.draw(&mut moved, 0, 0, 'M', lit);
+        // The same pixels, one cell right and one down, and none at the
+        // top left.
+        for y in 0..height {
+            let row = |frame: &Frame, y: u32, x: u32| {
+                frame.row(y).unwrap()[x as usize..(x + width) as usize].to_vec()
+            };
+            assert_eq!(row(&moved, y + height, width), row(&plain, y, 0));
+            assert!(row(&moved, y, 0).iter().all(|&pixel| pixel == 0));
+        }
+    }
+}

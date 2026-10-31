@@ -16,6 +16,8 @@
 //! - [`host`]: the real one;
 //! - [`relay`]: the relay that carries the terminal over to the kernel
 //!   console once the display is handed back;
+//! - [`serial`]: the serial console too, its screen written as text and
+//!   its keys read (ROADMAP.md UI9);
 //! - [`control`]: the control socket, on which other processes ask it to
 //!   hand the display back, take it again, switch layouts or font sizes,
 //!   or keep a secret prompt out of its scrollback.
@@ -34,6 +36,7 @@ pub mod relay;
 pub mod run;
 pub mod scheme;
 pub mod screen;
+pub mod serial;
 pub mod serve;
 pub mod typing;
 

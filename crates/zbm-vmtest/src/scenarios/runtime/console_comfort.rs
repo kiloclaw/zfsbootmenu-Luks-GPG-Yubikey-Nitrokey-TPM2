@@ -34,7 +34,7 @@ use super::drm::Monitor;
 
 /// The command line: the console with its mirror and a status line.
 const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
-    zbm.console_mirror=/dev/ttyS1 zbm.timeout=60 zbm.console_status=on";
+    zbm.console_serial=off zbm.console_mirror=/dev/ttyS1 zbm.timeout=60 zbm.console_status=on";
 
 /// The line that scrolls off, unlike anything else in memory; the command
 /// that writes it holds it only in parts.

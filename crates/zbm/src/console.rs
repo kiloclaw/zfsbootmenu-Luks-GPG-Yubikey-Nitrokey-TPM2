@@ -18,6 +18,7 @@
 //!             [--status] [--bell none|visual|audible|both]
 //!             [--compose ralt|rwin|menu|rctrl|caps]
 //!             [--keyboard <vendor>:<product>=<layout>]... [--mirror <file>]
+//!             [--serial <device> [--serial-size <columns>x<rows>]]
 //! zbm console release [--timeout <milliseconds>]
 //! zbm console reattach [--timeout <milliseconds>]
 //! zbm console layout [<name>]
@@ -97,6 +98,7 @@ Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
                    [--bell none|visual|audible|both] [--compose ralt|rwin|menu|rctrl|caps]
                    [--keyboard <vendor>:<product>=<layout>]... [--mirror <file>]
                    [--mode <width>x<height>] [--blank <minutes>] [--cells-fd <fd>]
+                   [--serial <device> [--serial-size <columns>x<rows>]]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
@@ -152,6 +154,10 @@ pub struct Options {
     pub blank_minutes: Option<u32>,
     /// The descriptor of the client channel the supervisor passed.
     pub cells_fd: Option<i32>,
+    /// The serial console served too (ROADMAP.md UI9).
+    pub serial: Option<PathBuf>,
+    /// Its size, columns and rows; 80x25 otherwise.
+    pub serial_size: Option<(u16, u16)>,
 }
 
 /// The options in `args`, or `None` when one is wrong.
@@ -193,6 +199,13 @@ pub fn parse(args: &[String]) -> Option<Options> {
             }
             "--cells-fd" => {
                 options.cells_fd = Some(args.next()?.parse().ok().filter(|&fd| fd > 2)?);
+            }
+            "--serial" => options.serial = Some(PathBuf::from(args.next()?)),
+            "--serial-size" => {
+                let (columns, rows) = args.next()?.split_once('x')?;
+                let size = (columns.parse().ok()?, rows.parse().ok()?);
+                options.serial_size = Some(size).filter(|&(columns, rows)| columns > 0 && rows > 0);
+                options.serial_size?;
             }
             _ => return None,
         }
@@ -343,6 +356,12 @@ fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &P
         compose_key: options.compose_key,
         mode: options.mode,
         cells_fd: options.cells_fd,
+        serial: options.serial.clone().map(|device| {
+            let size = options
+                .serial_size
+                .unwrap_or(zbm_console::serial::DEFAULT_SIZE);
+            (device, size)
+        }),
         blank: options
             .blank_minutes
             .map(|minutes| Duration::from_secs(u64::from(minutes) * 60)),
@@ -362,7 +381,7 @@ fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &P
 /// Confines the console (ROADMAP.md, SE11) before it starts its threads,
 /// with its directories made first, as their rules need them; what it
 /// could not confine is logged, and it runs on.
-fn confine(places: &Places, mirror: Option<&Path>) {
+fn confine(places: &Places, (mirror, serial): (Option<&Path>, Option<&Path>)) {
     let _ = RealFiles.create_dir_all(&places.base);
     let _ = zbm_sys::socket::make_directory(&places.socket);
     let profile = sandbox::Console {
@@ -374,6 +393,7 @@ fn confine(places: &Places, mirror: Option<&Path>) {
             .unwrap_or_default(),
         share: PathBuf::from("/usr/share/zfsbootmenu"),
         mirror: mirror.map(Path::to_owned),
+        serial: serial.map(Path::to_owned),
     };
     match profile.confine() {
         Ok(applied) => places.log(6, &format!("confined: {}", sandbox::describe(&applied))),
@@ -411,7 +431,10 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         names: crate::layouts::available(&files, directory),
         load: &mut load,
     };
-    confine(&places, options.mirror.as_deref());
+    confine(
+        &places,
+        (options.mirror.as_deref(), options.serial.as_deref()),
+    );
     match serve(&settings, &places, &mut grid, layouts) {
         Ok(()) => 0,
         Err(error) => {

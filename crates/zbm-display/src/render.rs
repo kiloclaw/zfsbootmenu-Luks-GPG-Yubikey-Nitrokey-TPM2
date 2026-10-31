@@ -52,6 +52,13 @@ impl CellRenderer {
         &self.grid
     }
 
+    /// Draws the cell at column 0, row 0 at `origin` on the frame from now
+    /// on ([`Grid::set_origin`]); the cells cached stay, as they do not
+    /// depend on where they go.
+    pub fn set_origin(&mut self, origin: (u32, u32)) {
+        self.grid.set_origin(origin);
+    }
+
     /// The cell on the frame, as (width, height) in pixels.
     pub fn cell(&self) -> (u32, u32) {
         self.grid.cell()
@@ -154,7 +161,13 @@ impl CellRenderer {
             style: key.style,
             span: key.span,
         };
-        self.grid.draw_text(&mut self.scratch, 0, 0, text, &[]);
+        let cell = Area {
+            x: 0,
+            y: 0,
+            width: width / u32::from(key.span.max(1)),
+            height,
+        };
+        self.grid.draw_text_in(&mut self.scratch, cell, text, &[]);
         (0..height)
             .filter_map(|y| self.scratch.row(y))
             .flatten()

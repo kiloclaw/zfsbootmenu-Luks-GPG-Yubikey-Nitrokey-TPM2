@@ -75,6 +75,8 @@ struct FakeHost {
     layouts: Vec<String>,
     /// What was said in the kernel log.
     notes: Vec<String>,
+    /// The size of the serial console it serves too, if it does.
+    serial: Option<(u16, u16)>,
 }
 
 impl FakeHost {
@@ -97,6 +99,7 @@ impl FakeHost {
             to_client: Vec::new(),
             layouts: Vec::new(),
             notes: Vec::new(),
+            serial: None,
         }
     }
 }
@@ -118,6 +121,10 @@ impl Host for FakeHost {
 
     fn next_layout(&mut self) {
         self.next_layouts += 1;
+    }
+
+    fn serial_size(&self) -> Option<(u16, u16)> {
+        self.serial
     }
 
     fn switch_layout(&mut self, name: &str) {
@@ -559,4 +566,5 @@ fn ctrl_alt_keys_and_requests_change_the_font_s_size() {
 mod blanking;
 mod client;
 mod pacing;
+mod serial;
 mod tell;

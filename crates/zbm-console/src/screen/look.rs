@@ -106,7 +106,7 @@ fn previewed(cursor: Option<Cursor>, (line, column): (usize, usize)) -> Option<c
 
 /// The style of the search bar and the label: the default colours
 /// reversed.
-fn reversed(colours: Table<'_>) -> CellStyle {
+pub(super) fn reversed(colours: Table<'_>) -> CellStyle {
     let named = |name| colour::resolve(colours, Color::Named(name), false);
     CellStyle {
         fg: named(NamedColor::Background),

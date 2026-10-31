@@ -4,7 +4,6 @@
 //! console then draws in a new grid, which the caller makes, and the
 //! programs are told the new size.
 
-use alacritty_terminal::term::test::TermSize;
 use zbm_display::frame::Area;
 use zbm_display::grid::Grid;
 use zbm_display::keys::{Key, KeyPress};
@@ -134,20 +133,9 @@ impl Console {
     /// Draws in `grid` from now on: the terminal gets as many cells as fit
     /// the display, its lines rewrapped, and the frame is drawn again.
     pub fn set_grid(&mut self, grid: Grid) {
-        let (columns, rows) = grid.dimensions(self.pixels());
-        let status = u16::from(self.has_status_line());
-        let (columns, rows) = (columns.max(1), rows.saturating_sub(status).max(1));
         self.grid = CellRenderer::new(grid);
         self.warm();
-        self.columns = columns;
-        self.rows = rows;
-        self.term
-            .resize(TermSize::new(usize::from(columns), usize::from(rows)));
-        self.forget_match();
-        self.repaint();
-        self.resize_cells();
-        // The terminal's events of the resize are not for the programs.
-        self.events.0.borrow_mut().clear();
+        self.place();
     }
 }
 

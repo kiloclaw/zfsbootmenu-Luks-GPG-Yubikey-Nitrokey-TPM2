@@ -41,6 +41,7 @@ fn confined(base: &str) {
         sockets: sockets.clone(),
         share: base.join("share"),
         mirror: None,
+        serial: None,
     };
     let applied = console.confine().unwrap();
     println!("{}", describe(&applied));

@@ -115,24 +115,7 @@ impl Console {
     /// and the cells under the border are drawn on the next frame, the
     /// first and last rows and columns, not the whole screen.
     fn clear_flash(&mut self) {
-        let (width, height) = self.frame.size();
-        let (cell_width, cell_height) = self.grid.cell();
-        let right = u32::from(self.columns) * cell_width;
-        let bottom = u32::from(self.display_rows()) * cell_height;
-        let margins = [
-            Area {
-                x: right,
-                y: 0,
-                width: width.saturating_sub(right),
-                height,
-            },
-            Area {
-                x: 0,
-                y: bottom,
-                width,
-                height: height.saturating_sub(bottom),
-            },
-        ];
+        let margins = self.margins();
         for margin in margins {
             self.frame.fill(margin, self.scheme.background);
         }

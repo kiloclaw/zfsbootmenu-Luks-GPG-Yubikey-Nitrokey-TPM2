@@ -75,6 +75,9 @@ enum Face {
 pub struct Grid {
     face: Face,
     name: String,
+    /// Where the cell at column 0, row 0 is on the frame: the top left
+    /// corner, unless a screen smaller than the frame is centred on it.
+    origin: (u32, u32),
 }
 
 impl Grid {
@@ -88,6 +91,7 @@ impl Grid {
                 glyphs: HashMap::new(),
             },
             name: "psf".to_owned(),
+            origin: (0, 0),
         }
     }
 
@@ -101,6 +105,7 @@ impl Grid {
         Grid {
             face: Face::Outline(Box::new(faces)),
             name: "ttf".to_owned(),
+            origin: (0, 0),
         }
     }
 
@@ -114,6 +119,17 @@ impl Grid {
     /// The font's name in messages.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Where the cell at column 0, row 0 is on the frame, in pixels.
+    pub fn origin(&self) -> (u32, u32) {
+        self.origin
+    }
+
+    /// Draws the cell at column 0, row 0 at `origin` from now on: a screen
+    /// of fewer cells than the frame holds, centred on it.
+    pub fn set_origin(&mut self, origin: (u32, u32)) {
+        self.origin = origin;
     }
 
     /// How many fonts the grid draws with: its faces and fallback fonts,
@@ -147,8 +163,8 @@ impl Grid {
     pub fn area(&self, column: u16, row: u16) -> Area {
         let (width, height) = self.cell();
         Area {
-            x: u32::from(column) * width,
-            y: u32::from(row) * height,
+            x: self.origin.0 + u32::from(column) * width,
+            y: self.origin.1 + u32::from(row) * height,
             width,
             height,
         }
@@ -190,6 +206,19 @@ impl Grid {
         neighbours: &[Neighbour],
     ) {
         let cell = self.area(column, row);
+        self.draw_text_in(frame, cell, text, neighbours);
+    }
+
+    /// Draws `text` in the cells from the one at `cell` on `frame`, as
+    /// [`Grid::draw_text`] does: what the cache of drawn cells draws into
+    /// a frame of one cell, wherever the screen is.
+    pub fn draw_text_in(
+        &mut self,
+        frame: &mut Frame,
+        cell: Area,
+        text: Text,
+        neighbours: &[Neighbour],
+    ) {
         let area = Area {
             width: cell.width * u32::from(text.span.max(1)),
             ..cell
