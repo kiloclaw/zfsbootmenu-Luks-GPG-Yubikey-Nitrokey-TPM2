@@ -680,7 +680,10 @@ does not have: it copies into memory.
 Not Covered
 -----------
 
-* Real YubiKey, Nitrokey and other FIDO2 or OpenPGP devices: the tests use stand-ins for them.
+* Real YubiKey, Nitrokey and other FIDO2 or OpenPGP devices: the tests use stand-ins for them. The Rust runtime's
+  YubiKey protocol (``hidraw``) is tested against a fake key in the unit tests; on a real key, ``zbm debug yubikey``
+  lists it with its serial number, and ``zbm debug yubikey SLOT CHALLENGE`` compares the slot's response with
+  ``ykchalresp``'s.
 * Images built with mkinitcpio: the build container has no mkinitcpio.
 * Secure Boot.
 * Clevis tang policies, which need a network server.

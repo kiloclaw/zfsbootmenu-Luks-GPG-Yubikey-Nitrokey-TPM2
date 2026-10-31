@@ -165,7 +165,8 @@ YubiKey challenge-response
 
 The scheme used by **yubikey-luks**: the typed passphrase (or its SHA-256) is sent to an HMAC-SHA1 slot, and the
 response (optionally appended to the challenge) is a LUKS passphrase. It is enabled per volume with the **ykchalresp**
-crypttab options.
+crypttab options. Images with the Rust runtime talk to the key over its OTP interface (**hidraw**) themselves, with
+**ykchalresp**\ (1) as the fallback; **zbm debug yubikey** lists the keys they reach.
 
 Key files and key scripts
 -------------------------

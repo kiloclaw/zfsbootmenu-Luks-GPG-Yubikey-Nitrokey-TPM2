@@ -4,7 +4,7 @@
 # The normal build does not read this file; it is selected with CLIPPY_CONF_DIR.
 
 # Names that are not code, for clippy::doc_markdown; ".." keeps clippy's own list.
-doc-valid-idents = ["ZFSBootMenu", "OpenZFS", "GnuPG", "OpenPGP", "YubiKey", "Nitrokey", "BusyBox", "HiDPI", "CachyOS", ".."]
+doc-valid-idents = ["ZFSBootMenu", "OpenZFS", "GnuPG", "OpenPGP", "YubiKey", "YubiKeys", "Nitrokey", "BusyBox", "HiDPI", "CachyOS", ".."]
 
 # Tests may unwrap, expect, panic and index: a failing test is meant to panic.
 allow-unwrap-in-tests = true

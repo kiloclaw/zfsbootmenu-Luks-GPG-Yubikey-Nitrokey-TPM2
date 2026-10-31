@@ -1,12 +1,15 @@
-//! The YubiKey personalization tools: whether a YubiKey is connected
-//! (`ykinfo -s`) and its HMAC-SHA1 response to a challenge
-//! (`ykchalresp -<slot> -i-`). The challenge goes to standard input and the
-//! response is captured as a secret.
+//! YubiKey HMAC-SHA1 challenge-response: natively over the key's OTP
+//! interface ([`otp`]), or with the YubiKey personalization tools, the
+//! fallback: whether a YubiKey is connected (`ykinfo -s`) and its response
+//! to a challenge (`ykchalresp -<slot> -i-`). The challenge goes to
+//! standard input and the response is captured as a secret.
 
 #![allow(
     clippy::disallowed_methods,
     reason = "an adapter: these command lines are built here and nowhere else"
 )]
+
+pub mod otp;
 
 use std::time::Duration;
 use zbm_platform::{Command, Input, Runner, Secret, Stream};

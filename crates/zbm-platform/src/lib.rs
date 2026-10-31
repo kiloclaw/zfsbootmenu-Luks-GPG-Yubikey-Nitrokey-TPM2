@@ -69,6 +69,7 @@ pub mod event;
 pub mod exec;
 pub mod files;
 pub mod filetest;
+pub mod hid;
 pub mod interaction;
 pub mod kernel;
 pub mod log;
@@ -88,6 +89,7 @@ pub use crash::CrashReporter;
 pub use env::{Environment, ProcessEnvironment};
 pub use exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner, TerminalRunner};
 pub use files::{FileKind, FileLock, Files, LockWait, Metadata, RealFiles};
+pub use hid::{FeatureReports, HidDevices, NoHid, Report, SystemHid};
 pub use interaction::Interaction;
 pub use kernel::{KernelLoader, NoKernelLoader, SystemKernelLoader};
 pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};
@@ -113,6 +115,8 @@ pub struct System<'a> {
     pub environment: &'a dyn Environment,
     /// Loading and starting another kernel.
     pub kernel: &'a dyn KernelLoader,
+    /// HID devices' feature reports, which YubiKeys answer.
+    pub hid: &'a dyn HidDevices,
 }
 
 impl<'a> System<'a> {
@@ -146,6 +150,7 @@ pub struct RealSystem {
     processes: SystemProcesses,
     environment: ProcessEnvironment,
     kernel: SystemKernelLoader,
+    hid: SystemHid,
 }
 
 impl RealSystem {
@@ -158,6 +163,7 @@ impl RealSystem {
             processes: SystemProcesses,
             environment: ProcessEnvironment,
             kernel: SystemKernelLoader,
+            hid: SystemHid,
         }
     }
 
@@ -187,6 +193,7 @@ impl RealSystem {
             processes: &self.processes,
             environment: &self.environment,
             kernel: &self.kernel,
+            hid: &self.hid,
         }
     }
 }
@@ -214,6 +221,8 @@ pub struct Context<'a> {
     processes: &'a dyn Processes,
     /// Environment variables.
     environment: &'a dyn Environment,
+    /// HID devices' feature reports.
+    hid: &'a dyn HidDevices,
 }
 
 impl<'a> Context<'a> {
@@ -226,6 +235,7 @@ impl<'a> Context<'a> {
             clock: system.clock,
             processes: system.processes,
             environment: system.environment,
+            hid: system.hid,
         }
     }
 
@@ -264,6 +274,11 @@ impl<'a> Context<'a> {
     /// Environment variables.
     pub fn environment(&self) -> &'a dyn Environment {
         self.environment
+    }
+
+    /// HID devices' feature reports.
+    pub fn hid(&self) -> &'a dyn HidDevices {
+        self.hid
     }
 
     /// Sends this thread's kernel log messages to this context's files, for

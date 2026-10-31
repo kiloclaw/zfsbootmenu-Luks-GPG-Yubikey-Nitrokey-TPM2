@@ -22,6 +22,7 @@
 
 pub mod console;
 pub mod drm;
+pub mod hidraw;
 pub mod kexec;
 pub mod memory;
 mod process;

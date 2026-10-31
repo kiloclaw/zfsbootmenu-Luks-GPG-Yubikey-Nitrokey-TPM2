@@ -350,6 +350,13 @@ is a LUKS passphrase::
 Volumes enrolled with ``yubikey-luks`` work unchanged. If ``yubikey-luks`` was set up with ``HASH=1`` or
 ``CONCATENATE=1``, add ``ykchalresp-hash`` or ``ykchalresp-concat`` respectively.
 
+Images with the Rust runtime talk to the YubiKey themselves, over its OTP interface (``/dev/hidraw*``), as
+``ykchalresp`` does: the first 64 bytes of the challenge go to the slot, and the response is its HMAC-SHA1 in
+hexadecimal. ``ykchalresp`` is the fallback, where the kernel has no ``hidraw`` or the key cannot be opened. In the
+recovery shell, ``zbm debug yubikey`` lists the keys with their serial numbers, and ``zbm debug yubikey 2 test`` prints
+slot 2's response to the test challenge ``test`` beside ``ykchalresp``'s (a response to a real passphrase is a LUKS
+key: use a test challenge).
+
 Tools in the recovery shell
 ---------------------------
 
@@ -491,7 +498,7 @@ Options for ``dracut.conf.d`` or the ZFSBootMenu ``mkinitcpio.conf``:
   Include ``pcscd`` and its card reader drivers for readers that GnuPG's built-in driver does not handle.
 
 ``zfsbootmenu_luks_yubikey=no``
-  Leave out ``ykchalresp``.
+  Leave out ``ykchalresp`` and ``ykinfo``; images with the Rust runtime still reach YubiKeys over ``hidraw``.
 
 The build container (``packaging/container``) installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers and
 openssl together with systemd's cryptsetup token plugins, so its images support every method, including tokens that only

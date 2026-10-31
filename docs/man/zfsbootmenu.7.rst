@@ -777,7 +777,9 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 
 **zfsbootmenu_luks_yubikey=no**
 
-  Omit **ykchalresp**, used for YubiKey challenge-response unlocking.
+  Omit **ykchalresp** and **ykinfo**, used for YubiKey challenge-response unlocking.
+  Images with the Rust runtime reach YubiKeys over **hidraw** themselves,
+  and need them only as the fallback.
 
 **zfsbootmenu_miser=yes** (mkinitcpio only)
 

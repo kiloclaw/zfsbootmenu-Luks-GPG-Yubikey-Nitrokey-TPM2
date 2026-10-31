@@ -16,6 +16,9 @@
 //! - `zbm debug saved` lists the logs saved on the EFI system partition
 //!   (`zbm.save_logs`), and `zbm debug save` saves this boot's now
 //!   ([`crate::saved`]).
+//! - `zbm debug yubikey` lists the YubiKeys reached over their OTP
+//!   interface, and checks a slot's response against `ykchalresp`
+//!   ([`yubikey`]).
 //! - `zbm debug panic`, only in builds with the `crash-test` feature, panics,
 //!   so that VM tests can check the whole way from a panic to a symbolized
 //!   report.
@@ -28,6 +31,7 @@
 pub mod files;
 pub mod journal;
 pub mod machine;
+pub mod yubikey;
 
 use std::path::Path;
 
@@ -50,6 +54,8 @@ Usage: zbm debug crash [--list]   print the latest crash report, or list them
        zbm debug pools            the pools and the boot environments
        zbm debug saved            list the logs saved on the EFI system partition
        zbm debug save             save this boot's logs there now
+       zbm debug yubikey [SLOT CHALLENGE]
+                                  the YubiKeys, or a slot's response beside ykchalresp's
 ";
 
 /// When the crash report `name` was written, as its name tells:
@@ -137,6 +143,10 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
     if let [what @ ("luks" | "pools")] = words.as_slice() {
         return machine::run(what, io);
+    }
+    if let ["yubikey", rest @ ..] = words.as_slice() {
+        let real = zbm_platform::RealSystem::new();
+        return yubikey::run_in(&real.context(), rest, io);
     }
     if matches!(words.first(), Some(&("saved" | "save"))) {
         let code = crate::saved::run(Path::new(BASE), &words, io);

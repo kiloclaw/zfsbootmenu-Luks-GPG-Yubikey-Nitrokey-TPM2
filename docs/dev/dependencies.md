@@ -81,7 +81,7 @@ stays for a reason:
 | `tpm2_*` | CD10; `tpm2-tools` stay in the recovery shell | — |
 | `fido2-token`, `fido2-assert` | CD7 | — |
 | `jose`, `luksmeta`, `curl` | CD8, CD11 | — |
-| `ykchalresp`, `ykinfo` | SB11 | — |
+| `ykchalresp`, `ykinfo` | SB11 (done: the Rust runtime speaks the OTP interface's protocol over `hidraw`, `zbm_crypt::yubikey::otp`) | The legacy runtime, and the Rust runtime's fallback where the kernel has no `hidraw`; they can leave Rust images once real keys have been checked against them (`zbm debug yubikey SLOT CHALLENGE`) |
 
 ## Host tools
 

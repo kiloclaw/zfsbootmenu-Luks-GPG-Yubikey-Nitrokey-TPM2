@@ -99,6 +99,11 @@ and any kernel the call refuses, as on a kernel built without it; a teardown hoo
 own, which then boots. Under lockdown or Secure Boot, the call alone loads: a kernel it refuses (an unsigned one) or a
 device tree is not loaded at all, and the boot stops with the reason in the log.
 
+The Rust runtime asks YubiKeys for their challenge-response itself, over their OTP interface (`/dev/hidraw*`), as
+`ykchalresp` does, so it no longer needs `ykchalresp` and `ykinfo`, whose library upstream no longer maintains; they
+stay in images as the fallback. `zbm debug yubikey` lists the keys it reaches with their serial numbers, and
+`zbm debug yubikey SLOT CHALLENGE` compares a slot's response with `ykchalresp`'s.
+
 On a machine with a TPM, the Rust runtime measures what it boots (ADR 0008): the kernel and the initramfs into PCR 9
 and the command line into PCR 8, in every active bank, then the separator `zbm-unsealed` into PCR 9, so that a TPM2
 token bound to PCR 9 unseals for ZFSBootMenu and not for the system it booted. The event log (CEL-JSON) goes to the

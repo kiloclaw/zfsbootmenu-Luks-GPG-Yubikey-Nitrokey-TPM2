@@ -312,6 +312,9 @@ impl<'l> Case<'l> {
             environment: &self.env,
             // The unlocking boots nothing.
             kernel: &zbm_platform::NoKernelLoader,
+            // A YubiKey of the host is not asked: the cases' `ykchalresp`
+            // answers instead.
+            hid: &zbm_platform::NoHid,
         };
         let mut settings = Settings::from_environment(&self.env);
         settings.colors = false;

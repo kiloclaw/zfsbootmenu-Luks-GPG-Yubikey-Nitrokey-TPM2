@@ -144,7 +144,7 @@ Option                                  Default                      Effect
 ``zfsbootmenu_luks_gpg_keys``           (none)                       public keys to export from the host keyring
 ``zfsbootmenu_luks_gpg_pubkeys``        (none)                       public key files to import
 ``zfsbootmenu_luks_pcscd``              ``no``                       ``pcscd`` and card reader drivers
-``zfsbootmenu_luks_yubikey``            ``yes``                      ``ykchalresp`` and ``ykinfo``
+``zfsbootmenu_luks_yubikey``            ``yes``                      ``ykchalresp``, ``ykinfo`` (Rust: fallback)
 ======================================  ===========================  ==============================================
 
 Each optional component is included only if it is installed on the build host.

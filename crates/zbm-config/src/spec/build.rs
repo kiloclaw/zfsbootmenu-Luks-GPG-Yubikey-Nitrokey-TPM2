@@ -476,14 +476,14 @@ Include **pcscd** and its card reader drivers, for smart card readers that GnuPG
 driver does not support.
 ";
 
-/// `zfsbootmenu_luks_yubikey`: whether the image has ykchalresp.
+/// `zfsbootmenu_luks_yubikey`: whether the image has ykchalresp and ykinfo.
 pub static LUKS_YUBIKEY: OptionSpec = OptionSpec {
     name: "zfsbootmenu_luks_yubikey",
     aliases: &[],
     source: Source::BuildOption,
     value: Value::Bool,
     default: Some("yes"),
-    summary: "Whether the image has ykchalresp",
+    summary: "Whether the image has ykchalresp and ykinfo",
     reader: Reader::Shell("the dracut module and the mkinitcpio hook"),
     doc: Doc::Entry {
         heading: "**zfsbootmenu_luks_yubikey=no**",
@@ -494,7 +494,9 @@ pub static LUKS_YUBIKEY: OptionSpec = OptionSpec {
 };
 
 const LUKS_YUBIKEY_DOC: &str = r"
-Omit **ykchalresp**, used for YubiKey challenge-response unlocking.
+Omit **ykchalresp** and **ykinfo**, used for YubiKey challenge-response unlocking.
+Images with the Rust runtime reach YubiKeys over **hidraw** themselves,
+and need them only as the fallback.
 ";
 
 /// `zfsbootmenu_miser`: keeps busybox's utilities instead of the system's.

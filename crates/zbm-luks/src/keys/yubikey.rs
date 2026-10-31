@@ -3,10 +3,21 @@
 //!
 //! The typed passphrase (or its SHA-256, with `ykchalresp-hash`) is the
 //! challenge, and the response (after the challenge, with
-//! `ykchalresp-concat`) is the LUKS passphrase. The challenge reaches
-//! `ykchalresp` on standard input, and its response is captured as a secret.
+//! `ykchalresp-concat`) is the LUKS passphrase.
+//!
+//! The challenge goes to the key over its OTP interface (`hidraw`,
+//! `zbm_crypt::yubikey::otp`, ROADMAP.md SB11); `ykchalresp` is the
+//! fallback, where the kernel has no `hidraw` or a device cannot be
+//! reached, its challenge on standard input and its response captured as
+//! a secret.
+
+pub mod check;
+
+use std::path::PathBuf;
 
 use zbm_platform::secret::Secret;
+
+use zbm_crypt::yubikey::otp::{self, Otp, OtpError};
 
 use super::Target;
 use crate::config::YubiKey;
@@ -18,13 +29,59 @@ use zbm_platform::interaction::Wait;
 use zbm_platform::interaction::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 
 impl Unlocker<'_> {
-    /// Whether a YubiKey is connected; without `ykinfo` in the image,
-    /// `ykchalresp` itself reports a missing key.
+    /// Whether a YubiKey is connected: an OTP interface among the `hidraw`
+    /// devices, or one `ykinfo` finds; where the kernel lists no `hidraw`
+    /// devices and the image has no `ykinfo`, `ykchalresp` itself reports
+    /// a missing key.
     pub fn ykchalresp_present(&self) -> bool {
-        if !self.context().command_exists("ykinfo") {
+        let context = self.context();
+        if !otp::devices(context.files()).is_empty() {
             return true;
         }
-        zbm_crypt::yubikey::YubiKey::new(self.context().runner()).is_present()
+        if context.command_exists("ykinfo") {
+            return zbm_crypt::yubikey::YubiKey::new(context.runner()).is_present();
+        }
+        !otp::has_hidraw(context.files())
+    }
+
+    /// Whether a YubiKey can be asked at all: the kernel lists `hidraw`
+    /// devices, or the image has `ykchalresp`.
+    fn can_ask_yubikey(&self) -> bool {
+        otp::has_hidraw(self.context().files()) || self.context().command_exists("ykchalresp")
+    }
+
+    /// The response of the YubiKey's `slot` to `challenge`: from the first
+    /// key that gives one over its OTP interface, or from `ykchalresp`
+    /// when none can be reached that way.
+    fn yubikey_response(&self, slot: u8, challenge: &Secret) -> Option<Secret> {
+        let context = self.context();
+        let devices: Vec<PathBuf> = otp::devices(context.files());
+        let protocol = Otp::new(context.hid(), context.clock());
+        let mut reached = false;
+        for device in &devices {
+            match protocol.response(device, slot, challenge) {
+                Ok(response) => {
+                    let serial = protocol
+                        .serial(device)
+                        .map_or_else(|_| "-".to_owned(), |serial| serial.to_string());
+                    zbm_trace::info!(
+                        "YubiKey {serial} on {device} responded from slot {slot}";
+                        %serial, device = %device.display(), %slot
+                    );
+                    return Some(response);
+                }
+                Err(error) => {
+                    reached |= !matches!(error, OtpError::Io(_));
+                    zbm_trace::warn!("{device}: {error}"; device = %device.display(), %error);
+                }
+            }
+        }
+        // A key that was reached and gave nothing would give nothing to
+        // `ykchalresp` either, and would want another touch.
+        if reached || !context.command_exists("ykchalresp") {
+            return None;
+        }
+        zbm_crypt::yubikey::YubiKey::new(context.runner()).response(slot, challenge)
     }
 
     /// Opens a volume with YubiKey challenge-response, with `tries`
@@ -44,8 +101,11 @@ impl Unlocker<'_> {
         let failed = || LuksError::YubiKey {
             device: device.to_string(),
         };
-        if !self.context().command_exists("ykchalresp") {
-            zbm_trace::warn!("ykchalresp is not available to unlock {device}"; %device);
+        if !self.can_ask_yubikey() {
+            zbm_trace::warn!(
+                "neither hidraw nor ykchalresp is available to unlock {device}";
+                %device
+            );
             return Err(failed());
         }
         let mut attempt = 0;
@@ -86,8 +146,7 @@ impl Unlocker<'_> {
             pass
         };
         self.tell(Told::Touch, "Touch the YubiKey if it blinks.\n");
-        let response = zbm_crypt::yubikey::YubiKey::new(self.context().runner())
-            .response(yubikey.slot, &challenge);
+        let response = self.yubikey_response(yubikey.slot, &challenge);
         let Some(response) = response else {
             self.tell(Told::Refused, "The YubiKey did not respond.\n");
             return Attempt::NoResponse;
@@ -256,7 +315,151 @@ mod tests {
         });
         assert!(
             fake.kmsg()
-                .contains("ykchalresp is not available to unlock /dev/sda")
+                .contains("neither hidraw nor ykchalresp is available to unlock /dev/sda")
         );
+    }
+
+    /// The hexadecimal of the native fake key's response to `ykpass`: 20
+    /// bytes, `0f 1e 2d` and zeros.
+    fn native_response() -> Vec<u8> {
+        let mut text = b"0f1e2d".to_vec();
+        text.extend_from_slice(&[b'0'; 34]);
+        text
+    }
+
+    /// A machine with `key` plugged in, whose volume opens with
+    /// [`native_response`].
+    fn native_machine(key: zbm_testkit::fakes::FakeYubiKey) -> FakeSystem {
+        let fake = FakeSystem::new();
+        fake.plug_yubikey("hidraw0", key);
+        fake.runner.on(|command| {
+            let given = match command.get_stdin() {
+                Input::Secret(secret) => secret.expose().to_vec(),
+                _ => Vec::new(),
+            };
+            let opens = given == native_response();
+            (command.program() == "cryptsetup")
+                .then(|| Ok(Output::new(Status::exited(if opens { 0 } else { 2 }), "")))
+        });
+        fake
+    }
+
+    /// A native fake key whose slot 2 answers `ykpass` with `0f 1e 2d`.
+    fn native_key() -> zbm_testkit::fakes::FakeYubiKey {
+        zbm_testkit::fakes::FakeYubiKey::new(|slot, challenge| {
+            let mut response = vec![0x0f, 0x1e, 0x2d];
+            response.resize(20, 0);
+            (slot == 2 && challenge == b"ykpass").then_some(response)
+        })
+    }
+
+    const SLOT_2: YubiKey = YubiKey {
+        slot: 2,
+        hash: false,
+        concat: false,
+    };
+
+    #[test]
+    fn the_key_answers_over_hidraw_without_ykchalresp() {
+        let fake = native_machine(native_key().with_serial(4242));
+        fake.console.secret(b"ykpass");
+        let args = [];
+        let target = crate::testing::target("v", "/dev/sda", &args);
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+            assert!(session.ykchalresp_present());
+            assert!(session.try_ykchalresp(target, &SLOT_2, 1).is_ok());
+        });
+        assert!(
+            fake.runner
+                .lines()
+                .iter()
+                .all(|line| !line.starts_with("ykchalresp") && !line.starts_with("ykinfo"))
+        );
+        assert_eq!(
+            fake.hid.challenges("/dev/hidraw0"),
+            [(2, b"ykpass".to_vec())]
+        );
+        assert!(
+            fake.kmsg()
+                .contains("YubiKey 4242 on /dev/hidraw0 responded from slot 2"),
+            "{}",
+            fake.kmsg()
+        );
+        fake.assert_no_leak(b"ykpass");
+        fake.assert_no_leak(&native_response());
+    }
+
+    #[test]
+    fn a_key_that_was_reached_and_gave_nothing_is_not_asked_again_by_ykchalresp() {
+        let fake = native_machine(native_key().waiting_for_touch(usize::MAX));
+        fake.environment.set("PATH", "/bin");
+        fake.files.file_with_mode("/bin/ykchalresp", "", 0o755);
+        fake.console.secret(b"ykpass");
+        let args = [];
+        let target = crate::testing::target("v", "/dev/sda", &args);
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+            assert!(session.try_ykchalresp(target, &SLOT_2, 1).is_err());
+        });
+        assert!(
+            fake.console
+                .output_text()
+                .contains("The YubiKey did not respond.")
+        );
+        assert!(
+            fake.runner
+                .lines()
+                .iter()
+                .all(|line| !line.starts_with("ykchalresp"))
+        );
+        assert!(
+            fake.kmsg().contains("the YubiKey was not touched"),
+            "{}",
+            fake.kmsg()
+        );
+    }
+
+    #[test]
+    fn a_key_that_cannot_be_reached_over_hidraw_is_asked_through_ykchalresp() {
+        let fake = yubikey_machine(b"ykpass".to_vec(), b"0f1e2d".to_vec());
+        fake.plug_yubikey("hidraw0", native_key().gone());
+        fake.console.secret(b"ykpass");
+        let args = [];
+        let target = crate::testing::target("v", "/dev/sda", &args);
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+            assert!(session.try_ykchalresp(target, &SLOT_2, 1).is_ok());
+        });
+        assert!(
+            fake.runner
+                .lines()
+                .contains(&"ykchalresp -2 -i-".to_owned())
+        );
+        let log = fake.kmsg();
+        assert!(
+            log.contains("/dev/hidraw0: the YubiKey could not be reached"),
+            "{log}"
+        );
+    }
+
+    #[test]
+    fn a_key_is_present_when_hidraw_or_ykinfo_shows_one() {
+        let settings = Settings::new("/zfsbootmenu");
+        // Neither: `ykchalresp` will say.
+        let bare = FakeSystem::new();
+        with_session(&bare, &settings, |session| {
+            assert!(session.ykchalresp_present());
+        });
+        // `hidraw` without a YubiKey.
+        let empty = FakeSystem::new();
+        empty.files.dir("/sys/class/hidraw");
+        with_session(&empty, &settings, |session| {
+            assert!(!session.ykchalresp_present());
+        });
+        // `ykinfo` finds one.
+        empty.environment.set("PATH", "/bin");
+        empty.files.file_with_mode("/bin/ykinfo", "", 0o755);
+        with_session(&empty, &settings, |session| {
+            assert!(session.ykchalresp_present());
+        });
+        assert_eq!(empty.runner.lines(), ["ykinfo -s"]);
     }
 }
