@@ -211,7 +211,7 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
 
 /// The kernel log saved on the FAT disk `image`, of its first saved boot;
 /// empty when it holds none.
-pub(super) fn saved_kernel_log(image: &Path) -> Result<String> {
+pub(crate) fn saved_kernel_log(image: &Path) -> Result<String> {
     let listed = crate::disks::run(
         Command::new("mdir")
             .env("MTOOLS_SKIP_CHECK", "1")

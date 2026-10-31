@@ -4,7 +4,7 @@ use pretty_assertions::assert_eq;
 use sha2::{Digest as _, Sha256};
 
 use super::*;
-use crate::testing::{checks, cleanup, settings};
+use crate::testing::{Step, checks, cleanup, scripted, settings};
 
 #[test]
 fn the_other_host_id_is_written_little_endian() {
@@ -36,11 +36,22 @@ fn a_volume_that_unlocked_itself_holds_start_up_to_its_pool() {
     check_unlocked_itself(&test, &boot(&adopted, &["tpm2pin"]), "");
     check_waits(
         &test,
+        "",
         &format!("ZFSBootMenu: tplain/ROOT/be {WAITS}: it boots only when chosen\n"),
     );
-    check_waits(&test, "Booting vmlinuz for tplain/ROOT/be\nBE-KERNEL 7.3\n");
-    check_typed(&test, &boot(status, &["luks"]), "");
+    check_waits(
+        &test,
+        "Booting vmlinuz for tplain/ROOT/be\nBE-KERNEL 7.3\n",
+        "",
+    );
+    check_typed(
+        &test,
+        &boot(status, &["luks"]),
+        "ZFSBootMenu: running init stage\n",
+    );
     check_typed(&test, &boot(status, &[]), &log);
+    // A boot that saved no kernel log says nothing of its defaults.
+    check_typed(&test, &boot(status, &["luks"]), "");
 
     let results: Vec<bool> = checks(&test)
         .iter()
@@ -51,7 +62,8 @@ fn a_volume_that_unlocked_itself_holds_start_up_to_its_pool() {
     assert_eq!(&results[6..8], [true, true]);
     assert_eq!(&results[8..10], [false, false]);
     assert_eq!(&results[10..12], [true, true]);
-    assert_eq!(&results[12..], [false, false]);
+    assert_eq!(&results[12..14], [false, false]);
+    assert_eq!(&results[14..], [true, false]);
     cleanup(&settings);
 }
 
@@ -71,6 +83,38 @@ fn under_lockdown_the_kernel_must_not_load() {
     assert_eq!(results, [true, true, false, false]);
     cleanup(&settings);
 }
+
+#[test]
+fn after_the_refusal_the_failed_boot_is_closed_and_the_kernel_log_read() {
+    let settings = settings("integrity-lockdown-shell");
+    let test = Test::new(&settings, "integrity-lockdown").unwrap();
+    let script = vec![
+        Step::Say(
+            "\x1b[2J\x1b[1;1H BOOT ENVIRONMENTS \x1b[5;5H✗ unable to boot tplain/ROOT/be\r\n",
+        ),
+        Step::Keys("\r"),
+        Step::Keys("!\r"),
+        Step::Say("zfsbootmenu ~ > "),
+        Step::Hear("stty -echo cols 250; export PS1='zbm# ' PS2=''"),
+        Step::Hear("true; echo RC=$?"),
+        Step::Say("RC=0\r\n"),
+        Step::Hear(KERNEL_LOG_RC),
+        Step::Say("[ 9.1] ZFSBootMenu: lockdown is on: the kernel refused /mnt/boot/vmlinuz\r\n"),
+        Step::Say("RC=0\r\n"),
+    ];
+    assert_eq!(KERNEL_LOG_RC, format!("{}; echo RC=$?", logs::KERNEL_LOG));
+    let (mut vm, guest) = scripted(&test, script);
+
+    let log = after_refusal(&mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    cleanup(&settings);
+    assert!(log.contains(REFUSED), "{log}");
+}
+
+/// The line the shell hears for [`logs::KERNEL_LOG`].
+const KERNEL_LOG_RC: &str = "dmesg | grep -F -e 'host ID alone' -e 'unlocked itself' \
+                             -e 'lockdown is on'; echo RC=$?";
 
 /// The SHA-256 digest of `parts`, one after the other.
 fn sha256(parts: &[&[u8]]) -> Vec<u8> {

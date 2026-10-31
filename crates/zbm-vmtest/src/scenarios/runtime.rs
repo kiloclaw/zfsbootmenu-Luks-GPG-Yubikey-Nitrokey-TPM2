@@ -97,7 +97,7 @@ mod key_file;
 mod keysource;
 mod record_fixtures;
 mod record_zfs;
-mod saved;
+pub(crate) mod saved;
 mod setup;
 mod signals;
 

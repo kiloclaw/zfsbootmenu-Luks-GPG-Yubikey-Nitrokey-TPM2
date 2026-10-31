@@ -32,7 +32,7 @@
 
 use std::fmt::Write as _;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
@@ -51,6 +51,9 @@ use crate::text::clean;
 use crate::vm::Vm;
 
 mod hookroot;
+mod logs;
+
+use logs::{LOGS_LABEL, after_refusal, kernel_log_in_shell, logs_disk, saved_log};
 #[cfg(test)]
 mod tests;
 
@@ -67,8 +70,9 @@ const BE_CMDLINE: &str = "console=ttyS0 loglevel=4";
 /// The host ID of the other host, `deadbeef`, as `/etc/hostid` holds it.
 const FOREIGN: [u8; 4] = [0xef, 0xbe, 0xad, 0xde];
 
-/// The kernel command line of the boots after setup: ZFSBootMenu's
-/// messages on the serial console.
+/// The kernel command line of the boots after setup. ZFSBootMenu keeps its
+/// log off the serial console: the checks read it from the logs a boot
+/// saves ([`logs::LOGS_LABEL`]), or from `dmesg` in the recovery shell.
 const BASE: &str = "console=ttyS0 zbm.timeout=3 loglevel=7";
 
 /// What start-up logs when the volumes unlocked themselves.
@@ -243,20 +247,26 @@ fn prepare_volume(test: &Test, tcti: &str, part: &mut Option<String>) -> Result<
 }
 
 /// Starts the machine of `scenario` with the disks `indexes` and the
-/// command line `append`, with the software TPM when `tpm`.
+/// command line `append`, with the software TPM when `tpm`, saving its logs
+/// on the FAT disk `logs` when there is one.
 fn start<'t>(
     test: &'t Test,
     scenario: &str,
     (append, indexes): (&str, &[usize]),
-    tpm: bool,
+    (tpm, logs): (bool, Option<&Path>),
 ) -> Result<Vm<'t>> {
     let settings = test.settings();
     let image = image(settings)?;
-    let disks = indexes
+    let mut disks = indexes
         .iter()
         .map(|&index| disk(settings, index, false))
         .collect::<Result<Vec<_>>>()?;
-    let mut machine = Machine::boot(&image, append).with_disks(disks);
+    let mut append = append.to_owned();
+    if let Some(logs) = logs {
+        append.push_str(&format!(" zbm.save_logs=LABEL={LOGS_LABEL}"));
+        disks.push(Disk::new(logs.to_owned(), "logs"));
+    }
+    let mut machine = Machine::boot(&image, &append).with_disks(disks);
     if tpm {
         let state = tpm_dir(settings);
         Swtpm::new(&state)?.clear_lockout()?;
@@ -283,14 +293,18 @@ fn unattended(test: &Test) -> Result<()> {
 /// and `tauto`'s boot environment boots by itself.
 fn unlocked_itself(test: &Test) -> Result<()> {
     let append = format!("{BASE} zbm.prefer=tauto");
-    let mut vm = start(test, "unattended-tpm", (&append, &[0, 1, 2]), true)?;
+    let scenario = "unattended-tpm";
+    let logs = logs_disk(test, scenario)?;
+    let mut vm = start(test, scenario, (&append, &[0, 1, 2]), (true, Some(&logs)))?;
     let boot = follow_boot(&mut vm, Follow::default())?;
-    check_unlocked_itself(test, &boot, &serial_text(&vm)?);
+    vm.kill();
+    check_unlocked_itself(test, &boot, &saved_log(test, scenario, &logs)?);
     check_be(test, &boot, "tauto", &["tauto"], &[]);
     Ok(())
 }
 
-/// The checks of [`unlocked_itself`], on its `boot` and serial `log`.
+/// The checks of [`unlocked_itself`], on its `boot` and the kernel `log`
+/// it saved.
 fn check_unlocked_itself(test: &Test, boot: &Boot, log: &str) {
     test.check(
         !boot.has_prompt("luks") && !boot.has_prompt("tpm2pin"),
@@ -317,24 +331,31 @@ fn check_unlocked_itself(test: &Test, boot: &Boot, log: &str) {
 /// unlocked itself, so its boot environment waits in the menu.
 fn waits_for_someone(test: &Test) -> Result<()> {
     let append = format!("{BASE} zbm.prefer=tplain");
-    let mut vm = start(test, "unattended-plain", (&append, &[0, 1, 2]), true)?;
+    let mut vm = start(
+        test,
+        "unattended-plain",
+        (&append, &[0, 1, 2]),
+        (true, None),
+    )?;
     vm.expect1(prompt::NEW_MENU, 1200)?;
     test.step("the menu shows; waiting past the countdown's 3 seconds");
     thread::sleep(Duration::from_secs(15));
-    let log = serial_text(&vm)?;
+    let serial = serial_text(&vm)?;
+    let kernel = kernel_log_in_shell(&mut vm)?;
     vm.kill();
-    check_waits(test, &log);
+    check_waits(test, &serial, &kernel);
     Ok(())
 }
 
-/// The checks of [`waits_for_someone`], on its serial `log`.
-fn check_waits(test: &Test, log: &str) {
+/// The checks of [`waits_for_someone`], on its `serial` log and the lines of
+/// its `kernel` log.
+fn check_waits(test: &Test, serial: &str, kernel: &str) {
     test.check(
-        log.contains(&format!("tplain/ROOT/be {WAITS}")),
+        kernel.contains(&format!("tplain/ROOT/be {WAITS}")),
         "start-up says why tplain's boot environment does not boot by itself",
     );
     test.check(
-        !log.contains(BE_BOOTED) && !log.contains(" for tplain/ROOT/be"),
+        !serial.contains(BE_BOOTED) && !serial.contains(" for tplain/ROOT/be"),
         "nothing booted by itself",
     );
 }
@@ -343,38 +364,47 @@ fn check_waits(test: &Test, log: &str) {
 /// is there, and `tplain`'s boot environment boots by itself.
 fn typed(test: &Test) -> Result<()> {
     let append = format!("{BASE} zbm.prefer=tplain");
-    let mut vm = start(test, "attended", (&append, &[0, 1, 2]), false)?;
+    let scenario = "attended";
+    let logs = logs_disk(test, scenario)?;
+    let mut vm = start(test, scenario, (&append, &[0, 1, 2]), (false, Some(&logs)))?;
     let follow = Follow::default().answer(Kind::Luks, &[PW]);
     let boot = follow_boot(&mut vm, follow)?;
-    check_typed(test, &boot, &serial_text(&vm)?);
+    vm.kill();
+    check_typed(test, &boot, &saved_log(test, scenario, &logs)?);
     check_be(test, &boot, "tplain", &["tplain"], &[]);
     Ok(())
 }
 
-/// The checks of [`typed`], on its `boot` and serial `log`.
+/// The checks of [`typed`], on its `boot` and the kernel `log` it saved.
 fn check_typed(test: &Test, boot: &Boot, log: &str) {
     test.check(
         boot.has_prompt("luks"),
         &format!("the passphrase was asked ({})", boot.prompts_text()),
     );
-    test.check(!log.contains(HELD), "start-up keeps the usual defaults");
+    test.check(
+        !log.is_empty() && !log.contains(HELD),
+        "start-up keeps the usual defaults (the saved kernel log does not say it holds)",
+    );
 }
 
 /// `lockdown`: `lockdown=integrity`, and `tplain`'s boot environment, whose
 /// kernel is not signed, is not loaded.
 fn lockdown(test: &Test) -> Result<()> {
     let append = format!("{BASE} zbm.prefer=tplain lockdown=integrity");
-    let mut vm = start(test, "lockdown", (&append, &[1]), false)?;
+    let mut vm = start(test, "lockdown", (&append, &[1]), (false, None))?;
     let index = vm.expect(&[NOT_LOADED, BE_BOOTED], 1200)?;
-    thread::sleep(Duration::from_secs(2));
-    let log = serial_text(&vm)?;
+    let log = if index == 0 {
+        after_refusal(&mut vm)?
+    } else {
+        String::new()
+    };
     vm.kill();
     check_lockdown(test, index == 0, &log);
     Ok(())
 }
 
 /// The checks of [`lockdown`]: whether the boot said the kernel was not
-/// loaded, and its serial `log`.
+/// loaded, and the lines of its kernel `log`.
 fn check_lockdown(test: &Test, not_loaded: bool, log: &str) {
     test.check(
         not_loaded,
@@ -391,7 +421,7 @@ fn check_lockdown(test: &Test, not_loaded: bool, log: &str) {
 /// measured.
 fn measured(test: &Test) -> Result<()> {
     let append = format!("{BASE} zbm.prefer=tauto");
-    let mut vm = start(test, "measured", (&append, &[0]), true)?;
+    let mut vm = start(test, "measured", (&append, &[0]), (true, None))?;
     let boot = follow_boot(&mut vm, Follow::default())?;
     test.check(
         !boot.has_prompt("luks"),

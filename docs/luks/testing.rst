@@ -402,6 +402,9 @@ Following a boot
   ``lockdown=integrity`` and only d1: the boot environment's kernel, which is not signed, must not be loaded, and
   ZFSBootMenu must say that lockdown kept it to ``kexec_file_load``. It needs a ZFSBootMenu kernel with the lockdown
   LSM; with one that lacks it, or a signed boot environment kernel, the kernel boots and the check fails.
+  ZFSBootMenu keeps its log off the serial console, so what start-up and the boot say is read from the kernel log:
+  the one a boot that reaches its boot environment saves on a FAT disk (``zbm.save_logs``), or ``dmesg`` in the
+  recovery shell, opened from the menu, after a boot that stays in it.
   ``measured`` boots ``tauto``'s boot environment with the TPM and only d0 (ADR 0008). The token must unseal (PCR 9
   is unchanged before the measurement); in the boot environment, whose initramfs has the host packages' dracut module
   ``zfsbootmenu-measured``, the event log must be in ``/run/log/zfsbootmenu`` and hold the starts of PCRs 8 and 9,
