@@ -1,6 +1,6 @@
 # ADR 0011: Accessibility: Braille displays, speech, and a line view of the menu
 
-- **Status:** proposed, 31 October 2026
+- **Status:** accepted, 31 October 2026 (proposed the same day)
 - **Decides:** item UI8 of [ROADMAP.md](../../../ROADMAP.md), the console's C85, the plain mode of feature #12
 - **Governs:** the console on the display (`zbm console`), the menu's views and its `Announce` messages
   ([ADR 0004](0004-client-channel.md)), the start-up program's choice of front end, the image's build options
@@ -120,16 +120,16 @@ view.
 
 ## Where the work stands
 
-Proposed. Nothing is built: `Announce` is in the channel's messages and unused, and `TERM=dumb` gives the plain
+Accepted; the work has not started. Nothing is built: `Announce` is in the channel's messages and unused, and `TERM=dumb` gives the plain
 fallback.
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **Braille on the console on the display:** its text written into its virtual terminal's `/dev/vcsaN`
-   (option 1, recommended), BrlAPI, or the kernel console only.
-2. **When the line view shows:** `TERM` dumb or unset, `speakup` loaded, or `zbm.menu=lines` (option 1, recommended);
-   the option alone; or `TERM=dumb` alone.
-3. **What `Announce` carries:** what changes without the person moving (option 1, recommended), or every change of
-   the selection too.
-4. **`brltty` in the image:** build options `zfsbootmenu_brltty` and `zfsbootmenu_speakup` (option 1, recommended),
-   documentation only, or later.
+Accepted as proposed, on 31 October 2026:
+
+1. **Braille on the console on the display:** its text, attributes and cursor written into its virtual terminal's
+   `/dev/vcsaN`, which `brltty` reads (option 1).
+2. **When the line view shows:** `TERM` dumb or unset, `speakup` loaded, or `zbm.menu=lines`; `zbm.menu=screen` forces
+   the screen (option 1).
+3. **What `Announce` carries:** what changes without the person moving (option 1).
+4. **`brltty` in the image:** the build options `zfsbootmenu_brltty` and `zfsbootmenu_speakup` (option 1).
