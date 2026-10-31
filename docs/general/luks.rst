@@ -255,9 +255,15 @@ PCR bank, as GRUB does, and then extends PCR 9 once more with the separator ``zb
 recorded in an event log (TCG Canonical Event Log, CEL-JSON), which starts with what PCRs 8 and 9 held before.
 
 So a TPM2 token bound to PCR 9 unseals for ZFSBootMenu alone: the booted system finds PCR 9 changed and cannot unseal
-it again. Bind ZFSBootMenu's tokens to PCR 9 together with PCR 7::
+it again. Bind ZFSBootMenu's tokens to PCR 9 together with PCR 7, with the value PCR 9 has when ZFSBootMenu unseals,
+not the value the booted system reads (``--tpm2-pcrs=7+9`` alone would take that one, and the token would never
+unseal). The value is the SHA-256 digest of the ``start`` record of PCR 9 in the event log (see below)::
 
-  systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7+9 /dev/disk/by-partlabel/zfs0
+  value=$(grep '"event":"start"' /run/log/zfsbootmenu/tpm-measure.json | grep '"pcr":9,' |
+    sed 's/.*"digest":"\([0-9a-f]*\)","hashAlg":"sha256".*/\1/')
+  systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs="7+9:sha256=${value}" /dev/disk/by-partlabel/zfs0
+
+ADR 0009 adds ``zbm measure unseal``, which will print the value as ``9:sha256=...``.
 
 PCR 9 holds, at that time, what the firmware and ZFSBootMenu's own kernel put there, which changes with the
 ZFSBootMenu image, as PCR 4 does: re-enrol after an update of the image.
