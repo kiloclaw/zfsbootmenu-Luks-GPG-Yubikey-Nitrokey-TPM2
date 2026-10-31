@@ -88,7 +88,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, prompt: &
 /// The message: the device, the field or what is awaited, why, the tries
 /// left, the other methods, the keyboard. What was typed, once revealed,
 /// is borrowed from the prompt's secret, not copied into a string.
-fn body<'a>(model: &Model, prompt: &'a Prompt) -> Vec<Line<'a>> {
+pub(super) fn body<'a>(model: &Model, prompt: &'a Prompt) -> Vec<Line<'a>> {
     let theme = model.theme;
     let method = prompt.method;
     let known = model

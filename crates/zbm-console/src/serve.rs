@@ -485,6 +485,9 @@ fn on_display(
     if let Some(port) = serial_port(settings, places, console.scheme()) {
         host = host.with_serial(port);
     }
+    if let Some(text) = vcsa_text(places, vt) {
+        host = host.with_vcsa(text);
+    }
     let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
     let ended = run_with_client(&mut console, held.screen(), &mut host, shown, client)?;
     let layout = host.keyboard_layout().to_owned();
@@ -495,6 +498,33 @@ fn on_display(
         *kept = Some(console);
     }
     Ok((ended, text, layout))
+}
+
+/// The text device of the virtual terminal `vt`, open, to write the
+/// console's text into for `brltty` (ROADMAP.md UI8); `None` when it has
+/// none, or cannot be opened, which is logged.
+fn vcsa_text(places: &Places, vt: &Path) -> Option<crate::host::VcsaText> {
+    let path = crate::vcsa::device(vt)?;
+    match crate::host::VcsaText::open(&path) {
+        Ok(text) => {
+            let (rows, columns) = text.size();
+            places.log(
+                6,
+                &format!(
+                    "writing the text for screen readers to {}, {columns}x{rows}",
+                    path.display()
+                ),
+            );
+            Some(text)
+        }
+        Err(error) => {
+            places.log(
+                4,
+                &format!("no text for screen readers in {}: {error}", path.display()),
+            );
+            None
+        }
+    }
 }
 
 /// The serial console of `settings` to serve too, open, in the colours of

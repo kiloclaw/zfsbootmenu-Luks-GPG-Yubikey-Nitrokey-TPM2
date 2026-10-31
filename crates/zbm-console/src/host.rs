@@ -37,12 +37,14 @@ mod outgoing;
 mod serial;
 mod state;
 mod status;
+mod vcsa;
 
 pub use modes::Modes;
 #[cfg(test)]
 use outgoing::OUTGOING;
 pub use outgoing::Outgoing;
 pub use serial::SerialPort;
+pub use vcsa::VcsaText;
 
 pub use status::POWER_SUPPLY;
 
@@ -188,6 +190,8 @@ pub struct RealHost<'h, M> {
     notes: Option<Notes<'h>>,
     /// The serial terminal served too (ROADMAP.md UI9).
     serial: Option<SerialPort>,
+    /// The virtual terminal's text, written for `brltty` (UI8).
+    vcsa: Option<VcsaText>,
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -222,6 +226,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             is_client_gone: false,
             notes: None,
             serial: None,
+            vcsa: None,
         }
     }
 
@@ -447,6 +452,9 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     fn show_serial(&mut self, console: &crate::screen::Console) {
         if let Some(serial) = &mut self.serial {
             serial.show(console);
+        }
+        if let Some(text) = &mut self.vcsa {
+            text.show(console, Instant::now());
         }
     }
 

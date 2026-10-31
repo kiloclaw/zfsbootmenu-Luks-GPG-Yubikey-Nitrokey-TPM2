@@ -89,7 +89,7 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 
 /// The facts of a row: problems, `next boot`, `locked`, `default`, and the
 /// kernel that boots.
-fn facts(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
+pub(super) fn facts(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
     let theme = model.theme;
     let mut facts = health::badges(model, environment);
     if environment.encryption == Encryption::Locked {

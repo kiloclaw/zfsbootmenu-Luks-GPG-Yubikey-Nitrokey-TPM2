@@ -319,3 +319,20 @@ fn a_card_that_is_not_there_is_not_waited_for() {
     assert_eq!(back.card(), dir.join("dri/card0"));
     assert!(start.elapsed() < std::time::Duration::from_secs(5));
 }
+
+#[test]
+fn the_text_for_screen_readers_is_the_terminal_s_and_its_absence_is_logged() {
+    let dir = TempDir::new("zbm-serve-vcsa");
+    let places = places(&dir);
+    dir.write("dev/vcsa3", [25_u8, 80, 0, 0]);
+
+    let found = vcsa_text(&places, &dir.join("dev/tty3"));
+    let missing = vcsa_text(&places, &dir.join("dev/tty7"));
+    let none = vcsa_text(&places, Path::new("/dev/tty0"));
+
+    assert_eq!(found.map(|text| text.size()), Some((25, 80)));
+    assert!(missing.is_none() && none.is_none());
+    let log = std::fs::read_to_string(&places.kmsg).unwrap();
+    assert!(log.contains("dev/vcsa3, 80x25"), "{log}");
+    assert!(log.contains("no text for screen readers in"), "{log}");
+}

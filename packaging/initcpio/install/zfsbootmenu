@@ -284,6 +284,11 @@ build() {
         exit 1
     fi
 
+    if ! install_zbm_screen_readers; then
+        error "Unable to install the screen readers"
+        exit 1
+    fi
+
     add_runscript
 }
 

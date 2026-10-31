@@ -9,7 +9,6 @@ use zbm_state::State;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
-use zbm_tui::menu::machine::Machine as _;
 
 /// The configuration of a machine with the default boot environment
 /// `tank/ROOT/void`.
@@ -357,4 +356,30 @@ fn without_a_session_that_serves_menus_zfsbootmenu_runs_its_own() {
         status
     });
     assert_eq!(status, None);
+}
+
+#[test]
+fn the_menu_shows_as_lines_where_asked_or_where_a_screen_reader_is_likely() {
+    let fake = FakeSystem::new();
+    let conf = conf();
+    let screen = Capabilities::ASCII;
+    let dumb = Capabilities {
+        interactive: false,
+        ..Capabilities::ASCII
+    };
+
+    assert!(!is_lines_wanted(&fake.system(), &conf, screen));
+    assert!(is_lines_wanted(&fake.system(), &conf, dumb));
+    fake.files.file("/sys/accessibility/speakup", "");
+    assert!(is_lines_wanted(&fake.system(), &conf, screen));
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "quiet zbm.menu=screen\n");
+    assert!(!is_lines_wanted(&fake.system(), &conf, dumb));
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=lines\n");
+    let fresh = FakeSystem::new();
+    fresh
+        .files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=lines\n");
+    assert!(is_lines_wanted(&fresh.system(), &conf, screen));
 }

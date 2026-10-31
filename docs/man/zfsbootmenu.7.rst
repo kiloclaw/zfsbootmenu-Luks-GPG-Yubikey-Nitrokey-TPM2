@@ -395,6 +395,17 @@ These options are set on the kernel command line when booting the initramfs or U
   hook that brush runs differently. GNU Bash stays in the image as */bin/sh* and */bin/bash* either
   way, and starts when brush cannot.
 
+**zbm.menu=lines**
+
+  In images built with the Rust runtime, shows the menu as lines a screen reader reads in order,
+  rather than as a screen redrawn in place: each view prints its title, its items numbered, what
+  happened last and the dialog over it with its choices numbered, and prints again only when that
+  changed. Type a number to choose an item, a number and a key to use that key on it (*2 k*, the
+  kernels of the second), one of the keys the view names, or *ok*, *back* and *help*; in a field
+  that takes text, the line is the text, and a blank line goes back. Passphrases are typed without
+  echo. The lines show by themselves when **TERM** is *dumb* or unset, and when the *speakup* screen
+  reader is loaded; **zbm.menu=screen** shows the screen even then.
+
 **zbm.wait_for=device,device,...**
 
   Ensure that one or more devices are present before starting the pool import process. Devices may
@@ -745,6 +756,24 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
   command line: boot it as a signed unified kernel image under Secure Boot. Without lockdown or
   Secure Boot, the image warns at start-up that a changed command line gets past the lock. An image
   with the *legacy* runtime fails to build with this option set.
+
+**zfsbootmenu_brltty=yes**
+
+  Puts the build host's **brltty** into the image, with its configuration (*/etc/brltty.conf*), its
+  drivers and tables, and the USB serial drivers Braille displays use, and starts it before anything
+  is asked. **brltty** reads the kernel console; in images with the *rust* runtime, the console on the
+  display (**zbm.console=drm**) writes its text where **brltty** reads it, the latest of what the menu
+  announces on its last row. Set the display's driver and device in */etc/brltty.conf* on the build
+  host. **brltty** then parses what the display sends, as root, before the menu: leave it out of
+  images whose users need none. The build fails when the host has no **brltty**.
+
+**zfsbootmenu_speakup=<synth>**
+
+  Puts the kernel's **speakup** screen reader into the image with the module of the
+  synthesiser **<synth>** (*speakup_<synth>*), and loads it before anything is asked; with *soft*,
+  **espeakup** too, when the build host has it. **speakup** speaks the kernel console, so keep it
+  (**zbm.console=kernel**, the default); with it loaded, images with the *rust* runtime show the
+  menu as lines (see **zbm.menu**). The build fails when the kernel has no such module.
 
 **zfsbootmenu_skip_gcc_s=yes**
 

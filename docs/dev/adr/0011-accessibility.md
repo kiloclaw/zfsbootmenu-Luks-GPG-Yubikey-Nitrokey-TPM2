@@ -120,8 +120,24 @@ view.
 
 ## Where the work stands
 
-Accepted; the work has not started. Nothing is built: `Announce` is in the channel's messages and unused, and `TERM=dumb` gives the plain
-fallback.
+Built, on 31 October 2026:
+
+- **The line view** (`zbm_tui::menu::lines`): `LineFront` runs a `Session` on the console port, printing a page of the
+  model's words (`menu::view::words`) when it changed and reading lines in canonical mode, with echo off while a secret
+  is asked; `LineScreen` is the session menu's screen as lines. A number typed is Home, Down to it and Enter; a number
+  and a key, the key on that item; in a field, Ctrl+U, the text and Enter, and a blank line Escape.
+- **The choice** (`zbm.menu`, `lines::is_wanted`): the start-up program and `zfsbootmenu` show the lines with `TERM`
+  dumb or unset, `/sys/accessibility/speakup` present, or `zbm.menu=lines`.
+- **`Announce`** (`menu::announce::Announcer`): a dialog that opens, a new notification, the countdown starting or
+  stopping, and the menu back after the programs; the console shows it as its status line's title and on the last row
+  of its text, for five seconds.
+- **`/dev/vcsaN`** (`zbm_console::vcsa`, `host::VcsaText`): each frame the console shows is written there in the
+  terminal's size, colours as VGA attributes, characters outside ASCII as `?`; the console's sandbox reaches
+  `/dev/vcsa1` to `/dev/vcsa63`.
+- **The build options** `zfsbootmenu_brltty` and `zfsbootmenu_speakup` (`install_zbm_screen_readers`), with a hook in
+  `early-setup.d` that starts them.
+
+Left: the VM test `runtime-rust-console-lines` on the maintainer's machine, and `brltty` on a real display.
 
 ## Answers of the maintainer
 

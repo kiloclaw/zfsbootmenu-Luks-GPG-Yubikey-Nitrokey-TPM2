@@ -10,20 +10,26 @@
 use std::io;
 use std::os::fd::{AsFd as _, BorrowedFd};
 use std::path::Path;
+use std::time::Duration;
 
 use zbm_app::service::MachineService;
 use zbm_app::session::{self, Handover};
 use zbm_app::{App, BootSettings, Recovery, Runtime};
+use zbm_config::args::{Args as _, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
+use zbm_config::spec::cmdline::MENU;
+use zbm_platform::console::Console;
 use zbm_platform::sandbox::{self, Profile as _};
+use zbm_platform::{Clock, SystemClock};
 use zbm_platform::{Context, System};
 use zbm_startup::preinit;
 use zbm_startup::program::Startup;
 use zbm_startup::program::menu::{Menu, SessionMenu};
 use zbm_sys::{Signal, SignalSet, Signals};
 use zbm_tui::menu::caps::Capabilities;
-use zbm_tui::menu::machine::{Countdown, RealMachine, RemoteMachine};
+use zbm_tui::menu::lines::{self, LineFront};
+use zbm_tui::menu::machine::{Countdown, Machine, RealMachine, RemoteMachine};
 use zbm_tui::menu::screen::MenuScreen;
 use zbm_tui::menu::session::Session;
 use zbm_tui::menu::terminal;
@@ -34,6 +40,29 @@ use crate::applets::on_console;
 
 /// The size to draw in when the terminal reports none.
 pub(crate) const FALLBACK_SIZE: (u16, u16) = (80, 24);
+
+/// Where the `speakup` screen reader shows that it is loaded.
+const SPEAKUP: &str = "/sys/accessibility/speakup";
+
+/// Whether the menu on `system`, whose terminal can draw `capabilities`,
+/// shows as lines (ROADMAP.md UI8, ADR 0011): as `zbm.menu` of this boot's
+/// command line asks, or where a screen reader is likely.
+pub(crate) fn is_lines_wanted(
+    system: &System<'_>,
+    conf: &Conf,
+    capabilities: Capabilities,
+) -> bool {
+    let base = preinit::base(conf);
+    let kcl = system
+        .files
+        .read_to_string(&base.join("zbm.cmdline"))
+        .unwrap_or_default();
+    let asked = ZbmArgs::from_cmdline(&kcl)
+        .lookup(&MENU, &mut Vec::new())
+        .map(|view| view == "lines");
+    let speakup = system.files.exists(Path::new(SPEAKUP));
+    lines::is_wanted(asked, capabilities.interactive, speakup)
+}
 
 /// Runs the menu on a machine until it ends; why it ended.
 type Show<'s> = &'s mut dyn FnMut(RealMachine<'_, '_>) -> io::Result<String>;
@@ -221,23 +250,20 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         let base = preinit::base(conf);
         let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
         let environment = system.environment;
-        let theme = Theme::new(Capabilities::detect(|name| environment.var(name)));
+        let capabilities = Capabilities::detect(|name| environment.var(name));
+        let theme = Theme::new(capabilities);
+        let clock = SystemClock::new();
+        let line_view: LineView<'_> = (system.console, &clock);
+        let line_view = is_lines_wanted(&system, conf, capabilities).then_some(line_view);
         let escape_wait = crate::startup::escape_wait(&ZbmOptions::from_conf(conf).control_term);
         // The session's menu, when it serves one; else this process's.
-        let stop = || {
-            signals
-                .as_ref()
-                .is_some_and(|signals| is_taken_over(signals.received()))
-        };
-        let sockets = Path::new(session::SOCKET)
-            .parent()
-            .unwrap_or(Path::new("/"));
+        let stop = || is_signalled(signals.as_ref());
+        let sockets = Path::new(session::SOCKET).parent();
         let show_remote = |machine: RemoteMachine<'_>| {
             // The session performs the actions: this process needs no more
             // than its terminal and the sockets.
-            confine_remote(&base, sockets);
-            let session = Session::on(machine, theme);
-            terminal::run(session, terminal::size(FALLBACK_SIZE), None, escape_wait)
+            confine_remote(&base, sockets.unwrap_or(Path::new("/")));
+            show_session(Session::on(machine, theme), line_view, escape_wait)
         };
         let (input, output) = (io::stdin(), io::stdout());
         let served = Remote {
@@ -248,9 +274,9 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         if let Some(status) = served.run(show_remote, io) {
             return status;
         }
+        // The menu as lines, or on the terminal's screen.
         let mut show = |machine: RealMachine<'_, '_>| {
-            let session = Session::on(machine, theme);
-            terminal::run(session, terminal::size(FALLBACK_SIZE), None, escape_wait)
+            show_session(Session::on(machine, theme), line_view, escape_wait)
         };
         let show = (&mut show as Show<'_>, Countdown::Skip);
         menu(system, conf, show, signals.as_ref()).unwrap_or_else(|error| {
@@ -258,6 +284,27 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             zbm_startup::program::menu::FAILED
         })
     })
+}
+
+/// Whether a takeover's signal came to `signals`.
+fn is_signalled(signals: Option<&Signals>) -> bool {
+    signals.is_some_and(|signals| is_taken_over(signals.received()))
+}
+
+/// The console and the clock of the line view.
+type LineView<'a> = (&'a dyn Console, &'a dyn Clock);
+
+/// Runs `session` as lines on `line_view` when given, else on the
+/// terminal's screen; why it ended.
+fn show_session<M: Machine>(
+    mut session: Session<M>,
+    line_view: Option<LineView<'_>>,
+    escape_wait: Duration,
+) -> io::Result<String> {
+    match line_view {
+        Some((console, clock)) => LineFront::new(console, clock).run(&mut session),
+        None => terminal::run(session, terminal::size(FALLBACK_SIZE), None, escape_wait),
+    }
 }
 
 /// Confines this process as the menu over SSH (ROADMAP.md, SE11), with

@@ -14,6 +14,7 @@
 //!   display without one (ROADMAP.md #19); [`cells`]: on the cells of the
 //!   console on the display (UI6).
 
+pub mod announce;
 pub mod caps;
 pub mod cells;
 pub mod demo;
@@ -23,6 +24,7 @@ pub mod format;
 pub mod frontend;
 pub mod keyboard;
 pub mod keymap;
+pub mod lines;
 pub mod machine;
 pub mod model;
 pub mod screen;

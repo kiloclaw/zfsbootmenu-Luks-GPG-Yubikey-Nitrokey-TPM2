@@ -45,7 +45,7 @@ impl Drop for Rendered {
 }
 
 /// The colour of the 16 of `scheme` nearest to `rgb`.
-fn nearest(rgb: Rgb, scheme: &Scheme) -> u8 {
+pub(crate) fn nearest(rgb: Rgb, scheme: &Scheme) -> u8 {
     let distance = |other: Rgb| {
         let d = |a: u8, b: u8| (i32::from(a) - i32::from(b)).pow(2);
         d(rgb.0, other.0) + d(rgb.1, other.1) + d(rgb.2, other.2)

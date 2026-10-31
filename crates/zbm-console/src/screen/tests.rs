@@ -18,7 +18,7 @@ use super::*;
 const TER_V14B: &[u8] = include_bytes!("../../../../legacy/zfsbootmenu/fonts/ter-v14b.psf");
 
 /// A terminal of 20×5 cells of 8×14 pixels.
-fn console() -> Console {
+pub(crate) fn console() -> Console {
     Console::new(
         Grid::new(Font::parse(TER_V14B).unwrap(), 1),
         (20 * 8, 5 * 14),

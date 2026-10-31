@@ -9,6 +9,15 @@ use zbm_display::keys::KeyPress;
 use super::Host;
 use crate::screen::Console;
 
+/// The time now, which an announcement is said from.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "an announcement is said for a while from when it came"
+)]
+fn now() -> std::time::Instant {
+    std::time::Instant::now()
+}
+
 /// What the console says in the kernel log when the menu said hello in its
 /// version.
 pub const GREETED: &str = "the menu draws on its cells";
@@ -53,9 +62,9 @@ impl Client {
             FromClient::Cursor(cursor) => console.end_cells_frame(cursor),
             FromClient::Secret(secret) => self.is_secret = secret,
             FromClient::SwitchLayout(name) => host.switch_layout(&name),
-            // For a screen reader, which the console does not have yet
-            // (UI8).
-            FromClient::Announce(_) => {}
+            // For a screen reader (UI8): on the status line and in the
+            // text written for `brltty`, a while.
+            FromClient::Announce(text) => console.announce(&text, now()),
             FromClient::Lend => self.leave(console),
             FromClient::Take => console.show_cells(),
         }

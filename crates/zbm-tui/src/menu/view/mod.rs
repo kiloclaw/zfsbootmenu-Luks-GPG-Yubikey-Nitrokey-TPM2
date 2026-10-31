@@ -25,6 +25,7 @@ mod question;
 mod screens;
 mod status;
 mod unlock;
+pub(crate) mod words;
 mod workspace;
 
 /// The smallest size the menu lays out for.

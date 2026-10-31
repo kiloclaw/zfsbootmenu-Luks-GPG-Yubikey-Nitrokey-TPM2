@@ -14,12 +14,12 @@ use crate::text::text;
 
 /// What a question says: its title, its message, how it goes on and what
 /// stops it, if anything does, and how the countdown reads.
-struct Wording {
-    title: String,
-    lines: Vec<String>,
-    go: String,
-    stop: Option<String>,
-    countdown: fn(u64) -> String,
+pub(super) struct Wording {
+    pub(super) title: String,
+    pub(super) lines: Vec<String>,
+    pub(super) go: String,
+    pub(super) stop: Option<String>,
+    pub(super) countdown: fn(u64) -> String,
 }
 
 /// The countdown of a question that tries again.
@@ -38,7 +38,7 @@ fn continuing(seconds: u64) -> String {
 }
 
 /// The words of `question`.
-fn wording(question: &Question) -> Wording {
+pub(super) fn wording(question: &Question) -> Wording {
     match question {
         Question::RetryUnlock { volume } => Wording {
             title: text!("question-unlock.title", volume = volume.as_str()),

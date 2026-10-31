@@ -388,6 +388,13 @@ Following a boot
   there must clear the serial console's screen and write it again. The other console scenarios boot with
   ``zbm.console_serial=off``, so that the serial console stays theirs.
 
+* ``runtime-rust-console-lines`` checks the menu as lines and the console's text for a Braille display (ROADMAP.md
+  UI8), with the image of ``runtime-rust-console`` and both pools: booted with ``TERM=dumb`` on the serial console,
+  then with ``zbm.menu=lines``, the menu must print its boot environments as a numbered list and say what can be
+  typed, and the number of ``tforeign``'s, typed as a line, must boot it. Booted with ``zbm.console=drm``, the menu
+  opens the recovery shell, where ``grep`` must find in ``/dev/vcs1`` a word only the shell's output spells: the
+  console writes its text into ``/dev/vcsa1``, which ``brltty`` reads.
+
 * ``integrity-setup``, ``integrity-unattended``, ``integrity-lockdown``, ``integrity-measured``,
   ``integrity-hookroot`` and ``integrity-locked`` check the boot's
   integrity in the Rust runtime (ROADMAP.md SE10). ``setup`` formats a LUKS2 volume on d0 on the host and enrols it

@@ -529,3 +529,25 @@ fn a_client_that_cannot_be_written_is_gone() {
     host.send_client(&FromConsole::Bell);
     assert_eq!(host.wait(Duration::ZERO).unwrap(), Input::ClientGone);
 }
+
+#[test]
+fn each_frame_shown_goes_into_the_terminal_s_text_too() {
+    let dir = zbm_testkit::TempDir::new("zbm-host-vcsa");
+    let path = dir.write("vcsa1", [1_u8, 4, 0, 0].repeat(3));
+    let (master, _program) = UnixStream::pair().unwrap();
+    let text = VcsaText::open(&path).unwrap();
+    let keyboards = Keyboards::from_files(Vec::new());
+    let mut host = RealHost::new(master, keyboards, control()).with_vcsa(text);
+    let mut console = crate::screen::tests::console();
+    console.feed(b"zbm");
+
+    host.show_serial(&console);
+
+    let written = std::fs::read(&path).unwrap();
+    let chars: Vec<u8> = written[crate::vcsa::HEADER..]
+        .iter()
+        .step_by(2)
+        .copied()
+        .collect();
+    assert_eq!(chars, b"zbm ");
+}

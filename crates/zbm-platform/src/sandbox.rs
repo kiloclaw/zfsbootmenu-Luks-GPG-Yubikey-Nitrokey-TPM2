@@ -238,6 +238,10 @@ impl Console {
         files.extend(
             (0..64).map(|number| (PathBuf::from(format!("/dev/tty{number}")), Access::Device)),
         );
+        // And their text, which it writes for `brltty` (ROADMAP.md UI8).
+        files.extend(
+            (1..64).map(|number| (PathBuf::from(format!("/dev/vcsa{number}")), Access::Device)),
+        );
         // A crash report reads the program it is of.
         if let Ok(program) = std::env::current_exe() {
             files.push((program, Access::Read));

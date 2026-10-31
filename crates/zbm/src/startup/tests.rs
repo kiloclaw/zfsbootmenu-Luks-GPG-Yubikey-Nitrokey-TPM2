@@ -347,7 +347,7 @@ fn start_up_runs_on_the_view_which_closes_before_the_menu() {
     let no_menu = |_: Theme| -> io::Result<Box<dyn MenuScreen>> { panic!("not resumed") };
     let theme = Theme::new(Capabilities::FULL);
     let modes = (Modes::default(), Some(0));
-    let screens = (theme, &open as Open<'_>, &no_menu as OpenMenu<'_>);
+    let screens = (theme, &open as Open<'_>, &no_menu as OpenMenu<'_>, false);
     let status = run_on(
         &startup,
         (fake.system(), &conf()),
@@ -372,7 +372,7 @@ fn start_up_runs_on_the_view_which_closes_before_the_menu() {
     let failed = |_: Snapshot, _: Theme| -> io::Result<Box<dyn StartupScreen>> {
         Err(io::Error::other("not a terminal"))
     };
-    let screens = (theme, &failed as Open<'_>, &no_menu as OpenMenu<'_>);
+    let screens = (theme, &failed as Open<'_>, &no_menu as OpenMenu<'_>, false);
     assert_eq!(
         run_on(
             &startup,
@@ -405,6 +405,7 @@ fn the_session_s_menu_goes_on_from_the_view_and_counts_down_the_first_time() {
         Theme::new(Capabilities::FULL),
         &open as Open<'_>,
         &no_menu as OpenMenu<'_>,
+        false,
     );
 
     let status = run_on(
@@ -451,6 +452,7 @@ fn the_session_s_menu_goes_on_from_the_view_and_counts_down_the_first_time() {
         Theme::new(Capabilities::FULL),
         &no_view as Open<'_>,
         &open_menu as OpenMenu<'_>,
+        false,
     );
     let status = run_on(
         &startup,
@@ -464,7 +466,7 @@ fn the_session_s_menu_goes_on_from_the_view_and_counts_down_the_first_time() {
 }
 
 #[test]
-fn start_up_keeps_the_plain_console_without_a_terminal_or_a_menu() {
+fn start_up_keeps_the_plain_console_without_a_menu_or_with_a_screen_on_a_dumb_terminal() {
     let fake = machine();
     let startup = Startup::new(fake.system(), &conf());
     let modes = Modes {
@@ -475,7 +477,11 @@ fn start_up_keeps_the_plain_console_without_a_terminal_or_a_menu() {
     assert_eq!(run_in_menu(&startup, fake.system(), &conf(), modes), None);
     fake.files
         .file_with_mode(zbm_startup::program::menu::MENU, "", 0o755);
+    // A terminal that runs no full-screen program, where the line view is
+    // not wanted either (ADR 0011).
     fake.environment.set("TERM", "dumb");
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=screen\n");
     assert_eq!(run_in_menu(&startup, fake.system(), &conf(), modes), None);
     assert!(fake.runner.calls().is_empty());
 }

@@ -674,6 +674,77 @@ zbm_unomit_drivers() {
   printf '%s' "${regex%|}"
 }
 
+# Screen readers (ROADMAP.md UI8, ADR 0011). With zfsbootmenu_brltty=yes,
+# brltty from the build host, with its configuration, drivers and tables,
+# and the USB serial drivers Braille displays use, started by an
+# early-setup.d hook before anything is asked; it reads the kernel console,
+# and the console on the display writes its text where brltty reads it.
+# With zfsbootmenu_speakup=<synth>, the speakup modules for that synthesiser,
+# loaded by the same hook (soft: with espeakup, when the host has it); the
+# menu then shows as lines. A build that asks for one it cannot give fails.
+install_zbm_screen_readers() {
+  local brltty dir file module hook synth ret=0
+
+  # shellcheck disable=SC2154
+  synth="${zfsbootmenu_speakup}"
+  # shellcheck disable=SC2154
+  if ! zbm_opt_enabled "${zfsbootmenu_brltty:-no}" && [ -z "${synth}" ]; then
+    return 0
+  fi
+
+  hook="${BUILDROOT}/libexec/hooks/early-setup.d/05-screen-readers.sh"
+  mkdir -p "${hook%/*}" || return 1
+  {
+    echo '#!/bin/sh'
+    echo '## Start the screen readers of the image, before anything is asked'
+    echo '## (zfsbootmenu_brltty, zfsbootmenu_speakup).'
+  } > "${hook}"
+
+  if zbm_opt_enabled "${zfsbootmenu_brltty:-no}"; then
+    if ! brltty="$( command -v brltty 2>/dev/null )"; then
+      zbm_error "zfsbootmenu_brltty is set, but this host has no brltty"
+      return 1
+    fi
+    zbm_install_executable "${brltty}" || ret=1
+    [ -e /etc/brltty.conf ] && { zbm_install_file /etc/brltty.conf /etc/brltty.conf || ret=1; }
+    for dir in /etc/brltty /usr/share/brltty /usr/lib/brltty /usr/lib64/brltty /lib/brltty; do
+      [ -d "${dir}" ] || continue
+      while IFS= read -r -d '' file; do
+        case "${file}" in
+          *.so|*.so.*) zbm_install_library "${file}" || ret=1 ;;
+          *) zbm_install_file "${file}" "${file}" || ret=1 ;;
+        esac
+      done < <( find "${dir}" -type f -print0 )
+    done
+    for module in usbhid cdc_acm ftdi_sio cp210x pl2303 ch341; do
+      case "${ZBM_BUILDSTYLE,,}" in
+        mkinitcpio) add_module "${module}?" ;;
+        dracut) hostonly='' instmods "${module}" ;;
+      esac
+    done
+    echo 'brltty -q >/dev/null 2>&1 || true' >> "${hook}"
+  fi
+
+  if [ -n "${synth}" ]; then
+    case "${ZBM_BUILDSTYLE,,}" in
+      mkinitcpio) add_module speakup && add_module "speakup_${synth}" ;;
+      dracut) hostonly='' instmods -c speakup "speakup_${synth}" ;;
+    esac || {
+      zbm_error "the speakup modules for ${synth} (zfsbootmenu_speakup) are missing"
+      return 1
+    }
+    echo "modprobe speakup_${synth} >/dev/null 2>&1 || true" >> "${hook}"
+    if [ "${synth}" = "soft" ] && command -v espeakup >/dev/null 2>&1; then
+      zbm_install_executables espeakup || ret=1
+      echo 'espeakup >/dev/null 2>&1 || true' >> "${hook}"
+    fi
+  fi
+
+  echo 'exit 0' >> "${hook}"
+  chmod 755 "${hook}" || ret=1
+  return "${ret}"
+}
+
 # The lock of the menu (ROADMAP.md SE9, ADR 0010): the Argon2id hash of its
 # PIN, which generate-zbm --lock-hash writes, goes into /etc/zfsbootmenu/lock,
 # readable by root alone. A build that asks for a lock it cannot give fails,

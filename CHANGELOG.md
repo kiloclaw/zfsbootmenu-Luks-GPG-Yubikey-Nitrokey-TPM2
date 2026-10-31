@@ -154,6 +154,16 @@ recovery shell. A locked image ignores `zbm.hookroot`, and warns when neither lo
 changes its command line then gets past the lock; the lock is for signed images under Secure Boot. Every way to an
 interactive shell now goes through one gate (`zbm_app::auth::ShellGate`).
 
+The Rust runtime's menu can show as lines, for screen readers (ROADMAP.md UI8, ADR 0011): with `TERM` dumb or unset,
+with `speakup` loaded, or with `zbm.menu=lines` (`zbm.menu=screen` keeps the screen), each screen prints as its title
+and a numbered list, with what can be typed under it, and prints again only when it changed; a number typed as a line
+chooses that item, `2 k` presses a key on item 2, and `ok`, `back` and `help` are words. `TERM=dumb` used to give no
+menu: a countdown, then the recovery shell. The console on the display (`zbm.console=drm`) now writes its text into its
+virtual terminal's `/dev/vcsaN`, which `brltty` reads as it reads any kernel console, and shows on its status line and
+last row, for five seconds, what changed without the person moving: a dialog that opened, the outcome of an action, the
+countdown starting or stopping. The build options `zfsbootmenu_brltty=yes` and `zfsbootmenu_speakup=<synth>` put
+`brltty` and `speakup` into the image, started before anything is asked.
+
 The console on the display also serves a serial console named on the command line (`console=ttyS0,115200` with
 `zbm.console=drm`; `zbm.console_serial=off` turns it off): the screen is written there as text, in `zbm.columns` by
 `zbm.lines`, and keys typed there reach the menu and the programs. The screen takes the size of the terminal typed on

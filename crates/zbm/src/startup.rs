@@ -43,6 +43,7 @@ use zbm_state::State;
 use zbm_sys::Signals;
 use zbm_sys::socket::Connection;
 use zbm_tui::menu::caps::Capabilities;
+use zbm_tui::menu::lines::LineScreen;
 use zbm_tui::menu::screen::MenuScreen;
 use zbm_tui::menu::startup::{MailLink, StartupScreen, ViewLink};
 use zbm_tui::menu::term_keys::{CONSOLE_ESCAPE_WAIT, SERIAL_ESCAPE_WAIT};
@@ -361,18 +362,19 @@ fn stages() -> Vec<Stage> {
 type Open<'o> = &'o dyn Fn(Snapshot, Theme) -> io::Result<Box<dyn StartupScreen>>;
 
 /// Opens the menu's screen without the start-up view, drawn with a theme.
-type OpenMenu<'o> = &'o dyn Fn(Theme) -> io::Result<Box<dyn MenuScreen>>;
+type OpenMenu<'o> = &'o dyn Fn(Theme) -> io::Result<Box<dyn MenuScreen + 'o>>;
 
-/// How the session draws: its theme, and how it opens the start-up view
-/// and, resumed, the menu's screen.
-type Screens<'o> = (Theme, Open<'o>, OpenMenu<'o>);
+/// How the session draws: its theme, how it opens the start-up view and,
+/// resumed, the menu's screen, and whether it is the line view, which
+/// has no start-up view.
+type Screens<'o> = (Theme, Open<'o>, OpenMenu<'o>, bool);
 
 /// What ends the session's menu: its takeover signals, and its socket.
 type Takeover<'t> = (Option<&'t Signals>, Option<&'t Handover>);
 
 /// What the stages on the view leave: the default boot environment they
 /// found, and the screen the menu goes on with, unless the view failed.
-type AfterView = (Option<DatasetName>, Option<Box<dyn MenuScreen>>);
+type AfterView<'o> = (Option<DatasetName>, Option<Box<dyn MenuScreen + 'o>>);
 
 /// Runs the start-up program `startup` with `modes` as the session, when
 /// the image has the menu and the terminal can run it: its stages on the
@@ -389,33 +391,30 @@ pub fn run_in_menu(
 ) -> Option<i32> {
     let environment = system.environment;
     let capabilities = Capabilities::detect(|name| environment.var(name));
-    if !capabilities.interactive || !has_menu(&system) {
+    // The menu as lines, for a screen reader or a simple terminal (ADR
+    // 0011): the stages on the plain console, then the lines.
+    let lines = crate::menu::is_lines_wanted(&system, conf, capabilities);
+    if (!capabilities.interactive && !lines) || !has_menu(&system) {
         return None;
     }
+    let clock = zbm_platform::SystemClock::new();
     // The menu's takeover signals wait to be read: blocked before any
     // thread starts, so that every thread blocks them.
     let signals = Signals::block(SESSION_TAKEOVER).ok();
     let escape_wait = escape_wait(&ZbmOptions::from_conf(conf).control_term);
-    let sized = || {
-        let size = terminal::size(crate::menu::FALLBACK_SIZE);
-        if fits(size) {
-            Ok(size)
-        } else {
-            // Its dialogs would not show, while they wait for an answer.
-            Err(io::Error::other(format!(
-                "the terminal ({}x{}) is smaller than the start-up view needs",
-                size.0, size.1
-            )))
-        }
-    };
     // The console on the display's client channel, which the supervisor
     // passed.
     let cells = environment.var(zbm_tui::menu::cells::CELLS_FD);
     let cells = cells.as_deref();
     let open =
         |snapshot, theme| terminal::startup_view(snapshot, theme, (sized()?, cells), escape_wait);
-    let open_menu = |theme| terminal::menu_screen(theme, (sized()?, cells), escape_wait);
-    let screens: Screens<'_> = (Theme::new(capabilities), &open, &open_menu);
+    let open_menu = |theme| -> io::Result<Box<dyn MenuScreen + '_>> {
+        if lines {
+            return Ok(Box::new(LineScreen::new(system.console, &clock, theme)));
+        }
+        terminal::menu_screen(theme, (sized()?, cells), escape_wait)
+    };
+    let screens: Screens<'_> = (Theme::new(capabilities), &open, &open_menu, lines);
     let Some((socket, token)) = listen(Path::new(session::SOCKET)) else {
         let takeover = (signals.as_ref(), None);
         return run_on(startup, (system, conf), (modes, None), screens, takeover);
@@ -436,6 +435,24 @@ pub fn run_in_menu(
         let takeover = (signals.as_ref(), Some(socket.handover()));
         run_on(startup, (system, conf), (modes, None), screens, takeover)
     })
+}
+
+/// The terminal's size, when the start-up view fits in it.
+///
+/// # Errors
+///
+/// When the terminal is smaller than the view needs: its dialogs would not
+/// show, while they wait for an answer.
+fn sized() -> io::Result<(u16, u16)> {
+    let size = terminal::size(crate::menu::FALLBACK_SIZE);
+    if fits(size) {
+        Ok(size)
+    } else {
+        Err(io::Error::other(format!(
+            "the terminal ({}x{}) is smaller than the start-up view needs",
+            size.0, size.1
+        )))
+    }
 }
 
 /// Cancels its token when dropped.
@@ -484,11 +501,12 @@ fn run_on(
     startup: &Startup<'_>,
     (system, conf): (System<'_>, &Conf),
     (modes, rounds): (Modes, Option<usize>),
-    (theme, open, open_menu): Screens<'_>,
+    (theme, open, open_menu, lines): Screens<'_>,
     (signals, handover): Takeover<'_>,
 ) -> Option<i32> {
-    let (bootfs, screen) = if modes.resume {
-        // Resumed, the stages are done, and the menu waits for the user.
+    let (bootfs, screen) = if modes.resume || lines {
+        // Resumed, the stages are done, and the menu waits for the user;
+        // as lines, the stages run on the plain console.
         let bootfs = startup.start(modes, None);
         let screen = open_menu(theme)
             .inspect_err(|error| zbm_trace::error!("unable to show the menu: {error}"; %error))
@@ -519,7 +537,7 @@ fn stages_on_view(
     (system, conf): (System<'_>, &Conf),
     modes: Modes,
     (theme, open): (Theme, Open<'_>),
-) -> Option<AfterView> {
+) -> Option<AfterView<'static>> {
     let options = ZbmOptions::from_conf(conf);
     let base = zbm_startup::preinit::base(conf);
     let runtime = Runtime::new(options, &base);

@@ -283,4 +283,9 @@ install() {
     dfatal "Unable to lock the menu"
     exit 1
   fi
+
+  if ! install_zbm_screen_readers; then
+    dfatal "Unable to install the screen readers"
+    exit 1
+  fi
 }

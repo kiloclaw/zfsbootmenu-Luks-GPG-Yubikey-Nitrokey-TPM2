@@ -44,6 +44,7 @@ use look::{draw_cursor, look};
 use scroll::Shift;
 pub use status::{Clock, Locks, Status};
 
+mod announced;
 mod bell;
 mod blink;
 mod cells;
@@ -113,6 +114,9 @@ pub struct Console {
     status_line: Option<Vec<char>>,
     /// When the status line must be said again.
     status_at: Option<Instant>,
+    /// The latest line for a screen reader (ROADMAP.md UI8), and until
+    /// when it is said.
+    announced: Option<(String, Instant)>,
     /// What the status line says now: the status to the minute, the title
     /// and the width it was made for, so that the same is not made again on
     /// every pass of the loop.
@@ -187,6 +191,7 @@ impl Console {
             status_line: None,
             status_at: None,
             status_said: None,
+            announced: None,
             is_shot: false,
             damaged: Vec::new(),
             hashes: Vec::new(),
@@ -588,4 +593,4 @@ impl Drop for Console {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

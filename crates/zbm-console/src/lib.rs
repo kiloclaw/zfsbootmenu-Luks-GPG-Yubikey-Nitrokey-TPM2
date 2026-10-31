@@ -39,6 +39,7 @@ pub mod screen;
 pub mod serial;
 pub mod serve;
 pub mod typing;
+pub mod vcsa;
 
 /// The size of a cell of the console's terminal: the characters of a row
 /// are this many bytes apart, as 4-byte values.

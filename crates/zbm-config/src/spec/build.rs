@@ -5,8 +5,10 @@ use super::{Deprecation, Doc, OptionSpec, Reader, Source, Value};
 
 mod console;
 mod lock;
+mod readers;
 pub use console::{CONSOLE_FACES, CONSOLE_FALLBACK_FONTS, CONSOLE_FONT};
 pub use lock::LOCK_HASH;
+pub use readers::{BRLTTY, SPEAKUP};
 
 /// The options, in the order of the manual page.
 pub static ALL: &[&OptionSpec] = &[
@@ -22,6 +24,8 @@ pub static ALL: &[&OptionSpec] = &[
     &GRAPHICS_DRIVERS,
     &GRAPHICS_FIRMWARE,
     &LOCK_HASH,
+    &BRLTTY,
+    &SPEAKUP,
     &SKIP_GCC_S,
     &LUKS,
     &LUKS_CRYPTTAB,

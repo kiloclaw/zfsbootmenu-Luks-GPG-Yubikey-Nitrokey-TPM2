@@ -5,6 +5,7 @@ pub mod console;
 pub mod graphics;
 pub mod logs;
 pub mod luks;
+pub mod menu;
 pub mod shell;
 
 use super::{Alias, Deprecation, Doc, OptionSpec, Reader, Source, Value};
@@ -17,6 +18,7 @@ pub use console::{
 };
 pub use graphics::{GPU, GPU_UNTESTED};
 pub use logs::SAVE_LOGS;
+pub use menu::MENU;
 pub use shell::SHELL;
 
 /// The options, in the order of the manual page.
@@ -60,6 +62,7 @@ pub static ALL: &[&OptionSpec] = &[
     &GPU_UNTESTED,
     &logs::SAVE_LOGS,
     &SHELL,
+    &MENU,
     &WAIT_FOR,
     &ROOT,
 ];

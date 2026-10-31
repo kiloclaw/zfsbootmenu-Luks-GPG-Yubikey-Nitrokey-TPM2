@@ -583,3 +583,24 @@ pcr-command-line = kernel command line
 pcr-shim = shim certificates
 pcr-system-identity = system identity
 pcr-other = other measurements
+
+## The line view (ROADMAP.md UI8, ADR 0011): the menu as lines, for screen
+## readers, `TERM=dumb` and serial lines.
+
+lines-stage-pending = { $stage }: waiting
+lines-stage-running = { $stage }: running
+lines-stage-done = { $stage }: done
+lines-stage-skipped = { $stage }: skipped
+lines-stage-failed = { $stage }: failed, { $reason }
+lines-go = ok: { $go }
+lines-stop = back: { $stop }
+lines-number = Type a number to choose it, or a number and a key, as 2 k.
+lines-text = Type it, then Enter; a blank line goes back.
+lines-keys = Keys: { $keys }
+lines-words = Words: ok, back, help; a blank line shows this again.
+lines-unknown = Unknown: { $typed }. Type help for the keys.
+lines-none = Nothing here.
+lines-countdown-stopped = The countdown stopped.
+lines-word-ok = ok
+lines-word-back = back
+lines-word-help = help

@@ -21,6 +21,7 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 use zbm_display::keys::KeyPress;
 use zbm_platform::clock::{Clock, SystemClock};
 
+use super::announce::Announcer;
 use super::keymap::{Modifiers, key_name};
 use super::machine::Machine;
 use super::model::Model;
@@ -106,6 +107,12 @@ pub trait Surface: Backend {
     fn set_secret(&mut self, secret: bool) {
         let _ = secret;
     }
+
+    /// Tells a screen reader `line`, where the surface has one (the
+    /// console's cells: `Announce`, ADR 0011).
+    fn announce(&mut self, line: &str) {
+        let _ = line;
+    }
 }
 
 impl<B: Backend> Surface for QuietBackend<B> {
@@ -138,6 +145,8 @@ pub struct Frontend<B: Surface, I: Input> {
     clock: Box<dyn Clock>,
     /// Where the keys are logged, with when the front end started.
     log: Option<(File, Duration)>,
+    /// What a screen reader was told.
+    announcer: Announcer,
 }
 
 impl<B: Surface, I: Input> Frontend<B, I>
@@ -164,6 +173,7 @@ where
             marker: None,
             clock: Box::new(SystemClock::new()),
             log: None,
+            announcer: Announcer::default(),
         })
     }
 
@@ -226,8 +236,12 @@ where
         if let Some(marker) = &mut self.marker {
             marker.show(secret);
         }
+        let said = self.announcer.next(model);
         let surface = self.terminal.backend_mut();
         surface.set_secret(secret);
+        for line in &said {
+            surface.announce(line);
+        }
         surface.present()
     }
 
@@ -276,6 +290,7 @@ where
     /// When they cannot be taken.
     pub fn take_back(&mut self) -> io::Result<()> {
         self.input.take()?;
+        self.announcer.back();
         drawn(self.terminal.clear())
     }
 

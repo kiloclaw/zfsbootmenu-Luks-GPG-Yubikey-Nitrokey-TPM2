@@ -134,15 +134,22 @@ impl Console {
             clock: status.clock.map(|clock| Clock { second: 0, ..clock }),
             ..status.clone()
         };
-        let said = (shown, self.title.clone(), self.columns);
+        // A line for a screen reader shows in place of the title a while.
+        let title = self
+            .announcement(now)
+            .map(str::to_owned)
+            .or_else(|| self.title.clone());
+        let said = (shown, title.clone(), self.columns);
         if self.status_said.as_ref() != Some(&said) {
-            let line = status.line(self.title.as_deref(), usize::from(self.columns));
+            let line = status.line(title.as_deref(), usize::from(self.columns));
             self.status_line = Some(line);
             self.status_said = Some(said);
         }
-        self.status_at = status
+        let minute = status
             .clock
             .map(|clock| now + Duration::from_secs(60 - u64::from(clock.second.min(59))));
+        let until = self.announced_until().filter(|until| *until > now);
+        self.status_at = [minute, until].into_iter().flatten().min();
     }
 
     /// When the status line must be said again, for the time.

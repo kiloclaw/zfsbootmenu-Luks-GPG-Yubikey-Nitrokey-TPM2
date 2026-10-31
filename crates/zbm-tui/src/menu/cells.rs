@@ -255,6 +255,11 @@ impl Surface for CellSurface {
             self.is_secret = secret;
         }
     }
+
+    /// Tells the console `line` for a screen reader, before the frame.
+    fn announce(&mut self, line: &str) {
+        let _ = self.send(&FromClient::Announce(line.to_owned()));
+    }
 }
 
 /// The keys the console sends, and its size.
