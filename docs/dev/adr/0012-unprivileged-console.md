@@ -1,6 +1,6 @@
 # ADR 0012: The console on the display as an unprivileged user
 
-- **Status:** proposed, 31 October 2026
+- **Status:** accepted, 31 October 2026 (proposed the same day)
 - **Decides:** the part of item SE11 of [ROADMAP.md](../../../ROADMAP.md) that is left for the console, and point 4 of
   [ADR 0002](0002-trust-zones.md) ("Z3 draws and reads keys, unprivileged") for `zbm console`
 - **Governs:** how the supervisor starts the console, how the console gets its devices and its control socket, where it
@@ -156,15 +156,13 @@ released the display (`status`), instead of reading `console` and `released-cons
 
 ## Where the work stands
 
-Proposed; nothing is built.
+Accepted; the work has not started. The console is still user 0 with `CAP_SYS_TTY_CONFIG` and `CAP_IPC_LOCK`.
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **How the console gets its devices:** the broker in the supervisor, and the console never root (option 1); root at
-   the start, then the broker for what comes later (option 2); or groups (option 3)?
-2. **The virtual terminal's modes:** `CAP_SYS_TTY_CONFIG` as the console's one capability (option 1), or the terminal
-   as its controlling terminal (option 2)?
-3. **Locked memory:** `RLIMIT_MEMLOCK` unlimited (option 1), a bound from the scrollback (option 2), or only the
-   history's pages locked (option 3)?
-4. **Its records:** a directory of its own, `/zfsbootmenu/console/` (option 1); written by the supervisor at the old
-   paths (option 2); or files made in advance at the old paths (option 3)?
+Accepted as proposed, on 31 October 2026:
+
+1. **Its devices:** the broker in the supervisor; the console never runs as root (option 1).
+2. **The virtual terminal's modes:** `CAP_SYS_TTY_CONFIG` as its one capability, ambient under its user (option 1).
+3. **Locked memory:** `RLIMIT_MEMLOCK` unlimited, set by the supervisor (option 1).
+4. **Its records:** a directory of its own, `/zfsbootmenu/console/` (option 1).
