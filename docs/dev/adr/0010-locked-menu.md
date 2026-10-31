@@ -1,6 +1,6 @@
 # ADR 0010: The locked menu and the one gate to a shell
 
-- **Status:** proposed, 31 October 2026
+- **Status:** accepted, 31 October 2026 (proposed the same day)
 - **Decides:** feature #8 of [ROADMAP.md](../../../ROADMAP.md#fe-features-for-users), item SE9, the threat model's R8
 - **Governs:** `RecoveryPolicy` and `ShellGate` ([ADR 0002](0002-trust-zones.md), point 1 of its answers), the menu's
   actions, the supervisor's recovery after a crash, the menu over SSH, `argon2` as a dependency (decision 1)
@@ -124,16 +124,17 @@ gate once it is right. The supervisor itself still parses nothing and holds no s
 
 ## Where the work stands
 
-Proposed. Nothing is built: neither the gate nor `RecoveryPolicy` exists yet. The start-up program opens its shell
+Accepted; the work has not started. Neither the gate nor `RecoveryPolicy` exists yet. The start-up program opens its shell
 with `programs::interactive_shell` (`zbm_startup::shell`), and the supervisor spawns its shell and the fallback itself
 (`zbm::supervisor::running`).
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **What the lock covers:** everything but the default boot (option 1, recommended), the shell and the command line,
-   or the shell only.
-2. **Where the PIN is checked:** an Argon2id hash in the image, at least 8 characters (option 1, recommended), the TPM,
-   or both.
-3. **Who else is let in:** whoever typed a passphrase that unlocked a volume this boot (option 1, recommended), or the
-   PIN alone.
-4. **`argon2`:** approve it as a dependency (decision 1), for the keyholder and `generate-zbm`.
+Accepted as proposed, on 31 October 2026:
+
+1. **What the lock covers:** everything but the default boot (option 1).
+2. **Where the PIN is checked:** an Argon2id hash in the image, of at least 8 characters, checked by the keyholder
+   (option 1).
+3. **Who else is let in:** whoever typed a passphrase that unlocked a volume this boot, as well as whoever knows the
+   PIN (option 1).
+4. **`argon2`:** approved as a dependency (decision 1), for the keyholder and `generate-zbm`.

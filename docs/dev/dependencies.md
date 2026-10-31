@@ -127,6 +127,10 @@ Used by the developer tools `xtask` and `zbm-vmtest` (the VM test harness), neve
 
 ## Agreed, not used yet
 
+`argon2` (RustCrypto, MIT or Apache-2.0) for the PIN of the locked menu ([ADR 0010](adr/0010-locked-menu.md), approved
+on 31 October 2026): the keyholder checks a PIN against the image's Argon2id hash, and `generate-zbm --lock-hash`
+writes the hash. It comes with SE9's second step.
+
 `crossterm` is pinned in `[workspace.dependencies]` for direct use but reached through `ratatui::crossterm` so
 far, which keeps one version.
 

@@ -17,6 +17,6 @@ stays, marked so.
 | [0007](0007-menu-workspace.md) | The menu as a workspace of tabs and columns, and keys that work on every keyboard (UI13, decision 18; proposes decision 8's key map) | Accepted, 29 October 2026 |
 | [0008](0008-measured-boot.md) | Measured boot: PCRs 8 and 9, a CEL-JSON log, a separator after the last unseal, `zbm measure` (#10, SE10) | Accepted, 30 October 2026 |
 | [0009](0009-hook-root.md) | The hook root on machines that unlock themselves: measured into PCR 9 before its hooks run, and the value tokens bind to (SE10, R1) | Accepted, 31 October 2026 |
-| [0010](0010-locked-menu.md) | The locked menu and the one gate to a shell: what the lock covers, where the PIN is checked, who else is let in (#8, SE9, R8) | Proposed |
+| [0010](0010-locked-menu.md) | The locked menu and the one gate to a shell: what the lock covers, where the PIN is checked, who else is let in (#8, SE9, R8) | Accepted, 31 October 2026 |
 
 A new record takes the next number, the same headings, and a line in this table.
