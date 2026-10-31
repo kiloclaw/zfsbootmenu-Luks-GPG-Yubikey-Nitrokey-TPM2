@@ -13,6 +13,10 @@
 //!   the firmware and ZFSBootMenu's own kernel put there, which a boot of
 //!   the same ZFSBootMenu image on the same firmware puts there again.
 //!
+//! - `zbm measure unseal [FILE]` prints PCR 9 as ZFSBootMenu unsealed the
+//!   tokens of its volumes, after its start and the hook root's hooks
+//!   (ADR 0009): what a token bound to PCR 9 is enrolled with.
+//!
 //! Values print as `PCR:BANK=HEX`, which `systemd-cryptenroll --tpm2-pcrs`
 //! takes.
 
@@ -21,6 +25,7 @@ use std::path::{Path, PathBuf};
 
 use zbm_boot::boot::measured::{
     Bank, COMMAND_LINE_PCR, Event, FILES_PCR, Measured, hex, parse_log, predicted, replay,
+    unsealed_at,
 };
 use zbm_boot::kernels::{self, Kernel};
 use zbm_platform::{NoConsole, RealSystem, System};
@@ -38,6 +43,7 @@ const MOUNTS: &str = "/proc/self/mounts";
 /// The usage text.
 const USAGE_TEXT: &str = "\
 Usage: zbm measure log [FILE]       replay the event log of this boot
+       zbm measure unseal [FILE]    PCR 9 as ZFSBootMenu unsealed, for systemd-cryptenroll
        zbm measure predict [OPTIONS] DATASET [KERNEL]
                                     the PCR values a boot of DATASET leaves
 Options of predict:
@@ -58,6 +64,8 @@ pub fn run_in(system: &System<'_>, args: &[String], io: &mut Io) -> i32 {
     let result = match args.as_slice() {
         ["log"] => log(system, Path::new(LOG)),
         ["log", file] if !file.starts_with('-') => log(system, Path::new(file)),
+        ["unseal"] => unseal(system, Path::new(LOG)),
+        ["unseal", file] if !file.starts_with('-') => unseal(system, Path::new(file)),
         ["predict", rest @ ..] => Predict::parse(rest).map_or_else(
             || {
                 let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
@@ -94,15 +102,41 @@ fn values(events: &[Event], bank: Bank) -> String {
     text
 }
 
-/// `zbm measure log FILE`: the events of the log, then the values of the
-/// PCRs in each bank every event has a digest for.
-fn log(system: &System<'_>, file: &Path) -> Result<String, String> {
+/// The events of the log `file`.
+fn read_log(system: &System<'_>, file: &Path) -> Result<Vec<Event>, String> {
     let text = system
         .files
         .read_to_string(file)
         .map_err(|error| format!("unable to read {}: {error}", file.display()))?;
-    let events = parse_log(&text)
-        .map_err(|index| format!("record {index} of {} is none of ours", file.display()))?;
+    parse_log(&text)
+        .map_err(|index| format!("record {index} of {} is none of ours", file.display()))
+}
+
+/// Whether every one of `events` has a digest for `bank`, and there is one.
+fn has_bank(events: &[Event], bank: Bank) -> bool {
+    !events.is_empty() && events.iter().all(|event| event.digests.get(bank).is_some())
+}
+
+/// `zbm measure unseal FILE`: PCR 9 as ZFSBootMenu unsealed the tokens of
+/// its volumes, after the start and the hook root's hooks, in each bank
+/// of the log (ADR 0009): what `systemd-cryptenroll --tpm2-pcrs=7+9:...`
+/// binds a token to.
+fn unseal(system: &System<'_>, file: &Path) -> Result<String, String> {
+    let events = read_log(system, file)?;
+    let mut out = String::new();
+    for bank in Bank::ALL {
+        if has_bank(&events, bank) {
+            let value = hex(&unsealed_at(&events, bank));
+            let _ = writeln!(out, "{FILES_PCR}:{}={value}", bank.name());
+        }
+    }
+    Ok(out)
+}
+
+/// `zbm measure log FILE`: the events of the log, then the values of the
+/// PCRs in each bank every event has a digest for.
+fn log(system: &System<'_>, file: &Path) -> Result<String, String> {
+    let events = read_log(system, file)?;
     let mut out = String::new();
     for (index, event) in events.iter().enumerate() {
         let (kind, value) = (event.measured.kind(), event.measured.value());
@@ -110,7 +144,7 @@ fn log(system: &System<'_>, file: &Path) -> Result<String, String> {
     }
     out.push('\n');
     for bank in Bank::ALL {
-        if !events.is_empty() && events.iter().all(|event| event.digests.get(bank).is_some()) {
+        if has_bank(&events, bank) {
             out.push_str(&values(&events, bank));
         }
     }
@@ -172,14 +206,15 @@ impl Predict {
             Some(line) => line.clone(),
             None => booted_command_line(&booted)?,
         };
+        // What the PCRs held, and the hook root's hooks, before the boot.
         let mut events: Vec<Event> = booted
             .into_iter()
-            .filter(|event| matches!(event.measured, Measured::Start(_)))
+            .take_while(|event| !event.is_of_the_boot())
             .collect();
         let start = if events.is_empty() {
             "zeros (no start in this boot's log)"
         } else {
-            "the values in this boot's log"
+            "the values in this boot's log, and its hook root"
         };
         let boot = predicted(
             system.files,

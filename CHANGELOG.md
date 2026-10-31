@@ -99,6 +99,12 @@ and any kernel the call refuses, as on a kernel built without it; a teardown hoo
 own, which then boots. Under lockdown or Secure Boot, the call alone loads: a kernel it refuses (an unsigned one) or a
 device tree is not loaded at all, and the boot stops with the reason in the log.
 
+On a machine with a TPM, the Rust runtime also measures the hooks of `zbm.hookroot` into PCR 9 before any of them runs
+(ADR 0009), so that a TPM2 token bound to PCR 9 unseals only with the hooks it was enrolled with: a hook root someone
+else put there no longer gets the keys of a machine that unlocks itself. `zbm measure unseal` prints PCR 9 as
+ZFSBootMenu unsealed, for `systemd-cryptenroll --tpm2-pcrs=7+9:sha256=...`; enrolling with `--tpm2-pcrs=7+9` from the
+booted system would bind to a later value, and the token would not unseal.
+
 The Rust runtime asks YubiKeys for their challenge-response itself, over their OTP interface (`/dev/hidraw*`), as
 `ykchalresp` does, so it no longer needs `ykchalresp` and `ykinfo`, whose library upstream no longer maintains; they
 stay in images as the fallback. `zbm debug yubikey` lists the keys it reaches with their serial numbers, and

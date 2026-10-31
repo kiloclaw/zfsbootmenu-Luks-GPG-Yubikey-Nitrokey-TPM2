@@ -1,9 +1,15 @@
 //! The start-up stage `init.d/40-early-hooks`: hooks imported from
 //! `zbm.hookroot`, hooks skipped with `zbm.skip_hooks`, and the
 //! `early-setup.d` hooks, which run once.
+//!
+//! The hooks imported are measured into PCR 9 before any hook runs
+//! (ADR 0009): a TPM2 token bound to PCR 9 then unseals only with the
+//! hooks it was enrolled with, so a hook root someone else put there does
+//! not get the keys of a machine that unlocks itself.
 
 use std::path::Path;
 
+use zbm_boot::boot::measured::{self, Event, Extended};
 use zbm_boot::hooks::{HOOKS, run_stage};
 use zbm_platform::System;
 use zbm_platform::console::Screen;
@@ -41,9 +47,40 @@ pub fn import_hooks(
             filesystem: filesystem.to_owned(),
         });
     };
-    copy_stages(system, &mounted.path().join(path), root);
+    let copied = copy_stages(system, &mounted.path().join(path), root);
     drop(mounted);
+    measure_hooks(system, state, &copied);
     Ok(())
+}
+
+/// Measures the hooks `copied` from the hook root, as `<stage>/<name>` and
+/// the copy that runs, into PCR 9, when the machine has a TPM; a copy that
+/// cannot be read is disabled, so that no hook runs unmeasured.
+fn measure_hooks(system: &System<'_>, state: &State<'_>, copied: &[(String, std::path::PathBuf)]) {
+    if copied.is_empty() {
+        return;
+    }
+    if !measured::has_tpm(system) {
+        zbm_trace::debug!("no TPM: the hook root is not measured");
+        return;
+    }
+    let mut events = Vec::new();
+    for (name, path) in copied {
+        match system.files.read(path) {
+            Ok(contents) => events.push(Event::hook(name, &contents)),
+            Err(error) => {
+                zbm_trace::warn!(
+                    "unable to read the hook {name} to measure it ({error}): it is disabled";
+                    %name, %error
+                );
+                let _ = system.files.set_mode(path, 0);
+            }
+        }
+    }
+    if measured::extend_events(system, state, &events) == Extended::Extended {
+        let count = events.len();
+        zbm_trace::info!("measured {count} hooks of the hook root into PCR 9"; %count);
+    }
 }
 
 /// The file system and the path of `zbm.hookroot`, which split at the last
@@ -73,8 +110,14 @@ fn split_hook_root(hook_root: &str) -> Result<(&str, &str), StartupError> {
 
 /// Copies the files of each stage directory below `source` into the same
 /// directory below `root`; failures are logged, and the other files still
-/// copied.
-fn copy_stages(system: &System<'_>, source: &Path, root: &Path) {
+/// copied. The hooks copied, as `<stage>/<name>` and their copies, in
+/// order.
+fn copy_stages(
+    system: &System<'_>,
+    source: &Path,
+    root: &Path,
+) -> Vec<(String, std::path::PathBuf)> {
+    let mut copied = Vec::new();
     for stage in visible_entries(system.files, source) {
         let source_dir = source.join(&stage);
         if !system.files.is_dir(&source_dir) {
@@ -89,18 +132,22 @@ fn copy_stages(system: &System<'_>, source: &Path, root: &Path) {
             continue;
         }
         for name in visible_entries(system.files, &source_dir) {
-            let file = source_dir.join(name);
+            let file = source_dir.join(&name);
             if !system.files.is_file(&file) {
                 continue;
             }
             // `cp` itself, so that the copy gets the mode `cp` gives it.
-            if !programs::copy_file(system.runner, &file, &target)
+            if programs::copy_file(system.runner, &file, &target)
                 .is_ok_and(|output| output.status.is_success())
             {
+                let named = format!("{}/{}", stage.to_string_lossy(), name.to_string_lossy());
+                copied.push((named, target.join(&name)));
+            } else {
                 zbm_trace::warn!("failed to copy user hook {hook}"; hook = %file.display());
             }
         }
     }
+    copied
 }
 
 /// The names a shell glob `dir/*` gives: sorted, without names starting with a
@@ -387,6 +434,52 @@ mod tests {
                 .contains("failed to mount hook filesystem tank/hooks")
         );
         assert_eq!(fake.runner.lines().len(), 1);
+    }
+
+    #[test]
+    fn the_hooks_copied_are_measured_into_pcr_9_before_they_run() {
+        let fake = FakeSystem::new();
+        let _log = log(&fake);
+        let mnt = "/zfsbootmenu/.external_hooks";
+        fake.files
+            .file(format!("{mnt}/zbm/early-setup.d/10-net"), "net")
+            .file(format!("{mnt}/zbm/teardown.d/90-off"), "off")
+            .file(format!("{mnt}/zbm/teardown.d/95-gone"), "gone")
+            // What `cp` made of the first two; the third's copy is gone.
+            .file("/libexec/hooks/early-setup.d/10-net", "net")
+            .file("/libexec/hooks/teardown.d/90-off", "off")
+            .device("/dev/tpmrm0");
+        fake.runner
+            .respond("tpm2_getcap pcrs", 0, "selected-pcrs:\n  - sha256: [ 0 ]\n");
+        let state = State::new(&fake.files, "/zfsbootmenu");
+
+        assert!(import_hooks(&fake.system(), &state, Path::new(HOOKS), "tank/hooks//zbm").is_ok());
+
+        let extended: Vec<String> = fake
+            .runner
+            .lines()
+            .into_iter()
+            .filter(|line| line.starts_with("tpm2_pcrextend 9:sha256="))
+            .collect();
+        assert_eq!(extended.len(), 2, "{:?}", fake.runner.lines());
+        let first = Event::hook("early-setup.d/10-net", b"net");
+        let digest = measured::hex(first.digests.get(measured::Bank::Sha256).unwrap());
+        assert_eq!(extended[0], format!("tpm2_pcrextend 9:sha256={digest}"));
+        // Measured after the copies, before any hook ran: the log has them.
+        let log = fake.files.text("/zfsbootmenu/tpm-measure.json").unwrap();
+        let events = measured::parse_log(&log).unwrap();
+        let names: Vec<&str> = events.iter().map(|event| event.measured.value()).collect();
+        assert_eq!(names, ["early-setup.d/10-net", "teardown.d/90-off"]);
+        assert!(
+            fake.kmsg()
+                .contains("measured 2 hooks of the hook root into PCR 9")
+        );
+        assert!(
+            fake.kmsg()
+                .contains("unable to read the hook teardown.d/95-gone to measure it"),
+            "{}",
+            fake.kmsg()
+        );
     }
 
     #[test]

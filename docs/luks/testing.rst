@@ -380,7 +380,8 @@ Following a boot
   the terminal's cells hold its characters a cell apart; this shows the search works. ``stty -echo`` opens a prompt
   without echo and a key is typed: the same search must then find nothing in the console's memory.
 
-* ``integrity-setup``, ``integrity-unattended``, ``integrity-lockdown`` and ``integrity-measured`` check the boot's
+* ``integrity-setup``, ``integrity-unattended``, ``integrity-lockdown``, ``integrity-measured`` and
+  ``integrity-hookroot`` check the boot's
   integrity in the Rust runtime (ROADMAP.md SE10). ``setup`` formats a LUKS2 volume on d0 on the host and enrols it
   with ``systemd-cryptenroll`` for TPM2 without a PIN, bound to PCR 9 as it is before ZFSBootMenu measures the boot
   (zeros, a software TPM; SeaBIOS leaves PCRs 8 and 9 alone), then creates, in the recovery shell, the
@@ -400,6 +401,11 @@ Following a boot
   must be what the log replays to; the kernel's and the initramfs's digests must be those of the payload's files, as
   ``zbm measure predict`` computes them; the command line measured must be the one the kernel got; and PCR 9 must
   have moved on from the value the token is bound to, so the booted system cannot unseal it.
+  ``hookroot`` (ADR 0009) enrols ``auto0`` again on the host with two TPM2 tokens: one bound to PCR 9 as zeros, for
+  the other scenarios, and one bound to PCR 9 after an ``early-setup.d`` hook, computed as ZFSBootMenu measures it.
+  It boots ``tauto``'s boot environment twice with the TPM and ``zbm.hookroot`` on a FAT disk: with that hook, the
+  hook must run, the volume must unlock with nothing asked, and the log the boot environment kept must replay to the
+  value enrolled; with another hook of the same name, the hook runs but the passphrase must be asked.
 
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long

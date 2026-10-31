@@ -71,8 +71,12 @@ the passphrase with a hook root whose hook differs. Unit tests check the events,
 
 ## Where the work stands
 
-Accepted; the work has not started. Until `zbm measure unseal` comes, the documentation gives the value from the event
-log's start record for PCR 9.
+Implemented: `zbm_crypt::measure` (the event `hook`, `unsealed_at`), `zbm_boot::boot::measured::extend_events`, the one
+way into the TPM for the hook root and the boot's files, the measurement in `40-early-hooks`
+(`zbm_startup::stages::hooks`), `zbm measure unseal`, and `zbm measure predict` building on the start and the hooks.
+Two refinements of the proposal: a hook's digest is that of its name (`<stage>/<name>`), a NUL and its contents, so a
+hook moved to another stage measures as another; and what is measured is the copy that runs, read back after `cp`, of
+which one that cannot be read is disabled, so no hook runs unmeasured on a machine with a TPM.
 
 ## Answers of the maintainer
 

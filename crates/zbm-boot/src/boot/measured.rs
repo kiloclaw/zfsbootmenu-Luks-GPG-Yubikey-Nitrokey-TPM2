@@ -2,7 +2,8 @@
 //! the initramfs and the command line of the boot go into PCRs 8 and 9 of
 //! the TPM, in every active bank, then the separator `zbm-unsealed` into
 //! PCR 9; each extension is recorded in the state directory's event log
-//! ([`LOG`]).
+//! ([`LOG`]). The hooks of the hook root go into PCR 9 before them, at
+//! start-up ([`extend_events`], ADR 0009).
 //!
 //! The kernel loads copies of the files, in the state directory: the bytes
 //! measured are the bytes loaded, whatever happens to the boot
@@ -18,6 +19,7 @@ use std::path::{Path, PathBuf};
 
 pub use zbm_crypt::measure::{
     self, Bank, COMMAND_LINE_PCR, Digests, Event, FILES_PCR, Measured, hex, parse_log, replay,
+    unsealed_at,
 };
 use zbm_crypt::tpm2::Tpm2;
 use zbm_platform::{Files, System};
@@ -53,6 +55,11 @@ impl Copies {
     }
 }
 
+/// Whether the machine has a TPM that measured boot would extend.
+pub fn has_tpm(system: &System<'_>) -> bool {
+    tpm_device(system).is_some()
+}
+
 /// The TPM of the machine, the resource manager's device first.
 fn tpm_device(system: &System<'_>) -> Option<&'static str> {
     DEVICES
@@ -60,28 +67,55 @@ fn tpm_device(system: &System<'_>) -> Option<&'static str> {
         .find(|device| system.files.exists(Path::new(device)))
 }
 
-/// Measures what `load` loads into the TPM, if there is one, and records
-/// it in the event log of `state`; the copies the kernel loads instead of
-/// the boot environment's files, or `None` when nothing was measured, as
-/// without a TPM.
-pub fn measure(system: &System<'_>, state: &State<'_>, load: &KexecLoad<'_>) -> Option<Copies> {
+/// What became of events for the TPM.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Extended {
+    /// There is no TPM: nothing was measured.
+    NoTpm,
+    /// The TPM did not say which banks it has: nothing was measured.
+    NoBanks,
+    /// The events went into the TPM's active banks, and those the TPM
+    /// took into the log.
+    Extended,
+}
+
+/// Extends `events`, in order, into the TPM, if there is one, in its
+/// active banks, and records each that it took in the event log of
+/// `state`, which starts with what PCRs 8 and 9 held when it is new: the
+/// one way into the TPM of measured boot, for the hook root's hooks
+/// (ADR 0009) and the boot's files.
+pub fn extend_events(system: &System<'_>, state: &State<'_>, events: &[Event]) -> Extended {
     let Some(device) = tpm_device(system) else {
-        zbm_trace::debug!("no TPM: the boot is not measured");
-        return None;
+        return Extended::NoTpm;
     };
     let tcti = format!("device:{device}");
     let tpm = Tpm2::new(system.runner, &tcti);
     let banks = tpm.active_banks().filter(|banks| !banks.is_empty());
     let Some(banks) = banks else {
         zbm_trace::warn!(
-            "the PCR banks of the TPM {device} could not be read: the boot is not measured";
+            "the PCR banks of the TPM {device} could not be read: nothing is measured";
             %device
         );
-        return None;
+        return Extended::NoBanks;
     };
     let log = state.base().join(LOG);
     if !system.files.exists(&log) {
         record_start(system, &tpm, &banks, &log);
+    }
+    for event in events {
+        extend(system, &tpm, (event, &banks), &log);
+    }
+    Extended::Extended
+}
+
+/// Measures what `load` loads into the TPM, if there is one, and records
+/// it in the event log of `state`; the copies the kernel loads instead of
+/// the boot environment's files, or `None` when nothing was measured, as
+/// without a TPM.
+pub fn measure(system: &System<'_>, state: &State<'_>, load: &KexecLoad<'_>) -> Option<Copies> {
+    if tpm_device(system).is_none() {
+        zbm_trace::debug!("no TPM: the boot is not measured");
+        return None;
     }
     let files = read_files(system, load);
     let mut events = Vec::new();
@@ -93,11 +127,16 @@ pub fn measure(system: &System<'_>, state: &State<'_>, load: &KexecLoad<'_>) -> 
     // What ZFSBootMenu unsealed, it unsealed: the separator, even when the
     // files could not be measured.
     events.push(Event::unsealed());
-    for event in &events {
-        extend(system, &tpm, (event, &banks), &log);
+    if extend_events(system, state, &events) != Extended::Extended {
+        return None;
     }
     let (kernel, initramfs) = files?;
-    write_copies(system, state, &log, (kernel.1, initramfs.1))
+    write_copies(
+        system,
+        state,
+        &state.base().join(LOG),
+        (kernel.1, initramfs.1),
+    )
 }
 
 /// A measured file: its event, and its bytes.

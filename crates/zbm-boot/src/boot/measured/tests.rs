@@ -175,7 +175,7 @@ fn a_tpm_with_no_active_bank_measures_nothing() {
     assert!(extended(&fake).is_empty());
     assert!(
         fake.kmsg()
-            .contains("PCR banks of the TPM /dev/tpmrm0 could not be read"),
+            .contains("PCR banks of the TPM /dev/tpmrm0 could not be read: nothing is measured"),
         "{}",
         fake.kmsg()
     );
@@ -288,4 +288,48 @@ fn pcrs_that_cannot_be_read_leave_the_log_without_a_start() {
         "{}",
         fake.kmsg()
     );
+}
+
+#[test]
+fn events_are_extended_after_the_start_and_continue_the_log() {
+    let fake = machine();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let hook = Event::hook("early-setup.d/10-hello", b"echo hello\n");
+
+    assert_eq!(
+        extend_events(&fake.system(), &state, &[hook]),
+        Extended::Extended
+    );
+    let _ = with_load(|load| measure(&fake.system(), &state, load));
+
+    let log = fake.files.text("/zfsbootmenu/tpm-measure.json").unwrap();
+    let kinds: Vec<&str> = parse_log(&log)
+        .unwrap()
+        .iter()
+        .map(|event| event.measured.kind())
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            "start",
+            "start",
+            "hook",
+            "kernel",
+            "initramfs",
+            "command-line",
+            "separator"
+        ]
+    );
+    assert_eq!(extended(&fake), ["9", "9", "9", "8", "9"]);
+    let reads = fake.runner.lines();
+    assert_eq!(
+        reads
+            .iter()
+            .filter(|line| line.starts_with("tpm2_pcrread"))
+            .count(),
+        1
+    );
+    let none = machine_with(None, BANKS);
+    let state = State::new(&none.files, "/zfsbootmenu");
+    assert_eq!(extend_events(&none.system(), &state, &[]), Extended::NoTpm);
 }

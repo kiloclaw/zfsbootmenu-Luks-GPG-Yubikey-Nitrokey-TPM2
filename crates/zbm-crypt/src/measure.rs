@@ -11,6 +11,11 @@
 //! JSON text sequences (RFC 7464) of CEL-JSON records ([`record`]), which
 //! [`replay`] turns back into the values the PCRs must hold.
 //!
+//! Before any of them runs, the hooks of `zbm.hookroot` go into PCR 9 too
+//! ([`Measured::Hook`], ADR 0009), so that a token bound to PCR 9 unseals
+//! only with the hooks it was enrolled with; [`unsealed_at`] is the value
+//! such a token binds to.
+//!
 //! The log starts with what PCRs 8 and 9 held before ZFSBootMenu extended
 //! them ([`Measured::Start`]): on a UEFI machine, the firmware or the
 //! kernel's EFI stub may have extended PCR 9 already, with ZFSBootMenu's
@@ -115,6 +120,16 @@ impl Digests {
         Digests(values)
     }
 
+    /// The digests of `parts`, one after the other.
+    pub fn of_parts(parts: &[&[u8]]) -> Digests {
+        Digests(
+            Bank::ALL
+                .into_iter()
+                .map(|bank| (bank, bank.digest(parts)))
+                .collect(),
+        )
+    }
+
     /// The digests of `bytes`.
     pub fn of_bytes(bytes: &[u8]) -> Digests {
         Digests(
@@ -143,6 +158,8 @@ pub enum Measured {
     Initramfs(String),
     /// The command line the kernel gets.
     CommandLine(String),
+    /// A hook of the hook root, as `<stage>/<name>`.
+    Hook(String),
     /// The separator, [`UNSEALED`].
     Unsealed,
     /// What this PCR held before ZFSBootMenu extended it, read from the
@@ -158,6 +175,7 @@ impl Measured {
             Measured::Kernel(_) => "kernel",
             Measured::Initramfs(_) => "initramfs",
             Measured::CommandLine(_) => "command-line",
+            Measured::Hook(_) => "hook",
             Measured::Unsealed => "separator",
             Measured::Start(_) => "start",
         }
@@ -167,9 +185,10 @@ impl Measured {
     /// nothing for a start.
     pub fn value(&self) -> &str {
         match self {
-            Measured::Kernel(value) | Measured::Initramfs(value) | Measured::CommandLine(value) => {
-                value
-            }
+            Measured::Kernel(value)
+            | Measured::Initramfs(value)
+            | Measured::CommandLine(value)
+            | Measured::Hook(value) => value,
             Measured::Unsealed => UNSEALED,
             Measured::Start(_) => "",
         }
@@ -201,6 +220,22 @@ impl Event {
             digests: Digests::of_bytes(text.as_bytes()),
             measured: Measured::CommandLine(text.to_owned()),
         }
+    }
+
+    /// The hook `name` (`<stage>/<name>`) of the hook root, with its
+    /// `contents`: the digest of the name, a NUL and the contents, so that
+    /// a hook moved to another stage measures as another.
+    pub fn hook(name: &str, contents: &[u8]) -> Event {
+        Event {
+            digests: Digests::of_parts(&[name.as_bytes(), &[0], contents]),
+            measured: Measured::Hook(name.to_owned()),
+        }
+    }
+
+    /// Whether it measures the boot itself, after the unlock: a file
+    /// loaded, the command line or the separator.
+    pub fn is_of_the_boot(&self) -> bool {
+        !matches!(self.measured, Measured::Start(_) | Measured::Hook(_))
     }
 
     /// The separator.
@@ -240,6 +275,19 @@ pub fn replay(events: &[Event], pcr: u32, bank: Bank) -> Vec<u8> {
                 bank.digest(&[&value, digest])
             }
         })
+}
+
+/// What `events` leave in PCR 9 before the first event of the boot itself
+/// (its start and the hook root's hooks): the value at which ZFSBootMenu
+/// unseals the tokens of its volumes, which a token bound to PCR 9 is
+/// enrolled with.
+pub fn unsealed_at(events: &[Event], bank: Bank) -> Vec<u8> {
+    let before: Vec<Event> = events
+        .iter()
+        .take_while(|event| !event.is_of_the_boot())
+        .cloned()
+        .collect();
+    replay(&before, FILES_PCR, bank)
 }
 
 /// The lower-case hexadecimal of `bytes`.
@@ -311,6 +359,7 @@ fn parse_record(record: &str) -> Option<Event> {
         "kernel" => Measured::Kernel(text),
         "initramfs" => Measured::Initramfs(text),
         "command-line" => Measured::CommandLine(text),
+        "hook" => Measured::Hook(text),
         "separator" if text == UNSEALED => Measured::Unsealed,
         "start" if text.is_empty() => Measured::Start(0),
         _ => return None,

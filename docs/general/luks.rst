@@ -257,13 +257,14 @@ recorded in an event log (TCG Canonical Event Log, CEL-JSON), which starts with 
 So a TPM2 token bound to PCR 9 unseals for ZFSBootMenu alone: the booted system finds PCR 9 changed and cannot unseal
 it again. Bind ZFSBootMenu's tokens to PCR 9 together with PCR 7, with the value PCR 9 has when ZFSBootMenu unseals,
 not the value the booted system reads (``--tpm2-pcrs=7+9`` alone would take that one, and the token would never
-unseal). The value is the SHA-256 digest of the ``start`` record of PCR 9 in the event log (see below)::
+unseal). ``zbm measure unseal`` prints that value from this boot's event log (see below)::
 
-  value=$(grep '"event":"start"' /run/log/zfsbootmenu/tpm-measure.json | grep '"pcr":9,' |
-    sed 's/.*"digest":"\([0-9a-f]*\)","hashAlg":"sha256".*/\1/')
-  systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs="7+9:sha256=${value}" /dev/disk/by-partlabel/zfs0
+  pcr9=$(/usr/libexec/zfsbootmenu/zbm measure unseal | grep sha256)   # 9:sha256=...
+  systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs="7+${pcr9}" /dev/disk/by-partlabel/zfs0
 
-ADR 0009 adds ``zbm measure unseal``, which will print the value as ``9:sha256=...``.
+The hooks of a hook root (``zbm.hookroot``) go into PCR 9 before any of them runs, and before the unlock, so the value
+includes them: such a token unseals only with the hooks it was enrolled with, and a hook root someone else put there
+makes the TPM refuse, so the passphrase is asked. Enrol the token again after changing the hook root's hooks.
 
 PCR 9 holds, at that time, what the firmware and ZFSBootMenu's own kernel put there, which changes with the
 ZFSBootMenu image, as PCR 4 does: re-enrol after an update of the image.
@@ -275,10 +276,11 @@ The booted system can seal its own secrets to the kernel and command line it was
   ``HOOKS``) copy it to ``/run/log/zfsbootmenu/tpm-measure.json``. It is also kept with the saved logs on the ESP
   (``zbm.save_logs``).
 * ``/usr/libexec/zfsbootmenu/zbm measure log`` lists the log's events and replays them into the values PCRs 8 and 9
-  must hold; compare them with ``tpm2_pcrread sha256:8,9``.
+  must hold; compare them with ``tpm2_pcrread sha256:8,9``. ``zbm measure unseal`` prints PCR 9 as ZFSBootMenu
+  unsealed, after its start and the hook root.
 * ``/usr/libexec/zfsbootmenu/zbm measure predict DATASET [KERNEL]`` prints the values a boot of that boot environment
   would leave, from its files (the dataset must be mounted, or give ``--root``), with this boot's command line (or
-  ``--command-line``), starting from what this boot's log says PCRs 8 and 9 held. Its ``8:sha256=...`` and
+  ``--command-line``), starting from what this boot's log says PCRs 8 and 9 held, and its hook root. Its ``8:sha256=...`` and
   ``9:sha256=...`` lines are what ``systemd-cryptenroll --tpm2-pcrs=`` takes, so the next kernel can be sealed to
   before it boots. Every kernel update changes PCR 9.
 

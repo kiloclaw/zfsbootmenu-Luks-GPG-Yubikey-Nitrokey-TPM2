@@ -177,6 +177,10 @@ These options are set on the kernel command line when booting the initramfs or U
   ZFSBootMenu image by including an external hook script with the same name in the appropriate
   directory.
 
+  In images with the Rust runtime, on a machine with a TPM, the hooks copied from the hook root are
+  measured into PCR 9 before any hook runs. A LUKS2 TPM2 token bound to PCR 9 then unseals only with
+  the hooks it was enrolled with; see :doc:`zfsbootmenu-luks(7) </man/zfsbootmenu-luks.7>`.
+
 **zbm.kcl_override="boot environment KCL"**
 
   Override the kernel command line passed in to all boot environments. Double quotes must be used to

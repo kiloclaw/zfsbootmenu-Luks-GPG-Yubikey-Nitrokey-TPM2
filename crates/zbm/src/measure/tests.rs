@@ -247,6 +247,37 @@ fn a_prediction_gives_what_a_measured_boot_extends() {
     };
     assert_eq!(values(&predicted), values(&replayed));
     assert!(predicted.contains(&load.command_line()));
-    assert!(predicted.contains("start         the values in this boot's log"));
+    assert!(predicted.contains("start         the values in this boot's log, and its hook root"));
     assert!(replayed.contains("  0  PCR 8  start"), "{replayed}");
+}
+
+#[test]
+fn the_unseal_value_is_pcr_9_after_the_start_and_the_hooks() {
+    let fake = machine();
+    let start = Event::start(9, Digests::new(vec![(Bank::Sha256, vec![3; 32])]));
+    let hook = Event::hook("early-setup.d/10-net", b"net");
+    let mut events = vec![start.clone(), hook.clone()];
+    events.extend(boot());
+    // SHA-256 alone, as the start has no other digest.
+    let records: String = (0..)
+        .zip(&events)
+        .map(|(recnum, event)| measure::record(recnum, event, &[Bank::Sha256]))
+        .collect();
+    fake.files.file(LOG, &records);
+
+    let (code, out, err) = call(&fake, &["unseal"]);
+
+    assert_eq!((code, err.as_str()), (0, ""));
+    let expected = replay(&[start.clone(), hook.clone()], 9, Bank::Sha256);
+    assert_eq!(out, format!("9:sha256={}\n", hex(&expected)));
+    // A prediction builds on the start and the hooks too.
+    let (_, predicted, _) = call(&fake, &["predict", "tank/ROOT/void"]);
+    let mut whole = vec![start, hook];
+    whole.extend(boot());
+    let nine = format!("9:sha256={}", hex(&replay(&whole, 9, Bank::Sha256)));
+    assert!(predicted.contains(&nine), "{predicted}");
+    // Another file, and one that is missing.
+    fake.files.file("/tmp/other.json", &records);
+    assert_eq!(call(&fake, &["unseal", "/tmp/other.json"]).1, out);
+    assert_eq!(call(&fake, &["unseal", "/tmp/missing.json"]).0, 1);
 }

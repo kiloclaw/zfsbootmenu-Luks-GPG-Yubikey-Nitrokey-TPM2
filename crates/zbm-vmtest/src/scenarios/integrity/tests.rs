@@ -209,3 +209,67 @@ fn the_payload_s_digests_are_its_files() {
     assert_eq!(payload.initramfs, sha256(&[b"INITRD"]));
     cleanup(&settings);
 }
+
+/// A boot whose environment printed a log of `records`: (PCR, event,
+/// value, SHA-256 digest).
+fn printed(records: &[(u64, &str, &str, Vec<u8>)], prompts: &[&str]) -> Boot {
+    let mut be = String::from("BE-INIT-START\n");
+    for (recnum, (pcr, event, value, digest)) in records.iter().enumerate() {
+        let record = serde_json::json!({
+            "recnum": recnum,
+            "pcr": pcr,
+            "digests": [{"hashAlg": "sha256", "digest": hex(digest)}],
+            "content_type": "zfsbootmenu",
+            "content": {"event": event, "value": value},
+        });
+        writeln!(be, "BE-ML|  {record}").unwrap();
+    }
+    Boot {
+        be,
+        prompts: prompts.iter().map(|&prompt| prompt.to_owned()).collect(),
+        ..Boot::default()
+    }
+}
+
+#[test]
+fn a_hook_root_unseals_its_token_and_another_asks_for_the_passphrase() {
+    let settings = settings("integrity-hookroot-checks");
+    let test = Test::new(&settings, "integrity-hookroot").unwrap();
+    let hook = "#!/bin/sh\necho ZBMTEST-HOOKROOT-ENROLLED\n";
+    let name = "early-setup.d/10-zbmtest";
+    let digest = sha256(&[name.as_bytes(), &[0], hook.as_bytes()]);
+    let records = [
+        (8, "start", "", vec![0; 32]),
+        (9, "start", "", vec![0; 32]),
+        (9, "hook", name, digest),
+        (9, "kernel", "/boot/vmlinuz", sha256(&[b"KERNEL"])),
+        (9, "separator", "zbm-unsealed", sha256(&[b"zbm-unsealed"])),
+    ];
+    assert_eq!(
+        hookroot::after_hook(hook).to_vec(),
+        replay(&printed_log(&printed(&records[..3], &[]).be), 9)
+    );
+
+    hookroot::check_enrolled(&test, &printed(&records, &[]), "ZBMTEST-HOOKROOT-ENROLLED");
+    hookroot::check_other(
+        &test,
+        &printed(&records, &["luks"]),
+        "ZBMTEST-HOOKROOT-OTHER",
+    );
+    // Asked, without the hook, and another value: every check fails.
+    let other = [(9, "start", "", vec![0; 32]), (9, "hook", "x", vec![1; 32])];
+    hookroot::check_enrolled(&test, &printed(&other, &["luks"]), "");
+    hookroot::check_other(&test, &printed(&other, &[]), "");
+
+    let results: Vec<bool> = checks(&test)
+        .iter()
+        .map(|line| line.starts_with("ok"))
+        .collect();
+    assert_eq!(
+        results,
+        [
+            true, true, true, true, true, true, false, false, false, false, false, false
+        ]
+    );
+    cleanup(&settings);
+}

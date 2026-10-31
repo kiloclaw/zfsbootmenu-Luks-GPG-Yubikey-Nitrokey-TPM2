@@ -183,3 +183,39 @@ fn a_start_sets_the_value_the_replay_continues_from() {
     let valued = text.replacen(r#""value":"""#, r#""value":"x""#, 1);
     assert_eq!(parse_log(&valued), Err(0));
 }
+
+#[test]
+fn hooks_go_into_pcr_9_before_the_boot_and_set_the_value_tokens_unseal_at() {
+    let hook = Event::hook("early-setup.d/10-hello", b"echo hello\n");
+    assert_eq!(hook.pcr(), FILES_PCR);
+    assert_eq!(hook.measured.kind(), "hook");
+    assert!(!hook.is_of_the_boot());
+    // Its name is measured with it: moved, it is another hook.
+    let moved = Event::hook("teardown.d/10-hello", b"echo hello\n");
+    assert_ne!(hook.digests, moved.digests);
+    let expected = Bank::Sha256.digest(&[b"early-setup.d/10-hello", &[0], b"echo hello\n"]);
+    assert_eq!(hook.digests.get(Bank::Sha256), Some(expected.as_slice()));
+
+    let start = Event::start(9, Digests::new(vec![(Bank::Sha256, vec![7; 32])]));
+    let mut events = vec![start, hook];
+    let at = unsealed_at(&events, Bank::Sha256);
+    assert_eq!(at, replay(&events, 9, Bank::Sha256));
+    events.extend(boot());
+    // The boot's files and separator come after the unseal.
+    assert_eq!(unsealed_at(&events, Bank::Sha256), at);
+    assert_ne!(replay(&events, 9, Bank::Sha256), at);
+    assert!(boot().iter().all(Event::is_of_the_boot));
+
+    let text: String = (0..)
+        .zip(&events)
+        .map(|(recnum, event)| record(recnum, event, &[Bank::Sha256]))
+        .collect();
+    let read = parse_log(&text).unwrap();
+    assert_eq!(
+        read[1].measured,
+        Measured::Hook("early-setup.d/10-hello".into())
+    );
+    assert_eq!(unsealed_at(&read, Bank::Sha256), at);
+    // Without a start or hooks, tokens unseal at zeros.
+    assert_eq!(unsealed_at(&boot(), Bank::Sha256), vec![0; 32]);
+}

@@ -26,7 +26,9 @@
 //!   kept replays to, the log measured the kernel and initramfs as they are
 //!   on the dataset, which `zbm measure predict` reads, and the command
 //!   line the kernel got; PCR 9 no longer holds the value `auto0`'s token is
-//!   bound to, so the booted system cannot unseal it again.
+//!   bound to, so the booted system cannot unseal it again;
+//! - `hookroot` (ADR 0009): a token bound to PCR 9 after a
+//!   hook root's hook unseals with that hook, and not with another.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -48,6 +50,7 @@ use crate::swtpm::{self, Swtpm};
 use crate::text::clean;
 use crate::vm::Vm;
 
+mod hookroot;
 #[cfg(test)]
 mod tests;
 
@@ -111,6 +114,7 @@ pub fn run_scenario(test: &Test, scenario: &str) -> Result<()> {
         "unattended" => unattended(test),
         "lockdown" => lockdown(test),
         "measured" => measured(test),
+        "hookroot" => hookroot::run(test),
         _ => {
             test.check(false, &format!("unknown scenario {scenario}"));
             Ok(())
@@ -195,13 +199,20 @@ fn host_prepare(test: &Test) -> Result<()> {
         .args(["--tpm2", "--tpmstate"])
         .arg(&tpm)
         .arg("--overwrite"))?;
-    let pid_file = settings.disks(GROUP).join("swtpm.pid");
-    let port = swtpm::start_tcp(&tpm, &pid_file, "not-need-init,startup-clear")?;
     let mut part = None;
-    let result = prepare_volume(test, &swtpm::tcti(port), &mut part);
+    let result = swtpm_running(settings, |tcti| prepare_volume(test, tcti, &mut part));
     if let Some(part) = part {
         Command::new("losetup").arg("-d").arg(part).output().ok();
     }
+    result
+}
+
+/// Runs `with` with the TCTI of the software TPM of the group, on TCP,
+/// stopped on every path.
+fn swtpm_running<T>(settings: &Settings, with: impl FnOnce(&str) -> Result<T>) -> Result<T> {
+    let pid_file = settings.disks(GROUP).join("swtpm.pid");
+    let port = swtpm::start_tcp(&tpm_dir(settings), &pid_file, "not-need-init,startup-clear")?;
+    let result = with(&swtpm::tcti(port));
     swtpm::stop_pid_file(&pid_file);
     result
 }
@@ -420,7 +431,7 @@ impl Payload {
 /// One record of the event log, read apart from the runtime's reader, as
 /// ADR 0008 describes it: its PCR, its event, the value it names, and its
 /// SHA-256 digest.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct Record {
     pcr: u64,
     event: String,
