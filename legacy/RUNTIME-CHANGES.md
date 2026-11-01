@@ -118,6 +118,13 @@ off, and so that a change to the runtime adds its entry in the same commit.
   `zfsbootmenu_graphics_drivers` are unchanged.
   **Rust:** done; `zbm_startup::graphics` loads them, and `crates/zbm/tests/image_graphics.rs` and the VM test
   `runtime-rust-gpu` cover it.
+- [x] `fb740125`: `install-helpers.sh` is gone; `zbm image plan` (`crates/zbm-image`, ROADMAP.md SB8) decides what
+  goes into every image, and the dracut module and the mkinitcpio hook install its manifest. Legacy images get the
+  same files as before, but builds need `zbm`, the dracut module reads `zfsbootmenu_release_build` as yes only for yes,
+  y, on or 1, and `BUILD_ID` without `SOURCE_DATE_EPOCH` is the day in UTC. The mkinitcpio run hook starts the Rust
+  runtime's `zbm` without Bash.
+  **Rust:** done; the plan is Rust, with golden plans of both runtimes (`crates/zbm-image/src/snapshots/`) and
+  `crates/zbm/tests/image_shims.rs` for the shims.
 
 ## Legacy limitations the Rust runtime must not copy
 
