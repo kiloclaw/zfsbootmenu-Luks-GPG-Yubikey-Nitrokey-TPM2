@@ -85,8 +85,8 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "orchestration",
-        purpose: "Start-up; image generation",
-        crates: &["zbm-startup", "generate-zbm"],
+        purpose: "Start-up; image generation and the plan of an image",
+        crates: &["zbm-startup", "generate-zbm", "zbm-image"],
     },
     Layer {
         name: "front ends",

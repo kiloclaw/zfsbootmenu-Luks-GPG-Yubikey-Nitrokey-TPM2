@@ -3960,6 +3960,7 @@ dependencies = [
  "zbm-config",
  "zbm-console",
  "zbm-display",
+ "zbm-image",
  "zbm-luks",
  "zbm-platform",
  "zbm-pool",
@@ -4082,6 +4083,19 @@ dependencies = [
  "thiserror",
  "zbm-sys",
  "zbm-types",
+]
+
+[[package]]
+name = "zbm-image"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "pretty_assertions",
+ "zbm-config",
+ "zbm-display",
+ "zbm-platform",
+ "zbm-testkit",
+ "zbm-tools",
 ]
 
 [[package]]

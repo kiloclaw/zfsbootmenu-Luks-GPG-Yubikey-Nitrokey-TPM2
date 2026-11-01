@@ -312,4 +312,14 @@ impl Files for FakeFiles {
             Err(error(io::ErrorKind::NotFound, path))
         }
     }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        self.check_failure(path)?;
+        let resolved = self.resolve(path, false)?;
+        match self.nodes().get(&resolved) {
+            Some(Node::Symlink(target)) => Ok(target.clone()),
+            Some(_) => Err(error(io::ErrorKind::InvalidInput, path)),
+            None => Err(error(io::ErrorKind::NotFound, path)),
+        }
+    }
 }

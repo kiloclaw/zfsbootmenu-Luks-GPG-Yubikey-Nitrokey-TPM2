@@ -7,26 +7,11 @@
 use std::io;
 use std::path::Path;
 
-use zbm_display::psf::{Font, SUBSET_GLYPHS, repertoire};
+use zbm_display::psf::SUBSET_GLYPHS;
+pub use zbm_image::psf::{Done, subsets};
 use zbm_platform::{Files, RealFiles};
 
 use crate::Io;
-
-/// What became of one font.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Done {
-    /// Written as a subset; with the characters it could not draw.
-    Subset {
-        /// The glyphs of the source.
-        from: usize,
-        /// Characters neither the font nor a look-alike in it could draw.
-        missing: Vec<char>,
-    },
-    /// Copied as it was: it has no more than 256 glyphs.
-    Small,
-    /// Copied as it was: it could not be read as a PSF font.
-    Unreadable(String),
-}
 
 /// Writes each PSF font of `source` (`*.psf`, `*.psfu`) to `destination`,
 /// under its name, as a subset where it needs one; returns what became of
@@ -40,33 +25,10 @@ pub fn convert(
     source: &Path,
     destination: &Path,
 ) -> io::Result<Vec<(String, Done)>> {
-    let mut names: Vec<String> = files
-        .read_dir(source)?
-        .into_iter()
-        .filter_map(|name| name.into_string().ok())
-        .filter(|name| {
-            Path::new(name)
-                .extension()
-                .is_some_and(|extension| extension == "psf" || extension == "psfu")
-        })
-        .collect();
-    names.sort();
+    let fonts = subsets(files, source)?;
     files.create_dir_all(destination)?;
     let mut report = Vec::new();
-    for name in names {
-        let bytes = files.read(&source.join(&name))?;
-        let (output, done) = match Font::parse(&bytes) {
-            Ok(font) if font.glyph_count() <= SUBSET_GLYPHS => (bytes, Done::Small),
-            Ok(font) => {
-                let subset = font.subset(&repertoire());
-                let done = Done::Subset {
-                    from: font.glyph_count(),
-                    missing: subset.missing,
-                };
-                (subset.font.to_bytes(), done)
-            }
-            Err(error) => (bytes, Done::Unreadable(error.to_string())),
-        };
+    for (name, output, done) in fonts {
         files.write(&destination.join(&name), &output)?;
         report.push((name, done));
     }
@@ -74,7 +36,7 @@ pub fn convert(
 }
 
 /// The line `console-fonts` prints for one font.
-fn line(name: &str, done: &Done) -> String {
+pub fn line(name: &str, done: &Done) -> String {
     match done {
         Done::Subset { from, missing } if missing.is_empty() => {
             format!("{name}: {from} glyphs, kept {SUBSET_GLYPHS}")
@@ -114,6 +76,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use zbm_display::psf::Font;
     use zbm_testkit::fakes::FakeFiles;
 
     use super::*;

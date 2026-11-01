@@ -92,6 +92,9 @@ impl Files for Redirect {
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
         RealFiles.canonicalize(self.map(path))
     }
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        RealFiles.read_link(self.map(path))
+    }
 }
 
 #[cfg(test)]

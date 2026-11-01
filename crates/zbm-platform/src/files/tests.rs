@@ -157,6 +157,11 @@ fn canonical_paths_have_no_links() {
     std::os::unix::fs::symlink(dir.join("target"), dir.join("link")).unwrap();
     let canonical = RealFiles.canonicalize(&dir.join("./link")).unwrap();
     assert_eq!(
+        RealFiles.read_link(&dir.join("link")).unwrap(),
+        dir.join("target")
+    );
+    assert!(RealFiles.read_link(&dir.join("target")).is_err());
+    assert_eq!(
         canonical,
         RealFiles.canonicalize(&dir.join("target")).unwrap()
     );

@@ -83,10 +83,31 @@ cutover, with dracut and mkinitcpio kept as backends.**
 
 ## Where the work stands
 
-On 29 October 2026, when the decision was accepted, nothing of it is built: `packaging/dracut/module-setup.sh` (281
-lines), the mkinitcpio install hook (289 lines) and `legacy/zfsbootmenu/install-helpers.sh` (1,465 lines) still decide
-what goes into an image, and the mkinitcpio run hook still starts `zbm` with `exec bash`. SB8 needs no other item;
-its VM run needs the build container rebuilt, as it changes `packaging/`.
+On 29 October 2026, when the decision was accepted, nothing of it was built. On 1 November 2026 (SB8):
+
+- **The plan** is a value, `zbm_image::Plan`, which `zbm_image::plan` computes from the builder's settings and the
+  build host, through its files and its programs' answers (`zbm_tools::host`), for the legacy and the Rust runtime
+  (answer 2). It lives in `crates/zbm-image`, in the orchestration layer beside `generate-zbm`, until DM10 makes
+  `zbm-host`; the crate map puts the host tools among the front ends, which may not use adapters, so the plan cannot
+  live there yet. The plan names each binary's path, not its libraries, and the builders resolve them (decision 2).
+- **The manifest** is the plan's text (answer 1): `dir`, `file`, `link`, `hardlink`, `binary`, `library`, `module`,
+  `rule`, `unomit`, `hook`, `hostonly`, `firmware`, `info` and `warn` lines, separated by tabs (`plan.rs` documents
+  each). `zbm image plan --builder dracut|mkinitcpio --config FILE --stage DIR` prints it, the files the plan writes
+  in `DIR`; the shims hand it the settings as `NAME<TAB>VALUE` lines.
+- **The shims** (`packaging/dracut/module-setup.sh`, `packaging/initcpio/install/zfsbootmenu`) read the manifest with
+  `while IFS=$'\t' read -r` and call `inst_*`, `instmods` and `mark_hostonly`, or `add_*`; dracut's `installkernel`
+  takes the `module`, `unomit` and `firmware` lines, `install` the others. The graphics firmware is pruned on the
+  built tree by `zbm image prune-firmware`. Every build needs `zbm` (the maintainer's choice when SB8 started), and
+  `legacy/zfsbootmenu/install-helpers.sh` is gone; `crates/zbm/tests/image_shims.rs` runs both shims with stub
+  builders.
+- **The mkinitcpio run hook** of the Rust runtime starts `zbm` from busybox's shell; only the legacy runtime's entry
+  point needs Bash (decision 3).
+- **Golden plans** (decision 4): `crates/zbm-image/src/snapshots/` holds the plans of five configurations, dracut and
+  mkinitcpio, legacy and Rust, with LUKS, GnuPG, graphics firmware, keyboard layouts, the lock and the screen readers,
+  and a release; `cargo insta review` takes a change.
+- **Still to come:** the `ImageBackend` trait, with the native backend (SB12, decision 5), which is when a second
+  backend gives it a reason; SB7, the Rust plan without the legacy payload; signing and the SBOM (SE12); a VM test
+  with mkinitcpio.
 
 ## Answers of the maintainer
 

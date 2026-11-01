@@ -2,10 +2,6 @@
   "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
   "cases": [
     {
-      "input": "create_zbm_conf",
-      "result": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"\"\nexport HAS_DISABLED=\"\"\nexport HAS_BORDER=\"\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"legacy\"\n"
-    },
-    {
       "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='/* '\\nexport spl_hostid=''\\nexport import_policy='hostid'\\nexport menu_timeout='0'\\nexport loglevel='4'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='0=='\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='9'\\nexport zbm_hook_root=''\\nexport zbm_wait_for_devices=''\\nexport control_term=';\\\"*'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [

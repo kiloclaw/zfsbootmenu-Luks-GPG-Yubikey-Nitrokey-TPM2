@@ -13,7 +13,8 @@ zbm-brush                74
 zbm-config               99
 zbm-console              91
 zbm-crypt               100
-zbm-display              88
+zbm-display              89
+zbm-image                96
 zbm-kcl                  93
 zbm-luks                 94
 zbm-platform             97

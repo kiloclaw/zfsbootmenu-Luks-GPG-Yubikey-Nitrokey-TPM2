@@ -16,6 +16,7 @@ pub mod console_font;
 pub mod debug;
 pub mod explain;
 pub mod fonts;
+pub mod image;
 pub mod layouts;
 pub mod lock;
 pub mod luks;
@@ -103,6 +104,12 @@ const KEYBOARD_LAYOUTS: Applet = Applet {
     run: layouts::run,
 };
 
+const IMAGE: Applet = Applet {
+    name: "image",
+    summary: "the plan of an image, for the dracut module and mkinitcpio hook (image build)",
+    run: image::run,
+};
+
 const CONSOLE: Applet = Applet {
     name: "console",
     summary: "the console on the display, without the kernel's (zbm.console=drm)",
@@ -156,6 +163,7 @@ pub const APPLETS: &[Applet] = &[
     CONSOLE_FONT,
     CONSOLE_FONTS,
     KEYBOARD_LAYOUTS,
+    IMAGE,
     CONSOLE,
     MENU,
     DEBUG,
@@ -358,6 +366,7 @@ mod tests {
             "console-font",
             "console-fonts",
             "keyboard-layouts",
+            "image",
             "console",
             "zfsbootmenu",
             "debug",

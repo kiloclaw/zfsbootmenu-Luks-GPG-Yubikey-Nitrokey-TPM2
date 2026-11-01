@@ -1,7 +1,7 @@
 //! Reading `/etc/zfsbootmenu.conf`.
 //!
-//! The image build writes the first part of the file (`install-helpers.sh`:
-//! an include guard, then `export NAME="value"` lines), and the start-up
+//! The image build writes the first part of the file ([`header`]: an
+//! include guard, then `export NAME="value"` lines), and the start-up
 //! appends the options parsed from the command line
 //! ([`crate::options::ZbmOptions::conf`], `zfsbootmenu-preinit.sh`:
 //! `export name='value'` lines). Shell code sources the file; every Rust
@@ -14,6 +14,8 @@
 //! guessed at, and [`Conf::skipped`] names it: the legacy runtime sources the
 //! file with Bash, so one odd line must not cost the whole configuration.
 
+use std::fmt::Write as _;
+
 /// Where the configuration is.
 pub const PATH: &str = "/etc/zfsbootmenu.conf";
 
@@ -22,6 +24,17 @@ const GUARD: &str = r#"[ -n "${_ETC_ZFSBOOTMENU_CONF}" ] && return"#;
 
 /// The variable the include guard sets, which is not exported.
 const GUARD_SET: &str = "readonly _ETC_ZFSBOOTMENU_CONF=1";
+
+/// The first part of the file, as the image build writes it (`zbm image
+/// plan`): the include guard, then `export NAME="VALUE"` for each of
+/// `exports`, whose values hold no `"`, `$`, `` ` `` or `\`.
+pub fn header(exports: &[(&str, &str)]) -> String {
+    let mut text = format!("# Include guard\n{GUARD}\n{GUARD_SET}\n");
+    for (name, value) in exports {
+        let _ = writeln!(text, "export {name}=\"{value}\"");
+    }
+    text
+}
 
 /// The variables of `/etc/zfsbootmenu.conf`, in the order they first appear.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -368,18 +381,17 @@ mod tests {
     fn reads_the_file_as_the_shell_sources_it() {
         let mut parity = parity!("reads_the_file_as_the_shell_sources_it");
         // The first part, as the image build writes it
-        let header: String = parity.legacy("create_zbm_conf", || {
-            let dir = TempDir::new("zbm-conf");
-            std::fs::create_dir_all(dir.join("etc")).unwrap();
-            let build = Bash::new()
-                .source("zfsbootmenu/install-helpers.sh")
-                .env("BUILDROOT", &dir.path().to_string_lossy())
-                .env("ZBM_BUILDSTYLE", "dracut")
-                .env("zfsbootmenu_release_build", "yes")
-                .call("create_zbm_conf", &[], b"");
-            assert!(build.status.is_success(), "{}", build.stderr_text());
-            std::fs::read_to_string(dir.join("etc/zfsbootmenu.conf")).unwrap()
-        });
+        let header = header(&[
+            ("HAS_REFRESH", ""),
+            ("HAS_DISABLED", ""),
+            ("HAS_BORDER", ""),
+            ("HAS_COLUMN", ""),
+            ("HAS_COLORS", ""),
+            ("HAS_RAW", ""),
+            ("ZBM_BUILDSTYLE", "dracut"),
+            ("ZBM_RELEASE_BUILD", "1"),
+            ("ZBM_RUNTIME", "legacy"),
+        ]);
         assert!(header.contains("export ZBM_RUNTIME=\"legacy\""));
 
         let mut rng = Rng::from_env(12);

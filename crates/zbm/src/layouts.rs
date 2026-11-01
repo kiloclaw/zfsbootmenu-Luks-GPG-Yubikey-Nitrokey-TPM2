@@ -13,7 +13,7 @@ use std::time::Duration;
 use zbm_console::serve::{Switched, request_layout, status};
 
 use zbm_display::layout::compile::{self, COMPOSE, XKB};
-use zbm_display::layout::{Layout, LayoutError, Source};
+use zbm_display::layout::{Layout, Source};
 use zbm_platform::{Files, RealFiles};
 
 use crate::Io;
@@ -21,11 +21,7 @@ use crate::Io;
 /// Where images keep their layouts.
 pub const DIRECTORY: &str = zbm_app::LAYOUTS;
 
-/// The compose rules of the dead keys, in the layouts' directory.
-pub const DEAD_KEYS: &str = "dead-keys";
-
-/// The names of the layouts, one per line, in the layouts' directory.
-pub const INDEX: &str = "layouts";
+pub use zbm_image::keymaps::{Compiled, DEAD_KEYS, INDEX, compile_layouts};
 
 /// The file of layout `name` in `directory`.
 pub fn keymap_path(directory: &Path, name: &str) -> PathBuf {
@@ -187,47 +183,17 @@ fn parse(args: &[String]) -> Option<Request> {
 /// of each; returns whether every layout was compiled.
 fn compile_all(files: &dyn Files, request: &Request, io: &mut Io) -> io::Result<bool> {
     files.create_dir_all(&request.destination)?;
-    let mut all = true;
-    let mut index = String::new();
-    for (position, name) in request.layouts.iter().enumerate() {
-        if request
-            .layouts
-            .get(..position)
-            .is_some_and(|before| before.contains(name))
-        {
-            continue;
-        }
-        match compile::keymap(&request.xkb, name) {
-            Ok(keymap) => {
-                files.write(&keymap_path(&request.destination, name), keymap.as_bytes())?;
-                index.push_str(name);
-                index.push('\n');
-                let _ = writeln!(io.stdout, "{name}: {} bytes", keymap.len());
-            }
-            Err(error) => {
-                let _ = writeln!(io.stderr, "keyboard-layouts: {error}");
-                all = false;
-            }
-        }
+    let compiled = compile_layouts(files, &request.xkb, &request.compose, &request.layouts);
+    for (name, contents) in &compiled.files {
+        files.write(&request.destination.join(name), contents)?;
     }
-    files.write(&request.destination.join(INDEX), index.as_bytes())?;
-    let rules = files
-        .read(&request.compose)
-        .map_err(|error| LayoutError::Invalid(format!("{}: {error}", request.compose.display())))
-        .and_then(|compose| compile::dead_keys(&compose));
-    match rules {
-        Ok(rules) => {
-            files.write(&request.destination.join(DEAD_KEYS), rules.as_bytes())?;
-            let _ = writeln!(io.stdout, "{DEAD_KEYS}: {} rules", rules.lines().count());
-        }
-        Err(error) => {
-            let _ = writeln!(
-                io.stderr,
-                "keyboard-layouts: {error}; dead keys will type nothing"
-            );
-        }
+    for line in &compiled.done {
+        let _ = writeln!(io.stdout, "{line}");
     }
-    Ok(all)
+    for line in compiled.failed.iter().chain(&compiled.no_dead_keys) {
+        let _ = writeln!(io.stderr, "keyboard-layouts: {line}");
+    }
+    Ok(compiled.failed.is_empty())
 }
 
 /// `zbm keyboard-layouts [--xkb <dir>] [--compose <file>] <destination>

@@ -163,6 +163,17 @@ that `modprobe.d` loads with an `install` command, an image without the kernel's
 kernel before 5.17. A large font the kernel refuses (fonts taller than 32 pixels need Linux 6.2) is passed over for the
 next, as when `setfont` failed.
 
+`zbm` now decides what goes into every image, whichever runtime it boots (ROADMAP.md SB8, ADR 0006). `zbm image
+plan` computes the plan from the builder's settings and the build host and writes it as a manifest of tab-separated
+lines, which the dracut module and the mkinitcpio hook, now short shims, install with the builder's own functions;
+`install-helpers.sh` is gone. Images are the same as before, but for three things: a build needs `zbm` at
+`zfsbootmenu_zbm` (`/usr/libexec/zfsbootmenu/zbm` by default) also for the legacy runtime; any value of
+`zfsbootmenu_release_build` but yes, y, on or 1 now counts as no in the dracut module too, which used to keep the host
+ID, `vdev_id.conf` and the crypttab out for any value set; and an image without `SOURCE_DATE_EPOCH` takes its
+`BUILD_ID` from the day in UTC rather than in the build host's time zone. The mkinitcpio hook of the Rust runtime
+starts `zbm` from busybox's shell, without Bash. What goes into an image for a set of configurations is checked under
+`cargo test` against golden plans (`crates/zbm-image/src/snapshots/`).
+
 The console on the display (`zbm.console=drm`) no longer runs as root (ROADMAP.md SE11, ADR 0012). The supervisor
 starts it as its own user, 60600, with one capability, the virtual terminal's modes, and opens each device it asks for:
 the display, the virtual terminal and its text, the keyboards and the serial terminal, each checked as a character

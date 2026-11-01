@@ -1,6 +1,15 @@
 #!/bin/sh
 
+# Run by mkinitcpio's init, in busybox ash. The Rust runtime starts with zbm
+# itself (ADR 0006): it parses the command line, then sets up the console and
+# becomes the supervisor. The legacy runtime's entry point needs Bash.
 run_hook() {
-    # This hook is run in busybox ash; just jump into the bash entrypoint
+    if [ ! -e /libexec/zfsbootmenu-initcpio ]; then
+        if ! /libexec/zbm zfsbootmenu-parse-commandline; then
+            echo "ERROR: failed to parse the command line; good luck..."
+            exec /bin/sh
+        fi
+        exec /libexec/zbm zfsbootmenu-preinit
+    fi
     exec bash /libexec/zfsbootmenu-initcpio
 }

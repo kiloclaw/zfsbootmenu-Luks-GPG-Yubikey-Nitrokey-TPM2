@@ -27,6 +27,7 @@ zbm-config = { path = "crates/zbm-config" }
 zbm-console = { path = "crates/zbm-console" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-display = { path = "crates/zbm-display" }
+zbm-image = { path = "crates/zbm-image" }
 zbm-kcl = { path = "crates/zbm-kcl" }
 zbm-luks = { path = "crates/zbm-luks" }
 zbm-pool = { path = "crates/zbm-pool" }

@@ -239,6 +239,15 @@ pub trait Files: Send + Sync {
     /// The error of the operation, such as `NotFound` for a missing path.
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
 
+    /// What the symbolic link `path` points to, as it is written
+    /// (`readlink`).
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a path that is no link, or the error of the
+    /// operation, such as `NotFound` for a missing path.
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf>;
+
     /// Reads a whole file as text, replacing invalid UTF-8.
     ///
     /// # Errors
@@ -521,6 +530,10 @@ impl Files for RealFiles {
 
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
         std::fs::canonicalize(path)
+    }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        std::fs::read_link(path)
     }
 }
 

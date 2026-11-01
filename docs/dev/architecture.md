@@ -7,7 +7,7 @@ is going ("Target architecture"), and this page changes with each of its phases.
 
 | Program | Crate | Runs on | What it does |
 | --- | --- | --- | --- |
-| `zbm` | `zbm` | the boot image | One multi-call binary: the start-up program, the supervisor, `zluks` and the other applets |
+| `zbm` | `zbm` | the boot image | One multi-call binary: the start-up program, the supervisor, `zluks` and the other applets; on the build host, `zbm image plan`, the plan of each image, which the dracut module and the mkinitcpio hook install |
 | `generate-zbm` | `generate-zbm` | the host | Builds boot images (initramfs, EFI bundles) from `/etc/zfsbootmenu/config.yaml` |
 | `zbm-kcl` | `zbm-kcl` | the host | Reads and writes the `org.zfsbootmenu:commandline` property of boot environments |
 | `cargo xtask` | `xtask` | developers' machines and CI | Lints, tests, dependency checks, code metrics ([tooling.md](tooling.md)) |
@@ -26,7 +26,7 @@ dependencies that exist.
 | Layer | Crates | Purpose |
 | --- | --- | --- |
 | front ends | `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm` | The menus, the console on the display, the shell and the multi-call binary, whose applets start the programs |
-| orchestration | `zbm-startup`, `generate-zbm` | Start-up; image generation |
+| orchestration | `zbm-startup`, `generate-zbm`, `zbm-image` | Start-up; image generation and the plan of an image |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |

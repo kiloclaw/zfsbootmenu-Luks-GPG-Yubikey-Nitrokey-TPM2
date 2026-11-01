@@ -147,6 +147,21 @@ fn links_resolve_like_readlink() {
     files.file("/etc/shadow", "");
     assert_eq!(files.read(&path("/pool/link")).unwrap(), b"key");
     assert_eq!(
+        files.read_link(&path("/pool/link")).unwrap(),
+        path("keys/key.bin")
+    );
+    assert_eq!(
+        files
+            .read_link(&path("/pool/dirlink/key.bin"))
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        files.read_link(&path("/pool/none")).unwrap_err().kind(),
+        io::ErrorKind::NotFound
+    );
+    assert_eq!(
         files
             .canonicalize(&path("/pool/./dirlink/../keys/key.bin"))
             .unwrap(),

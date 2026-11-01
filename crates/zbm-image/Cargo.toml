@@ -1,0 +1,23 @@
+[package]
+name = "zbm-image"
+description = "The plan of a ZFSBootMenu image, which the dracut module and the mkinitcpio hook install"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-config.workspace = true
+zbm-display.workspace = true
+zbm-platform.workspace = true
+zbm-tools.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+pretty_assertions.workspace = true
+zbm-testkit.workspace = true
+
+[lints]
+workspace = true

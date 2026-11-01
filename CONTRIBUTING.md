@@ -28,8 +28,9 @@ Run every command below from the root of the repository unless it says otherwise
 
 `make` builds the Rust programs (`zbm`, `generate-zbm` and `zbm-kcl`) offline from the vendored crates, and
 `make install` installs them with the runtime, the dracut module and the mkinitcpio hooks. `zbm` goes to
-`/usr/libexec/zfsbootmenu`, where the dracut module and the mkinitcpio hook find it; images include it, but the legacy
-runtime they boot does not use it yet (`zfsbootmenu_runtime`, `zfsbootmenu_zbm` in `zfsbootmenu(7)`).
+`/usr/libexec/zfsbootmenu`, where the dracut module and the mkinitcpio hook find it: they ask it what goes into each
+image (`zbm image plan`), and images include it, though the legacy runtime they boot does not use it
+(`zfsbootmenu_runtime`, `zfsbootmenu_zbm` in `zfsbootmenu(7)`).
 
 ```sh
 make

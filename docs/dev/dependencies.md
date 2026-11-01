@@ -64,7 +64,7 @@ which run at build time only.
 fails when `readelf -d` lists a library other than glibc's or GCC's unwinder (`libgcc_s`, which unwinds a panic).
 
 The programs a Rust image carries are C programs but for uutils coreutils (Rust, decision 4) and `fzf` (Go). `cargo
-xtask metrics` counts them in its `rust-image` row, from the lists of `legacy/zfsbootmenu/install-helpers.sh` that a Rust
+xtask metrics` counts them in its `rust-image` row, from the lists of `crates/zbm-image/src/lists.rs` that a Rust
 image gets, and the count may only go down (CD1; 45 on 28 October 2026). Each goes with the item that replaces it, or
 stays for a reason:
 

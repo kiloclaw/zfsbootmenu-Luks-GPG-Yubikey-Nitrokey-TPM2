@@ -675,9 +675,9 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 
   Set this variable to override the default **<path>** of **zbm**, the program of the Rust runtime,
   which is installed in the image as */libexec/zbm*. When unspecified, a default of
-  */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. The *legacy*
-  runtime does not use **zbm**; when it is not found, the image is built without it. The *rust*
-  runtime cannot be built without it.
+  */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. Every image
+  build needs **zbm**, which decides what goes into the image (**zbm image plan**), whatever the
+  runtime; the *legacy* runtime does not use it at boot.
 
 **zfsbootmenu_brush=<path>**
 

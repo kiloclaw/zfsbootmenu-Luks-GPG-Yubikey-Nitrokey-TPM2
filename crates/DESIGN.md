@@ -88,6 +88,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-app` | What front ends talk to: actions, events and the snapshot of the machine. | — |
 | `zbm-startup` | The start-up program: its stages as steps, the recovery shell, the start-up hooks. | `init.d/*`, `zfsbootmenu-init` |
 | `generate-zbm` | The host tool that builds images. | `bin/generate-zbm` |
+| `zbm-image` | The plan of an image (SB8, ADR 0006): what goes into it, for each runtime and builder, as the manifest the dracut module and the mkinitcpio hook install (`zbm image plan`), with golden plans. | `install-helpers.sh`, `module-setup.sh`, `install/zfsbootmenu` |
 | `zbm-tui` | The menu: an Elm architecture on Ratatui and nucleo-matcher. | `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `fzf` |
 | `zbm-console` | The console on the display: Alacritty's terminal on a pseudo-terminal, and the menu's cells on the client channel, drawn through DRM. | the kernel's console |
 | `zbm-brush` | The shell of the Rust images, brush. | Bash |
@@ -254,10 +255,11 @@ The dracut and mkinitcpio hooks stay shell scripts, as the roadmap requires, bec
   legacy hook; and the variables the legacy start-up program exports by sourcing the two files reach every program the
   runtime starts, hooks included. The supervisor starts the programs on the console's terminal in sessions of their
   own with it as their controlling terminal (`setsid -c`) the same way, without the `setsid` program.
-- **mkinitcpio:** `/libexec/zfsbootmenu-initcpio` runs the two applets the same way.
+- **mkinitcpio:** the run hook (`packaging/initcpio/hooks/zfsbootmenu`) runs the two applets the same way, in
+  busybox's shell, without Bash (SB8).
 - The dracut `initqueue` checks (`zfsbootmenu-ready-set.sh`, `zfsbootmenu-ready-chk.sh`) stay as they are.
-- `zfsbootmenu_runtime=rust` selects these hooks (`packaging/dracut/zfsbootmenu-rust-*.sh` and the mkinitcpio entry
-  point) and leaves the legacy start-up program and `init.d` out of the image.
+- `zfsbootmenu_runtime=rust` selects these hooks (`packaging/dracut/zfsbootmenu-rust-*.sh` and the mkinitcpio run
+  hook without the legacy entry point) and leaves the legacy start-up program and `init.d` out of the image.
 
 The start-up stages run in this order, as the steps of `zbm-startup` (one `Step` per stage, run by `run_steps`):
 
