@@ -20,5 +20,6 @@ stays, marked so.
 | [0010](0010-locked-menu.md) | The locked menu and the one gate to a shell: what the lock covers, where the PIN is checked, who else is let in (#8, SE9, R8) | Accepted, 31 October 2026 |
 | [0011](0011-accessibility.md) | Accessibility: the console's text for `brltty`, a line view of the menu, `Announce`, `brltty` in the image (UI8, C85, #12) | Accepted, 31 October 2026 |
 | [0012](0012-unprivileged-console.md) | The console on the display as an unprivileged user: a device broker in the supervisor, its records, its locked memory (SE11) | Accepted, 31 October 2026 |
+| [0013](0013-host-tools.md) | The host tools as one crate in orchestration, and what they keep of the Perl tools (DM10; changes decision 14's map) | Proposed, 1 November 2026 |
 
 A new record takes the next number, the same headings, and a line in this table.
