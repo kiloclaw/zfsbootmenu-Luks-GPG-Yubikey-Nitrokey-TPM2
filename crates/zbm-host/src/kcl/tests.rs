@@ -130,8 +130,7 @@ fn an_image_is_replaced_whole_and_keeps_its_mode() {
     std::fs::set_permissions(&output, std::fs::Permissions::from_mode(0o600)).unwrap();
     let output_arg = output.display().to_string();
     let runner = FakeRunner::new();
-    // objdump fails: nothing is written, and the old image stays.
-    runner.respond_program("objdump", 1, "");
+    // Not an EFI image: nothing is written, and the old image stays.
     let result = run_with(
         &runner,
         &mounts,
@@ -255,18 +254,22 @@ fn an_unreadable_image_cannot_take_a_new_command_line() {
     let dir = TempDir::new("zbm-kcl-mounts");
     let mounts = dir.write("mounts", "tmpfs / tmpfs rw 0 0\n");
     let runner = FakeRunner::new();
-    runner.respond_program("objdump", 1, "");
 
     let result = run_with(&runner, &mounts, &["-a", "quiet", "-"], b"MZ");
 
     assert_eq!(result.code, 1);
+    let lines: Vec<&str> = result.stderr.lines().collect();
+    assert_eq!(lines.len(), 3, "{}", result.stderr);
+    let not_pe = "not a PE image: Invalid DOS header size or alignment";
+    assert_eq!(
+        lines[0],
+        format!("ERROR: unable to read the EFI executable: {not_pe}")
+    );
+    assert!(lines[1].ends_with(&format!("': {not_pe}")), "{}", lines[1]);
+    assert_eq!(lines[2], "ERROR: failed to save KCL changes");
     assert!(
-        result.stderr.ends_with(
-            "ERROR: failed to parse object file; is objdump available?\n\
-             ERROR: failed to determine offset data for KCL\n\
-             ERROR: failed to save KCL changes\n"
-        ),
-        "{}",
-        result.stderr
+        runner.lines().is_empty(),
+        "no program runs: {:?}",
+        runner.lines()
     );
 }

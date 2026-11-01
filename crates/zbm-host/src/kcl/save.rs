@@ -4,13 +4,11 @@
 use std::path::Path;
 
 use zbm_config::spec::properties::COMMANDLINE;
-use zbm_platform::exec::Output;
-use zbm_platform::filetest::{create_temp_file, is_readable};
-use zbm_tools::efi as efi_tools;
 use zbm_types::DatasetName;
 use zbm_zfs::ZfsText;
 
-use crate::kcl::{Context, Failure, TempFile, efi};
+use crate::kcl::{Failure, Io};
+use crate::pe::{Image, WriteOptions};
 
 /// Sets the property of `dataset` to the command line `assembled`, or removes
 /// it when the command line is empty.
@@ -39,66 +37,49 @@ pub(crate) fn to_dataset(
     Ok(())
 }
 
-/// Where the `.cmdline` section of `image` is and how much space follows it.
-fn gap(context: &Context, image: &Path) -> Result<(String, i64), Failure> {
-    let image_name = image.display().to_string();
-    let found = if is_readable(image) {
-        match efi_tools::section_headers(context.runner, image) {
-            Ok(output) if output.status.is_success() => {
-                efi::cmdline_gap(&output.stdout_text(), &image_name)
-            }
-            _ => Err(vec![
-                "failed to parse object file; is objdump available?".to_owned(),
-            ]),
-        }
-    } else {
-        Err(vec![format!("unable to read object file '{image_name}'")])
-    };
-    found.map_err(|mut messages| {
-        messages.push("failed to determine offset data for KCL".to_owned());
-        Failure(messages)
-    })
-}
+/// The sections a new `.cmdline` goes before, in the order of a bundle.
+const AFTER_CMDLINE: &[&str] = &[".splash", ".dtb", ".uname", ".initrd", ".linux"];
 
-/// Replaces the `.cmdline` section of `image` with the command line
-/// `assembled` and a NUL byte, at the same address, if it fits in the space
-/// before the next section.
+/// Gives `image` the command line `assembled` and a NUL byte as its
+/// `.cmdline` section, or removes the section when the line is empty
+/// (ADR 0014, point 6): at its address when it fits before the next
+/// section, else with the sections after it laid out again; before the
+/// kernel and the initramfs for an image without one. The image keeps its
+/// time stamp.
 ///
 /// # Errors
 ///
-/// The messages to print, in order, when a step fails.
-pub(crate) fn to_image(context: &Context, assembled: &str, image: &Path) -> Result<(), Failure> {
-    let (offset, gap) = gap(context, image)?;
-    let failed_temp = || Failure::of("failed to save temporary KCL".to_owned());
-    let section =
-        create_temp_file(&context.temp_dir, "tmp.XXXXXXXXXX").map_err(|_| failed_temp())?;
-    let section = TempFile(section);
-    let mut contents = assembled.as_bytes().to_vec();
-    contents.push(0);
-    std::fs::write(&section.0, &contents).map_err(|_| failed_temp())?;
-    if !efi::fits(contents.len(), gap) {
-        return Err(Failure::of(format!(
-            "new KCL size exceeds space available in EFI file '{}'; aborting",
-            image.display()
-        )));
+/// The messages to print, in order, when the image cannot be read, changed
+/// or written.
+pub(crate) fn to_image(io: &mut Io, assembled: &str, image: &Path) -> Result<(), Failure> {
+    let name = image.display();
+    let bytes = std::fs::read(image)
+        .map_err(|_| Failure::of(format!("unable to read object file '{name}'")))?;
+    let mut read = Image::read(bytes).map_err(|failure| {
+        Failure::of(format!("unable to read EFI executable '{name}': {failure}"))
+    })?;
+    let changed = if assembled.is_empty() {
+        read.remove(".cmdline");
+        Ok(())
+    } else {
+        let mut contents = assembled.as_bytes().to_vec();
+        contents.push(0);
+        match read.replace(".cmdline", &contents) {
+            Ok(true) => Ok(()),
+            Ok(false) => read.insert_before(".cmdline", &contents, AFTER_CMDLINE),
+            Err(failure) => Err(failure),
+        }
+    };
+    let written = changed
+        .and_then(|()| read.write(&WriteOptions::default()))
+        .map_err(|failure| {
+            Failure::of(format!(
+                "unable to change EFI executable '{name}': {failure}"
+            ))
+        })?;
+    for warning in &written.warnings {
+        let _ = writeln!(io.stderr, "WARNING: {warning}");
     }
-
-    let succeeded =
-        |run: std::io::Result<Output>| run.is_ok_and(|output| output.status.is_success());
-    if !succeeded(efi_tools::remove_cmdline(context.runner, image)) {
-        return Err(Failure::of(
-            "failed to clear existing KCL from EFI executable".to_owned(),
-        ));
-    }
-    if !succeeded(efi_tools::add_cmdline(
-        context.runner,
-        image,
-        &section.0,
-        &offset,
-    )) {
-        return Err(Failure::of(
-            "failed to write new KCL to EFI executable".to_owned(),
-        ));
-    }
-    Ok(())
+    std::fs::write(image, &written.bytes)
+        .map_err(|_| Failure::of("failed to write new KCL to EFI executable".to_owned()))
 }

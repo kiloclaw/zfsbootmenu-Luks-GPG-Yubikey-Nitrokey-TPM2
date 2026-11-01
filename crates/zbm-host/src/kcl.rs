@@ -1,14 +1,14 @@
 //! `zbm-kcl`: review or change the kernel command line of a ZFS boot
 //! environment or a ZFSBootMenu EFI image.
 //!
-//! This is the Rust version of the Bash `zbm-kcl`, with the same options,
-//! messages and exit codes. The command line of a boot environment is its
+//! It takes the options of the Bash `zbm-kcl`, with its messages and exit
+//! codes. The command line of a boot environment is its
 //! `org.zfsbootmenu:commandline` property; that of an EFI image is its
-//! `.cmdline` section, which `objcopy` reads and replaces. Each step does what
-//! the step of the same name in the Bash script does, including its quirks: a
-//! failure to read the command line is reported but does not end the program,
-//! and a new `.cmdline` section holds the command line and a NUL byte, without
-//! the leading space the script meant to add.
+//! `.cmdline` section, which [`crate::pe`] reads and replaces (ADR 0014): a
+//! line longer than the room before the next section moves the sections
+//! after it, an image without one gets one, and `-d` removes it. The
+//! section holds the command line and a NUL byte. A failure to read the
+//! command line is reported but does not end the program, as in the script.
 
 #![allow(
     clippy::disallowed_methods,
@@ -22,18 +22,15 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 
 use crate::options::{Order, Problem, Spec};
+use crate::pe::Image;
 use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::{Runner, SystemRunner};
-use zbm_platform::filetest::{
-    copy_like_cp, create_temp_file, is_dir, is_file, is_readable, strerror,
-};
-use zbm_tools::efi as efi_tools;
+use zbm_platform::filetest::{copy_like_cp, create_temp_file, is_dir, is_file, strerror};
 use zbm_types::{DatasetName, KernelCommandLine};
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
 use zbm_zfs::{Stderr, ZfsText};
 
 mod edit;
-pub mod efi;
 
 mod save;
 
@@ -41,7 +38,7 @@ pub use edit::strip_kcl;
 
 /// What `zbm-kcl` depends on outside its arguments.
 pub struct Context<'a> {
-    /// Runs `zfs`, `objcopy`, `objdump` and the editor.
+    /// Runs `zfs` and the editor.
     pub runner: &'a dyn Runner,
     /// The name of the program in messages: the script's `$0`.
     pub program: String,
@@ -385,7 +382,6 @@ fn command_line(io: &mut Io, text: &str) -> KernelCommandLine {
 /// or that argument itself) and appends (`-a`: its arguments) what the
 /// options ask, and writes it into `temp_kcl`, an argument a line.
 fn read_command_line(
-    context: &Context,
     io: &mut Io,
     options: &Options,
     target: &Target,
@@ -397,7 +393,7 @@ fn read_command_line(
     } else {
         match target {
             Target::Zfs(dataset, _) => raw_kcl_zfs(zfs, dataset),
-            Target::Efi(image) => raw_kcl_efi(context, io, image),
+            Target::Efi(image) => raw_kcl_efi(io, image),
         }
     };
     let removed = |arg: &zbm_types::KernelArg| {
@@ -488,7 +484,7 @@ fn run_in(
         return Err(1);
     };
     workspace.kcl = Some(temp_kcl.clone());
-    let line = read_command_line(context, io, &options, &target, &zfs, &temp_kcl)?;
+    let line = read_command_line(io, &options, &target, &zfs, &temp_kcl)?;
     if !options.wants_change() {
         let _ = writeln!(io.stdout, "{line}");
         return Ok(());
@@ -505,7 +501,7 @@ fn run_in(
     let assembled = line.to_string();
     let saved = match &target {
         Target::Zfs(_, destination) => save::to_dataset(&zfs, &assembled, destination),
-        Target::Efi(image) => save::to_image(context, &assembled, image),
+        Target::Efi(image) => save::to_image(io, &assembled, image),
     };
     saved.map_err(|failure| report(io, &failure, Some("failed to save KCL changes")))?;
     if let Target::Efi(image) = &target {
@@ -523,32 +519,25 @@ fn raw_kcl_zfs(zfs: &ZfsText, dataset: &DatasetName) -> String {
 }
 
 /// The contents of the image's `.cmdline` section up to its first NUL, as
-/// the stub reads it; empty when it cannot be read.
-fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
-    if !is_readable(image) {
+/// the stub reads it; empty when it has none, or cannot be read.
+fn raw_kcl_efi(io: &mut Io, image: &Path) -> String {
+    let Ok(bytes) = std::fs::read(image) else {
         error(io, "the EFI file cannot be read");
         return String::new();
-    }
-    let Ok(section) = create_temp_file(&context.temp_dir, "tmp.XXXXXXXXXX") else {
-        error(io, "failed to create temporary file");
-        return String::new();
     };
-    let section = TempFile(section);
-    match efi_tools::dump_cmdline(context.runner, image, &section.0) {
-        Ok(output) if output.status.is_success() => std::fs::read(&section.0)
-            .map(|bytes| {
-                let end = bytes.iter().position(|byte| *byte == 0);
-                let text = end.map_or(&bytes[..], |end| bytes.get(..end).unwrap_or_default());
-                String::from_utf8_lossy(text).into_owned()
-            })
-            .unwrap_or_default(),
-        Ok(output) => {
-            let message = output.stdout_text().trim_end_matches('\n').to_owned();
-            error(io, &format!("failed to dump EFI cmdline: {message}"));
-            String::new()
-        }
-        Err(_) => {
-            error(io, "failed to dump EFI cmdline: ");
+    match Image::read(bytes) {
+        Ok(read) => read
+            .section(".cmdline")
+            .map_or_else(String::new, |section| {
+                let data = section.data();
+                let end = data
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap_or(data.len());
+                String::from_utf8_lossy(data.get(..end).unwrap_or_default()).into_owned()
+            }),
+        Err(failure) => {
+            error(io, &format!("unable to read the EFI executable: {failure}"));
             String::new()
         }
     }

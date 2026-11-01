@@ -305,7 +305,8 @@ const CHANGED_IMAGES: &[(&str, &str)] = &[
 ///   with a line on standard error that says so;
 /// - a property `-n` prints as `-n`, which Bash's `echo` took for its option;
 /// - a failure to replace an EFI image says so in the tool's words, where
-///   the legacy tool passed on `cp`'s.
+///   the legacy tool passed on `cp`'s;
+/// - the EFI images are changed as ADR 0014 says ([`rewritten`]).
 fn intended(mut legacy: Outcome, args: &[&str], holds_text: bool) -> Outcome {
     let reads_dataset = legacy
         .state
@@ -331,6 +332,53 @@ fn intended(mut legacy: Outcome, args: &[&str], holds_text: bool) -> Outcome {
         "cp: cannot create regular file 'missing-dir/out.efi'",
         "ERROR: cannot replace 'missing-dir/out.efi'",
     );
+    rewritten(legacy, args)
+}
+
+/// The recorded outcome of the EFI cases that `zbm_host::pe` changes
+/// (ADR 0014, point 6): `-d` removes `.cmdline`, where the legacy tool left
+/// a NUL in it; a command line longer than the room before `.linux` moves
+/// `.linux` down a page, where the legacy tool refused it; an image without
+/// `.cmdline` gets one before `.linux`, where the legacy tool refused it.
+fn rewritten(mut legacy: Outcome, args: &[&str]) -> Outcome {
+    let linux = ".linux at +0x0, 12288 bytes, 08f8cdc5fda52325;";
+    let recorded_image = "image.efi: EFI image: .cmdline at +0x0, 28 bytes, 5cdc828307f870b9 \
+                          \"root=zfs:AUTO quiet  \\\"a  b\\\"\"; \
+                          .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;";
+    match args {
+        ["-d", "image.efi"] => {
+            legacy.state = legacy.state.replace(
+                "image.efi: EFI image: .cmdline at +0x0, 1 bytes, af63bd4c8601b7df \"\"; \
+                 .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;",
+                &format!("image.efi: EFI image: {linux}"),
+            );
+        }
+        ["-a", long, "image.efi"] if long.len() == 5000 => {
+            legacy.code = 0;
+            legacy.stderr = legacy
+                .stderr
+                .lines()
+                .take(1)
+                .flat_map(|line| [line, "\n"])
+                .collect();
+            let grown = format!(
+                "image.efi: EFI image: .cmdline at +0x0, 5021 bytes, 5c4f954f4fda991a \
+                 \"root=zfs:AUTO quiet {long}\"; .linux at +0x2000, 12288 bytes, \
+                 08f8cdc5fda52325;"
+            );
+            legacy.state = legacy.state.replacen(recorded_image, &grown, 1);
+        }
+        ["-a", "x", "plain.efi"] => {
+            legacy.code = 0;
+            legacy.stderr.clear();
+            legacy.state = legacy.state.replace(
+                &format!("plain.efi: EFI image: {linux}"),
+                "plain.efi: EFI image: .cmdline at +0x0, 2 bytes, 08f0d807b58d20e5 \"x\"; \
+                 .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;",
+            );
+        }
+        _ => {}
+    }
     legacy
 }
 
