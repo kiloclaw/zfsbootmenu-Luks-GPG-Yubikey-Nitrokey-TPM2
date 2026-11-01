@@ -307,6 +307,19 @@ directory, and do what their manual pages say where Perl or Bash did something e
   one: the old image or the new one is there, never part of either.
 - **Why:** the boot partition always has an image that boots.
 
+### EFI images are built without `objcopy`
+
+- **Before:** `generate-zbm` read the stub's alignment and sections from `objdump` and built the EFI image with
+  `objcopy`, which also rewrote the stub's own headers: binutils' DOS program in front, binutils' linker version, and
+  the build's time as the time stamp unless `SOURCE_DATE_EPOCH` was set.
+- **Now:** `generate-zbm` builds the image itself (ADR 0014): the same sections at the same addresses, the stub's
+  headers as the stub has them, and the stub's time stamp unless `SOURCE_DATE_EPOCH` sets one, so that two builds
+  from the same files give the same bytes. A stub it cannot use stops the build with the reason, and a signed stub
+  loses its signature with a warning, as it did before without one. The debug log names each section with its
+  address; `--dry-run` lists the sections and where they come from. `objcopy` and `objdump` are no longer needed;
+  `strings`, which finds kernel versions, still is.
+- **Why:** no text of `objdump` to parse, no program to install, and no rewrite of the stub nothing asks for.
+
 ### Images of another prefix are named for it
 
 - **Before:** with kernels of a prefix other than `vmlinuz`, the initramfs changed name without a word.
@@ -331,3 +344,13 @@ directory, and do what their manual pages say where Perl or Bash did something e
   permissions (fix 24 of the review). When that fails, it says why, and keeps the changed image in the temporary
   directory as before.
 - **Why:** an interrupted write cannot leave a machine without an image that boots.
+
+### `zbm-kcl` changes EFI images without `objcopy`
+
+- **Before:** `zbm-kcl` read `.cmdline` with `objcopy` and `objdump`, and put the new line at the old one's address:
+  a longer line than the room before the next section was refused, an image without `.cmdline` could not get one,
+  and `-d` left a `.cmdline` section with a NUL byte in it.
+- **Now:** `zbm-kcl` changes the section itself (ADR 0014). A line that fits takes the old one's place; a longer
+  one moves the sections after it; an image without `.cmdline` gets one before its kernel; `-d` removes the section,
+  as the manual says. The image keeps its time stamp; a signature it carried is dropped with a warning.
+- **Why:** a command line is as long as it needs to be, on any image the stub can boot.

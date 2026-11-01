@@ -187,6 +187,13 @@ it, and `generate-zbm` warns where the initramfs of a kernel prefix other than `
 spellings the manual does not document (`--ver`, `+debug`, `-kernel`) still work with a warning for this release. `zbm-kcl` reads command lines as
 the kernel splits them and says what it leaves out.
 
+`generate-zbm` and `zbm-kcl` read and write EFI images themselves, without `objcopy` or `objdump` (ROADMAP.md CD12,
+ADR 0014). The bundle has the sections it had, at the same addresses, but keeps the stub's own headers, which
+`objcopy` rewrote, and the stub's time stamp unless `SOURCE_DATE_EPOCH` sets one; a stub that cannot be used stops the
+build with the reason. `zbm-kcl` can now lengthen a command line past the room the old one had, give one to an image
+without it, and `-d` removes the `.cmdline` section, as the manual always said. `strings` from binutils is still
+needed, to find kernel versions.
+
 The console on the display (`zbm.console=drm`) no longer runs as root (ROADMAP.md SE11, ADR 0012). The supervisor
 starts it as its own user, 60600, with one capability, the virtual terminal's modes, and opens each device it asks for:
 the display, the virtual terminal and its text, the keyboards and the serial terminal, each checked as a character

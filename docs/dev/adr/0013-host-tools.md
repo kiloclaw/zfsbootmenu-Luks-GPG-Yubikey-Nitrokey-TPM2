@@ -122,8 +122,8 @@ Built on 1 November 2026, the day the decision was accepted (DM10a to DM10g):
   every change it makes (a mount, a hook, a build, a copy, a rename, a removal, the edit of `config.yaml`) goes
   through one guard, which `--dry-run` turns into a line that starts with `Would`; the install writes each file
   beside its place and renames it. That gives the dry run and the atomic install the plan was for, with less code
-  than a plan as a value built before anything runs; such a plan is not built, and can come with CD12, which
-  rewrites the build step anyway.
+  than a plan as a value built before anything runs; such a plan is not built for the whole run. CD12 made the
+  EFI bundle one ([ADR 0014](0014-efi-image.md), point 8): its stub and sections are planned before it is built.
 - **Point 8:** the golden runs of `--dry-run` under insta (`tests/parity/snapshots/`), fix 23's test, and the parity
   recordings of whole runs, with the intended differences stated beside them (`Case::differs` for `generate-zbm`,
   `intended()` for `zbm-kcl`).

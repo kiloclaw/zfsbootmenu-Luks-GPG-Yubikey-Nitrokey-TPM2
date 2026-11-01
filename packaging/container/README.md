@@ -150,8 +150,9 @@ options. The options are:
   the same tree in the same container image give the same bytes, wherever the
   tree and the build root are. Set it to the time of the tree's last commit,
   `SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"`. The Rust `generate-zbm`
-  then passes `--reproducible` to dracut (mkinitcpio and `objcopy` read the
-  variable themselves), and the image's `BUILD_ID` is that day.
+  then passes `--reproducible` to dracut (mkinitcpio reads the variable
+  itself), stamps the EFI image with it, and the image's `BUILD_ID` is that
+  day.
   `zbm-builder.sh` passes the variable on when it is set.
 
 A couple of additional arguments may only be set from the command line:

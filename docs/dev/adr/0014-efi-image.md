@@ -68,8 +68,9 @@ sections stay as the stub has them; the added sections are laid out as now. `obj
 
 ## Consequences
 
-- Building an EFI image needs no binutils on the host; one program fewer in ADR 0005's list. The build container
-  keeps binutils for `strip`, which dracut and its own build of `zbm` use.
+- Building an EFI image needs neither `objcopy` nor `objdump`; one program fewer in ADR 0005's list. binutils stays on
+  the host for `strings`, which `generate-zbm` runs on kernels to find their versions, and in the build container
+  for `strip`, which dracut and the container's build of `zbm` use.
 - Nothing parses the text of `objdump`; the image is read as a structure, with its errors named.
 - Bundles differ in bytes from those `objcopy` built: the stub's headers stay the stub's, and the time stamp is the
   stub's unless `SOURCE_DATE_EPOCH` sets it. What the firmware and the stub read (the section table, the sections,
@@ -108,9 +109,22 @@ sections stay as the stub has them; the added sections are laid out as now. `obj
 
 ## Where the work stands
 
-On 1 November 2026, when the decision was accepted, nothing of it is built. `generate-zbm` and `zbm-kcl` use
-`objcopy` and `objdump` through `zbm_tools::efi` and `Invocation`s, and `zbm_testkit::efi` reads section tables for
-the parity tests.
+Built on 1 November 2026 (CD12a to CD12e), as decided:
+
+- **Points 1 to 5:** `zbm_host::pe` reads PE32 and PE32+ images through `object` and writes them. The writer's
+  bundle has the section table and the header fields the firmware reads that `objcopy`'s has, for the host's
+  systemd stub (`tests/pe_objcopy.rs`, which also checks the checksum against `objcopy`'s), and keeps the stub's
+  headers. A full section table grows the headers, a certificate table is dropped with a warning.
+- **Point 6:** `zbm-kcl` replaces, inserts and removes `.cmdline` itself; `kcl_parity` lists the three cases that
+  change (`rewritten()`).
+- **Point 7:** no program of the workspace runs `objcopy` or `objdump`; `zbm_tools::efi` is gone.
+- **Point 8:** `BundlePlan` is made before the build, and `--dry-run` prints it.
+- **Checks:** unit and property tests, and the fuzz target `pe_images`, whose first minute found headers that claimed
+  4 GiB in a 533-byte file; the reader now refuses headers past the end of the file and file alignments above 64 KiB.
+  The VM tests of the `firmware` group boot the bundle under UEFI.
+- **Left:** the stubs of the build container for other architectures (`linuxaa64.efi.stub`) are checked only by
+  the unit tests' PE32 and PE32+ images, not against `objcopy`, as the build host has the x86-64 stub alone.
+  `strings` still finds kernel versions.
 
 ## Answers of the maintainer
 

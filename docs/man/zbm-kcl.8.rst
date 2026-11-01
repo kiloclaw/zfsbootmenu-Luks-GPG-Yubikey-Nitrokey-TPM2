@@ -33,6 +33,11 @@ filesystem or the *.cmdline* section of the named EFI executable and exit.
 reads it back the same, with a value that has spaces in double quotes. Text that is not a kernel argument, such as a
 name with spaces, is left out, and **zbm-kcl** says so on standard error.
 
+**zbm-kcl** reads and writes the *.cmdline* section of an EFI executable itself. A new command line takes the place of
+the old one when it fits before the next section; a longer one moves the sections after it, and an executable without
+a *.cmdline* section gets one before its kernel. The executable keeps its time stamp. A signature it carried does not
+cover the changed executable, which is written without it; **zbm-kcl** warns, and the executable must be signed again.
+
 A changed EFI executable is written to a new file beside the destination, which then replaces it, so the destination
 is either the old executable or the new one, never part of either. A new destination gets the permissions of a copy,
 and an existing one keeps its own.
@@ -84,7 +89,7 @@ OPTIONS
 
   to allow the boot environment to inherit any command-line property that may be defined by some parent.
 
-  For a ZFSBootMenu EFI executable, the *.cmdline* section will be stripped.
+  For a ZFSBootMenu EFI executable, the *.cmdline* section is removed.
 
 **-o** *destination*
 

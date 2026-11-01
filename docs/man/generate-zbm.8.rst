@@ -104,9 +104,9 @@ ENVIRONMENT
 
 **SOURCE_DATE_EPOCH**
 
-  When set, images are built to be reproducible: **dracut** gets **--reproducible**, and **mkinitcpio** and
-  **objcopy** use the variable for the times they record, so two builds from the same files give the same bytes.
-  Only the Rust **generate-zbm** passes **--reproducible**.
+  When set, images are built to be reproducible: **dracut** gets **--reproducible**, **mkinitcpio** uses the
+  variable for the times it records, and the EFI image carries it as its time stamp, so two builds from the same
+  files give the same bytes. Without it, the EFI image carries the stub's own time stamp.
 
 SEE ALSO
 ========
