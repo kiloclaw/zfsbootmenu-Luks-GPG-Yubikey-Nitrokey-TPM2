@@ -1,17 +1,15 @@
-//! The `generate-zbm` configuration file, read as Perl's YAML::PP reads it.
+//! The `generate-zbm` configuration file (`config.yaml`).
 //!
-//! `generate-zbm` loads `config.yaml` with YAML::PP's core schema and booleans,
-//! then tests the values with Perl's rules: [`Value::has_value`] (defined and
-//! not empty), truthiness, and `int`. A value's Perl meaning depends on how
-//! YAML::PP typed it: `Versions: 3` is the number 3, `Version: 3.10` is the
-//! number 3.1 (so it prints as `3.1`), `Enabled: false` is a false boolean that
-//! prints as `0`, and an empty value is undefined. [`Value`] keeps those types,
-//! and its methods apply Perl's rules to them.
+//! Values keep what the file says (ADR 0013): `null`, `~` and nothing are
+//! undefined, `true` and `false` are booleans, and every other scalar is
+//! its text as written, so `Version: 3.10` is `3.10` and a number is read
+//! as one only where a key wants a number ([`Value::integer`]). Booleans
+//! are read as the manual says ([`Value::truthy`]): `false` is false, and so
+//! are `no`, `off` and `0`.
 //!
-//! Sequences and mappings are shared, as Perl references are: an alias to an
-//! anchored mapping is the same mapping, so a change made through one name is
-//! seen through the other, and writing the configuration back marks the sharing
-//! with anchors.
+//! Sequences and mappings are shared: an alias to an anchored mapping is the
+//! same mapping, so a change made through one name is seen through the
+//! other.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -33,29 +31,23 @@ fn section_key(spec: &OptionSpec) -> (&'static str, &'static str) {
     spec.name.split_once('.').unwrap_or(("", spec.name))
 }
 
-/// A configuration value, typed as YAML::PP's core schema types it. Cloning a
-/// sequence or a mapping shares it, as copying a Perl reference does.
+/// A configuration value. Cloning a sequence or a mapping shares it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     /// An undefined value: `null`, `~` or nothing.
     Null,
     /// A boolean (`true`, `False` and so on).
     Bool(bool),
-    /// An integer that fits Perl's integer types.
-    Int(i128),
-    /// A floating-point number, including integers too large for Perl's integer
-    /// types.
-    Float(f64),
-    /// A string.
-    Str(String),
+    /// Any other scalar, as written.
+    Text(String),
     /// A sequence.
     Seq(Seq),
     /// A mapping, in file order.
     Map(Map),
 }
 
-/// An error that ends `generate-zbm` the way a Perl `die` outside an `eval`
-/// does: with the message on standard error and exit status 255.
+/// An error that ends `generate-zbm` with the message on standard error
+/// and exit status 255.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Fatal(pub String);
 
@@ -70,58 +62,61 @@ impl Value {
         Value::Map(Rc::new(RefCell::new(entries)))
     }
 
-    /// Whether the value is defined (Perl's `defined`).
+    /// Whether the value is defined.
     pub fn is_defined(&self) -> bool {
         !matches!(self, Value::Null)
     }
 
-    /// The value as Perl prints it, or `None` when it is undefined.
-    pub fn perl_string(&self) -> Option<String> {
-        Some(match self {
-            Value::Null => return None,
-            Value::Bool(true) => "1".to_owned(),
-            Value::Bool(false) => "0".to_owned(),
-            Value::Int(number) => number.to_string(),
-            Value::Float(number) => format_g15(*number),
-            Value::Str(text) => text.clone(),
-            // References print as their type and address, which differs from run to run. No
-            // configuration value of `generate-zbm` is meant to be printed this way.
-            Value::Seq(seq) => format!("ARRAY(0x{:x})", address(seq)),
-            Value::Map(map) => format!("HASH(0x{:x})", address(map)),
-        })
+    /// The scalar as text, `true` or `false` for a boolean; `None` when it
+    /// is undefined or a collection.
+    pub fn text(&self) -> Option<String> {
+        match self {
+            Value::Null | Value::Seq(_) | Value::Map(_) => None,
+            Value::Bool(value) => Some(value.to_string()),
+            Value::Text(text) => Some(text.clone()),
+        }
     }
 
-    /// Whether the value is defined and not empty when printed. A false
-    /// boolean prints as `0`, so it has a value.
+    /// Whether the value is defined and not empty: a boolean always is.
     pub fn has_value(&self) -> bool {
-        self.perl_string().is_some_and(|text| !text.is_empty())
+        self.text().is_some_and(|text| !text.is_empty())
     }
 
-    /// Whether the value is true in Perl: everything but undefined, the empty
-    /// string, `"0"`, the number 0 and a false boolean.
+    /// Whether the value says yes: a true boolean, or any text but the
+    /// empty one, `0`, `false`, `no` and `off` (in any case); a collection
+    /// is true.
     pub fn truthy(&self) -> bool {
         match self {
             Value::Null => false,
             Value::Bool(value) => *value,
-            Value::Int(number) => *number != 0,
-            Value::Float(number) => *number != 0.0,
-            Value::Str(text) => !text.is_empty() && text != "0",
+            Value::Text(text) => !matches!(
+                text.trim().to_ascii_lowercase().as_str(),
+                "" | "0" | "false" | "no" | "off"
+            ),
             Value::Seq(_) | Value::Map(_) => true,
         }
     }
 
-    /// Perl's `int` of the value: the integer part of its number, where a string
-    /// counts as the number at its start (`"3abc"` is 3, `"abc"` is 0).
-    pub fn perl_int(&self) -> i64 {
-        match self {
-            Value::Null | Value::Seq(_) | Value::Map(_) => 0,
-            Value::Bool(value) => i64::from(*value),
-            Value::Int(number) => {
-                i64::try_from(*number).unwrap_or(if *number < 0 { i64::MIN } else { i64::MAX })
-            }
-            Value::Float(number) => float_to_int(*number),
-            Value::Str(text) => float_to_int(numeric_prefix(text)),
+    /// The value as a whole number: a decimal, octal (`0o`) or hexadecimal
+    /// (`0x`) integer, or a decimal number without its fraction; `None`
+    /// for anything else, such as a word or a boolean.
+    pub fn integer(&self) -> Option<i64> {
+        let Value::Text(text) = self else {
+            return None;
+        };
+        let text = text.trim();
+        if let Some(digits) = text.strip_prefix("0o") {
+            return i64::from_str_radix(digits, 8).ok();
         }
+        if let Some(digits) = text.strip_prefix("0x") {
+            return i64::from_str_radix(digits, 16).ok();
+        }
+        if let Ok(number) = text.parse::<i64>() {
+            return Some(number);
+        }
+        let number: f64 = text.parse().ok()?;
+        // Truncated toward zero, and saturating at the range
+        number.is_finite().then(|| number.trunc() as i64)
     }
 
     /// The value of a mapping's key, if this is a mapping that has it.
@@ -137,8 +132,8 @@ impl Value {
     }
 
     /// The value of the configuration key `spec` of the [table of
-    /// options](zbm_config::spec::generate), `Section.Key`, as [`Value::lookup`]
-    /// reads it.
+    /// options](zbm_config::spec::generate), `Section.Key`, as
+    /// [`Value::lookup`] reads it.
     ///
     /// # Errors
     ///
@@ -148,289 +143,36 @@ impl Value {
         self.lookup(section, key)
     }
 
-    /// Sets the configuration key `spec`, as [`Value::set`] does.
+    /// The defined value of `key` in `section`, or `None` when either is
+    /// missing.
     ///
     /// # Errors
     ///
-    /// [`Fatal`] when the configuration or the section is not a mapping.
-    pub fn set_option(&self, spec: &OptionSpec, value: Value) -> Result<(), Fatal> {
-        let (section, key) = section_key(spec);
-        self.set(section, key, value)
-    }
-
-    /// `$config{section}{key}` in Perl: the value, or `None` when the section or
-    /// the key is missing. A section that is defined but not a mapping makes Perl
-    /// die.
+    /// [`Fatal`] when the section is defined but is not a mapping.
     pub fn lookup(&self, section: &str, key: &str) -> Result<Option<Value>, Fatal> {
         match self.get(section) {
             None | Some(Value::Null) => Ok(None),
             Some(map @ Value::Map(_)) => Ok(map.get(key).filter(Value::is_defined)),
-            Some(other) => Err(not_a_hash(section, &other)),
+            Some(_) => Err(not_a_mapping(section)),
         }
-    }
-
-    /// Sets `$config{section}{key}`, creating the section when it is missing or
-    /// undefined, as Perl's autovivification does. A shared section changes
-    /// wherever it is used.
-    pub fn set(&self, section: &str, key: &str, value: Value) -> Result<(), Fatal> {
-        let Value::Map(top) = self else {
-            return Err(Fatal("Not a HASH reference".to_owned()));
-        };
-        let section_map = {
-            let mut entries = top.borrow_mut();
-            let index = match entries.iter().position(|(name, _)| name == section) {
-                Some(index) => index,
-                None => {
-                    entries.push((section.to_owned(), Value::Null));
-                    entries.len() - 1
-                }
-            };
-            let slot = &mut entries[index].1;
-            if matches!(slot, Value::Null) {
-                *slot = Value::map(Vec::new());
-            }
-            match slot {
-                Value::Map(map) => Rc::clone(map),
-                other => return Err(not_a_hash(section, other)),
-            }
-        };
-        let mut fields = section_map.borrow_mut();
-        match fields.iter_mut().find(|(name, _)| name == key) {
-            Some((_, old)) => *old = value,
-            None => fields.push((key.to_owned(), value)),
-        }
-        Ok(())
     }
 }
 
-/// The address of a shared value, which Perl prints for references.
-fn address<T>(shared: &Rc<T>) -> usize {
-    Rc::as_ptr(shared).cast::<()>() as usize
+/// The error for a section that is not a mapping.
+fn not_a_mapping(section: &str) -> Fatal {
+    Fatal(format!(
+        "The section {section} of the configuration is not a mapping of keys"
+    ))
 }
 
-fn not_a_hash(section: &str, value: &Value) -> Fatal {
-    match value {
-        Value::Seq(_) | Value::Bool(_) => {
-            Fatal(format!("Not a HASH reference (section {section})"))
-        }
-        other => Fatal(format!(
-            "Can't use string (\"{}\") as a HASH ref while \"strict refs\" in use \
-             (section {section})",
-            other.perl_string().unwrap_or_default()
-        )),
-    }
-}
-
-/// Converts a float to an integer as Perl's `int` does: toward zero, saturating
-/// at the integer range.
-fn float_to_int(number: f64) -> i64 {
-    if number.is_nan() {
-        0
-    } else {
-        // `as` truncates toward zero and saturates, which is what `int` does for
-        // numbers in range.
-        number.trunc() as i64
-    }
-}
-
-/// The number at the start of a string, as Perl reads a string in numeric
-/// context: optional white space and sign, digits with an optional fraction,
-/// and an optional exponent. Anything else gives 0.
-pub(crate) fn numeric_prefix(text: &str) -> f64 {
-    let text = text.trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);
-    let bytes = text.as_bytes();
-    let mut end = 0;
-    if matches!(bytes.first(), Some(b'+' | b'-')) {
-        end = 1;
-    }
-    let digits_start = end;
-    while bytes.get(end).is_some_and(u8::is_ascii_digit) {
-        end += 1;
-    }
-    let mut mantissa_digits = end - digits_start;
-    if bytes.get(end) == Some(&b'.') {
-        let fraction_start = end + 1;
-        let mut fraction_end = fraction_start;
-        while bytes.get(fraction_end).is_some_and(u8::is_ascii_digit) {
-            fraction_end += 1;
-        }
-        mantissa_digits += fraction_end - fraction_start;
-        if mantissa_digits > 0 {
-            end = fraction_end;
-        }
-    }
-    if mantissa_digits == 0 {
-        return 0.0;
-    }
-    if matches!(bytes.get(end), Some(b'e' | b'E')) {
-        let mut exponent_end = end + 1;
-        if matches!(bytes.get(exponent_end), Some(b'+' | b'-')) {
-            exponent_end += 1;
-        }
-        let exponent_digits_start = exponent_end;
-        while bytes.get(exponent_end).is_some_and(u8::is_ascii_digit) {
-            exponent_end += 1;
-        }
-        if exponent_end > exponent_digits_start {
-            end = exponent_end;
-        }
-    }
-    text[..end].parse().unwrap_or(0.0)
-}
-
-/// Formats a number as Perl prints a floating-point value, which is C's
-/// `%.15g`: 15 significant digits, without trailing zeros, in exponent form for
-/// very large and very small numbers.
-pub fn format_g15(number: f64) -> String {
-    if number.is_nan() {
-        return "NaN".to_owned();
-    }
-    if number.is_infinite() {
-        return if number > 0.0 { "Inf" } else { "-Inf" }.to_owned();
-    }
-    if number == 0.0 {
-        // Perl prints a negative zero as `0`.
-        return "0".to_owned();
-    }
-    let scientific = format!("{number:.14e}");
-    let (mantissa, exponent) = scientific
-        .split_once('e')
-        .expect("exponent notation has an e");
-    let exponent: i32 = exponent.parse().expect("the exponent is a number");
-    if !(-4..15).contains(&exponent) {
-        let sign = if exponent < 0 { '-' } else { '+' };
-        format!(
-            "{}e{sign}{:02}",
-            strip_trailing_zeros(mantissa),
-            exponent.abs()
-        )
-    } else {
-        let decimals = usize::try_from(14 - exponent).expect("the exponent is below 15");
-        strip_trailing_zeros(&format!("{number:.decimals$}")).to_owned()
-    }
-}
-
-fn strip_trailing_zeros(text: &str) -> &str {
-    if text.contains('.') {
-        text.trim_end_matches('0').trim_end_matches('.')
-    } else {
-        text
-    }
-}
-
-/// Types a plain scalar with YAML::PP's core schema: null, boolean, decimal,
-/// octal and hex integers, floats, infinities and NaN, and otherwise a string.
+/// Types a plain scalar: null, boolean, or text.
 pub fn resolve_plain(text: &str) -> Value {
     match text {
-        "" | "~" | "null" | "Null" | "NULL" => return Value::Null,
-        "true" | "True" | "TRUE" => return Value::Bool(true),
-        "false" | "False" | "FALSE" => return Value::Bool(false),
-        ".inf" | ".Inf" | ".INF" | "+.inf" | "+.Inf" | "+.INF" => {
-            return Value::Float(f64::INFINITY);
-        }
-        "-.inf" | "-.Inf" | "-.INF" => return Value::Float(f64::NEG_INFINITY),
-        ".nan" | ".NaN" | ".NAN" => return Value::Float(f64::NAN),
-        _ => {}
+        "" | "~" | "null" | "Null" | "NULL" => Value::Null,
+        "true" | "True" | "TRUE" => Value::Bool(true),
+        "false" | "False" | "FALSE" => Value::Bool(false),
+        _ => Value::Text(text.to_owned()),
     }
-    if is_decimal_int(text) {
-        return decimal_value(text);
-    }
-    if let Some(digits) = text.strip_prefix("0o")
-        && !digits.is_empty()
-        && digits.bytes().all(|byte| (b'0'..=b'7').contains(&byte))
-    {
-        return radix_value(digits, 8);
-    }
-    if let Some(digits) = text.strip_prefix("0x")
-        && !digits.is_empty()
-        && digits.bytes().all(|byte| byte.is_ascii_hexdigit())
-    {
-        return radix_value(digits, 16);
-    }
-    if is_core_float(text) {
-        return Value::Float(text.parse().unwrap_or(0.0));
-    }
-    Value::Str(text.to_owned())
-}
-
-/// `^[+-]?[0-9]+$`
-fn is_decimal_int(text: &str) -> bool {
-    let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
-    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-/// `0 + "<decimal>"` in Perl: an integer while it fits 64 bits (signed, or
-/// unsigned when positive), a float beyond.
-fn decimal_value(text: &str) -> Value {
-    match text.parse::<i128>() {
-        Ok(number) if (i128::from(i64::MIN)..=i128::from(u64::MAX)).contains(&number) => {
-            Value::Int(number)
-        }
-        _ => Value::Float(text.parse().unwrap_or(0.0)),
-    }
-}
-
-/// Perl's `oct` and `hex` of digits: an integer while it fits 64 bits, a float
-/// beyond.
-fn radix_value(digits: &str, radix: u32) -> Value {
-    match u64::from_str_radix(digits, radix) {
-        Ok(number) => Value::Int(i128::from(number)),
-        Err(_) => {
-            let float = digits.bytes().fold(0.0_f64, |value, byte| {
-                value * f64::from(radix) + f64::from(char::from(byte).to_digit(radix).unwrap_or(0))
-            });
-            Value::Float(float)
-        }
-    }
-}
-
-/// `^[+-]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)([eE][+-]?[0-9]+)?$`
-fn is_core_float(text: &str) -> bool {
-    let rest = text.strip_prefix(['+', '-']).unwrap_or(text);
-    let bytes = rest.as_bytes();
-    let mut index = 0;
-    let integer_digits = bytes
-        .iter()
-        .take_while(|byte| byte.is_ascii_digit())
-        .count();
-    index += integer_digits;
-    if integer_digits == 0 {
-        // `\.[0-9]+`
-        if bytes.get(index) != Some(&b'.') {
-            return false;
-        }
-        index += 1;
-        let fraction = bytes[index..]
-            .iter()
-            .take_while(|b| b.is_ascii_digit())
-            .count();
-        if fraction == 0 {
-            return false;
-        }
-        index += fraction;
-    } else if bytes.get(index) == Some(&b'.') {
-        // `[0-9]+(\.[0-9]*)?`
-        index += 1;
-        index += bytes[index..]
-            .iter()
-            .take_while(|b| b.is_ascii_digit())
-            .count();
-    }
-    if matches!(bytes.get(index), Some(b'e' | b'E')) {
-        index += 1;
-        if matches!(bytes.get(index), Some(b'+' | b'-')) {
-            index += 1;
-        }
-        let exponent = bytes[index..]
-            .iter()
-            .take_while(|b| b.is_ascii_digit())
-            .count();
-        if exponent == 0 {
-            return false;
-        }
-        index += exponent;
-    }
-    index == bytes.len()
 }
 
 /// Why the configuration could not be read; `generate-zbm` reports it as
@@ -524,9 +266,8 @@ impl Builder {
                         Value::Seq(_) | Value::Map(_) => {
                             return Err(LoadError("a mapping key is not a scalar".to_owned()));
                         }
-                        // Perl uses the printed form of a key; an undefined key becomes the empty
-                        // string.
-                        other => other.perl_string().unwrap_or_default(),
+                        // An undefined key is the empty one
+                        other => other.text().unwrap_or_default(),
                     };
                     let value = match self.events.next() {
                         Some(event) => self.node(event)?,
@@ -548,9 +289,9 @@ impl Builder {
     }
 }
 
-/// Types a scalar: plain scalars by the core schema, quoted and block scalars
-/// as strings, and core tags as requested. Other tags are ignored, as YAML::PP
-/// ignores unknown local tags.
+/// Types a scalar: plain scalars as [`resolve_plain`] does, quoted and
+/// block scalars as text, and the core tags as asked (`!!str` is text,
+/// `!!bool` and `!!null` resolve as plain scalars). Other tags are ignored.
 fn scalar(text: &str, style: TScalarStyle, tag: Option<&Tag>) -> Value {
     let core = tag.and_then(|tag| {
         let suffix = if tag.handle == "!!" || tag.handle == "tag:yaml.org,2002:" {
@@ -561,15 +302,14 @@ fn scalar(text: &str, style: TScalarStyle, tag: Option<&Tag>) -> Value {
         suffix.map(str::to_owned)
     });
     match core.as_deref() {
-        Some("str") => Value::Str(text.to_owned()),
-        Some("int" | "float" | "bool" | "null") => match resolve_plain(text) {
-            Value::Str(_) => Value::Str(text.to_owned()),
-            typed => typed,
-        },
+        Some("str") => Value::Text(text.to_owned()),
+        Some("bool" | "null") => resolve_plain(text),
         _ if style == TScalarStyle::Plain => resolve_plain(text),
-        _ => Value::Str(text.to_owned()),
+        _ => Value::Text(text.to_owned()),
     }
 }
+
+pub mod edit;
 
 #[cfg(test)]
 mod tests;

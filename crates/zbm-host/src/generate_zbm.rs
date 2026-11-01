@@ -16,7 +16,6 @@
 
 pub mod cli;
 pub mod config;
-pub mod dump;
 pub mod efi;
 pub mod generate;
 pub mod glob;
@@ -24,4 +23,3 @@ pub mod gpu;
 pub mod images;
 pub mod kernel;
 pub mod perl;
-pub mod version;

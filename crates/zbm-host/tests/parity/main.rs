@@ -367,21 +367,6 @@ fn configuration_states() {
     );
     compare(
         &mut parity,
-        &Case::new(disabled, &["-c", "{root}/config.yaml", "--enable"]),
-    );
-    compare(
-        &mut parity,
-        &Case::new(BASIC, &["-c", "{root}/config.yaml", "--disable"]),
-    );
-    compare(
-        &mut parity,
-        &Case::new(
-            BASIC,
-            &["-c", "{root}/config.yaml", "--enable", "--disable"],
-        ),
-    );
-    compare(
-        &mut parity,
         &Case::new(BASIC, &["-c", "{root}/missing.yaml"]),
     );
     compare(

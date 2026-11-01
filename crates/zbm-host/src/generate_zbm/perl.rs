@@ -134,7 +134,7 @@ pub fn strip_version_suffix(name: &str, version: &str) -> String {
 /// `sprintf("%08x", $text)`: the number at the start of the text in hex, as
 /// Perl converts a string to an unsigned integer for `%x`.
 pub fn hex_of_numeric_text(text: &str) -> String {
-    let number = crate::generate_zbm::config::numeric_prefix(text);
+    let number = numeric_prefix(text);
     let value = if number < 0.0 {
         // Perl converts a negative number to the unsigned integer with the same bits.
         u64::from_ne_bytes((number as i64).to_ne_bytes())
@@ -194,6 +194,51 @@ pub fn decode_utf8_perlqq(bytes: &[u8]) -> String {
             }
         }
     }
+}
+
+/// The number at the start of a string, as Perl reads a string in numeric
+/// context: optional white space and sign, digits with an optional fraction,
+/// and an optional exponent. Anything else gives 0.
+fn numeric_prefix(text: &str) -> f64 {
+    let text = text.trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);
+    let bytes = text.as_bytes();
+    let mut end = 0;
+    if matches!(bytes.first(), Some(b'+' | b'-')) {
+        end = 1;
+    }
+    let digits_start = end;
+    while bytes.get(end).is_some_and(u8::is_ascii_digit) {
+        end += 1;
+    }
+    let mut mantissa_digits = end - digits_start;
+    if bytes.get(end) == Some(&b'.') {
+        let fraction_start = end + 1;
+        let mut fraction_end = fraction_start;
+        while bytes.get(fraction_end).is_some_and(u8::is_ascii_digit) {
+            fraction_end += 1;
+        }
+        mantissa_digits += fraction_end - fraction_start;
+        if mantissa_digits > 0 {
+            end = fraction_end;
+        }
+    }
+    if mantissa_digits == 0 {
+        return 0.0;
+    }
+    if matches!(bytes.get(end), Some(b'e' | b'E')) {
+        let mut exponent_end = end + 1;
+        if matches!(bytes.get(exponent_end), Some(b'+' | b'-')) {
+            exponent_end += 1;
+        }
+        let exponent_digits_start = exponent_end;
+        while bytes.get(exponent_end).is_some_and(u8::is_ascii_digit) {
+            exponent_end += 1;
+        }
+        if exponent_end > exponent_digits_start {
+            end = exponent_end;
+        }
+    }
+    text[..end].parse().unwrap_or(0.0)
 }
 
 #[cfg(test)]

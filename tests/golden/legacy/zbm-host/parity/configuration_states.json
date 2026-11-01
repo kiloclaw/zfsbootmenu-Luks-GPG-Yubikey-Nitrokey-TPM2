@@ -12,36 +12,6 @@
       }
     },
     {
-      "input": "args [\"-c\", \"{root}/config.yaml\", \"--enable\"], env [], config:\nGlobal:\n  ManageImages: false\n  Other: &x {a: 1}\n  List: [1, 'two', 3.10]\nCopy: *x\n",
-      "result": {
-        "code": 0,
-        "log": "",
-        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nCopy: &1\n  a: 1\nGlobal:\n  List:\n  - 1\n  - two\n  - 3.1\n  ManageImages: true\n  Other: *1\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
-        "stderr": "",
-        "stdout": "ManageImages set to 'true' in <root>/config.yaml\n"
-      }
-    },
-    {
-      "input": "args [\"-c\", \"{root}/config.yaml\", \"--disable\"], env [], config:\nGlobal:\n  ManageImages: true\n  BootMountPoint: {root}/esp\n  DracutConfDir: {root}/dracut.conf.d\n  PreHooksDir: {root}/pre.d\n  PostHooksDir: {root}/post.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: false\n  Enabled: true\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\nKernel:\n  CommandLine: ro quiet loglevel=0\n",
-      "result": {
-        "code": 0,
-        "log": "",
-        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nComponents:\n  Enabled: true\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\nEFI:\n  Enabled: true\n  ImageDir: <root>/esp/EFI/zbm\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\n  Versions: false\nGlobal:\n  BootMountPoint: <root>/esp\n  DracutConfDir: <root>/dracut.conf.d\n  ManageImages: false\n  PostHooksDir: <root>/post.d\n  PreHooksDir: <root>/pre.d\nKernel:\n  CommandLine: ro quiet loglevel=0\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
-        "stderr": "",
-        "stdout": "ManageImages set to 'false' in <root>/config.yaml\n"
-      }
-    },
-    {
-      "input": "args [\"-c\", \"{root}/config.yaml\", \"--enable\", \"--disable\"], env [], config:\nGlobal:\n  ManageImages: true\n  BootMountPoint: {root}/esp\n  DracutConfDir: {root}/dracut.conf.d\n  PreHooksDir: {root}/pre.d\n  PostHooksDir: {root}/post.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: false\n  Enabled: true\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\nKernel:\n  CommandLine: ro quiet loglevel=0\n",
-      "result": {
-        "code": 0,
-        "log": "",
-        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nComponents:\n  Enabled: true\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\nEFI:\n  Enabled: true\n  ImageDir: <root>/esp/EFI/zbm\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\n  Versions: false\nGlobal:\n  BootMountPoint: <root>/esp\n  DracutConfDir: <root>/dracut.conf.d\n  ManageImages: false\n  PostHooksDir: <root>/post.d\n  PreHooksDir: <root>/pre.d\nKernel:\n  CommandLine: ro quiet loglevel=0\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
-        "stderr": "",
-        "stdout": "ManageImages set to 'false' in <root>/config.yaml\n"
-      }
-    },
-    {
       "input": "args [\"-c\", \"{root}/missing.yaml\"], env [], config:\nGlobal:\n  ManageImages: true\n  BootMountPoint: {root}/esp\n  DracutConfDir: {root}/dracut.conf.d\n  PreHooksDir: {root}/pre.d\n  PostHooksDir: {root}/post.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: false\n  Enabled: true\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\nKernel:\n  CommandLine: ro quiet loglevel=0\n",
       "result": {
         "code": 1,

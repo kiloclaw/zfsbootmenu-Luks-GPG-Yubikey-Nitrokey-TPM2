@@ -7,14 +7,14 @@
 
 use std::collections::BTreeMap;
 
-use crate::generate_zbm::version::{sort_versions, versioncmp};
+use zbm_types::version::version_cmp;
 
 /// The files whose paths are `prefix` (a directory and the start of a
 /// name), a dash, anything, then `suffix`: what `glob("{prefix}-*{suffix}")`
 /// finds, without taking `prefix` as a pattern. White space, `*`, `?`,
 /// `[`, `{` and `~` in the directory or the image prefix are then plain
-/// characters, which the glob would split at or expand. Letters match in
-/// either case and the paths are sorted, as the glob does.
+/// characters. Names match case-sensitively, and the paths are in byte
+/// order.
 pub fn on_disk(prefix: &str, suffix: &str) -> Vec<String> {
     let (directory, start) = match prefix.rsplit_once('/') {
         Some((directory, start)) => (directory, start),
@@ -36,7 +36,7 @@ pub fn on_disk(prefix: &str, suffix: &str) -> Vec<String> {
                 .checked_sub(part.len())
                 .and_then(|from| name.get(from..))
         };
-        range.is_some_and(|piece| piece.eq_ignore_ascii_case(part))
+        range.is_some_and(|piece| piece == part)
     };
     let mut found: Vec<String> = std::fs::read_dir(listing)
         .into_iter()
@@ -52,9 +52,7 @@ pub fn on_disk(prefix: &str, suffix: &str) -> Vec<String> {
             None => name,
         })
         .collect();
-    found.sort_by(|a, b| {
-        crate::generate_zbm::glob::compare_ignoring_case(a.as_bytes(), b.as_bytes())
-    });
+    found.sort();
     found
 }
 
@@ -118,11 +116,13 @@ fn version_of(file: &str, prefix: &str, suffix: &str) -> Option<String> {
     }
     let version = split.map(|index| &after_dash[..index])?;
     // `vmlinuz-linux-lts-3.0_1` is not a version `lts-3.0` of the prefix
-    // `vmlinuz-linux`, but an image of the prefix `vmlinuz-linux-lts`:
-    // a word, a dash and more is another prefix's.
-    let other_prefix = version
-        .split_once('-')
-        .is_some_and(|(word, _)| word.chars().next().is_some_and(|c| c.is_ascii_alphabetic()));
+    // `vmlinuz-linux`, but an image of the prefix `vmlinuz-linux-lts`: a
+    // word, a dash and a number is another prefix's. `git-abc` is a version
+    // (fix 25), which a dash before a word does not make another prefix's.
+    let other_prefix = version.split_once('-').is_some_and(|(word, rest)| {
+        word.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+            && rest.chars().next().is_some_and(|c| c.is_ascii_digit())
+    });
     (!other_prefix).then(|| version.to_owned())
 }
 
@@ -140,7 +140,7 @@ fn wants_some(keep: u64) -> bool {
 fn purge(files: &[String], keep: u64) -> Vec<String> {
     if wants_some(keep) {
         let mut sorted = files.to_vec();
-        sort_versions(&mut sorted);
+        sorted.sort_by(|a, b| version_cmp(a, b));
         let remove = sorted
             .len()
             .saturating_sub(usize::try_from(keep).unwrap_or(usize::MAX));
@@ -167,7 +167,7 @@ pub fn prune_versions(
     }
 
     let mut others: Vec<&String> = groups.keys().filter(|key| *key != current).collect();
-    others.sort_by(|a, b| versioncmp(a, b));
+    others.sort_by(|a, b| version_cmp(a, b));
 
     let keep = usize::try_from(keep).unwrap_or(usize::MAX);
     let mut index = 0;
@@ -310,15 +310,17 @@ mod tests {
         let prefix = format!("{}/vmlinuz", images.display());
 
         let found = on_disk(&prefix, "");
-        let efi = on_disk(&prefix, ".efi");
+        let efi = on_disk(&prefix, ".EFI");
 
         let names: Vec<&str> = found
             .iter()
             .map(|path| path.rsplit('/').next().unwrap())
             .collect();
-        assert_eq!(names, ["VMLINUZ-1_1", "vmlinuz-2_1", "vmlinuz-3_1.EFI"]);
+        // Names match case-sensitively, as the file system names files.
+        assert_eq!(names, ["vmlinuz-2_1", "vmlinuz-3_1.EFI"]);
         assert!(found[0].starts_with(&images.display().to_string()));
         assert_eq!(efi.len(), 1);
+        assert!(on_disk(&prefix, ".efi").is_empty());
         assert_eq!(
             on_disk(&dir.join("none/vmlinuz").display().to_string(), ""),
             Vec::<String>::new()

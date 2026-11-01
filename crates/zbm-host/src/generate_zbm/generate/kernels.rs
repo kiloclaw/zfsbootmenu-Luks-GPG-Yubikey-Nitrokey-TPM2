@@ -11,7 +11,7 @@ use super::{Generator, Step, Stop};
 use crate::generate_zbm::glob::glob;
 use crate::generate_zbm::kernel::{self, Decision};
 use crate::generate_zbm::perl;
-use crate::generate_zbm::version::versioncmp;
+use zbm_types::version::version_cmp;
 
 /// The kernel the options and the configuration ask for; each part may be
 /// missing or empty, and is then found from the system.
@@ -154,7 +154,7 @@ impl Generator<'_, '_, '_> {
                 kernels.insert(version, kernel);
             }
             let mut versions: Vec<&String> = kernels.keys().collect();
-            versions.sort_by(|a, b| versioncmp(b, a));
+            versions.sort_by(|a, b| version_cmp(b, a));
             if let Some(latest) = versions.first() {
                 self.log(&format!("Latest kernel: {latest}"));
                 return Ok(Some(kernels[*latest].clone()));
@@ -211,7 +211,7 @@ fn versioned_kernel(bootdir: &str, version: &str) -> Option<(String, bool)> {
             return Some((pattern, true));
         }
         let mut kernels = glob(&pattern);
-        kernels.sort_by(|a, b| versioncmp(a, b));
+        kernels.sort_by(|a, b| version_cmp(a, b));
         if let Some(kernel) = kernels.into_iter().find(|kernel| is_file(kernel)) {
             return Some((kernel, false));
         }

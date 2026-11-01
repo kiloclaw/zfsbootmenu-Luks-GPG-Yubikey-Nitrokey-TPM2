@@ -170,7 +170,8 @@ impl Generator<'_, '_, '_> {
         let versions = self
             .config
             .option(&EFI_VERSIONS)?
-            .map_or(0, |value| value.perl_int());
+            .and_then(|value| value.integer())
+            .unwrap_or(0);
         make_path(&image_dir)?;
 
         let target;
@@ -228,7 +229,8 @@ impl Generator<'_, '_, '_> {
         let versions = self
             .config
             .option(&COMPONENTS_VERSIONS)?
-            .map_or(0, |value| value.perl_int());
+            .and_then(|value| value.integer())
+            .unwrap_or(0);
         make_path(&components.image_dir)?;
 
         let installed = if versions > 0 {

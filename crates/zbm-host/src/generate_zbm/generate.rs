@@ -256,10 +256,7 @@ impl Generator<'_, '_, '_> {
 
     /// The configuration key `spec` as text, when it is defined.
     fn setting(&self, spec: &OptionSpec) -> Step<Option<String>> {
-        Ok(self
-            .config
-            .option(spec)?
-            .and_then(|value| value.perl_string()))
+        Ok(self.config.option(spec)?.and_then(|value| value.text()))
     }
 
     /// Whether the `Enabled` key `spec` of a section is set to a true value.

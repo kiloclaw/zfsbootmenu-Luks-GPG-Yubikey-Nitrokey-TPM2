@@ -20,12 +20,8 @@ impl Generator<'_, '_, '_> {
     /// or family stops the run before anything is built.
     pub(super) fn graphics_requests(&mut self) -> Step<Vec<Request>> {
         let words: Vec<String> = match self.config.option(&KERNEL_GRAPHICS_DRIVERS)? {
-            Some(Value::Seq(items)) => items
-                .borrow()
-                .iter()
-                .filter_map(Value::perl_string)
-                .collect(),
-            Some(value) => value.perl_string().into_iter().collect(),
+            Some(Value::Seq(items)) => items.borrow().iter().filter_map(Value::text).collect(),
+            Some(value) => value.text().into_iter().collect(),
             None => Vec::new(),
         };
         gpu::parse(&words).map_err(|message| self.graphics_error(&message))

@@ -238,3 +238,59 @@ fn a_flag_a_shell_would_expand_stops_before_anything_is_built() {
     );
     assert!(!run.log.contains("dracut"), "{}", run.log);
 }
+
+/// The configuration in the files a run left.
+fn config_of(state: &str) -> &str {
+    let marker = "config.yaml, mode 644:\n";
+    let start = state.find(marker).map_or(0, |at| at + marker.len());
+    let rest = &state[start..];
+    &rest[..rest.find("dracut.conf.d/").unwrap_or(rest.len())]
+}
+
+#[test]
+fn enable_and_disable_change_one_line_and_keep_the_rest() {
+    let config = "# Images on the ESP\nGlobal:\n  ManageImages: false # for now\n  \
+                  Other: &x {a: 1}\n  List: [1, 'two', 3.10]\nCopy: *x\n";
+    let args = &["-c", "{root}/config.yaml", "--enable"];
+
+    let run = run_rust(&Case::new(config, args));
+
+    assert_eq!(run.code, 0, "{}", run.stdout);
+    assert_eq!(
+        run.stdout,
+        "ManageImages set to 'true' in <root>/config.yaml\n"
+    );
+    assert_eq!(
+        config_of(&run.state),
+        config.replace("ManageImages: false", "ManageImages: true")
+    );
+    // --disable wins over --enable, as it did
+    let both = run_rust(&Case::new(
+        &config.replace("false", "true"),
+        &["-c", "{root}/config.yaml", "--enable", "--disable"],
+    ));
+    assert_eq!(
+        both.stdout,
+        "ManageImages set to 'false' in <root>/config.yaml\n"
+    );
+    assert!(config_of(&both.state).contains("  ManageImages: false # for now\n"));
+}
+
+#[test]
+fn a_value_that_cannot_be_changed_in_place_is_left_as_it_is() {
+    let config = "Global: {ManageImages: false}\n";
+
+    let run = run_rust(&Case::new(
+        config,
+        &["-c", "{root}/config.yaml", "--enable"],
+    ));
+
+    assert_eq!(run.code, 1);
+    assert!(
+        run.stdout
+            .contains("Global is not a block mapping; set Global.ManageImages"),
+        "{}",
+        run.stdout
+    );
+    assert_eq!(config_of(&run.state), config);
+}

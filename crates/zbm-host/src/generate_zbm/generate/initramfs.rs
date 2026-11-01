@@ -95,9 +95,9 @@ impl Generator<'_, '_, '_> {
             Some(Value::Seq(flags)) => flags
                 .borrow()
                 .iter()
-                .map(|flag| flag.perl_string().unwrap_or_default())
+                .map(|flag| flag.text().unwrap_or_default())
                 .collect(),
-            Some(flag) => vec![flag.perl_string().unwrap_or_default()],
+            Some(flag) => vec![flag.text().unwrap_or_default()],
             None => Vec::new(),
         })
     }

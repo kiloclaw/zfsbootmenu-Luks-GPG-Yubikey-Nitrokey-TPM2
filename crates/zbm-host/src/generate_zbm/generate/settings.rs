@@ -2,12 +2,10 @@
 //! rewriting it for `--enable` and `--disable`, and combining it with the
 //! command line options.
 
-use std::io::Write;
-
 use zbm_config::spec::generate::{
     GLOBAL_CONSOLE_FONT, GLOBAL_DRACUT_CONF_DIR, GLOBAL_INIT_CPIO, GLOBAL_INIT_CPIO_CONFIG,
-    GLOBAL_INIT_CPIO_HOOK_DIRS, GLOBAL_MANAGE_IMAGES, GLOBAL_VERSION, KERNEL_COMMAND_LINE,
-    KERNEL_PATH, KERNEL_PREFIX, KERNEL_VERSION,
+    GLOBAL_INIT_CPIO_HOOK_DIRS, GLOBAL_VERSION, KERNEL_COMMAND_LINE, KERNEL_PATH, KERNEL_PREFIX,
+    KERNEL_VERSION,
 };
 use zbm_platform::filetest::{is_readable, strerror};
 
@@ -15,7 +13,8 @@ use super::kernels::KernelRequest;
 use super::{Generator, Step, Stop, VERSION, has_value};
 use crate::generate_zbm::cli::Options;
 use crate::generate_zbm::config::Value;
-use crate::generate_zbm::{dump, perl};
+use crate::generate_zbm::config::edit::with_manage_images;
+use crate::generate_zbm::perl;
 
 /// The values the Perl program keeps in `%runConf` once the options and the
 /// configuration are combined.
@@ -67,19 +66,23 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `--enable` and `--disable`: rewrite the configuration with
-    /// `Global.ManageImages` set.
+    /// `--enable` and `--disable`: `Global.ManageImages` set in the
+    /// configuration's text, its comments and layout kept, the file
+    /// replaced whole or not at all.
     pub(super) fn set_manage_images(&mut self, path: &str, enable: bool) -> Step<()> {
-        self.config
-            .set_option(&GLOBAL_MANAGE_IMAGES, Value::Bool(enable))?;
-        let text = dump::dump(&self.config);
-        let mut file = std::fs::File::create(path).map_err(|error| {
-            Stop::fatal(
-                format!("Could not open '{path}' for writing: {}", strerror(&error)),
-                &error,
-            )
+        let text = std::fs::read(path)
+            .map(|bytes| perl::decode_utf8_perlqq(&bytes))
+            .map_err(|error| {
+                Stop::fatal(
+                    format!("Unable to read {path}: {}", strerror(&error)),
+                    &error,
+                )
+            })?;
+        let changed = with_manage_images(&text, enable).map_err(|why| {
+            self.print(&format!("Unable to change {path}: {why}\n"));
+            Stop::Exit(1)
         })?;
-        file.write_all(text.as_bytes()).map_err(|error| {
+        replace_file(path, changed.as_bytes()).map_err(|error| {
             Stop::fatal(
                 format!("Unable to write {path}: {}", strerror(&error)),
                 &error,
@@ -127,9 +130,9 @@ impl Generator<'_, '_, '_> {
                 Some(Value::Seq(items)) => items
                     .borrow()
                     .iter()
-                    .map(|item| item.perl_string().unwrap_or_default())
+                    .map(|item| item.text().unwrap_or_default())
                     .collect(),
-                Some(other) => vec![other.perl_string().unwrap_or_default()],
+                Some(other) => vec![other.text().unwrap_or_default()],
                 None => Vec::new(),
             };
             hookd = Some(hooks);
@@ -219,4 +222,26 @@ impl Generator<'_, '_, '_> {
             version,
         })
     }
+}
+
+/// Replaces the file at `path` with `contents`, keeping its mode: written
+/// beside it under another name, then renamed over it, so that the file is
+/// the old one or the new one, never part of either.
+fn replace_file(path: &str, contents: &[u8]) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let path = std::path::Path::new(path);
+    let dir = match path.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir,
+        _ => std::path::Path::new("."),
+    };
+    let mode = std::fs::metadata(path)?.permissions().mode();
+    let temporary = zbm_platform::filetest::create_temp_file(dir, ".config.yaml.XXXXXX")?;
+    let written = std::fs::write(&temporary, contents)
+        .and_then(|()| std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(mode)))
+        .and_then(|()| std::fs::File::open(&temporary)?.sync_all())
+        .and_then(|()| std::fs::rename(&temporary, path));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    written
 }
