@@ -15,6 +15,7 @@
     reason = "the parity tests run the program in a sandbox"
 )]
 
+mod dry_run;
 mod fixtures;
 mod graphics;
 mod rust_only;

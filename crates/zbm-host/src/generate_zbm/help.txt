@@ -64,6 +64,10 @@ OPTIONS
     --showver|V
         Print ZFSBootMenu version and quit.
 
+    --dry-run|n
+        Print what would be done, one line each starting with "Would", and
+        do none of it.
+
 SEE ALSO
     generate-zbm(5) zfsbootmenu(7)
 

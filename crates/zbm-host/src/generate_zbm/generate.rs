@@ -16,6 +16,7 @@
 //! and `install` (placing the images and pruning old ones).
 
 mod bundle;
+mod files;
 mod graphics;
 mod initramfs;
 mod install;
@@ -153,6 +154,7 @@ pub fn run(context: &Context, args: &[String], io: &mut Io) -> i32 {
         context,
         io,
         debug: false,
+        dry_run: false,
         config: Value::map(Vec::new()),
         mounted: None,
     };
@@ -173,6 +175,8 @@ struct Generator<'a, 'io, 'w> {
     context: &'a Context<'a>,
     io: &'io mut Io<'w>,
     debug: bool,
+    /// `--dry-run`: changes are said, not made.
+    dry_run: bool,
     config: Value,
     /// The boot partition, when the generator mounted it.
     mounted: Option<String>,
@@ -221,6 +225,23 @@ impl Generator<'_, '_, '_> {
     fn print_lines(&mut self, lines: &[Vec<u8>]) {
         for line in lines {
             let _ = self.io.stdout.write_all(line);
+        }
+    }
+
+    /// The one door of every change the generator makes: in a dry run,
+    /// says `action` (`Would ACTION`) and returns `true`, for the caller to
+    /// leave it undone; otherwise returns `false`.
+    fn is_dry_run_of(&mut self, action: &str) -> bool {
+        if self.dry_run {
+            self.print(&format!("Would {action}\n"));
+        }
+        self.dry_run
+    }
+
+    /// Prints `text`, the outcome of a change, unless this is a dry run.
+    fn done(&mut self, text: &str) {
+        if !self.dry_run {
+            self.print(text);
         }
     }
 
@@ -340,6 +361,7 @@ impl Generator<'_, '_, '_> {
             Outcome::Run(options) => *options,
         };
         self.debug = options.debug;
+        self.dry_run = options.dry_run;
         self.check_signal()?;
 
         if options.showver {

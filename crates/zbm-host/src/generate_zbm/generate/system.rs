@@ -32,7 +32,7 @@ impl Generator<'_, '_, '_> {
             return Ok(());
         };
         let (_, status) = self.execute(&Invocation::new("mountpoint").quoted(&mount_point))?;
-        if status != 0 {
+        if status != 0 && !self.is_dry_run_of(&format!("mount {mount_point}")) {
             self.print(&format!("Mounting {mount_point}\n"));
             let (output, status) = self.execute(&Invocation::new("mount").quoted(&mount_point))?;
             if status == 0 {
@@ -57,6 +57,9 @@ impl Generator<'_, '_, '_> {
         }
         for hook in glob(&format!("{dir}/*")) {
             if !is_executable(&hook) {
+                continue;
+            }
+            if self.is_dry_run_of(&format!("run the hook {hook}")) {
                 continue;
             }
             self.log(&format!("Processing hook: {hook}"));

@@ -3,14 +3,14 @@
 //! versions pruned, or replacing the previous images and keeping a backup.
 
 use std::collections::BTreeMap;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use zbm_config::spec::generate::{
     COMPONENTS_IMAGE_DIR, COMPONENTS_VERSIONS, EFI_IMAGE_DIR, EFI_VERSIONS,
 };
 use zbm_platform::filetest::{is_dir, is_file, strerror};
 
+use super::files::{file_copy, make_path};
 use super::{Generator, Step, Stop};
 use crate::generate_zbm::{images, perl};
 
@@ -69,6 +69,9 @@ impl Generator<'_, '_, '_> {
     /// Copies `source` to `dest` without keeping file times. A failure is
     /// printed with its reason, then returned.
     fn safe_copy(&mut self, source: &str, dest: &str) -> std::io::Result<()> {
+        if self.is_dry_run_of(&format!("copy {source} to {dest}")) {
+            return Ok(());
+        }
         self.log(&format!("safeCopy called with: {source}, {dest}, 0"));
         file_copy(source, dest).inspect_err(|error| {
             self.print(&format!(
@@ -101,6 +104,9 @@ impl Generator<'_, '_, '_> {
     /// when there is no message.
     fn verbose_unlink(&mut self, file: &str, message: Option<&str>) {
         if !is_file(file) {
+            return;
+        }
+        if self.is_dry_run_of(&format!("remove {file}")) {
             return;
         }
         if let Some(message) = message.filter(|message| !message.is_empty()) {
@@ -140,8 +146,28 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// Creates an empty temporary file in `dir` from `template`.
+    /// Renames `from` to `to`; a dry run says it.
+    fn rename(&mut self, from: &str, to: &str) -> std::io::Result<()> {
+        if self.is_dry_run_of(&format!("rename {from} to {to}")) {
+            return Ok(());
+        }
+        std::fs::rename(from, to)
+    }
+
+    /// Creates the directory `path` and its parents; a dry run says it.
+    fn make_dir(&mut self, path: &str) -> Step<()> {
+        if is_dir(path) || self.is_dry_run_of(&format!("create the directory {path}")) {
+            return Ok(());
+        }
+        make_path(path)
+    }
+
+    /// Creates an empty temporary file in `dir` from `template`; a dry run
+    /// names it by its template.
     fn temp_file(&self, dir: &str, template: &str) -> Step<String> {
+        if self.dry_run {
+            return Ok(format!("{dir}/{template}"));
+        }
         zbm_platform::filetest::create_temp_file(Path::new(dir), template)
             .map(|path| path.display().to_string())
             .map_err(|error| {
@@ -172,7 +198,7 @@ impl Generator<'_, '_, '_> {
             .option(&EFI_VERSIONS)?
             .and_then(|value| value.integer())
             .unwrap_or(0);
-        make_path(&image_dir)?;
+        self.make_dir(&image_dir)?;
 
         let target;
         if versions > 0 {
@@ -198,15 +224,15 @@ impl Generator<'_, '_, '_> {
                 return Err(Stop::Exit(1));
             }
             let backup = format!("{efi_prefix}-backup.EFI");
-            if is_file(&target) && std::fs::rename(&target, &backup).is_ok() {
-                self.print(&format!("Created backup {target} -> {backup}\n"));
+            if is_file(&target) && self.rename(&target, &backup).is_ok() {
+                self.done(&format!("Created backup {target} -> {backup}\n"));
             }
-            if std::fs::rename(&temp, &target).is_err() {
+            if self.rename(&temp, &target).is_err() {
                 self.verbose_unlink(&temp, Some(&format!("Failed to create {target}")));
                 return Err(Stop::Exit(1));
             }
         }
-        self.print(&format!("Created new UEFI image {target}\n"));
+        self.done(&format!("Created new UEFI image {target}\n"));
         Ok(())
     }
 
@@ -231,19 +257,64 @@ impl Generator<'_, '_, '_> {
             .option(&COMPONENTS_VERSIONS)?
             .and_then(|value| value.integer())
             .unwrap_or(0);
-        make_path(&components.image_dir)?;
+        self.make_dir(&components.image_dir)?;
 
         let installed = if versions > 0 {
             self.install_component_revision(&components, version, versions)?
         } else {
             self.replace_components(&components)?
         };
-        self.print(&format!(
+        self.done(&format!(
             "Created initramfs image {}\n",
             installed.initramfs
         ));
-        self.print(&format!("Created kernel image {}\n", installed.kernel));
+        self.done(&format!("Created kernel image {}\n", installed.kernel));
+        self.warn_renamed_initramfs(&components);
         Ok(())
+    }
+
+    /// Fix 23: the initramfs of a kernel prefix other than `vmlinuz` is
+    /// named after it ([`initramfs_stem`]). Where images of the old name
+    /// are still beside its kernels, says so: `initramfs-X.img` beside the
+    /// kernel `PREFIX-X` and no `vmlinuz-X`, whose it would be. They are
+    /// neither used nor pruned with the new ones, and a boot loader's
+    /// entries that name them must change.
+    fn warn_renamed_initramfs(&mut self, components: &Components) {
+        let dir = &components.image_dir;
+        let old = format!("{dir}/initramfs");
+        if components.stem == old {
+            return;
+        }
+        let leftovers: Vec<String> = images::on_disk(&old, ".img")
+            .into_iter()
+            .filter(|file| {
+                let tail = file
+                    .strip_prefix(&format!("{old}-"))
+                    .and_then(|rest| rest.strip_suffix(".img"))
+                    .unwrap_or_default();
+                let theirs = ["vmlinuz", "vmlinux"]
+                    .iter()
+                    .any(|kernel| is_file(format!("{dir}/{kernel}-{tail}")));
+                is_file(format!("{}-{tail}", components.prefix)) && !theirs
+            })
+            .collect();
+        if leftovers.is_empty() {
+            return;
+        }
+        let new = components
+            .stem
+            .rsplit('/')
+            .next()
+            .unwrap_or_default()
+            .to_owned();
+        self.print(&format!(
+            "WARNING: the initramfs of this kernel prefix is now named {new}-*.img; \
+             {} image(s) of the old name initramfs-*.img remain in {} and are not pruned. \
+             Boot loader entries that name them, such as those of \
+             contrib/syslinux-update.sh, must use the new name.\n",
+            leftovers.len(),
+            components.image_dir
+        ));
     }
 
     /// Installs the components as the next revision of `version`, then prunes
@@ -347,20 +418,18 @@ impl Generator<'_, '_, '_> {
         let (init_temp, kern_temp) =
             self.copy_to_temps(components, &initramfs_target, &kernel_target)?;
         let kernel_backup = format!("{kernel_target}-backup");
-        if is_file(&kernel_target) && std::fs::rename(&kernel_target, &kernel_backup).is_ok() {
-            self.print(&format!(
+        if is_file(&kernel_target) && self.rename(&kernel_target, &kernel_backup).is_ok() {
+            self.done(&format!(
                 "Created backup {kernel_target} -> {kernel_backup}\n"
             ));
         }
         let initramfs_backup = format!("{stem}-bootmenu-backup.img");
-        if is_file(&initramfs_target)
-            && std::fs::rename(&initramfs_target, &initramfs_backup).is_ok()
-        {
-            self.print(&format!(
+        if is_file(&initramfs_target) && self.rename(&initramfs_target, &initramfs_backup).is_ok() {
+            self.done(&format!(
                 "Created backup {initramfs_target} -> {initramfs_backup}\n"
             ));
         }
-        if std::fs::rename(&init_temp, &initramfs_target).is_err() {
+        if self.rename(&init_temp, &initramfs_target).is_err() {
             self.verbose_unlink(
                 &init_temp,
                 Some(&format!("Failed to create {initramfs_target}")),
@@ -368,7 +437,7 @@ impl Generator<'_, '_, '_> {
             self.verbose_unlink(&kern_temp, Some(""));
             return Err(Stop::Exit(1));
         }
-        if std::fs::rename(&kern_temp, &kernel_target).is_err() {
+        if self.rename(&kern_temp, &kernel_target).is_err() {
             self.verbose_unlink(
                 &kern_temp,
                 Some(&format!("Failed to create {kernel_target}")),
@@ -382,103 +451,8 @@ impl Generator<'_, '_, '_> {
     }
 }
 
-/// File::Path's `make_path`: creates a directory and its missing parents;
-/// failing to create one is fatal.
-fn make_path(path: &str) -> Step<()> {
-    if path.is_empty() || is_dir(path) {
-        return Ok(());
-    }
-    let parent = perl::dirname(path);
-    if !(is_dir(&parent) || parent == path) {
-        make_path(&parent)?;
-    }
-    match std::fs::create_dir(path) {
-        Err(error) if !is_dir(path) => Err(Stop::fatal(
-            format!("mkdir {path}: {}", strerror(&error)),
-            &error,
-        )),
-        _ => Ok(()),
-    }
-}
-
-/// File::Copy's `copy`: copies the contents into `dest` (into a file of the
-/// same name when `dest` is a directory), with the default permissions.
-/// The contents go to a temporary file beside `dest`, which is written to
-/// the disk and then renamed: `dest` is either as it was or whole, even
-/// after a failed write, a full disk or a power cut. A failure leaves no
-/// temporary file.
-fn file_copy(source: &str, dest: &str) -> std::io::Result<()> {
-    let mut dest = PathBuf::from(dest);
-    if dest.is_dir() && !Path::new(source).is_dir() {
-        dest = dest.join(perl::basename(source));
-    }
-    let mut from = std::fs::File::open(source)?;
-    let directory = dest
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let (temp, to) = copy_target(directory, &dest)?;
-    let copied = copy_into(&mut from, to).and_then(|()| std::fs::rename(&temp, &dest));
-    if copied.is_err() {
-        let _ = std::fs::remove_file(&temp);
-        return copied;
-    }
-    // The rename itself reaches the disk with the directory.
-    if let Ok(directory) = std::fs::File::open(directory) {
-        let _ = directory.sync_all();
-    }
-    Ok(())
-}
-
-/// A new file in `directory` to copy `dest` into, with the mode of `dest`
-/// when it exists, else the mode a new file gets (the default less the
-/// umask), as copying into `dest` would give it.
-fn copy_target(directory: &Path, dest: &Path) -> std::io::Result<(PathBuf, std::fs::File)> {
-    let name = dest
-        .file_name()
-        .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
-    let mut attempt = 0_u32;
-    loop {
-        let temp = directory.join(format!(".{name}.{}.{attempt}", std::process::id()));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)
-        {
-            Ok(file) => {
-                // A file copied over keeps its mode, as `copy` truncating
-                // it would.
-                if let Ok(existing) = std::fs::metadata(dest) {
-                    let _ = file.set_permissions(existing.permissions());
-                }
-                return Ok((temp, file));
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && attempt < 100 => {
-                attempt += 1;
-            }
-            Err(error) => return Err(error),
-        }
-    }
-}
-
-/// Copies `from` into the file `to`, and writes it to the disk; a failed
-/// write, or one the disk reports late, is an error.
-fn copy_into(from: &mut std::fs::File, mut to: std::fs::File) -> std::io::Result<()> {
-    let mut buffer = vec![0_u8; 1 << 20];
-    loop {
-        let count = std::io::Read::read(from, &mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        to.write_all(&buffer[..count])?;
-    }
-    to.sync_all()
-}
-
 #[cfg(test)]
 mod tests {
-    use std::os::unix::fs::PermissionsExt as _;
-
     use zbm_testkit::TempDir;
 
     use super::*;
@@ -500,35 +474,5 @@ mod tests {
         assert_eq!(free_revision(1, name), 1);
         assert_eq!(free_revision(2, name), 3);
         assert!(taken.exists());
-    }
-
-    #[test]
-    fn a_copy_is_whole_or_leaves_the_target_as_it_was() {
-        let dir = TempDir::new("generate-zbm-copy");
-        let source = dir.write("source", "new contents");
-        let target = dir.write("target", "old");
-        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).unwrap();
-        let (source, target_text) = (source.display().to_string(), target.display().to_string());
-
-        file_copy(&source, &target_text).unwrap();
-
-        assert_eq!(std::fs::read_to_string(&target).unwrap(), "new contents");
-        let mode = std::fs::metadata(&target).unwrap().permissions().mode();
-        assert_eq!(mode & 0o777, 0o600);
-        let missing = dir.join("missing").display().to_string();
-        assert!(file_copy(&missing, &target_text).is_err());
-        assert_eq!(std::fs::read_to_string(&target).unwrap(), "new contents");
-        let names: Vec<_> = std::fs::read_dir(dir.path())
-            .unwrap()
-            .map(|entry| entry.unwrap().file_name())
-            .collect();
-        assert_eq!(names.len(), 2, "no temporary file is left: {names:?}");
-        let into = dir.join("into");
-        std::fs::create_dir(&into).unwrap();
-        file_copy(&source, &into.display().to_string()).unwrap();
-        assert_eq!(
-            std::fs::read_to_string(into.join("source")).unwrap(),
-            "new contents"
-        );
     }
 }

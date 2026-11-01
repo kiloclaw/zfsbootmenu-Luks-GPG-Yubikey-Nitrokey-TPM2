@@ -18,6 +18,9 @@ impl Generator<'_, '_, '_> {
         invocation: &Invocation,
         output_file: &str,
     ) -> Step<()> {
+        if self.is_dry_run_of(&format!("run {}", invocation.line())) {
+            return Ok(());
+        }
         self.log(&format!("Executing: {}", invocation.line()));
         let (lines, status) = self.execute(invocation)?;
         if status == 0 {

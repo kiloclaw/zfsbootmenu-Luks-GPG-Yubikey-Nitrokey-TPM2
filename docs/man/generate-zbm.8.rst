@@ -87,6 +87,12 @@ Where noted, command-line options supersede options in the :doc:`generate-zbm(5)
 
   Print ZFSBootMenu version and quit.
 
+**--dry-run|-n**
+
+  Print what would be done (mount the boot partition, run hooks, build and install images, keep backups
+  and prune old versions, change *Global.ManageImages*), one line each starting with *Would*, and do none
+  of it. The programs that only read, such as *strings* on the kernels, still run.
+
 ENVIRONMENT
 ===========
 

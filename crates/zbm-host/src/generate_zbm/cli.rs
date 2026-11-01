@@ -39,6 +39,8 @@ pub struct Options {
     pub debug: bool,
     /// `--showver`.
     pub showver: bool,
+    /// `--dry-run`: say what would be done, and do none of it.
+    pub dry_run: bool,
 }
 
 impl Default for Options {
@@ -58,6 +60,7 @@ impl Default for Options {
             hookd: None,
             debug: false,
             showver: false,
+            dry_run: false,
         }
     }
 }
@@ -101,6 +104,7 @@ const SPECS: &[Spec] = &[
     Spec::value(Some("hookd"), Some('H')),
     Spec::flag(Some("debug"), Some('d')),
     Spec::flag(Some("showver"), Some('V')),
+    Spec::flag(Some("dry-run"), Some('n')),
     Spec::flag(Some("help"), Some('h')),
 ];
 
@@ -121,11 +125,12 @@ enum Field {
     Hookd,
     Debug,
     Showver,
+    DryRun,
     Help,
 }
 
 /// The fields of [`SPECS`], in its order.
-const FIELDS: [Field; 15] = [
+const FIELDS: [Field; 16] = [
     Field::Version,
     Field::Kernel,
     Field::KernelVersion,
@@ -140,6 +145,7 @@ const FIELDS: [Field; 15] = [
     Field::Hookd,
     Field::Debug,
     Field::Showver,
+    Field::DryRun,
     Field::Help,
 ];
 
@@ -184,6 +190,7 @@ fn set(options: &mut Options, field: Field, value: Option<String>, negated: bool
         Field::Initcpio => options.initcpio = Some(!negated),
         Field::Debug => options.debug = true,
         Field::Showver => options.showver = true,
+        Field::DryRun => options.dry_run = true,
         Field::Help => {}
     }
 }

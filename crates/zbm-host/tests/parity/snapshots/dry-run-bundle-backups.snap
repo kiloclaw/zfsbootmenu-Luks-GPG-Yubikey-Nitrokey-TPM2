@@ -1,0 +1,23 @@
+---
+source: crates/zbm-host/tests/parity/dry_run.rs
+---
+exit 0
+No initramfs generator specified; using dracut
+Would run the hook <root>/pre.d/10-hook
+WARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:
+  Path suggests version 5.10.0.
+  Kernel strings suggest version 5.10.0-other.
+  To use this kernel, explicitly specify the path and version.
+Creating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test
+Would run dracut -f --confdir '<root>/dracut.conf.d' -q '<root>/tmp/<random>/zfsbootmenu.img' '6.2.5-test'
+Would build <root>/tmp/<random>/zfsbootmenu.EFI with objcopy from /usr/lib/systemd/boot/efi/linuxx64.efi.stub, the kernel <root>/boot/vmlinuz-6.2.5-test and the initramfs
+Would copy <root>/tmp/<random>/zfsbootmenu.EFI to <root>/esp/EFI/zbm/zbm.<random>
+Would rename <root>/esp/EFI/zbm/vmlinuz.EFI to <root>/esp/EFI/zbm/vmlinuz-backup.EFI
+Would rename <root>/esp/EFI/zbm/zbm.<random> to <root>/esp/EFI/zbm/vmlinuz.EFI
+Would copy <root>/tmp/<random>/zfsbootmenu.img to <root>/esp/EFI/zbm/init.<random>
+Would copy <root>/boot/vmlinuz-6.2.5-test to <root>/esp/EFI/zbm/kern.<random>
+Would rename <root>/esp/EFI/zbm/vmlinuz-bootmenu to <root>/esp/EFI/zbm/vmlinuz-bootmenu-backup
+Would rename <root>/esp/EFI/zbm/initramfs-bootmenu.img to <root>/esp/EFI/zbm/initramfs-bootmenu-backup.img
+Would rename <root>/esp/EFI/zbm/init.<random> to <root>/esp/EFI/zbm/initramfs-bootmenu.img
+Would rename <root>/esp/EFI/zbm/kern.<random> to <root>/esp/EFI/zbm/vmlinuz-bootmenu
+Would run the hook <root>/post.d/10-hook

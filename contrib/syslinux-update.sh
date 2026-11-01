@@ -20,7 +20,12 @@
 ##
 ## and a corresponding initramfs image
 ##
-##     initramfs[-<version>].img
+##     initramfs[-<name>][-<version>].img
+##
+## where <name> is the kernel prefix without a leading "vmlinuz" or "vmlinux"
+## (none for those prefixes alone), as generate-zbm names it; images built
+## before generate-zbm did so are named initramfs[-<version>].img and are
+## found too.
 ##
 ## When creating syslinux entries, the variable ZBM_KCL_ARGS defines the
 ## command-line arguments that will be passed to each ZFSBootMenu kernel.
@@ -96,6 +101,11 @@ fi
 # Sort list of candidate kernels by version, newest first
 readarray -t KERNELS < <(printf '%s\n' "${KERNEL_DIR}/${KERNEL_PREFIX}"* | sort -V -r)
 
+# The initramfs images of the prefix: initramfs-linux-lts for vmlinuz-linux-lts
+stem="${KERNEL_PREFIX#vmlinuz}"
+[ "${stem}" = "${KERNEL_PREFIX}" ] && stem="${KERNEL_PREFIX#vmlinux}"
+stem="initramfs${stem:+-${stem#-}}"
+
 # Identify each kernel/initramfs pair
 # The first in sort order will be the default
 DEFAULT_SET=
@@ -106,7 +116,8 @@ for kern in "${KERNELS[@]}"; do
 
 	# Strip the kernel prefix to look for matching initramfs
 	version="${kern#"${KERNEL_PREFIX}"}"
-	initramfs="initramfs${version}.img"
+	initramfs="${stem}${version}.img"
+	[ -f "${KERNEL_DIR}/${initramfs}" ] || initramfs="initramfs${version}.img"
 	[ -f "${KERNEL_DIR}/${initramfs}" ] || continue
 
 	zbmlabel="zfsbootmenu${version//[[:space:]]/}"

@@ -58,6 +58,15 @@ impl Generator<'_, '_, '_> {
         settings: &Settings,
     ) -> Step<String> {
         let output = format!("{dir}/zfsbootmenu.EFI");
+        if self.dry_run {
+            // Its sections are placed after the sizes of files a dry run
+            // does not build
+            let stub = self.stub()?;
+            self.is_dry_run_of(&format!(
+                "build {output} with objcopy from {stub}, the kernel {kernel} and the initramfs"
+            ));
+            return Ok(output);
+        }
         if !(is_file(kernel) && is_file(initramfs)) {
             self.print("Cannot find kernel or initramfs to create UEFI bundle\n");
             return Err(Stop::Exit(1));

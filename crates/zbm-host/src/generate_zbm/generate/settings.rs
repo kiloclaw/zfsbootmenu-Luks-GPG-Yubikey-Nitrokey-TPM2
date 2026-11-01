@@ -82,6 +82,9 @@ impl Generator<'_, '_, '_> {
             self.print(&format!("Unable to change {path}: {why}\n"));
             Stop::Exit(1)
         })?;
+        if self.is_dry_run_of(&format!("set ManageImages to '{enable}' in {path}")) {
+            return Err(Stop::Exit(0));
+        }
         replace_file(path, changed.as_bytes()).map_err(|error| {
             Stop::fatal(
                 format!("Unable to write {path}: {}", strerror(&error)),

@@ -1,0 +1,14 @@
+---
+source: crates/zbm-host/tests/parity/dry_run.rs
+---
+exit 0
+No initramfs generator specified; using dracut
+WARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:
+  Path suggests version 5.10.0.
+  Kernel strings suggest version 5.10.0-other.
+  To use this kernel, explicitly specify the path and version.
+Creating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test
+Would run dracut -f --confdir '<root>/dracut.conf.d' -q '<root>/tmp/<random>/zfsbootmenu.img' '6.2.5-test'
+Would create the directory <root>/esp/EFI/zbm
+Would copy <root>/tmp/<random>/zfsbootmenu.img to <root>/esp/EFI/zbm/initramfs-3.1.0+dev_1.img
+Would copy <root>/boot/vmlinuz-6.2.5-test to <root>/esp/EFI/zbm/vmlinuz-3.1.0+dev_1
