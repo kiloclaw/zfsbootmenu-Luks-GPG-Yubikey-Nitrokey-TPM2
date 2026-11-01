@@ -1,6 +1,6 @@
 # ADR 0014: The EFI image written by `zbm-host`, without `objcopy`
 
-- **Status:** proposed, 1 November 2026
+- **Status:** accepted, 1 November 2026 (proposed the same day)
 - **Decides:** item CD12 of [ROADMAP.md](../../../ROADMAP.md), the `objcopy` row of [ADR 0005](0005-c-dependencies.md)'s
   programs, and the part of [ADR 0013](0013-host-tools.md)'s point 2 left open: the bundle's layout as a value before
   anything is written
@@ -108,16 +108,17 @@ sections stay as the stub has them; the added sections are laid out as now. `obj
 
 ## Where the work stands
 
-On 1 November 2026, nothing of it is built. `generate-zbm` and `zbm-kcl` use `objcopy` and `objdump` through
-`zbm_tools::efi` and `Invocation`s, and `zbm_testkit::efi` reads section tables for the parity tests.
+On 1 November 2026, when the decision was accepted, nothing of it is built. `generate-zbm` and `zbm-kcl` use
+`objcopy` and `objdump` through `zbm_tools::efi` and `Invocation`s, and `zbm_testkit::efi` reads section tables for
+the parity tests.
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **Reading PE images:** the `object` crate with its PE reader alone, already in `Cargo.lock` (proposed); a reader
-   of our own, grown from `zbm_testkit::efi`; or `goblin`?
-2. **A stub whose section table has no room:** move the sections' data down and grow the headers, as `objcopy` does
-   (proposed); or refuse the stub with the reason?
-3. **`objcopy`:** removed from both tools, kept to check against in the tests (proposed); kept for one release behind
-   a setting (`EFI.Assembler: objcopy`); or used when the writer refuses a stub?
-4. **`zbm-kcl` and a longer command line:** lay out the sections after `.cmdline` again, so that a longer line and an
-   image without `.cmdline` both work (proposed); or refuse as now?
+Accepted as proposed, on 1 November 2026:
+
+1. **Reading PE images:** the `object` crate, its PE reader alone, already in `Cargo.lock`.
+2. **A stub whose section table has no room:** the headers grow, and the sections' data moves down, as `objcopy`
+   does.
+3. **`objcopy`:** removed from both tools; kept only in the tests, to check the writer against.
+4. **`zbm-kcl` and a longer command line:** the sections after `.cmdline` are laid out again, so that a longer line
+   and an image without `.cmdline` both work.
