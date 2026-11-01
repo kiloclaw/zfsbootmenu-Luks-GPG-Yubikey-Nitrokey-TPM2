@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
 use zbm_config::spec::generate::KERNEL_GRAPHICS_DRIVERS;
-use zbm_platform::shell::quote;
 
+use super::invocation::Invocation;
 use super::settings::Settings;
 use super::{Generator, Step, Stop};
 use crate::generate_zbm::config::Value;
@@ -85,12 +85,13 @@ impl Generator<'_, '_, '_> {
 
     /// The firmware files `driver` of kernel `version` lists.
     fn listed_firmware(&mut self, driver: Driver, version: &str) -> Step<Vec<String>> {
-        let command = format!(
-            "modinfo -k {} -F firmware {}",
-            quote(version),
-            driver.name()
-        );
-        self.log(&format!("Executing: {command}"));
+        let command = Invocation::new("modinfo")
+            .plain("-k")
+            .quoted(version)
+            .plain("-F")
+            .plain("firmware")
+            .plain(driver.name());
+        self.log(&format!("Executing: {}", command.line()));
         let (lines, status) = self.execute(&command)?;
         if status != 0 {
             self.print_lines(&lines);
@@ -113,19 +114,20 @@ impl Generator<'_, '_, '_> {
     }
 }
 
-/// The words `dracut` and `mkinitcpio` read from the environment for the
-/// graphics drivers; the dracut module and the mkinitcpio hook install them.
-pub(super) fn build_options(selection: &Selection) -> [String; 2] {
+/// The variables `dracut` and `mkinitcpio` read from the environment for
+/// the graphics drivers; the dracut module and the mkinitcpio hook install
+/// them.
+pub(super) fn build_options(selection: &Selection) -> [(String, String); 2] {
     let drivers: Vec<&str> = selection
         .drivers
         .iter()
         .map(|driver| driver.name())
         .collect();
     [
-        format!("zfsbootmenu_graphics_drivers={}", quote(&drivers.join(" "))),
-        format!(
-            "zfsbootmenu_graphics_firmware={}",
-            quote(&selection.firmware.join(" "))
+        ("zfsbootmenu_graphics_drivers".to_owned(), drivers.join(" ")),
+        (
+            "zfsbootmenu_graphics_firmware".to_owned(),
+            selection.firmware.join(" "),
         ),
     ]
 }
@@ -165,8 +167,14 @@ mod tests {
         assert_eq!(
             build_options(&selection),
             [
-                "zfsbootmenu_graphics_drivers='amdgpu i915'",
-                "zfsbootmenu_graphics_firmware='amdgpu/a.bin i915/b.bin'",
+                (
+                    "zfsbootmenu_graphics_drivers".to_owned(),
+                    "amdgpu i915".to_owned()
+                ),
+                (
+                    "zfsbootmenu_graphics_firmware".to_owned(),
+                    "amdgpu/a.bin i915/b.bin".to_owned()
+                ),
             ]
         );
     }

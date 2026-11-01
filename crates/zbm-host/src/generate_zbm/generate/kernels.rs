@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use zbm_platform::filetest::{is_file, is_readable};
-use zbm_platform::shell::quote;
 
+use super::invocation::Invocation;
 use super::{Generator, Step, Stop};
 use crate::generate_zbm::glob::glob;
 use crate::generate_zbm::kernel::{self, Decision};
@@ -58,7 +58,7 @@ impl Generator<'_, '_, '_> {
         else {
             return Ok(version);
         };
-        let (uname, status) = self.execute("uname -r")?;
+        let (uname, status) = self.execute(&Invocation::new("uname").plain("-r"))?;
         if status != 0 || uname.is_empty() {
             self.print("Cannot determine current kernel version\n");
             return Err(Stop::Exit(if status == 0 { 1 } else { status }));
@@ -173,7 +173,7 @@ impl Generator<'_, '_, '_> {
             return Ok(None);
         }
         let from_name = kernel::version_from_name(&perl::basename(kernel));
-        let (lines, status) = self.execute(&format!("strings {}", quote(kernel)))?;
+        let (lines, status) = self.execute(&Invocation::new("strings").quoted(kernel))?;
         let lines = if status == 0 { lines } else { Vec::new() };
         let decision = kernel::decide(from_name.as_deref(), lines.iter().map(Vec::as_slice));
         Ok(match decision {

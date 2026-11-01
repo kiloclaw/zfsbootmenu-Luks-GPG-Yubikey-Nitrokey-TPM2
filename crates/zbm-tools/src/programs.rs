@@ -182,21 +182,32 @@ pub fn copy_file(runner: &dyn Runner, from: &Path, to: &Path) -> io::Result<Outp
     runner.run(&command)
 }
 
-/// Runs the shell command `script` as Perl's `qx{SCRIPT 2>&1}` does
-/// (`/bin/sh -c "SCRIPT 2>&1"`), with the console as its standard input and
-/// what it prints, errors included, captured; for the commands of
-/// `generate-zbm`'s configuration.
+/// Runs the program of `args` with the rest as its arguments and `env`
+/// added to its environment, without a shell, with the console as its
+/// standard input and what it prints, errors included, captured: the
+/// commands of `generate-zbm` (ADR 0013).
 ///
 /// # Errors
 ///
-/// The error that kept the shell from starting.
-pub fn shell(runner: &dyn Runner, script: &str) -> io::Result<Output> {
-    let command = Command::new("/bin/sh")
-        .arg("-c")
-        .arg(format!("{script} 2>&1"))
+/// The error that kept the program from starting, such as `NotFound`.
+pub fn merged(
+    runner: &dyn Runner,
+    env: &[(String, String)],
+    args: &[String],
+) -> io::Result<Output> {
+    let Some((program, rest)) = args.split_first() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "no program to run",
+        ));
+    };
+    let mut command = Command::new(program)
+        .args(rest)
         .stdin(Input::Inherit)
-        .stdout(Stream::Capture)
-        .stderr(Stream::Inherit);
+        .merge_stderr();
+    for (name, value) in env {
+        command = command.env(name, value);
+    }
     runner.run(&command)
 }
 
@@ -305,7 +316,13 @@ mod tests {
 
         copy_file(&runner, Path::new("/a"), Path::new("/b")).unwrap();
         edit(&runner, "vi", Path::new("/tmp/kcl")).unwrap();
-        shell(&runner, "dracut -f").unwrap();
+        merged(
+            &runner,
+            &[("A".to_owned(), "1".to_owned())],
+            &["dracut".to_owned(), "-f".to_owned()],
+        )
+        .unwrap();
+        assert!(merged(&runner, &[], &[]).is_err());
         assert_eq!(output.secret.unwrap().expose(), b"key");
         assert_eq!(
             runner.lines(),
@@ -315,7 +332,7 @@ mod tests {
                 "zluks unlock",
                 "cp /a /b",
                 "vi /tmp/kcl",
-                "/bin/sh -c dracut -f 2>&1"
+                "dracut -f"
             ]
         );
         let calls = runner.calls();

@@ -89,34 +89,16 @@ pub fn script_name(argv0: &str, path: Option<&std::ffi::OsStr>) -> String {
     if argv0.contains('/') {
         return argv0.to_owned();
     }
-    find_in_path(argv0, path).map_or_else(
+    zbm_platform::filetest::find_program(argv0, path).map_or_else(
         || argv0.to_owned(),
         |found| found.to_string_lossy().into_owned(),
     )
 }
 
-/// Finds an executable file named `name` in `path`, as `command -v` does.
-fn find_in_path(name: &str, path: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
-    let path = path?;
-    std::env::split_paths(path)
-        .map(|dir| {
-            if dir.as_os_str().is_empty() {
-                PathBuf::from(name)
-            } else {
-                dir.join(name)
-            }
-        })
-        .find(|candidate| is_file(candidate) && zbm_platform::filetest::is_executable(candidate))
-}
-
 /// Whether `command -v name` finds `name`: an executable file at a path, or one
 /// found in `path`.
 fn command_exists(name: &str, path: Option<&std::ffi::OsStr>) -> bool {
-    if name.contains('/') {
-        is_file(name) && zbm_platform::filetest::is_executable(name)
-    } else {
-        find_in_path(name, path).is_some()
-    }
+    zbm_platform::filetest::find_program(name, path).is_some()
 }
 
 /// The usage text, as the script prints it.

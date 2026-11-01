@@ -97,8 +97,8 @@ impl Generator<'_, '_, '_> {
             None => match self.config.option(&GLOBAL_INIT_CPIO)? {
                 Some(value) => value.truthy(),
                 None => {
-                    let (_, status) = self.execute("sh -c \"command -v dracut\"")?;
-                    if status == 0 {
+                    let path = std::env::var_os("PATH");
+                    if zbm_platform::filetest::find_program("dracut", path.as_deref()).is_some() {
                         self.print("No initramfs generator specified; using dracut\n");
                         false
                     } else {

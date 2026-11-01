@@ -80,6 +80,112 @@ pub fn quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }
 
+/// Why a text is not plain shell words.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WordsError {
+    /// A quote that does not close.
+    Unclosed(char),
+    /// `$`, `` ` `` or a leading `~`: what a shell would expand.
+    Expansion(char),
+    /// `*`, `?` or `[`: a pattern a shell would match against files.
+    Glob(char),
+    /// `;`, `|`, `&`, `<`, `>`, `(`, `)` or a leading `#`: shell syntax.
+    Syntax(char),
+}
+
+impl std::fmt::Display for WordsError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WordsError::Unclosed(quote) => write!(formatter, "the quote {quote} does not close"),
+            WordsError::Expansion(c) => write!(
+                formatter,
+                "{c} asks a shell to expand it, and no shell runs; quote it to keep it"
+            ),
+            WordsError::Glob(c) => write!(
+                formatter,
+                "{c} asks a shell to match files, and no shell runs; quote it to keep it"
+            ),
+            WordsError::Syntax(c) => write!(
+                formatter,
+                "{c} is shell syntax, and no shell runs; quote it to keep it"
+            ),
+        }
+    }
+}
+
+/// What the quoted text after `"` holds up to its closing quote, from
+/// `chars`: `\` keeps `$`, `` ` ``, `"`, `\\` and a newline (which it
+/// removes), as the shell does.
+fn double_quoted(
+    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
+    word: &mut String,
+) -> Result<(), WordsError> {
+    loop {
+        match chars.next() {
+            None => return Err(WordsError::Unclosed('"')),
+            Some('"') => return Ok(()),
+            Some(c @ ('$' | '`')) => return Err(WordsError::Expansion(c)),
+            Some('\\') => match chars.peek().copied() {
+                Some('\n') => {
+                    chars.next();
+                }
+                Some(c @ ('$' | '`' | '"' | '\\')) => {
+                    chars.next();
+                    word.push(c);
+                }
+                _ => word.push('\\'),
+            },
+            Some(c) => word.push(c),
+        }
+    }
+}
+
+/// The words of `text` as a shell splits them, quotes and backslashes taken
+/// as it takes them, without anything it would expand: for the words a
+/// configuration gives to a program that runs without a shell.
+///
+/// # Errors
+///
+/// For a quote that does not close, and for what only a shell gives a
+/// meaning: expansions, patterns and syntax, outside quotes; refused, so
+/// that the program never sees them with another meaning than the one
+/// written.
+pub fn split_words(text: &str) -> Result<Vec<String>, WordsError> {
+    let mut words = Vec::new();
+    let mut word: Option<String> = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        let starts = word.is_none();
+        match c {
+            ' ' | '\t' | '\n' => words.extend(word.take()),
+            '\'' => {
+                let current = word.get_or_insert_with(String::new);
+                loop {
+                    match chars.next() {
+                        None => return Err(WordsError::Unclosed('\'')),
+                        Some('\'') => break,
+                        Some(c) => current.push(c),
+                    }
+                }
+            }
+            '"' => double_quoted(&mut chars, word.get_or_insert_with(String::new))?,
+            '\\' => match chars.next() {
+                Some('\n') => {}
+                Some(c) => word.get_or_insert_with(String::new).push(c),
+                None => word.get_or_insert_with(String::new).push('\\'),
+            },
+            '$' | '`' => return Err(WordsError::Expansion(c)),
+            '~' if starts => return Err(WordsError::Expansion(c)),
+            '*' | '?' | '[' => return Err(WordsError::Glob(c)),
+            ';' | '|' | '&' | '<' | '>' | '(' | ')' => return Err(WordsError::Syntax(c)),
+            '#' if starts => return Err(WordsError::Syntax(c)),
+            c => word.get_or_insert_with(String::new).push(c),
+        }
+    }
+    words.extend(word);
+    Ok(words)
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -137,5 +243,52 @@ mod tests {
                 .unwrap();
             assert_eq!(String::from_utf8(output.stdout).unwrap(), text);
         }
+    }
+
+    #[test]
+    fn words_split_as_the_shell_splits_them_without_expanding() {
+        let words = |text: &str| split_words(text);
+        assert_eq!(
+            words(
+                r#"--add 'zfs crypt' -o "a \"b\" \$c \d" e\ f g\
+h ''"#
+            ),
+            Ok(vec![
+                "--add".to_owned(),
+                "zfs crypt".to_owned(),
+                "-o".to_owned(),
+                r#"a "b" $c \d"#.to_owned(),
+                "e f".to_owned(),
+                "gh".to_owned(),
+                String::new(),
+            ])
+        );
+        assert_eq!(words("  "), Ok(Vec::new()));
+        assert_eq!(words("a\\"), Ok(vec!["a\\".to_owned()]));
+        assert_eq!(
+            words(
+                r#""a\
+b""#
+            ),
+            Ok(vec!["ab".to_owned()])
+        );
+        let kept = vec!["a=~/x".to_owned(), "$HOME".to_owned(), "*".to_owned()];
+        assert_eq!(words("a=~/x '$HOME' \\*"), Ok(kept));
+        for (text, error) in [
+            ("'open", WordsError::Unclosed('\'')),
+            ("\"open", WordsError::Unclosed('"')),
+            ("$HOME", WordsError::Expansion('$')),
+            ("\"$HOME\"", WordsError::Expansion('$')),
+            ("\"`id`\"", WordsError::Expansion('`')),
+            ("`id`", WordsError::Expansion('`')),
+            ("~/x", WordsError::Expansion('~')),
+            ("*.conf", WordsError::Glob('*')),
+            ("a; b", WordsError::Syntax(';')),
+            ("# note", WordsError::Syntax('#')),
+        ] {
+            assert_eq!(words(text), Err(error), "{text}");
+            assert!(!error.to_string().is_empty());
+        }
+        assert!(WordsError::Glob('?').to_string().contains("match files"));
     }
 }

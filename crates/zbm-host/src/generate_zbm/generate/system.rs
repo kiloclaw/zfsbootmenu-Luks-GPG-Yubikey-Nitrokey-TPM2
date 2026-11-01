@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::generate::GLOBAL_BOOT_MOUNT_POINT;
 use zbm_platform::filetest::{is_dir, is_executable, is_file, is_writable, strerror};
-use zbm_platform::shell::quote;
 
+use super::invocation::Invocation;
 use super::{Generator, Step, Stop};
 use crate::generate_zbm::glob::glob;
 use crate::generate_zbm::perl;
@@ -31,10 +31,10 @@ impl Generator<'_, '_, '_> {
         else {
             return Ok(());
         };
-        let (_, status) = self.execute(&format!("mountpoint {}", quote(&mount_point)))?;
+        let (_, status) = self.execute(&Invocation::new("mountpoint").quoted(&mount_point))?;
         if status != 0 {
             self.print(&format!("Mounting {mount_point}\n"));
-            let (output, status) = self.execute(&format!("mount {}", quote(&mount_point)))?;
+            let (output, status) = self.execute(&Invocation::new("mount").quoted(&mount_point))?;
             if status == 0 {
                 self.mounted = Some(mount_point);
             } else {
@@ -62,7 +62,7 @@ impl Generator<'_, '_, '_> {
             self.log(&format!("Processing hook: {hook}"));
             // The Perl program logs the whole result of `execute`, whose last element is
             // the exit status.
-            let (mut output, status) = self.execute(&quote(&hook))?;
+            let (mut output, status) = self.execute(&Invocation::new(&hook))?;
             output.push(status.to_string().into_bytes());
             self.log_lines(&output);
         }

@@ -15,7 +15,7 @@
 )]
 
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use zbm_sys::Credentials;
 
@@ -128,6 +128,25 @@ pub fn is_writable(path: impl AsRef<Path>) -> bool {
 /// Whether the process may execute `path` (`-x`).
 pub fn is_executable(path: impl AsRef<Path>) -> bool {
     can_access(path, Access::Execute)
+}
+
+/// The executable file `name` names, as `command -v` finds it: `name`
+/// itself when it holds a `/`, else the first in a directory of `path`
+/// (`PATH`; an empty entry is the current directory).
+pub fn find_program(name: &str, path: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
+    let is_program = |candidate: &Path| is_file(candidate) && is_executable(candidate);
+    if name.contains('/') {
+        return Some(PathBuf::from(name)).filter(|candidate| is_program(candidate));
+    }
+    std::env::split_paths(path?)
+        .map(|dir| {
+            if dir.as_os_str().is_empty() {
+                PathBuf::from(name)
+            } else {
+                dir.join(name)
+            }
+        })
+        .find(|candidate| is_program(candidate))
 }
 
 /// Creates a new, empty file readable and writable only by its owner, named

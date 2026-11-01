@@ -1,10 +1,11 @@
 //! The program: the Rust counterpart of the main part of the Perl
 //! `generate-zbm`.
 //!
-//! The steps, messages and exit statuses follow the Perl program. Like it, the
-//! generator runs every external program through `/bin/sh -c '<command> 2>&1'`:
-//! the initramfs flags in the configuration are shell words, so the commands
-//! must keep shell semantics, and paths are quoted. Perl's `exit` and `die`
+//! The steps, messages and exit statuses follow the Perl program. Unlike it,
+//! the generator runs every program without a shell (ADR 0013), with its
+//! arguments as they are (`invocation::Invocation`); the initramfs flags of
+//! the configuration are split as shell words, and anything a shell would
+//! expand in them is refused. Perl's `exit` and `die`
 //! become `Stop`; whichever way the program ends, the boot partition is
 //! unmounted if the generator mounted it, as the Perl `END` block does.
 //!
@@ -18,6 +19,7 @@ mod bundle;
 mod graphics;
 mod initramfs;
 mod install;
+mod invocation;
 mod kernels;
 mod settings;
 mod system;
@@ -32,12 +34,12 @@ use zbm_config::spec::generate::{
     GLOBAL_PRE_HOOKS_DIR,
 };
 use zbm_platform::exec::Runner;
-use zbm_platform::shell::quote;
 use zbm_tools::programs;
 
 use crate::generate_zbm::cli::{self, Options, Outcome};
 use crate::generate_zbm::config::{Fatal, Value};
 use crate::generate_zbm::perl;
+use invocation::Invocation;
 use settings::Settings;
 use system::WorkDir;
 
@@ -184,6 +186,27 @@ fn has_value(text: Option<&String>) -> bool {
     text.is_some_and(|text| !text.is_empty())
 }
 
+/// What a shell prints when the signal `signal` ends a program, as `dash`
+/// and Bash print it: nothing for an interrupt or a closed pipe.
+fn signal_description(signal: i32) -> Option<&'static str> {
+    Some(match signal {
+        1 => "Hangup",
+        3 => "Quit",
+        4 => "Illegal instruction",
+        5 => "Trace/breakpoint trap",
+        6 => "Aborted",
+        7 => "Bus error",
+        8 => "Floating point exception",
+        9 => "Killed",
+        10 => "User defined signal 1",
+        11 => "Segmentation fault",
+        12 => "User defined signal 2",
+        14 => "Alarm clock",
+        15 => "Terminated",
+        _ => return None,
+    })
+}
+
 /// Splits program output into lines that keep their newline, as `qx` does in
 /// list context.
 fn output_lines(output: &[u8]) -> Vec<Vec<u8>> {
@@ -247,21 +270,40 @@ impl Generator<'_, '_, '_> {
             .is_some_and(|value| value.truthy()))
     }
 
-    /// Runs a shell command with standard error merged into its output, and
+    /// Runs a program with standard error merged into its output, and
     /// returns the output lines and the exit status (128 plus the signal
-    /// number for a command killed by a signal).
-    fn run_shell(&self, command: &str) -> (Vec<Vec<u8>>, i32) {
-        match programs::shell(self.context.runner, command) {
-            Ok(output) => (output_lines(&output.stdout), output.status.shell_code()),
-            // Perl reports a shell that cannot be started as status -1, which the fixed
-            // `execute` turns into 255.
-            Err(_) => (Vec::new(), 255),
+    /// number for a program killed by a signal); a program that cannot start
+    /// gets the shell's statuses and messages, 127 when it is not found, 126
+    /// otherwise.
+    fn run_program(&self, invocation: &Invocation) -> (Vec<Vec<u8>>, i32) {
+        match programs::merged(
+            self.context.runner,
+            invocation.environment(),
+            invocation.args(),
+        ) {
+            Ok(output) => {
+                let mut lines = output_lines(&output.stdout);
+                // What the shell said of a program that a signal ended
+                if let Some(said) = output.status.signal().and_then(signal_description) {
+                    lines.push(format!("{said}\n").into_bytes());
+                }
+                (lines, output.status.shell_code())
+            }
+            Err(error) => {
+                let program = invocation.args().first().map_or("", String::as_str);
+                let (why, code) = if error.kind() == std::io::ErrorKind::NotFound {
+                    ("not found", 127)
+                } else {
+                    ("cannot run", 126)
+                };
+                (vec![format!("{program}: {why}\n").into_bytes()], code)
+            }
         }
     }
 
-    /// Runs a shell command, then stops if a signal arrived meanwhile.
-    fn execute(&mut self, command: &str) -> Step<(Vec<Vec<u8>>, i32)> {
-        let result = self.run_shell(command);
+    /// Runs a program, then stops if a signal arrived meanwhile.
+    fn execute(&mut self, invocation: &Invocation) -> Step<(Vec<Vec<u8>>, i32)> {
+        let result = self.run_program(invocation);
         self.check_signal()?;
         Ok(result)
     }
@@ -286,7 +328,7 @@ impl Generator<'_, '_, '_> {
     fn cleanup_mount(&mut self) {
         if let Some(mount_point) = self.mounted.take() {
             self.print(&format!("Unmounting {mount_point}\n"));
-            self.run_shell(&format!("umount {}", quote(&mount_point)));
+            self.run_program(&Invocation::new("umount").quoted(&mount_point));
         }
     }
 
@@ -381,6 +423,16 @@ mod tests {
     use super::*;
     use std::path::Path;
     use system::canonical_path;
+
+    #[test]
+    fn signals_are_described_as_the_shell_describes_them() {
+        assert_eq!(signal_description(9), Some("Killed"));
+        assert_eq!(signal_description(15), Some("Terminated"));
+        assert_eq!(signal_description(2), None);
+        assert_eq!(signal_description(13), None);
+        let all: Vec<_> = (1..=15).filter_map(signal_description).collect();
+        assert_eq!(all.len(), 13);
+    }
 
     #[test]
     fn canonical_paths() {

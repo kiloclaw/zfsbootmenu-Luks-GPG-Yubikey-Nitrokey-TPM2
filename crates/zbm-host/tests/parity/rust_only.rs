@@ -202,3 +202,39 @@ fn an_enabled_section_without_its_image_directory_is_an_error() {
     );
     assert!(!run.stdout.contains("Created"), "{}", run.stdout);
 }
+
+/// The components configuration with `Global.DracutFlags: flags`.
+fn with_flags(flags: &str) -> String {
+    COMPONENTS.replace(
+        "  ManageImages: true\n",
+        &format!("  ManageImages: true\n  DracutFlags:\n{flags}"),
+    )
+}
+
+#[test]
+fn dracut_flags_are_shell_words_that_reach_dracut_unexpanded() {
+    let config = with_flags("    - \"--add 'zfs crypt'\"\n    - --omit\\ x\n");
+
+    let run = run_rust(&Case::new(&config, ARGS));
+
+    assert_eq!(run.code, 0, "{}", run.stdout);
+    assert!(
+        run.log.contains(" [--add] [zfs crypt] [--omit x] "),
+        "{}",
+        run.log
+    );
+}
+
+#[test]
+fn a_flag_a_shell_would_expand_stops_before_anything_is_built() {
+    let run = run_rust(&Case::new(&with_flags("    - --add $HOME\n"), ARGS));
+
+    assert_eq!(run.code, 1);
+    assert!(
+        run.stdout
+            .contains("Global.DracutFlags: '--add $HOME': $ asks a shell"),
+        "{}",
+        run.stdout
+    );
+    assert!(!run.log.contains("dracut"), "{}", run.log);
+}

@@ -2,18 +2,17 @@
 //! line, a splash image, a device tree, the initramfs and the kernel added as
 //! sections by objcopy.
 
-use zbm_config::spec::generate::{EFI_DEVICE_TREE, EFI_SPLASH_IMAGE, EFI_STUB};
-use zbm_platform::filetest::is_file;
-use zbm_platform::shell::quote;
-
+use super::invocation::Invocation;
 use super::settings::Settings;
 use super::{Generator, Step, Stop};
 use crate::generate_zbm::efi;
+use zbm_config::spec::generate::{EFI_DEVICE_TREE, EFI_SPLASH_IMAGE, EFI_STUB};
+use zbm_platform::filetest::is_file;
 
 /// The objcopy command being built, with the address of the next section.
 struct Sections {
-    /// The command's words so far.
-    words: Vec<String>,
+    /// The command so far.
+    invocation: Invocation,
     /// The address of the next section.
     offset: u128,
     /// The section alignment of the stub.
@@ -31,10 +30,11 @@ impl Generator<'_, '_, '_> {
     /// Adds the section `name` with the contents of `file` at the next offset.
     fn add_section(&mut self, sections: &mut Sections, name: &str, file: &str) -> Step<()> {
         let offset = sections.offset;
-        sections.words.push("--add-section".to_owned());
-        sections.words.push(format!("{name}={}", quote(file)));
-        sections.words.push("--change-section-vma".to_owned());
-        sections.words.push(format!("{name}=0x{offset:X}"));
+        sections.invocation = std::mem::take(&mut sections.invocation)
+            .plain("--add-section")
+            .assignment(name, file)
+            .plain("--change-section-vma")
+            .plain(&format!("{name}=0x{offset:X}"));
         let size = std::fs::metadata(file)
             .map_err(|error| {
                 Stop::fatal(
@@ -66,7 +66,7 @@ impl Generator<'_, '_, '_> {
         let alignment = self.stub_alignment(&stub)?;
         let offset = self.initial_offset(&stub, alignment)?;
         let mut sections = Sections {
-            words: vec!["objcopy".to_owned()],
+            invocation: Invocation::new("objcopy"),
             offset,
             alignment,
         };
@@ -75,10 +75,8 @@ impl Generator<'_, '_, '_> {
         // The kernel goes last, so that it can decompress without overwriting other
         // sections.
         self.add_section(&mut sections, ".linux", kernel)?;
-        let mut words = sections.words;
-        words.push(quote(&stub));
-        words.push(quote(&output));
-        self.run_build_step(&words, &output)?;
+        let invocation = sections.invocation.quoted(&stub).quoted(&output);
+        self.run_build_step(&invocation, &output)?;
         Ok(output)
     }
 
@@ -105,7 +103,7 @@ impl Generator<'_, '_, '_> {
 
     /// The section alignment of the stub, from objdump's private headers.
     fn stub_alignment(&mut self, stub: &str) -> Step<u128> {
-        let (lines, status) = self.execute(&format!("objdump -p {}", quote(stub)))?;
+        let (lines, status) = self.execute(&Invocation::new("objdump").plain("-p").quoted(stub))?;
         let mut alignment = None;
         if status == 0 {
             for line in &lines {
@@ -127,7 +125,12 @@ impl Generator<'_, '_, '_> {
     /// The address of the first added section: past the end of the stub's last
     /// section, aligned.
     fn initial_offset(&mut self, stub: &str, alignment: u128) -> Step<u128> {
-        let (lines, status) = self.execute(&format!("objdump -w -h {}", quote(stub)))?;
+        let (lines, status) = self.execute(
+            &Invocation::new("objdump")
+                .plain("-w")
+                .plain("-h")
+                .quoted(stub),
+        )?;
         let end = lines.last().and_then(|line| efi::last_section_end(line));
         let Some(end) = end.filter(|_| status == 0) else {
             self.print("Unable to determine initial stub offset!\n");
