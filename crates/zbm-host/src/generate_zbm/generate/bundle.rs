@@ -1,54 +1,68 @@
-//! The EFI bundle: the stub loader with the release information, the command
-//! line, a splash image, a device tree, the initramfs and the kernel added as
-//! sections by objcopy.
+//! The EFI bundle (ADR 0014): the stub loader with the release information,
+//! the command line, a splash image, a device tree, the initramfs and the
+//! kernel added as sections by [`crate::pe`]. The bundle is planned, its
+//! stub and the files of its sections, before anything is built; a dry run
+//! prints the plan.
 
-use super::invocation::Invocation;
 use super::settings::Settings;
 use super::{Generator, Step, Stop};
-use crate::generate_zbm::efi;
+use crate::pe::{Image, WriteOptions};
 use zbm_config::spec::generate::{EFI_DEVICE_TREE, EFI_SPLASH_IMAGE, EFI_STUB};
-use zbm_platform::filetest::is_file;
+use zbm_platform::filetest::{is_file, strerror};
 
-/// The objcopy command being built, with the address of the next section.
-struct Sections {
-    /// The command so far.
-    invocation: Invocation,
-    /// The address of the next section.
-    offset: u128,
-    /// The section alignment of the stub.
-    alignment: u128,
+/// What a section holds.
+enum Contents {
+    /// The contents of a file.
+    File(String),
+    /// The command line, as given.
+    CommandLine(String),
+}
+
+/// A section of the bundle, before it is built.
+struct Planned {
+    name: &'static str,
+    contents: Contents,
+}
+
+impl Planned {
+    /// Where its contents come from, for the log and the dry run.
+    fn source(&self) -> String {
+        match &self.contents {
+            Contents::File(path) => format!("from {path}"),
+            Contents::CommandLine(_) => "with the command line".to_owned(),
+        }
+    }
+}
+
+/// The bundle, before it is built (ADR 0014, point 8): the stub and its
+/// sections, in order. The kernel goes last, so that it can decompress
+/// without overwriting the other sections.
+struct BundlePlan {
+    stub: String,
+    output: String,
+    sections: Vec<Planned>,
+}
+
+impl BundlePlan {
+    /// The plan in a line: the output, the stub and each section.
+    fn describe(&self) -> String {
+        let sections: Vec<String> = self
+            .sections
+            .iter()
+            .map(|section| format!("{} {}", section.name, section.source()))
+            .collect();
+        format!(
+            "build {} from {}: {}",
+            self.output,
+            self.stub,
+            sections.join(", ")
+        )
+    }
 }
 
 impl Generator<'_, '_, '_> {
-    /// The offset after a section (see [`efi::next_offset`]), logged.
-    fn next_offset(&mut self, size: u128, offset: u128, alignment: u128) -> u128 {
-        let next = efi::next_offset(size, offset, alignment);
-        self.log(&format!("New offset is: 0x{next:X}"));
-        next
-    }
-
-    /// Adds the section `name` with the contents of `file` at the next offset.
-    fn add_section(&mut self, sections: &mut Sections, name: &str, file: &str) -> Step<()> {
-        let offset = sections.offset;
-        sections.invocation = std::mem::take(&mut sections.invocation)
-            .plain("--add-section")
-            .assignment(name, file)
-            .plain("--change-section-vma")
-            .plain(&format!("{name}=0x{offset:X}"));
-        let size = std::fs::metadata(file)
-            .map_err(|error| {
-                Stop::fatal(
-                    "Can't call method \"size\" on an undefined value".to_owned(),
-                    &error,
-                )
-            })?
-            .len();
-        sections.offset = self.next_offset(u128::from(size), offset, sections.alignment);
-        Ok(())
-    }
-
-    /// Combines the stub, the release information, the command line, a splash
-    /// image, a device tree, the initramfs and the kernel with objcopy.
+    /// Builds the bundle of the stub, the release information, the command
+    /// line, a splash image, a device tree, the initramfs and the kernel.
     pub(super) fn create_bundle(
         &mut self,
         dir: &str,
@@ -58,35 +72,106 @@ impl Generator<'_, '_, '_> {
         settings: &Settings,
     ) -> Step<String> {
         let output = format!("{dir}/zfsbootmenu.EFI");
-        if self.dry_run {
-            // Its sections are placed after the sizes of files a dry run
-            // does not build
-            let stub = self.stub()?;
-            self.is_dry_run_of(&format!(
-                "build {output} with objcopy from {stub}, the kernel {kernel} and the initramfs"
-            ));
-            return Ok(output);
-        }
-        if !(is_file(kernel) && is_file(initramfs)) {
+        if !(self.dry_run || is_file(kernel) && is_file(initramfs)) {
             self.print("Cannot find kernel or initramfs to create UEFI bundle\n");
             return Err(Stop::Exit(1));
         }
         let stub = self.stub()?;
-        let alignment = self.stub_alignment(&stub)?;
-        let offset = self.initial_offset(&stub, alignment)?;
-        let mut sections = Sections {
-            invocation: Invocation::new("objcopy"),
-            offset,
-            alignment,
+        let mut sections = self.optional_sections(kernel_version, settings)?;
+        sections.push(Planned {
+            name: ".initrd",
+            contents: Contents::File(initramfs.to_owned()),
+        });
+        sections.push(Planned {
+            name: ".linux",
+            contents: Contents::File(kernel.to_owned()),
+        });
+        let plan = BundlePlan {
+            stub,
+            output: output.clone(),
+            sections,
         };
-        self.add_optional_sections(&mut sections, dir, kernel_version, settings)?;
-        self.add_section(&mut sections, ".initrd", initramfs)?;
-        // The kernel goes last, so that it can decompress without overwriting other
-        // sections.
-        self.add_section(&mut sections, ".linux", kernel)?;
-        let invocation = sections.invocation.quoted(&stub).quoted(&output);
-        self.run_build_step(&invocation, &output)?;
+        if !self.is_dry_run_of(&plan.describe()) {
+            self.build_bundle(&plan)?;
+        }
         Ok(output)
+    }
+
+    /// Builds the bundle `plan` describes, and writes it.
+    fn build_bundle(&mut self, plan: &BundlePlan) -> Step<()> {
+        let stub = &plan.stub;
+        let bytes = match std::fs::read(stub) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                let why = strerror(&error);
+                return self.stop(&format!("Unable to read UEFI stub loader '{stub}': {why}"));
+            }
+        };
+        let mut image = match Image::read(bytes) {
+            Ok(image) => image,
+            Err(error) => {
+                return self.stop(&format!(
+                    "UEFI stub loader '{stub}' cannot be used: {error}"
+                ));
+            }
+        };
+        for section in &plan.sections {
+            let data = match &section.contents {
+                Contents::CommandLine(text) => text.clone().into_bytes(),
+                Contents::File(path) => match std::fs::read(path) {
+                    Ok(data) => data,
+                    Err(error) => {
+                        let (name, why) = (section.name, strerror(&error));
+                        return self.stop(&format!("Unable to read {path} for {name}: {why}"));
+                    }
+                },
+            };
+            if let Err(error) = image.add(section.name, &data) {
+                return self.stop(&format!("Unable to add {}: {error}", section.name));
+            }
+        }
+        let options = WriteOptions {
+            timestamp: self.context.timestamp,
+        };
+        let written = match image.write(&options) {
+            Ok(written) => written,
+            Err(error) => {
+                return self.stop(&format!("Unable to build {}: {error}", plan.output));
+            }
+        };
+        for warning in &written.warnings {
+            self.print(&format!("WARNING: {warning}\n"));
+        }
+        self.log_layout(plan, &written.bytes, image.image_base());
+        if std::fs::write(&plan.output, &written.bytes).is_err() {
+            return self.stop(&format!("Failed to create {}", plan.output));
+        }
+        Ok(())
+    }
+
+    /// Prints `message` and ends the run with status 1.
+    fn stop(&mut self, message: &str) -> Step<()> {
+        self.print(&format!("{message}\n"));
+        Err(Stop::Exit(1))
+    }
+
+    /// Logs where each section of the bundle `bytes` went, at its address
+    /// with the image base, as the stub's sections are loaded.
+    fn log_layout(&mut self, plan: &BundlePlan, bytes: &[u8], base: u64) {
+        let Ok(built) = Image::read(bytes.to_vec()) else {
+            return;
+        };
+        for planned in &plan.sections {
+            if let Some(section) = built.section(planned.name) {
+                let address = base + u64::from(section.virtual_address());
+                self.log(&format!(
+                    "Adding {} {} at 0x{address:X}",
+                    planned.name,
+                    planned.source()
+                ));
+            }
+        }
+        self.log(&format!("Writing {} from {}", plan.output, plan.stub));
     }
 
     /// The stub loader: `EFI.Stub`, or the first default stub that exists.
@@ -108,75 +193,44 @@ impl Generator<'_, '_, '_> {
         Err(Stop::Exit(1))
     }
 
-    /// The section alignment of the stub, from objdump's private headers.
-    fn stub_alignment(&mut self, stub: &str) -> Step<u128> {
-        let (lines, status) = self.execute(&Invocation::new("objdump").plain("-p").quoted(stub))?;
-        let mut alignment = None;
-        if status == 0 {
-            for line in &lines {
-                if let Some(found) = efi::section_alignment(line) {
-                    self.log(&format!("Alignment is: {found}"));
-                    alignment = Some(found);
-                }
-            }
-        }
-        match alignment {
-            Some(alignment) if status == 0 && alignment > 0 => Ok(u128::from(alignment)),
-            _ => {
-                self.print("Unable to determine stub alignment!\n");
-                Err(Stop::Exit(1))
-            }
-        }
-    }
-
-    /// The address of the first added section: past the end of the stub's last
-    /// section, aligned.
-    fn initial_offset(&mut self, stub: &str, alignment: u128) -> Step<u128> {
-        let (lines, status) = self.execute(
-            &Invocation::new("objdump")
-                .plain("-w")
-                .plain("-h")
-                .quoted(stub),
-        )?;
-        let end = lines.last().and_then(|line| efi::last_section_end(line));
-        let Some(end) = end.filter(|_| status == 0) else {
-            self.print("Unable to determine initial stub offset!\n");
-            return Err(Stop::Exit(1));
-        };
-        let offset = self.next_offset(end, 0, alignment);
-        self.log(&format!("Initial offset is: 0x{offset:X}"));
-        Ok(offset)
-    }
-
-    /// Adds the sections that only some bundles have, in order: the release
+    /// The sections that only some bundles have, in order: the release
     /// information, the command line, the splash image and the device tree.
-    fn add_optional_sections(
+    fn optional_sections(
         &mut self,
-        sections: &mut Sections,
-        dir: &str,
         kernel_version: &str,
         settings: &Settings,
-    ) -> Step<()> {
+    ) -> Step<Vec<Planned>> {
+        let mut sections = Vec::new();
         let os_release = self.context.os_release.display().to_string();
         if is_file(&os_release) {
-            self.add_section(sections, ".osrel", &os_release)?;
+            sections.push(Planned {
+                name: ".osrel",
+                contents: Contents::File(os_release),
+            });
         }
         if let Some(cmdline) = settings.cmdline.clone().filter(|text| !text.is_empty()) {
-            let file = format!("{dir}/cmdline.txt");
-            let _ = std::fs::write(&file, cmdline);
-            self.add_section(sections, ".cmdline", &file)?;
+            sections.push(Planned {
+                name: ".cmdline",
+                contents: Contents::CommandLine(cmdline),
+            });
         }
         if let Some(splash) = self
             .setting(&EFI_SPLASH_IMAGE)?
             .filter(|text| !text.is_empty())
             && is_file(&splash)
         {
-            self.add_section(sections, ".splash", &splash)?;
+            sections.push(Planned {
+                name: ".splash",
+                contents: Contents::File(splash),
+            });
         }
         if let Some(path) = self.device_tree(kernel_version)? {
-            self.add_section(sections, ".dtb", &path)?;
+            sections.push(Planned {
+                name: ".dtb",
+                contents: Contents::File(path),
+            });
         }
-        Ok(())
+        Ok(sections)
     }
 
     /// The device tree file `EFI.DeviceTree` names for the kernel version, if

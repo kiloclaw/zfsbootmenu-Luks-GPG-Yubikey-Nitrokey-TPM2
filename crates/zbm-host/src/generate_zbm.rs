@@ -16,7 +16,6 @@
 
 pub mod cli;
 pub mod config;
-pub mod efi;
 pub mod generate;
 pub mod glob;
 pub mod gpu;

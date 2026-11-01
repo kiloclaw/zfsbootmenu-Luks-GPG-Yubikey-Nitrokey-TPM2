@@ -294,3 +294,31 @@ fn a_value_that_cannot_be_changed_in_place_is_left_as_it_is() {
     );
     assert_eq!(config_of(&run.state), config);
 }
+
+#[test]
+fn a_stub_that_is_not_an_efi_image_stops_the_bundle_with_the_reason() {
+    let config = "Global:
+  ManageImages: true
+EFI:
+  ImageDir: {root}/esp/EFI/zbm
+  Enabled: true
+  Stub: {root}/stub.efi
+";
+    let run = run_rust(&Case {
+        setup: |sandbox| {
+            sandbox.dir.write("stub.efi", "MZ, but no more");
+        },
+        ..Case::new(config, ARGS)
+    });
+
+    assert_eq!(run.code, 1, "{}", run.stdout);
+    assert!(
+        run.stdout.ends_with(
+            "UEFI stub loader '<root>/stub.efi' cannot be used: not a PE image: \
+             Invalid DOS header size or alignment\n"
+        ),
+        "{}",
+        run.stdout
+    );
+    assert!(!run.state.contains(".EFI"), "{}", run.state);
+}

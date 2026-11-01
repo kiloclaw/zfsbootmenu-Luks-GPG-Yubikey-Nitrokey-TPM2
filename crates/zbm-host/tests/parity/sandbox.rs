@@ -376,6 +376,74 @@ fn debug_log(stderr: &str) -> String {
     log
 }
 
+/// The recorded debug log, where it built an EFI bundle, in the words of
+/// the Rust tool, which builds it itself (ADR 0014): the alignment and the
+/// offsets the Perl tool read from objdump go, and its objcopy command
+/// becomes the sections added, at the same addresses, and the image written.
+fn bundle_log(log: &str) -> String {
+    let mut converted = String::new();
+    for line in log.lines() {
+        let Some(entry) = line.strip_prefix("## ") else {
+            converted.push_str(line);
+            converted.push('\n');
+            continue;
+        };
+        if ["Alignment is: ", "New offset is: ", "Initial offset is: "]
+            .iter()
+            .any(|prefix| entry.starts_with(prefix))
+        {
+            continue;
+        }
+        let Some(command) = entry.strip_prefix("Executing: objcopy ") else {
+            converted.push_str(line);
+            converted.push('\n');
+            continue;
+        };
+        let words = shell_words(command);
+        for pair in words.chunks(4) {
+            if let [add, file, change, address] = pair
+                && add == "--add-section"
+                && change == "--change-section-vma"
+            {
+                let (name, path) = file.split_once('=').unwrap();
+                let address = address.split_once('=').unwrap().1;
+                let source = if name == ".cmdline" {
+                    "with the command line".to_owned()
+                } else {
+                    format!("from {path}")
+                };
+                let _ = writeln!(converted, "## Adding {name} {source} at {address}");
+            }
+        }
+        if let [.., stub, output] = words.as_slice() {
+            let _ = writeln!(converted, "## Writing {output} from {stub}");
+        }
+    }
+    converted
+}
+
+/// The words of a command line as the debug log quotes it: single quotes,
+/// and `\'` for a quote.
+fn shell_words(line: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word: Option<String> = None;
+    let mut quoted = false;
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => {
+                quoted = !quoted;
+                word.get_or_insert_with(String::new);
+            }
+            '\\' if !quoted => word.get_or_insert_with(String::new).extend(chars.next()),
+            ' ' if !quoted => words.extend(word.take()),
+            c => word.get_or_insert_with(String::new).push(c),
+        }
+    }
+    words.extend(word);
+    words
+}
+
 /// What a run did, after normalization: exit status, standard output, debug log
 /// and files.
 #[derive(Debug, Deserialize, Serialize)]
@@ -421,6 +489,7 @@ pub(crate) fn compare(parity: &mut Parity, case: &Case) -> Outcome {
         case.args, case.env, case.config
     );
     let mut legacy: Outcome = parity.recorded(describe.clone());
+    legacy.log = bundle_log(&legacy.log);
     for (legacy_text, rust_text) in case.differs {
         for text in [&mut legacy.stdout, &mut legacy.log, &mut legacy.state] {
             *text = text.replace(legacy_text, rust_text);

@@ -190,6 +190,7 @@ struct Headers {
     file_alignment: u32,
     section_alignment: u32,
     size_of_initialized_data: u32,
+    image_base: u64,
 }
 
 /// A PE image.
@@ -232,6 +233,11 @@ impl Image {
     /// The section named `name`.
     pub fn section(&self, name: &str) -> Option<&Section> {
         self.sections.iter().find(|section| section.name == name)
+    }
+
+    /// The address the image prefers to be loaded at.
+    pub fn image_base(&self) -> u64 {
+        self.headers.image_base
     }
 
     /// The image's alignment in memory.
@@ -385,6 +391,7 @@ fn parse<Pe: ImageNtHeaders>(bytes: Vec<u8>) -> Result<Image, PeError> {
         file_alignment: file,
         section_alignment: section,
         size_of_initialized_data: optional.size_of_initialized_data(),
+        image_base: optional.image_base(),
     };
     if (headers.header_size as usize) < table_offset + SECTION_HEADER * table.len() {
         return Err(PeError::Malformed(

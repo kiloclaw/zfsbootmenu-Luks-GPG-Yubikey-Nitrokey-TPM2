@@ -24,10 +24,7 @@ mod graphics;
 mod rust_only;
 mod sandbox;
 
-use fixtures::{
-    BASIC, COMPONENTS, OBJDUMP_NO_SECTIONS, OBJDUMP_NOTHING, SIGNAL_HOOK, fake_objdump,
-    setup_backups,
-};
+use fixtures::{BASIC, COMPONENTS, SIGNAL_HOOK, setup_backups};
 use sandbox::{Case, STUB, Setup, compare, efi_tools, kernel_image, tools};
 use zbm_testkit::{can_run, parity};
 
@@ -532,29 +529,6 @@ EFI:
         &mut parity,
         &Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"]),
     );
-    // An objdump that reports no section alignment or sections: the Perl program
-    // used to go on with offsets it could not compute.
-    let cases: [(Setup, &str); 2] = [
-        (
-            |sandbox| fake_objdump(sandbox, OBJDUMP_NOTHING),
-            "Unable to determine stub alignment!\n",
-        ),
-        (
-            |sandbox| fake_objdump(sandbox, OBJDUMP_NO_SECTIONS),
-            "Unable to determine initial stub offset!\n",
-        ),
-    ];
-    for (setup, expected) in cases {
-        let outcome = compare(
-            &mut parity,
-            &Case {
-                setup,
-                ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
-            },
-        );
-        assert_eq!(outcome.code, 1);
-        assert!(outcome.stdout.ends_with(expected), "{}", outcome.stdout);
-    }
     let device_tree = "Global:
   ManageImages: true
 EFI:

@@ -10,7 +10,7 @@ WARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:
   To use this kernel, explicitly specify the path and version.
 Creating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test
 Would run dracut -f --confdir '<root>/dracut.conf.d' -q '<root>/tmp/<random>/zfsbootmenu.img' '6.2.5-test'
-Would build <root>/tmp/<random>/zfsbootmenu.EFI with objcopy from /usr/lib/systemd/boot/efi/linuxx64.efi.stub, the kernel <root>/boot/vmlinuz-6.2.5-test and the initramfs
+Would build <root>/tmp/<random>/zfsbootmenu.EFI from /usr/lib/systemd/boot/efi/linuxx64.efi.stub: .osrel from /etc/os-release, .cmdline with the command line, .initrd from <root>/tmp/<random>/zfsbootmenu.img, .linux from <root>/boot/vmlinuz-6.2.5-test
 Would copy <root>/tmp/<random>/zfsbootmenu.EFI to <root>/esp/EFI/zbm/zbm.<random>
 Would rename <root>/esp/EFI/zbm/vmlinuz.EFI to <root>/esp/EFI/zbm/vmlinuz-backup.EFI
 Would rename <root>/esp/EFI/zbm/zbm.<random> to <root>/esp/EFI/zbm/vmlinuz.EFI

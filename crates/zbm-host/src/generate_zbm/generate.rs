@@ -62,9 +62,12 @@ pub struct Context<'a> {
     /// `$TMPDIR`.
     pub tmpdir: Option<PathBuf>,
     /// Whether `SOURCE_DATE_EPOCH` is set: images are then built to be
-    /// reproducible (`dracut --reproducible`; `mkinitcpio` and `objcopy`
-    /// read the variable themselves).
+    /// reproducible (`dracut --reproducible`; `mkinitcpio` reads the
+    /// variable itself).
     pub reproducible: bool,
+    /// The time stamp of EFI bundles: `SOURCE_DATE_EPOCH`, when it is a
+    /// time a PE header can hold; the stub's own otherwise.
+    pub timestamp: Option<u32>,
     /// The hostid the SPL module uses.
     pub spl_hostid: PathBuf,
     /// The system hostid.
@@ -103,6 +106,9 @@ impl<'a> Context<'a> {
             tmpdir: std::env::var_os("TMPDIR").map(PathBuf::from),
             reproducible: std::env::var_os("SOURCE_DATE_EPOCH")
                 .is_some_and(|epoch| !epoch.is_empty()),
+            timestamp: std::env::var("SOURCE_DATE_EPOCH")
+                .ok()
+                .and_then(|epoch| epoch.trim().parse().ok()),
             spl_hostid: PathBuf::from("/sys/module/spl/parameters/spl_hostid"),
             etc_hostid: PathBuf::from("/etc/hostid"),
             os_release: PathBuf::from("/etc/os-release"),

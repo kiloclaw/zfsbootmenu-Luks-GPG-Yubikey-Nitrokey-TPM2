@@ -37,14 +37,6 @@ impl Invocation {
         self
     }
 
-    /// Adds the argument `NAME=VALUE`, shown with the value in quotes.
-    #[must_use]
-    pub fn assignment(mut self, name: &str, value: &str) -> Invocation {
-        self.args.push(format!("{name}={value}"));
-        self.shown.push(format!("{name}={}", quote(value)));
-        self
-    }
-
     /// Adds `NAME=VALUE` to the program's environment, shown before it.
     #[must_use]
     pub fn env(mut self, name: &str, value: &str) -> Invocation {
@@ -93,7 +85,6 @@ mod tests {
         let invocation = Invocation::new("dracut")
             .plain("-f")
             .quoted("/tmp/a b")
-            .assignment(".osrel", "/etc/os-release")
             .env("zfsbootmenu_console_font", "terminus")
             .env("B", "it's")
             .words("--add 'zfs crypt'")
@@ -101,14 +92,7 @@ mod tests {
 
         assert_eq!(
             invocation.args(),
-            [
-                "dracut",
-                "-f",
-                "/tmp/a b",
-                ".osrel=/etc/os-release",
-                "--add",
-                "zfs crypt"
-            ]
+            ["dracut", "-f", "/tmp/a b", "--add", "zfs crypt"]
         );
         assert_eq!(
             invocation.environment(),
@@ -121,7 +105,7 @@ mod tests {
             invocation.line(),
             concat!(
                 r"zfsbootmenu_console_font='terminus' B='it'\''s' dracut -f '/tmp/a b' ",
-                ".osrel='/etc/os-release' --add 'zfs crypt'"
+                "--add 'zfs crypt'"
             )
         );
         assert_eq!(
