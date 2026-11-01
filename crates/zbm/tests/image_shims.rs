@@ -310,3 +310,36 @@ fn the_mkinitcpio_hook_installs_the_plan() {
             .starts_with("#!/bin/bash\n")
     );
 }
+
+#[test]
+fn a_hard_link_to_a_file_the_image_lacks_stops_the_build() {
+    let line = "hardlink /usr/bin/coreutils /usr/bin/head";
+    for (stubs, shim, failed) in [
+        (
+            DRACUT,
+            "packaging/dracut/module-setup.sh",
+            "dfatal: failed to link",
+        ),
+        (
+            MKINITCPIO,
+            "packaging/initcpio/install/zfsbootmenu",
+            "error: failed to link",
+        ),
+    ] {
+        let build = Build::new();
+        let (ok, log) = build.run(stubs, shim, "", &format!("zbm_install_line {line}"));
+        assert!(!ok, "{shim}: {log}");
+        assert!(
+            log.contains(&format!("{failed} '/usr/bin/head' to '/usr/bin/coreutils'")),
+            "{shim}: {log}"
+        );
+
+        // With the file in the image first, the link is made.
+        let image = build.dir.join("image/usr/bin");
+        std::fs::create_dir_all(&image).unwrap();
+        std::fs::write(image.join("coreutils"), "uutils").unwrap();
+        let (ok, log) = build.run(stubs, shim, "", &format!("zbm_install_line {line}"));
+        assert!(ok, "{shim}: {log}");
+        assert_eq!(build.read("usr/bin/head"), "uutils");
+    }
+}

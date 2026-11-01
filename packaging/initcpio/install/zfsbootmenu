@@ -55,9 +55,10 @@ zbm_install_line() {
                 add_file "${one}" "${two}" "${three}"
             fi || { error "failed to install file '${one}'"; return 1; }
             ;;
-        link) add_symlink "${two}" "${one}" ;;
+        link) add_symlink "${two}" "${one}" || { error "failed to link '${two}' to '${one}'"; return 1; } ;;
         hardlink)
-            mkdir -p "${BUILDROOT}${two%/*}" && ln -f "${BUILDROOT}${one}" "${BUILDROOT}${two}"
+            mkdir -p "${BUILDROOT}${two%/*}" && ln -f "${BUILDROOT}${one}" "${BUILDROOT}${two}" \
+                || { error "failed to link '${two}' to '${one}'"; return 1; }
             ;;
         binary) add_binary "${one}" "${two}" || { error "failed to install '${one}'"; return 1; } ;;
         library) add_binary "${one}" || { error "failed to install '${one}'"; return 1; } ;;

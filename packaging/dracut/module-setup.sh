@@ -127,10 +127,12 @@ zbm_install_line() {
       [ "${three}" = - ] || chmod "${three}" "${initdir}${two}"
       ;;
     link)
-      mkdir -p "${initdir}${two%/*}" && ln -sfn "${one}" "${initdir}${two}"
+      mkdir -p "${initdir}${two%/*}" && ln -sfn "${one}" "${initdir}${two}" \
+        || { dfatal "failed to link '${two}' to '${one}'"; return 1; }
       ;;
     hardlink)
-      mkdir -p "${initdir}${two%/*}" && ln -f "${initdir}${one}" "${initdir}${two}"
+      mkdir -p "${initdir}${two%/*}" && ln -f "${initdir}${one}" "${initdir}${two}" \
+        || { dfatal "failed to link '${two}' to '${one}'"; return 1; }
       ;;
     binary)
       inst_binary "${one}" "${two}" || { dfatal "failed to install '${one}'"; return 1; }

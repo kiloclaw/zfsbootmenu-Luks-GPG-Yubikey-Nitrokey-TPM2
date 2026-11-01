@@ -333,15 +333,50 @@ fn what_an_image_cannot_have_stops_the_build() {
 
 #[test]
 fn uutils_gives_its_programs_as_hard_links() {
-    let plan = plan_with(Builder::Mkinitcpio, "", |files, runner| {
+    for builder in [Builder::Dracut, Builder::Mkinitcpio] {
+        let plan = plan_with(builder, "", |files, runner| {
+            files.file_with_mode("/usr/bin/coreutils", "", 0o755);
+            answer(runner, "coreutils --list", 0, "cat\nhead\nmkdir\nsort\n");
+        })
+        .unwrap();
+        let lines: Vec<&str> = plan.lines().collect();
+        let binary = "binary\t/usr/bin/coreutils\t/usr/bin/coreutils";
+        let installed = lines.iter().position(|line| *line == binary);
+        assert!(installed.is_some(), "{plan}");
+        for name in ["cat", "head", "mkdir", "sort"] {
+            let link = format!("hardlink\t/usr/bin/coreutils\t/usr/bin/{name}");
+            let linked = lines.iter().position(|line| *line == link);
+            // A hard link needs its file in the image first.
+            assert!(linked > installed, "{name} before the binary:\n{plan}");
+            assert!(!plan.contains(&format!("binary\t/usr/bin/{name}\t")));
+        }
+    }
+}
+
+#[test]
+fn every_link_follows_what_it_links_to() {
+    let plan = plan_with(Builder::Dracut, "", |files, runner| {
         files.file_with_mode("/usr/bin/coreutils", "", 0o755);
-        answer(runner, "coreutils --list", 0, "cat\nhead\n");
+        answer(
+            runner,
+            "coreutils --list",
+            0,
+            "cat\nhead\nmkdir\ncut\ntr\nwc\n",
+        );
     })
     .unwrap();
-    assert!(plan.contains("binary\t/usr/bin/coreutils\t/usr/bin/coreutils\n"));
-    assert!(plan.contains("hardlink\t/usr/bin/coreutils\t/usr/bin/cat\n"));
-    assert!(plan.contains("hardlink\t/usr/bin/coreutils\t/usr/bin/head\n"));
-    assert!(!plan.contains("binary\t/usr/bin/cat\t"));
+    let mut placed: Vec<&str> = Vec::new();
+    for line in plan.lines() {
+        let fields: Vec<&str> = line.split('\t').collect();
+        match fields.as_slice() {
+            ["hardlink", target, dest] => {
+                assert!(placed.contains(target), "{dest} before {target}:\n{plan}");
+                placed.push(dest);
+            }
+            ["binary" | "file" | "link", _, dest, ..] => placed.push(dest),
+            _ => {}
+        }
+    }
 }
 
 #[test]

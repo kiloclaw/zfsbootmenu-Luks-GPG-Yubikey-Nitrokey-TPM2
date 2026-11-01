@@ -173,6 +173,10 @@ ID, `vdev_id.conf` and the crypttab out for any value set; and an image without 
 `BUILD_ID` from the day in UTC rather than in the build host's time zone. The mkinitcpio hook of the Rust runtime
 starts `zbm` from busybox's shell, without Bash. What goes into an image for a set of configurations is checked under
 `cargo test` against golden plans (`crates/zbm-host/src/image/snapshots/`).
+On a build host whose coreutils are uutils' (the build container, Ubuntu 26.10), images got only the last of their
+coreutils programs: the plan listed the multi-call binary again for each program, after the hard links already made
+to it, and the shims, which could not make those links, went on without them. `head` was missing, among others. The
+binary is now planned once, before its links, and the dracut module and the mkinitcpio hook stop when a link fails.
 
 `generate-zbm` and `zbm-kcl` keep their configuration and options but no longer imitate how Perl and Bash happened to
 implement them (ROADMAP.md DM10, ADR 0013); `CHANGES-FROM-LEGACY.md` lists each difference under "The host tools". They

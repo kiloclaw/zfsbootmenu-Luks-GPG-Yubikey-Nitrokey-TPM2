@@ -107,12 +107,19 @@ impl<'a> Image<'a> {
     /// that is not the file's, so not a symbolic link; GNU's multi-call
     /// binary has no list, so it is not taken), the host's program
     /// otherwise: the file installed, or `None` when there is none.
+    ///
+    /// The multi-call binary is planned once, before its first link: an
+    /// entry planned again moves to the end of the plan, after the links
+    /// made to it, which the shims could then not make.
     pub fn program(&mut self, name: &str) -> Option<PathBuf> {
         if let Some((path, programs)) = &self.uutils
             && programs.iter().any(|program| program == name)
         {
             let path = path.clone();
-            self.plan.binary(path.clone(), "/usr/bin/coreutils");
+            let multi_call = Path::new("/usr/bin/coreutils");
+            if !self.plan.has(multi_call) {
+                self.plan.binary(path.clone(), multi_call);
+            }
             self.plan.add(Entry::HardLink {
                 target: "/usr/bin/coreutils".into(),
                 dest: Path::new("/usr/bin").join(name),
