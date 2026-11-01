@@ -11,3 +11,4 @@
 pub mod generate_zbm;
 pub mod image;
 pub mod kcl;
+pub mod options;

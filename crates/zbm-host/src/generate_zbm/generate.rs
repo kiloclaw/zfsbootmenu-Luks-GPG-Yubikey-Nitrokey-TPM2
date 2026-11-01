@@ -52,8 +52,6 @@ pub struct Context<'a> {
     pub runner: &'a dyn Runner,
     /// The program name for messages, Perl's `$0`.
     pub program: String,
-    /// Whether `POSIXLY_CORRECT` is set, which changes option parsing.
-    pub posixly_correct: bool,
     /// `$TMPDIR`.
     pub tmpdir: Option<PathBuf>,
     /// Whether `SOURCE_DATE_EPOCH` is set: images are then built to be
@@ -95,7 +93,6 @@ impl<'a> Context<'a> {
         Context {
             runner,
             program,
-            posixly_correct: std::env::var_os("POSIXLY_CORRECT").is_some(),
             tmpdir: std::env::var_os("TMPDIR").map(PathBuf::from),
             reproducible: std::env::var_os("SOURCE_DATE_EPOCH")
                 .is_some_and(|epoch| !epoch.is_empty()),
@@ -330,7 +327,7 @@ impl Generator<'_, '_, '_> {
     }
 
     fn main(&mut self, args: &[String]) -> Step<()> {
-        let parsed = cli::parse(args, self.context.posixly_correct);
+        let parsed = cli::parse(args);
         for warning in &parsed.warnings {
             let _ = self.io.stderr.write_all(warning.as_bytes());
         }

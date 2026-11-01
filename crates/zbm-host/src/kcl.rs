@@ -22,8 +22,8 @@ use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::kcl::getopts::Opt;
 use crate::kcl::tokens as kcl;
+use crate::options::{Order, Problem, Spec};
 use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::{Runner, SystemRunner};
 use zbm_platform::filetest::{copy_like_cp, create_temp_file, is_file, is_readable};
@@ -34,7 +34,7 @@ use zbm_zfs::{Stderr, ZfsText};
 
 mod edit;
 pub mod efi;
-mod getopts;
+
 mod save;
 mod tokens;
 
@@ -230,29 +230,48 @@ fn report(io: &mut Io, failure: Failure, then: Option<&str>) -> i32 {
 /// Reads the options; `Err` with the exit status when the run ends here (the
 /// usage text, asked for or after a bad option).
 fn parse(context: &Context, args: &[String], io: &mut Io) -> Result<Options, i32> {
-    let parsed = getopts::parse("ha:r:o:ed", args);
+    let parsed = crate::options::parse(&context.program, SPECS, Order::StopAtOperand, args);
     let mut options = Options::default();
-    for option in &parsed.options {
-        match option {
-            Opt::Value('a', value) => options.appends.push(value.clone()),
-            Opt::Value('r', value) => options.removes.push(value.clone()),
-            Opt::Value(_, value) => options.output.clone_from(value),
-            Opt::Flag('e') => options.edit = true,
-            Opt::Flag('d') => options.delete = true,
-            Opt::Flag(_) => {
+    // In order, as getopts reads them: the reading stopped at the first problem
+    for given in &parsed.given {
+        let value = given.value.clone().unwrap_or_default();
+        match SPECS[given.index].short {
+            Some('a') => options.appends.push(value),
+            Some('r') => options.removes.push(value),
+            Some('o') => options.output = value,
+            Some('e') => options.edit = true,
+            Some('d') => options.delete = true,
+            _ => {
                 let _ = io.stdout.write_all(usage(&context.program).as_bytes());
                 return Err(0);
             }
         }
     }
-    if let Some(problem) = parsed.error {
-        let _ = writeln!(io.stderr, "{}", problem.message(&context.program));
+    if let Some(problem) = parsed.problems.first() {
+        let (what, name) = match problem {
+            Problem::MissingValue(name) => ("option requires an argument", name),
+            Problem::Unknown(name) | Problem::Ambiguous(name, _) | Problem::UnwantedValue(name) => {
+                ("illegal option", name)
+            }
+        };
+        let name = name.trim_start_matches('-');
+        let _ = writeln!(io.stderr, "{}: {what} -- {name}", context.program);
         let _ = io.stdout.write_all(usage(&context.program).as_bytes());
         return Err(1);
     }
     options.input = parsed.operands.first().cloned().unwrap_or_default();
     Ok(options)
 }
+
+/// The options of `zbm-kcl` (`zbm-kcl(8)`).
+const SPECS: &[Spec] = &[
+    Spec::flag(None, Some('h')),
+    Spec::value(None, Some('a')),
+    Spec::value(None, Some('r')),
+    Spec::value(None, Some('o')),
+    Spec::flag(None, Some('e')),
+    Spec::flag(None, Some('d')),
+];
 
 /// Without an input, the root filesystem's dataset; without an output, the
 /// input.

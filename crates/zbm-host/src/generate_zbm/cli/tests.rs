@@ -1,211 +1,102 @@
-//! Tests of the command line parser.
+//! Tests of the command line.
+
+use pretty_assertions::assert_eq;
 
 use super::*;
-use zbm_testkit::parity::Mode;
-use zbm_testkit::{Rng, parity};
 
 fn args(list: &[&str]) -> Vec<String> {
     list.iter().map(|arg| (*arg).to_owned()).collect()
 }
 
 fn run(list: &[&str]) -> Options {
-    match parse(&args(list), false).outcome {
+    match parse(&args(list)).outcome {
         Outcome::Run(options) => *options,
         other => panic!("{list:?} gave {other:?}"),
     }
 }
 
 #[test]
-fn names_and_values() {
+fn the_documented_options_set_their_fields() {
     let options = run(&[
+        "-v",
+        "3.1",
+        "-k",
+        "/boot/k",
+        "-K",
+        "6.1",
+        "-p",
+        "vmlinuz",
+        "-b",
+        "/b",
+        "-C",
+        "/c",
+        "-l",
+        "quiet",
         "-c",
         "-d",
-        "--kv",
-        "6.1",
-        "+V",
-        "--no",
+        "--enable",
+        "--disable",
+        "--no-initcpio",
         "-H",
         "a",
         "--hookd=b",
-        "x",
+        "-V",
+        "operand",
     ]);
-    assert_eq!(options.config, "-d");
+    assert_eq!(options.version.as_deref(), Some("3.1"));
+    assert_eq!(options.kernel.as_deref(), Some("/boot/k"));
     assert_eq!(options.kernel_version.as_deref(), Some("6.1"));
-    assert!(options.showver && !options.debug);
+    assert_eq!(options.kernel_prefix.as_deref(), Some("vmlinuz"));
+    assert_eq!(options.bootdir, "/b");
+    assert_eq!(options.confd.as_deref(), Some("/c"));
+    assert_eq!(options.cmdline.as_deref(), Some("quiet"));
+    // A value is the next argument, whatever it looks like
+    assert_eq!(options.config, "-d");
+    assert!(!options.debug && options.enable && options.disable && options.showver);
     assert_eq!(options.initcpio, Some(false));
     assert_eq!(options.hookd, Some(vec!["a".to_owned(), "b".to_owned()]));
-    assert_eq!(run(&["-config=foo"]).config, "foo");
-    assert_eq!(run(&["--init"]).initcpio, Some(true));
+    assert_eq!(run(&["-i"]).initcpio, Some(true));
+    assert!(run(&["--debug"]).debug);
     assert!(!run(&["--", "-d"]).debug);
+    assert_eq!(run(&[]), Options::default());
 }
 
 #[test]
-fn errors() {
-    let parsed = parse(
-        &args(&["--con", "x", "-dV", "--config=", "--en=1", "+"]),
-        false,
+fn other_spellings_work_with_a_warning_for_one_release() {
+    let parsed = parse(&args(&["--kv", "6.1", "-config=foo", "--init", "+debug"]));
+    let Outcome::Run(options) = parsed.outcome else {
+        panic!("{parsed:?}");
+    };
+    assert_eq!(options.kernel_version.as_deref(), Some("6.1"));
+    assert_eq!(options.config, "foo");
+    assert_eq!(options.initcpio, Some(true));
+    assert!(options.debug);
+    assert_eq!(parsed.warnings.len(), 4);
+    assert!(parsed.warnings[0].starts_with("generate-zbm: --kv is not how the manual spells"));
+    assert!(
+        parsed
+            .warnings
+            .iter()
+            .all(|warning| warning.ends_with("next release\n"))
     );
-    assert_eq!(parsed.outcome, Outcome::Invalid);
+}
+
+#[test]
+fn errors_and_help() {
+    for (list, warning) in [
+        (&["--bogus"][..], "Unknown option: bogus\n"),
+        (&["-x"], "Unknown option: x\n"),
+        (&["--debug=1"], "Option debug does not take an argument\n"),
+        (&["--kernel"], "Option kernel requires an argument\n"),
+        (&["--k"], "Option k is ambiguous (--kernel, --kver)\n"),
+    ] {
+        let parsed = parse(&args(list));
+        assert_eq!(parsed.outcome, Outcome::Invalid, "{list:?}");
+        assert_eq!(parsed.warnings, [warning], "{list:?}");
+    }
     assert_eq!(
-        parsed.warnings,
-        [
-            "Option con is ambiguous (confd, config)\n",
-            "Unknown option: dV\n",
-            "Option config requires an argument\n",
-            "Option enable does not take an argument\n",
-            "Missing option after +\n",
-        ]
+        parse(&args(&["-d", "-h", "--bogus"])).outcome,
+        Outcome::Help
     );
-    let parsed = parse(&args(&["--x", "--help", "--y"]), false);
-    assert_eq!(parsed.outcome, Outcome::Help);
-    assert_eq!(parsed.warnings, ["Unknown option: x\n"]);
-    let parsed = parse(&args(&["foo", "-d"]), true);
-    assert_eq!(parsed.outcome, Outcome::Run(Box::default()));
-}
-
-fn rust_parse(list: &[String], posix: bool) -> String {
-    let parsed = parse(list, posix);
-    let mut text: String = parsed.warnings.concat();
-    match parsed.outcome {
-        Outcome::Help => text.push_str("HELP\n"),
-        Outcome::Invalid | Outcome::Run(_) => {
-            let options = match &parsed.outcome {
-                Outcome::Run(options) => (**options).clone(),
-                _ => Options::default(),
-            };
-            // After an error Perl still holds the values it stored; only valid runs are
-            // compared in full.
-            if matches!(parsed.outcome, Outcome::Run(_)) {
-                let mut fields: Vec<(&str, String)> = vec![
-                    ("bootdir", options.bootdir.clone()),
-                    ("config", options.config.clone()),
-                ];
-                let optional = [
-                    ("cmdline", &options.cmdline),
-                    ("confd", &options.confd),
-                    ("kernel", &options.kernel),
-                    ("kernel_prefix", &options.kernel_prefix),
-                    ("kernel_version", &options.kernel_version),
-                    ("version", &options.version),
-                ];
-                for (key, value) in optional {
-                    if let Some(value) = value {
-                        fields.push((key, value.clone()));
-                    }
-                }
-                if let Some(hooks) = &options.hookd {
-                    fields.push(("cpio_hookd", hooks.join("|")));
-                }
-                for (key, set) in [
-                    ("debug", options.debug),
-                    ("disable", options.disable),
-                    ("enable", options.enable),
-                    ("showver", options.showver),
-                ] {
-                    if set {
-                        fields.push((key, "1".to_owned()));
-                    }
-                }
-                if let Some(value) = options.initcpio {
-                    fields.push(("usecpio", u8::from(value).to_string()));
-                }
-                fields.sort();
-                for (key, value) in fields {
-                    text.push_str(&format!("{key}={value}\n"));
-                }
-                text.push_str("ok\n");
-            } else {
-                text.push_str("invalid\n");
-            }
-        }
-    }
-    text
-}
-
-#[test]
-fn matches_getopt_long() {
-    let mut parity = parity!("matches_getopt_long");
-    // The results of the Perl program's `GetOptions` were recorded with
-    // seed 10; another seed gives inputs that were never recorded.
-    if parity.mode() == Mode::Live {
-        return;
-    }
-    let pieces = [
-        "-v",
-        "--version",
-        "--ver",
-        "-k",
-        "--kernel=x",
-        "--k",
-        "--ke",
-        "--con",
-        "--conf",
-        "--confi",
-        "-c",
-        "--config=",
-        "-C=c",
-        "--noi",
-        "--no-initcpio",
-        "--noinit",
-        "--init",
-        "-i",
-        "--n",
-        "--no",
-        "-H",
-        "--hookd=a",
-        "--ho",
-        "--debug",
-        "-d",
-        "-de",
-        "-dV",
-        "--debug=1",
-        "+d",
-        "+",
-        "-",
-        "--",
-        "---x",
-        "x",
-        "-x",
-        "--x",
-        "--en",
-        "--e",
-        "--enable",
-        "--disable",
-        "--dis",
-        "--di",
-        "-V",
-        "--showver",
-        "--sh",
-        "-K",
-        "--kv",
-        "-p",
-        "--pre",
-        "-b",
-        "--boot",
-        "-l",
-        "--cm",
-        "a",
-        "",
-        "a=b",
-        "--=x",
-        "--Kver",
-        "--h",
-        "--help",
-        "-noinitcpio",
-        "--initcpio=1",
-    ];
-    let mut rng = Rng::from_env(10);
-    for _ in 0..300 {
-        let count = rng.below(6);
-        let list: Vec<String> = (0..count)
-            .map(|_| (*rng.choose(&pieces)).to_owned())
-            .collect();
-        let posix = rng.below(5) == 0;
-        let legacy: String = parity.recorded(format!("args {list:?}, posix {posix}"));
-        assert_eq!(
-            rust_parse(&list, posix),
-            legacy,
-            "args {list:?}, posix {posix}"
-        );
-    }
+    assert_eq!(parse(&args(&["--help"])).outcome, Outcome::Help);
 }

@@ -1,14 +1,7 @@
-//! The command line, parsed as Perl's Getopt::Long 2.54 parses it with the
-//! option table of `generate-zbm`.
-//!
-//! The Perl program configures Getopt::Long with `no_ignore_case` and
-//! `auto_version` and otherwise keeps its defaults: options may start with
-//! `--`, `-` or `+`, long names may be shortened to any unique prefix,
-//! `--opt=value` and `-opt=value` both work, a string option takes the next
-//! argument whatever it looks like, and arguments that are not options may
-//! appear anywhere. When `POSIXLY_CORRECT` is set, Getopt::Long instead accepts
-//! only `--` and `-`, does not shorten names, splits `=value` only after `--`,
-//! and stops at the first argument that is not an option.
+//! The command line of `generate-zbm`, read by the parser the host tools
+//! share ([`crate::options`]).
+
+use crate::options::{self, Order, Problem, Spec};
 
 /// The help text: the manual page embedded in the Perl program, as Pod::Usage
 /// renders it.
@@ -81,8 +74,8 @@ pub enum Outcome {
     Invalid,
 }
 
-/// The parsed command line and Getopt::Long's warnings, in order, each ending
-/// with a newline.
+/// The parsed command line and its warnings, in order, each ending with a
+/// newline.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parsed {
     /// What to do.
@@ -91,7 +84,27 @@ pub struct Parsed {
     pub warnings: Vec<String>,
 }
 
-/// Which field an option sets.
+/// The options of `generate-zbm` (`generate-zbm(8)`), in the order of
+/// [`FIELDS`].
+const SPECS: &[Spec] = &[
+    Spec::value(Some("version"), Some('v')),
+    Spec::value(Some("kernel"), Some('k')),
+    Spec::value(Some("kver"), Some('K')),
+    Spec::value(Some("prefix"), Some('p')),
+    Spec::value(Some("bootdir"), Some('b')),
+    Spec::value(Some("confd"), Some('C')),
+    Spec::value(Some("cmdline"), Some('l')),
+    Spec::value(Some("config"), Some('c')),
+    Spec::flag(Some("enable"), None),
+    Spec::flag(Some("disable"), None),
+    Spec::negatable("initcpio", Some('i')),
+    Spec::value(Some("hookd"), Some('H')),
+    Spec::flag(Some("debug"), Some('d')),
+    Spec::flag(Some("showver"), Some('V')),
+    Spec::flag(Some("help"), Some('h')),
+];
+
+/// Which field each option of [`SPECS`] sets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Field {
     Version,
@@ -111,292 +124,107 @@ enum Field {
     Help,
 }
 
-/// How an option takes its value.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Kind {
-    /// A switch: `name`.
-    Flag,
-    /// A switch with negations: `name!`.
-    Negatable,
-    /// A string: `name=s`.
-    Text,
-    /// A repeatable string: `name=s@`.
-    TextList,
-}
-
-/// The option table of `generate-zbm`: names (the first is the canonical one),
-/// kind and field.
-const TABLE: &[(&[&str], Kind, Field)] = &[
-    (&["version", "v"], Kind::Text, Field::Version),
-    (&["kernel", "k"], Kind::Text, Field::Kernel),
-    (&["kver", "K"], Kind::Text, Field::KernelVersion),
-    (&["prefix", "p"], Kind::Text, Field::Prefix),
-    (&["bootdir", "b"], Kind::Text, Field::Bootdir),
-    (&["confd", "C"], Kind::Text, Field::Confd),
-    (&["cmdline", "l"], Kind::Text, Field::Cmdline),
-    (&["config", "c"], Kind::Text, Field::Config),
-    (&["enable"], Kind::Flag, Field::Enable),
-    (&["disable"], Kind::Flag, Field::Disable),
-    (&["initcpio", "i"], Kind::Negatable, Field::Initcpio),
-    (&["hookd", "H"], Kind::TextList, Field::Hookd),
-    (&["debug", "d"], Kind::Flag, Field::Debug),
-    (&["showver", "V"], Kind::Flag, Field::Showver),
-    (&["help", "h"], Kind::Flag, Field::Help),
+/// The fields of [`SPECS`], in its order.
+const FIELDS: [Field; 15] = [
+    Field::Version,
+    Field::Kernel,
+    Field::KernelVersion,
+    Field::Prefix,
+    Field::Bootdir,
+    Field::Confd,
+    Field::Cmdline,
+    Field::Config,
+    Field::Enable,
+    Field::Disable,
+    Field::Initcpio,
+    Field::Hookd,
+    Field::Debug,
+    Field::Showver,
+    Field::Help,
 ];
 
-/// One name Getopt::Long recognises.
-#[derive(Clone, Debug)]
-struct Name {
-    name: String,
-    canonical: &'static str,
-    kind: Kind,
-    field: Field,
-    /// Whether this is a `no` or `no-` form of a negatable option.
-    negated: bool,
-}
-
-/// Every name, sorted as Perl's `sort keys` sorts them.
-fn names() -> Vec<Name> {
-    let mut names = Vec::new();
-    for (aliases, kind, field) in TABLE {
-        for alias in *aliases {
-            names.push(Name {
-                name: (*alias).to_owned(),
-                canonical: aliases[0],
-                kind: *kind,
-                field: *field,
-                negated: false,
-            });
-            if *kind == Kind::Negatable {
-                for prefix in ["no", "no-"] {
-                    names.push(Name {
-                        name: format!("{prefix}{alias}"),
-                        canonical: aliases[0],
-                        kind: *kind,
-                        field: *field,
-                        negated: true,
-                    });
-                }
-            }
+/// The message for `problem`, as the program prints it, the option named
+/// without its dashes.
+fn message(problem: &Problem) -> String {
+    match problem {
+        Problem::Unknown(name) => format!("Unknown option: {name}\n"),
+        Problem::Ambiguous(name, names) => {
+            format!("Option {name} is ambiguous ({})\n", names.join(", "))
         }
-    }
-    names.sort_by(|a, b| a.name.cmp(&b.name));
-    names
-}
-
-/// The result of looking at one argument (`FindOption`).
-enum Found {
-    /// Not an option.
-    Operand,
-    /// An option in error; the warning has been recorded.
-    Error,
-    /// A switch with its value.
-    Switch(Field, bool),
-    /// A string option with its value.
-    Text(Field, String),
-}
-
-struct Parser {
-    names: Vec<Name>,
-    posix: bool,
-    warnings: Vec<String>,
-}
-
-impl Parser {
-    /// Looks at one argument: whether it is an option and, if it is, its value,
-    /// taken from `rest` when the option needs one and was given no `=value`.
-    fn find(&mut self, arg: &str, rest: &mut std::collections::VecDeque<String>) -> Found {
-        let Some(starter) = self.starter(arg) else {
-            return Found::Operand;
-        };
-        let (opt, optarg) = self.split_value(starter, &arg[starter.len()..]);
-        let Some(tryopt) = self.complete(opt) else {
-            return Found::Error;
-        };
-        let Some(name) = self.names.iter().find(|name| name.name == tryopt).cloned() else {
-            if opt.is_empty() {
-                self.warnings
-                    .push(format!("Missing option after {starter}\n"));
-            } else {
-                self.warnings.push(format!("Unknown option: {opt}\n"));
-            }
-            return Found::Error;
-        };
-        self.value(&name, optarg, rest)
-    }
-
-    /// The prefix that makes `arg` an option: `--`, `-`, or (without
-    /// POSIXLY_CORRECT) `+`; none for an operand, which a lone `-` is.
-    fn starter(&self, arg: &str) -> Option<&'static str> {
-        let starter = if arg.starts_with("--") {
-            "--"
-        } else if arg.starts_with('-') {
-            "-"
-        } else if arg.starts_with('+') && !self.posix {
-            "+"
-        } else {
-            return None;
-        };
-        (arg != "-").then_some(starter)
-    }
-
-    /// Splits `name=value`, where the name has at least one character, into the
-    /// name and the value. Getopt::Long splits it after any prefix unless
-    /// POSIXLY_CORRECT limits that to `--`.
-    fn split_value<'o>(&self, starter: &str, opt: &'o str) -> (&'o str, Option<String>) {
-        if (starter == "--" || !self.posix)
-            && let Some(position) = opt.bytes().skip(1).position(|byte| byte == b'=')
-        {
-            let position = position + 1;
-            return (&opt[..position], Some(opt[position + 1..].to_owned()));
+        Problem::MissingValue(name) => {
+            format!(
+                "Option {} requires an argument\n",
+                name.trim_start_matches('-')
+            )
         }
-        (opt, None)
-    }
-
-    /// The name to look up for `opt`: the full name when `opt` is a unique
-    /// prefix of one, otherwise `opt` itself. Without a unique option, records
-    /// a warning and returns `None`.
-    fn complete(&mut self, opt: &str) -> Option<String> {
-        if self.posix || opt.is_empty() {
-            return Some(opt.to_owned());
-        }
-        let hits: Vec<&Name> = self
-            .names
-            .iter()
-            .filter(|name| name.name.starts_with(opt))
-            .collect();
-        let exact = hits.iter().filter(|name| name.name == opt).count();
-        let mut resolved: Vec<String> = hits.iter().map(|name| name.name.clone()).collect();
-        if !(hits.len() <= 1 || exact == 1) {
-            // Several names match: they may all be forms of one option.
-            let options = options_of(&hits);
-            if options.len() != 1 {
-                self.warnings.push(format!(
-                    "Option {opt} is ambiguous ({})\n",
-                    resolved.join(", ")
-                ));
-                return None;
-            }
-            resolved = options;
-        }
-        if resolved.len() == 1 && resolved[0] != opt {
-            return resolved.pop();
-        }
-        Some(opt.to_owned())
-    }
-
-    /// The value of the option `name`: a switch must have no `=value`; a string
-    /// takes `optarg` or, without one, the next argument.
-    fn value(
-        &mut self,
-        name: &Name,
-        optarg: Option<String>,
-        rest: &mut std::collections::VecDeque<String>,
-    ) -> Found {
-        match name.kind {
-            Kind::Flag | Kind::Negatable => {
-                if optarg.is_some() {
-                    self.warnings
-                        .push(format!("Option {} does not take an argument\n", name.name));
-                    return Found::Error;
-                }
-                Found::Switch(name.field, !name.negated)
-            }
-            Kind::Text | Kind::TextList => {
-                let missing = match &optarg {
-                    Some(value) => value.is_empty(),
-                    None => rest.is_empty(),
-                };
-                if missing {
-                    self.warnings
-                        .push(format!("Option {} requires an argument\n", name.name));
-                    return Found::Error;
-                }
-                // A mandatory string takes the next argument whatever it is, even `--`.
-                let value = optarg.unwrap_or_else(|| rest.pop_front().unwrap_or_default());
-                Found::Text(name.field, value)
-            }
+        Problem::UnwantedValue(name) => {
+            format!(
+                "Option {} does not take an argument\n",
+                name.trim_start_matches('-')
+            )
         }
     }
 }
 
-/// The options that the matching names `hits` are forms of, sorted and without
-/// duplicates; a negated form counts as an option of its own.
-fn options_of(hits: &[&Name]) -> Vec<String> {
-    let mut options: Vec<String> = hits
+/// Sets the field of `option` in `options`.
+fn set(options: &mut Options, field: Field, value: Option<String>, negated: bool) {
+    let text = || value.clone().unwrap_or_default();
+    match field {
+        Field::Version => options.version = Some(text()),
+        Field::Kernel => options.kernel = Some(text()),
+        Field::KernelVersion => options.kernel_version = Some(text()),
+        Field::Prefix => options.kernel_prefix = Some(text()),
+        Field::Bootdir => options.bootdir = text(),
+        Field::Confd => options.confd = Some(text()),
+        Field::Cmdline => options.cmdline = Some(text()),
+        Field::Config => options.config = text(),
+        Field::Hookd => options.hookd.get_or_insert_with(Vec::new).push(text()),
+        Field::Enable => options.enable = true,
+        Field::Disable => options.disable = true,
+        Field::Initcpio => options.initcpio = Some(!negated),
+        Field::Debug => options.debug = true,
+        Field::Showver => options.showver = true,
+        Field::Help => {}
+    }
+}
+
+/// Parses the arguments ([`crate::options`]); operands are ignored.
+pub fn parse(args: &[String]) -> Parsed {
+    let read = options::parse("generate-zbm", SPECS, Order::Permute, args);
+    let mut warnings: Vec<String> = read
+        .warnings
         .iter()
-        .map(|name| {
-            if name.negated {
-                format!("no{}", name.canonical)
-            } else {
-                name.canonical.to_owned()
-            }
-        })
+        .map(|warning| format!("{warning}\n"))
         .collect();
-    options.sort();
-    options.dedup();
-    if options.len() == 2 {
-        // `auto_version` lets a match with `version` give way to the other option.
-        options.retain(|option| option != "version");
+    warnings.extend(read.problems.iter().map(message));
+    if read
+        .given
+        .iter()
+        .any(|given| FIELDS[given.index] == Field::Help)
+    {
+        return Parsed {
+            outcome: Outcome::Help,
+            warnings,
+        };
     }
-    options
-}
-
-/// Parses the arguments; `posixly_correct` tells whether `POSIXLY_CORRECT` is
-/// set in the environment.
-pub fn parse(args: &[String], posixly_correct: bool) -> Parsed {
-    let mut parser = Parser {
-        names: names(),
-        posix: posixly_correct,
-        warnings: Vec::new(),
-    };
+    if !read.problems.is_empty() {
+        return Parsed {
+            outcome: Outcome::Invalid,
+            warnings,
+        };
+    }
     let mut options = Options::default();
-    let mut errors = 0;
-    let mut rest: std::collections::VecDeque<String> = args.iter().cloned().collect();
-    while let Some(arg) = rest.pop_front() {
-        if arg == "--" {
-            break;
-        }
-        match parser.find(&arg, &mut rest) {
-            Found::Operand if posixly_correct => break,
-            // Operands are left for the program, which ignores them.
-            Found::Operand => {}
-            Found::Error => errors += 1,
-            Found::Switch(Field::Help, _) => {
-                return Parsed {
-                    outcome: Outcome::Help,
-                    warnings: parser.warnings,
-                };
-            }
-            Found::Switch(field, value) => match field {
-                Field::Enable => options.enable = true,
-                Field::Disable => options.disable = true,
-                Field::Initcpio => options.initcpio = Some(value),
-                Field::Debug => options.debug = true,
-                Field::Showver => options.showver = true,
-                other => unreachable!("{other:?} is not a switch"),
-            },
-            Found::Text(field, value) => match field {
-                Field::Version => options.version = Some(value),
-                Field::Kernel => options.kernel = Some(value),
-                Field::KernelVersion => options.kernel_version = Some(value),
-                Field::Prefix => options.kernel_prefix = Some(value),
-                Field::Bootdir => options.bootdir = value,
-                Field::Confd => options.confd = Some(value),
-                Field::Cmdline => options.cmdline = Some(value),
-                Field::Config => options.config = value,
-                Field::Hookd => options.hookd.get_or_insert_with(Vec::new).push(value),
-                other => unreachable!("{other:?} takes no value"),
-            },
-        }
+    for given in read.given {
+        set(
+            &mut options,
+            FIELDS[given.index],
+            given.value,
+            given.negated,
+        );
     }
     Parsed {
-        outcome: if errors == 0 {
-            Outcome::Run(Box::new(options))
-        } else {
-            Outcome::Invalid
-        },
-        warnings: parser.warnings,
+        outcome: Outcome::Run(Box::new(options)),
+        warnings,
     }
 }
 
