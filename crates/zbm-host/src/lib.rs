@@ -8,6 +8,7 @@
 //! and [`image`], the plan of an image (SB8, ADR 0006), which the dracut
 //! module and the mkinitcpio hook install (`zbm image plan`).
 
+pub mod files;
 pub mod generate_zbm;
 pub mod image;
 pub mod kcl;

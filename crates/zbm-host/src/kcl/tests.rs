@@ -49,7 +49,12 @@ fn prints_the_property_of_the_root_filesystem() {
     );
     let result = run_with(&runner, &mounts, &[], b"");
     assert_eq!(result.code, 0);
-    assert_eq!(result.stdout, "quiet \"a b\" loglevel=4\n");
+    // A name with spaces is no kernel argument: left out, and said.
+    assert_eq!(result.stdout, "quiet loglevel=4\n");
+    assert_eq!(
+        result.stderr,
+        "ERROR: left out '\"a  b\"', which is not a kernel argument\n"
+    );
     assert_eq!(
         runner.lines(),
         [
@@ -88,6 +93,62 @@ fn appends_and_removes_on_a_dataset() {
         runner.lines().last().unwrap(),
         "zfs inherit org.zfsbootmenu:commandline pool/be"
     );
+}
+
+#[test]
+fn removes_by_name_or_whole_argument_and_leaves_out_what_is_not_one() {
+    let dir = TempDir::new("zbm-kcl-mounts");
+    let mounts = dir.write("mounts", "tmpfs / tmpfs rw 0 0\n");
+    let runner = FakeRunner::new();
+    runner.respond(
+        "zfs get -H -o value org.zfsbootmenu:commandline pool/be",
+        0,
+        "console=tty0 console=ttyS0 quiet\n",
+    );
+    let result = run_with(
+        &runner,
+        &mounts,
+        &["-r", "console=ttyS0", "-a", "x\"y", "-a", "rw", "pool/be"],
+        b"",
+    );
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    assert_eq!(
+        runner.lines().last().unwrap(),
+        "zfs set org.zfsbootmenu:commandline=console=tty0 quiet rw pool/be"
+    );
+    assert_eq!(
+        result.stderr,
+        "ERROR: left out 'x\"y', which is not a kernel argument\n"
+    );
+}
+
+#[test]
+fn an_image_is_replaced_whole_and_keeps_its_mode() {
+    let dir = TempDir::new("zbm-kcl-mounts");
+    let mounts = dir.write("mounts", "tmpfs / tmpfs rw 0 0\n");
+    let output = dir.write("out.efi", "old image");
+    std::fs::set_permissions(&output, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let output_arg = output.display().to_string();
+    let runner = FakeRunner::new();
+    // objdump fails: nothing is written, and the old image stays.
+    runner.respond_program("objdump", 1, "");
+    let result = run_with(
+        &runner,
+        &mounts,
+        &["-a", "quiet", "-o", &output_arg, "-"],
+        b"MZ",
+    );
+    assert_eq!(result.code, 1);
+    assert_eq!(std::fs::read_to_string(&output).unwrap(), "old image");
+
+    let image = dir.write("new.efi", "new image");
+    assert_eq!(replace_image(&image, &output), Ok(()));
+    assert_eq!(std::fs::read_to_string(&output).unwrap(), "new image");
+    let mode = std::fs::metadata(&output).unwrap().permissions().mode();
+    assert_eq!(mode & 0o777, 0o600);
+    let missing = dir.join("none/out.efi");
+    let failure = replace_image(&image, &missing).unwrap_err();
+    assert!(failure.starts_with("cannot replace"), "{failure}");
 }
 
 #[test]
@@ -140,7 +201,6 @@ fn strips_comments_and_stops_at_an_empty_line() {
     );
     assert_eq!(strip_kcl("a#b"), "a");
     assert_eq!(strip_kcl(""), "");
-    assert_eq!(read_arguments("a\n b \n"), ["a", "b"]);
 }
 
 #[test]

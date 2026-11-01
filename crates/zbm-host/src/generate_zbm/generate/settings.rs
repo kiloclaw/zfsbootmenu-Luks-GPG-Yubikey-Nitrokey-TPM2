@@ -227,24 +227,13 @@ impl Generator<'_, '_, '_> {
     }
 }
 
-/// Replaces the file at `path` with `contents`, keeping its mode: written
-/// beside it under another name, then renamed over it, so that the file is
-/// the old one or the new one, never part of either.
+/// Replaces the file at `path` with `contents`, keeping its mode
+/// ([`crate::files::replace`]); the file must exist.
 fn replace_file(path: &str, contents: &[u8]) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
+    use std::io::Write as _;
     let path = std::path::Path::new(path);
-    let dir = match path.parent() {
-        Some(dir) if !dir.as_os_str().is_empty() => dir,
-        _ => std::path::Path::new("."),
-    };
-    let mode = std::fs::metadata(path)?.permissions().mode();
-    let temporary = zbm_platform::filetest::create_temp_file(dir, ".config.yaml.XXXXXX")?;
-    let written = std::fs::write(&temporary, contents)
-        .and_then(|()| std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(mode)))
-        .and_then(|()| std::fs::File::open(&temporary)?.sync_all())
-        .and_then(|()| std::fs::rename(&temporary, path));
-    if written.is_err() {
-        let _ = std::fs::remove_file(&temporary);
-    }
-    written
+    std::fs::metadata(path)?;
+    crate::files::replace(path, crate::files::NewMode::Default, |file| {
+        file.write_all(contents)
+    })
 }

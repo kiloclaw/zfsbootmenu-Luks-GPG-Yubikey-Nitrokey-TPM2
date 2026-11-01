@@ -20,15 +20,17 @@
 
 use std::ffi::OsString;
 use std::io::{Read, Write};
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 
-use crate::kcl::tokens as kcl;
 use crate::options::{Order, Problem, Spec};
 use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::{Runner, SystemRunner};
-use zbm_platform::filetest::{copy_like_cp, create_temp_file, is_file, is_readable};
+use zbm_platform::filetest::{
+    copy_like_cp, create_temp_file, is_dir, is_file, is_readable, strerror,
+};
 use zbm_tools::efi as efi_tools;
-use zbm_types::DatasetName;
+use zbm_types::{DatasetName, KernelCommandLine};
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
 use zbm_zfs::{Stderr, ZfsText};
 
@@ -36,7 +38,6 @@ mod edit;
 pub mod efi;
 
 mod save;
-mod tokens;
 
 pub use edit::strip_kcl;
 
@@ -369,17 +370,30 @@ fn target(
     Ok(Target::Zfs(source, destination))
 }
 
-/// Reads, tokenizes and modifies the command line into `temp_kcl`. As in the
-/// script's pipeline, a failure to read is reported by the reader and the
-/// command line is then empty.
-fn read_tokens(
+/// The command line of `text`, as the kernel splits it; what is not a
+/// kernel argument is said on standard error and left out.
+fn command_line(io: &mut Io, text: &str) -> KernelCommandLine {
+    let (line, refused) = KernelCommandLine::lenient(text);
+    for raw in refused {
+        error(
+            io,
+            &format!("left out '{raw}', which is not a kernel argument"),
+        );
+    }
+    line
+}
+
+/// Reads the command line, then removes (`-r`: an argument of that name,
+/// or that argument itself) and appends (`-a`: its arguments) what the
+/// options ask, and writes it into `temp_kcl`, an argument a line.
+fn read_command_line(
     context: &Context,
     io: &mut Io,
     options: &Options,
     target: &Target,
     zfs: &ZfsText,
     temp_kcl: &Path,
-) -> Result<String, i32> {
+) -> Result<KernelCommandLine, i32> {
     let raw = if options.delete {
         String::new()
     } else {
@@ -388,16 +402,48 @@ fn read_tokens(
             Target::Efi(image) => raw_kcl_efi(context, io, image),
         }
     };
-    let remove: Vec<&str> = options.removes.iter().map(String::as_str).collect();
-    let mut tokens = kcl::suppress(&kcl::tokenize(&raw), &remove);
-    for arg in options.appends.iter().filter(|arg| !arg.is_empty()) {
-        tokens.push_str(&kcl::tokenize(&format!("{arg}\n")));
+    let removed = |arg: &zbm_types::KernelArg| {
+        options
+            .removes
+            .iter()
+            .any(|removal| arg.name() == removal || arg.to_string() == *removal)
+    };
+    let mut line: KernelCommandLine = command_line(io, &raw)
+        .args()
+        .iter()
+        .filter(|arg| !removed(arg))
+        .cloned()
+        .collect();
+    for arg in &options.appends {
+        line.extend(command_line(io, arg).args().iter().cloned());
     }
-    if std::fs::write(temp_kcl, &tokens).is_err() {
+    if std::fs::write(temp_kcl, line.one_per_line()).is_err() {
         error(io, "failed to parse input KCL");
         return Err(1);
     }
-    Ok(tokens)
+    Ok(line)
+}
+
+/// The output replaced with the changed `image`, whole or not at all
+/// ([`crate::files::copy_over`]; fix 24): an image the firmware boots is
+/// never left half written. A new output gets the mode `cp` would give it.
+fn replace_image(image: &Path, output: &Path) -> Result<(), String> {
+    let output = if is_dir(output) {
+        output.join(image.file_name().unwrap_or_default())
+    } else {
+        output.to_owned()
+    };
+    let mode = std::fs::metadata(image)
+        .map_err(|failure| format!("cannot read '{}': {}", image.display(), strerror(&failure)))?
+        .permissions()
+        .mode();
+    crate::files::copy_over(image, &output, crate::files::NewMode::Of(mode)).map_err(|failure| {
+        format!(
+            "cannot replace '{}': {}",
+            output.display(),
+            strerror(&failure)
+        )
+    })
 }
 
 /// Writes the changed EFI image to the output, or standard output for `-`;
@@ -413,8 +459,8 @@ fn write_image(
         if !matches!(written, Ok(Ok(()))) {
             return Err(1);
         }
-    } else if let Err(failure) = copy_like_cp(image, Path::new(output)) {
-        let _ = writeln!(io.stderr, "{}", failure.cp_message());
+    } else if let Err(failure) = replace_image(image, Path::new(output)) {
+        error(io, &failure);
         error(
             io,
             &format!(
@@ -444,17 +490,21 @@ fn run_in(
         return Err(1);
     };
     workspace.kcl = Some(temp_kcl.clone());
-    let tokens = read_tokens(context, io, &options, &target, &zfs, &temp_kcl)?;
+    let line = read_command_line(context, io, &options, &target, &zfs, &temp_kcl)?;
     if !options.wants_change() {
-        let _ = writeln!(io.stdout, "{}", kcl::assemble(&tokens));
+        let _ = writeln!(io.stdout, "{line}");
         return Ok(());
     }
-    if options.edit {
+    let line = if options.edit {
         edit::in_editor(context, &temp_kcl).map_err(|failure| report(io, failure, None))?;
-    }
-    let assembled = std::fs::read(&temp_kcl)
-        .map(|text| kcl::assemble(&String::from_utf8_lossy(&text)))
-        .unwrap_or_default();
+        let edited = std::fs::read(&temp_kcl)
+            .map(|text| String::from_utf8_lossy(&text).into_owned())
+            .unwrap_or_default();
+        command_line(io, &edited)
+    } else {
+        line
+    };
+    let assembled = line.to_string();
     let saved = match &target {
         Target::Zfs(_, destination) => save::to_dataset(&zfs, &assembled, destination),
         Target::Efi(image) => save::to_image(context, &assembled, image),
@@ -474,8 +524,8 @@ fn raw_kcl_zfs(zfs: &ZfsText, dataset: &DatasetName) -> String {
     }
 }
 
-/// The contents of the image's `.cmdline` section, empty when it cannot be
-/// read.
+/// The contents of the image's `.cmdline` section up to its first NUL, as
+/// the stub reads it; empty when it cannot be read.
 fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
     if !is_readable(image) {
         error(io, "the EFI file cannot be read");
@@ -488,7 +538,10 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
     let section = TempFile(section);
     match efi_tools::dump_cmdline(context.runner, image, &section.0) {
         Ok(output) if output.status.is_success() => std::fs::read(&section.0)
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .map(|bytes| {
+                let end = bytes.iter().position(|byte| *byte == 0);
+                String::from_utf8_lossy(&bytes[..end.unwrap_or(bytes.len())]).into_owned()
+            })
             .unwrap_or_default(),
         Ok(output) => {
             let message = output.stdout_text().trim_end_matches('\n').to_owned();
@@ -500,12 +553,6 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
             String::new()
         }
     }
-}
-
-/// The arguments `while read -r` would read from a tokenized command line; for
-/// tests.
-pub fn read_arguments(tokens: &str) -> Vec<String> {
-    tokens.lines().map(|line| line.trim().to_owned()).collect()
 }
 
 #[cfg(test)]

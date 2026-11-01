@@ -2,7 +2,6 @@
 
 use std::path::Path;
 
-use crate::kcl::tokens as kcl;
 use zbm_platform::filetest::{create_temp_file, is_readable};
 use zbm_tools::programs;
 
@@ -23,9 +22,9 @@ fn editor(context: &Context) -> String {
         .unwrap_or_else(|| "vi".to_owned())
 }
 
-/// Opens the tokenized command line in `temp_kcl` in the editor, with
-/// [`EDIT_HELP`] below it, and saves what the editor leaves back into
-/// `temp_kcl`, tokenized again.
+/// Opens the command line in `temp_kcl`, an argument a line, in the editor
+/// on one line, with [`EDIT_HELP`] below it, and saves what the editor
+/// leaves back into `temp_kcl` ([`strip_kcl`]), for the caller to read.
 ///
 /// # Errors
 ///
@@ -43,7 +42,11 @@ pub(crate) fn in_editor(context: &Context, temp_kcl: &Path) -> Result<(), Failur
     let failed_temp = || Failure::of("failed to create temporary file".to_owned());
     let file = create_temp_file(&context.temp_dir, "tmp.XXXXXXXXXX").map_err(|_| failed_temp())?;
     let file = TempFile(file);
-    let mut text = kcl::assemble(&String::from_utf8_lossy(&tokens));
+    let line: Vec<&str> = std::str::from_utf8(&tokens)
+        .unwrap_or_default()
+        .lines()
+        .collect();
+    let mut text = line.join(" ");
     text.push_str(EDIT_HELP);
     std::fs::write(&file.0, text).map_err(|_| failed_temp())?;
 
@@ -56,7 +59,7 @@ pub(crate) fn in_editor(context: &Context, temp_kcl: &Path) -> Result<(), Failur
     let edited = std::fs::read(&file.0)
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
         .unwrap_or_default();
-    std::fs::write(temp_kcl, kcl::tokenize(&strip_kcl(&edited)))
+    std::fs::write(temp_kcl, strip_kcl(&edited))
         .map_err(|_| Failure::of("failed to save edited KCL".to_owned()))
 }
 
@@ -65,7 +68,7 @@ pub(crate) fn in_editor(context: &Context, temp_kcl: &Path) -> Result<(), Failur
 /// empty.
 pub fn strip_kcl(text: &str) -> String {
     let mut lines = Vec::new();
-    for line in kcl::lines(text) {
+    for line in text.lines() {
         if line.is_empty() {
             break;
         }

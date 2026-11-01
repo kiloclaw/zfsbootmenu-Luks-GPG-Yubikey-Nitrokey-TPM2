@@ -245,7 +245,8 @@ fn compare(
         "properties {properties:?}, images {images_described:?}, args {args:?}, \
          editor {editor:?}, input {input}"
     );
-    let legacy: Outcome = parity.recorded(describe.clone());
+    let holds_text = describe.contains(&NOT_AN_ARGUMENT.escape_debug().to_string());
+    let legacy = intended(parity.recorded(describe.clone()), args, holds_text);
 
     let binary = env!("CARGO_BIN_EXE_zbm-kcl").to_owned();
     let sandbox = Sandbox::new(properties, images);
@@ -272,6 +273,64 @@ fn compare(
         without_option_lookups(&legacy.state),
         "state, {describe}"
     );
+}
+
+/// The text the source command lines of the cases hold that is not a kernel
+/// argument (a name with spaces): the Rust tool leaves it out and says so,
+/// where the legacy tool kept it as `"a b"` (ADR 0013, point 7).
+const NOT_AN_ARGUMENT: &str = "\"a  b\"";
+
+/// What the EFI images the cases change hold now, without `"a b"`: the size
+/// and checksum of the section change with it.
+const CHANGED_IMAGES: &[(&str, &str)] = &[
+    (
+        "40 bytes, 7570e74cb852001f \"root=zfs:AUTO quiet \\\"a b\\\" zbm.timeout=5\"",
+        "34 bytes, 346d617fa63b5e46 \"root=zfs:AUTO quiet zbm.timeout=5\"",
+    ),
+    (
+        "20 bytes, 7e328d586b5a03df \"root=zfs:AUTO \\\"a b\\\"\"",
+        "14 bytes, 01fb8b1030143c76 \"root=zfs:AUTO\"",
+    ),
+    (
+        "25 bytes, a611b3e99d7d3e0f \"root=zfs:AUTO loud \\\"a b\\\"\"",
+        "19 bytes, 437e7210e38798a6 \"root=zfs:AUTO loud\"",
+    ),
+];
+
+/// The recorded outcome, changed where the Rust tool means to differ:
+///
+/// - a source command line holding [`NOT_AN_ARGUMENT`] (`holds_text`) is
+///   read without it,
+///   with a line on standard error that says so;
+/// - a property `-n` prints as `-n`, which Bash's `echo` took for its option;
+/// - a failure to replace an EFI image says so in the tool's words, where
+///   the legacy tool passed on `cp`'s.
+fn intended(mut legacy: Outcome, args: &[&str], holds_text: bool) -> Outcome {
+    let reads_dataset = legacy
+        .state
+        .contains("get -H -o value org.zfsbootmenu:commandline pool/be\n");
+    let reads_image = args.last() == Some(&"image.efi") && !args.contains(&"-d");
+    if holds_text && (reads_dataset || reads_image) {
+        legacy.stderr = format!(
+            "ERROR: left out '{NOT_AN_ARGUMENT}', which is not a kernel argument\n{}",
+            legacy.stderr
+        );
+        for (before, after) in CHANGED_IMAGES {
+            legacy.state = legacy.state.replace(before, after);
+        }
+        for quoted in [" \"a b\"", " \\\"a b\\\""] {
+            legacy.stdout = legacy.stdout.replace(quoted, "");
+            legacy.state = legacy.state.replace(quoted, "");
+        }
+    }
+    if args == ["pool/flag"] {
+        legacy.stdout = "-n\n".to_owned();
+    }
+    legacy.stderr = legacy.stderr.replace(
+        "cp: cannot create regular file 'missing-dir/out.efi'",
+        "ERROR: cannot replace 'missing-dir/out.efi'",
+    );
+    legacy
 }
 
 /// `state` without the `zfs list` runs the legacy tool made for a dataset
