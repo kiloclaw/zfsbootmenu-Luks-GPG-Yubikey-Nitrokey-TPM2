@@ -17,6 +17,7 @@ name = "zbm-kcl"
 path = "src/bin/zbm-kcl.rs"
 
 [dependencies]
+object.workspace = true
 yaml-rust2.workspace = true
 zbm-config.workspace = true
 zbm-display.workspace = true
@@ -29,6 +30,7 @@ zbm-zfs.workspace = true
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+proptest.workspace = true
 serde.workspace = true
 zbm-testkit.workspace = true
 

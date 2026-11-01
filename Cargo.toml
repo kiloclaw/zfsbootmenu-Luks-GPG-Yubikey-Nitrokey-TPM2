@@ -47,6 +47,8 @@ insta = "1"
 # PNG reference images of the console (zbm-testkit); already in the tree through the standard library.
 miniz_oxide = "0.8.9"
 nucleo-matcher = "0.3"
+# The PE reader of the EFI image (ADR 0014, CD12); already in the tree through brush's backtrace.
+object = { version = "0.37", default-features = false, features = ["read_core", "pe", "unaligned"] }
 pretty_assertions = "1"
 proptest = { version = "1", default-features = false, features = ["std"] }
 ratatui = { version = "0.30", default-features = false, features = ["std", "crossterm", "layout-cache", "unstable-rendered-line-info"] }

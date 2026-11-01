@@ -4077,7 +4077,9 @@ name = "zbm-host"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "object",
  "pretty_assertions",
+ "proptest",
  "serde",
  "yaml-rust2",
  "zbm-config",

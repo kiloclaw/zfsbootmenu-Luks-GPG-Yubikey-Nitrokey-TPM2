@@ -55,7 +55,7 @@ Third-party crates:
 - `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`
-- `zbm-host`: `yaml-rust2`
+- `zbm-host`: `object`, `yaml-rust2`
 - `zbm-crypt`: `argon2`, `serde`, `serde_json`, `sha1`, `sha2`, `thiserror`, `tracing`
 - `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `serde`, `swash`, `thiserror`
 - `zbm-testkit`: `serde`, `serde_json`

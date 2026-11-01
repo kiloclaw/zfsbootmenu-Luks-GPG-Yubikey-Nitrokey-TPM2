@@ -138,7 +138,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-brush", &["brush-shell", "rustix"]),
     ("zbm-config", &["thiserror"]),
     ("zbm-console", &["alacritty_terminal", "rustix"]),
-    ("zbm-host", &["yaml-rust2"]),
+    ("zbm-host", &["object", "yaml-rust2"]),
     (
         "zbm-crypt",
         &[
