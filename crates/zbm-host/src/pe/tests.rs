@@ -392,6 +392,23 @@ fn what_is_not_an_efi_image_is_refused() {
         Image::read(aligned),
         Err(PeError::Alignment { .. })
     ));
+    let mut huge_alignment = stub.build();
+    put(&mut huge_alignment, 0x58 + 32, &0x4_0000_u32.to_le_bytes());
+    put(&mut huge_alignment, 0x58 + 36, &0x2_0000_u32.to_le_bytes());
+    assert!(matches!(
+        Image::read(huge_alignment),
+        Err(PeError::Alignment { .. })
+    ));
+
+    // Found by the fuzz target: 4 GiB of headers in a small file.
+    let mut huge_headers = stub.build();
+    put(&mut huge_headers, 0x58 + 60, &0xffff_fbf6_u32.to_le_bytes());
+    assert_eq!(
+        Image::read(huge_headers),
+        Err(PeError::Malformed(
+            "the headers end past the end of the file".to_owned()
+        ))
+    );
 
     let mut image = Image::read(stub.build()).unwrap();
     assert_eq!(

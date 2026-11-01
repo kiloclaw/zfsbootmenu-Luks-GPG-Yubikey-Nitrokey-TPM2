@@ -27,6 +27,7 @@ pub const TARGETS: &[&str] = &[
     "console_replies",
     "messages",
     "menu_names",
+    "pe_images",
 ];
 
 /// How long each target runs when no time is given, in seconds.

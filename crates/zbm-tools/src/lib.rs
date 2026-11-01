@@ -13,7 +13,6 @@
 //! | --- | --- |
 //! | [`console`] | none: the plain console's prompts |
 //! | [`devices`] | `blkid`, `lsblk` |
-//! | [`efi`] | `objcopy`, `objdump` |
 //! | [`host`] | the image build's `fzf`, `zfs`, `ldconfig`, `gpg` and more |
 //! | [`kexec`] | `kexec` |
 //! | [`modules`] | `modprobe`, `modinfo`, `insmod` |
@@ -31,7 +30,6 @@
 
 pub mod console;
 pub mod devices;
-pub mod efi;
 pub mod host;
 pub mod kexec;
 pub mod modules;

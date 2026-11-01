@@ -12,9 +12,10 @@ use zbm_testkit::{TempDir, have_program};
 
 pub(crate) const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 
-/// Whether the tools the EFI cases need are available.
+/// Whether the EFI cases can run: the stub they build bundles from is
+/// installed.
 pub(crate) fn efi_tools() -> bool {
-    Path::new(STUB).is_file() && have_program("objcopy") && have_program("objdump")
+    Path::new(STUB).is_file()
 }
 
 /// Whether the tools every case needs are available.
@@ -91,13 +92,6 @@ const FAKE_UNAME: &str = r#"#!/bin/sh
 exit 0
 "#;
 
-/// The real objcopy, with a fixed time for the PE header, so that both
-/// programs' bundles are identical; the generators themselves run without
-/// `SOURCE_DATE_EPOCH`, which makes the Rust one build reproducibly.
-const OBJCOPY: &str = r#"#!/bin/sh
-PATH=/usr/bin:/bin SOURCE_DATE_EPOCH=0 exec objcopy "$@"
-"#;
-
 fn fake_programs() -> Vec<(&'static str, String)> {
     vec![
         (
@@ -116,7 +110,6 @@ fn fake_programs() -> Vec<(&'static str, String)> {
         ("modinfo", logging_script(FAKE_MODINFO)),
         ("umount", logging_script("")),
         ("uname", FAKE_UNAME.to_owned()),
-        ("objcopy", OBJCOPY.to_owned()),
     ]
 }
 

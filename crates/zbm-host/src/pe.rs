@@ -398,6 +398,13 @@ fn parse<Pe: ImageNtHeaders>(bytes: Vec<u8>) -> Result<Image, PeError> {
             "the headers end inside the section table".to_owned(),
         ));
     }
+    // What the writer builds is no larger than the image read and what it
+    // adds: headers that end past the file are not the image's.
+    if headers.header_size as usize > slice.len() {
+        return Err(PeError::Malformed(
+            "the headers end past the end of the file".to_owned(),
+        ));
+    }
     let sections = table
         .iter()
         .map(|header| read_section(slice, header))
@@ -428,7 +435,8 @@ fn check_efi(optional: &impl ImageOptionalHeader) -> Result<(), PeError> {
         return Err(PeError::NotEfi(subsystem));
     }
     let (file, section) = (optional.file_alignment(), optional.section_alignment());
-    if !file.is_power_of_two() || !section.is_power_of_two() || section < file {
+    // PE allows file alignments up to 64 KiB.
+    if !file.is_power_of_two() || file > 0x1_0000 || !section.is_power_of_two() || section < file {
         return Err(PeError::Alignment { file, section });
     }
     Ok(())

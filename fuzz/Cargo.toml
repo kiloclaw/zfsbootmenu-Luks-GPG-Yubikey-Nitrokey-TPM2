@@ -28,6 +28,7 @@ zbm-config = { path = "../crates/zbm-config" }
 zbm-console = { path = "../crates/zbm-console" }
 zbm-crypt = { path = "../crates/zbm-crypt" }
 zbm-display = { path = "../crates/zbm-display" }
+zbm-host = { path = "../crates/zbm-host" }
 zbm-luks = { path = "../crates/zbm-luks" }
 zbm-pool = { path = "../crates/zbm-pool" }
 zbm-startup = { path = "../crates/zbm-startup" }
@@ -126,6 +127,13 @@ bench = false
 [[bin]]
 name = "menu_names"
 path = "fuzz_targets/menu_names.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pe_images"
+path = "fuzz_targets/pe_images.rs"
 test = false
 doc = false
 bench = false

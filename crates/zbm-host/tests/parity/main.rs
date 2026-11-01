@@ -1,6 +1,6 @@
 //! Parity tests: the Rust `generate-zbm` runs in a sandbox, with fake
-//! `dracut`, `mkinitcpio`, mount tools and hooks and the real `objcopy`,
-//! `objdump` and `strings`, and must exit the same way, print the same
+//! `dracut`, `mkinitcpio`, mount tools and hooks, the real `strings` and the
+//! host's systemd EFI stub, and must exit the same way, print the same
 //! messages and debug log, run the same commands and leave the same files,
 //! byte for byte, as the Perl `generate-zbm` did when its results were
 //! recorded (`tests/golden/legacy`). The Perl program is gone; the
