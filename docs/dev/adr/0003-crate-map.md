@@ -1,6 +1,7 @@
 # ADR 0003: The crate map
 
-- **Status:** accepted, 29 October 2026 (proposed 28 October 2026)
+- **Status:** accepted, 29 October 2026 (proposed 28 October 2026); the layer of `zbm-host` and rule 2 changed by
+  [ADR 0013](0013-host-tools.md), 1 November 2026
 - **Decides:** decision 14 of [ROADMAP.md](../../../ROADMAP.md#decisions)
 - **Governs:** DM2, DM7, DM8, DM10, DM11, SB10, SE6; `xtask/src/deps.rs` and
   [architecture.md](../architecture.md)
@@ -33,8 +34,8 @@ The workspace has 25 crates ([architecture.md](../architecture.md) lists them by
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | One port trait per capability (`Zfs`, `LuksVolumes`, `Tpm2`, `Fido2`, `KernelLoader`, `Mounts`, `Modules`, `Devices`), with in-memory fakes behind a `fake` feature |
 | domain | `zbm-luks`, `zbm-pool`, `zbm-bootenv`, `zbm-boot` | Unlocking, with the registry of key methods; pool import as a state machine; boot environments, kernels, command lines and key sources (`zbm-bootenv`, split from `zbm-boot`); loading and booting with teardown |
 | application | `zbm-app` | The `Application` trait, `App`, the `Action`, `Event` and `Snapshot` vocabulary, and the messages between zones |
-| orchestration | `zbm-startup` | Start-up as a pipeline of steps over `zbm-app` |
-| front ends | `zbm`, `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm-host` | The multi-call runtime binary; the menu; the console; the shell; the host tools, `generate-zbm` and `zbm-kcl` as two binaries of one crate |
+| orchestration | `zbm-startup`, `zbm-host` | Start-up as a pipeline of steps over `zbm-app`; the host tools, `generate-zbm` and `zbm-kcl` as two binaries of one crate, with the plan of an image (ADR 0013) |
+| front ends | `zbm`, `zbm-tui`, `zbm-console`, `zbm-brush` | The multi-call runtime binary; the menu; the console; the shell |
 | tools | `xtask`, `zbm-vmtest`, `zbm-testkit` | Developer automation, the VM harness, the test kit |
 
 Gone: `zbm-core` (DM11: its useful parts move into `zbm-platform` and `zbm-config`, the emulation is deleted),
@@ -46,7 +47,7 @@ The rules `cargo xtask check-deps` enforces, the existing ones and two new:
    today go: `zbm-trace` → `zbm-core` with `zbm-core`, `zbm-boot` → `zbm-luks` with DM2; `zbm-boot` → `zbm-pool`
    becomes `zbm-boot` → `zbm-bootenv` → `zbm-pool` through ports; `zbm` → `zbm-tui` and `zbm` → `zbm-console` stay,
    as the binary that holds the front ends.
-2. **New: orchestration does not use adapters.** `zbm-startup` reaches the system through `zbm-app` and the domain's
+2. **New: start-up does not use adapters** (orchestration's, before ADR 0013 put the host tools there). `zbm-startup` reaches the system through `zbm-app` and the domain's
    services, never `zbm-zfs`, `zbm-crypt` or `zbm-tools` directly.
 3. **New: front ends reach the system only through `zbm-app`.** `zbm-tui` and `zbm-console` depend on no domain or
    adapter crate.

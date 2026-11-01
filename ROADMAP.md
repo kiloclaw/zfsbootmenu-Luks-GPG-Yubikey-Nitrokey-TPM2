@@ -196,8 +196,8 @@ start-up's steps over `zbm-app`, as `zbm-startup` still runs `zfs`, `udevadm`, `
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | One port trait per capability (`Zfs`, `LuksVolumes`, `Tpm2`, `Fido2`, `KernelLoader`, `Mounts`, `Modules`, `Devices`), with in-memory fakes behind a `fake` feature |
 | domain | `zbm-luks`, `zbm-pool`, `zbm-bootenv`, `zbm-boot` | Unlocking with a registry of key methods; pool import as a state machine; boot environments, kernels, command lines and key sources (`zbm-bootenv`, new, split out of `zbm-boot`); loading and booting a kernel with teardown |
 | application | `zbm-app` | The `Application` trait (`snapshot`, `apply`, `tick`), its `App`, the `Action`, `Event` and `Snapshot` vocabulary, and the session's messages |
-| orchestration | `zbm-startup` | Start-up as a pipeline of steps over `zbm-app` |
-| front ends | `zbm`, `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm-host` | The multi-call runtime binary; the menu; the console; the shell; the host tools (`generate-zbm` and `zbm-kcl` as two binaries of one crate, new) |
+| orchestration | `zbm-startup`, `zbm-host` | Start-up as a pipeline of steps over `zbm-app`; the host tools (`generate-zbm` and `zbm-kcl` as two binaries of one crate, new, with the plan of an image; [ADR 0013](docs/dev/adr/0013-host-tools.md)) |
+| front ends | `zbm`, `zbm-tui`, `zbm-console`, `zbm-brush` | The multi-call runtime binary; the menu; the console; the shell |
 | tools | `xtask`, `zbm-vmtest`, `zbm-testkit` | Developer automation, the VM harness, the test kit |
 
 Gone: `zbm-menu` (empty), `zbm-core` (Bash and Perl emulation: `getopts`, shell semantics, Perl's file tests; its
@@ -602,7 +602,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | DM7 | `zbm-bootenv` split out of `zbm-boot`; graphics policy to start-up, `report` to `zbm debug`, prompts to the front ends (the resume question, the boot message and key loading, so that `zbm-boot` takes a `Context` and leaves `check-deps`'s console exception, `xtask/src/deps/console.rs`); a narrow public API with `#[non_exhaustive]` | mod | L | DM2 |
 | DM8 | Done: `zbm-app`'s `App` always has a `Runtime` (the options, the state directory, the layouts, how to boot) instead of five optional fields, and a LUKS session when the front end has one; one `apply(action, Through)` replaces `act`, `act_quietly` and `act_on_console`; the menu's machine reaches it through the `Application` trait (`snapshot`, `read_kernels`, `apply`); the volumes' actions alone are `Volumes`', and the pilot's `pilot`. `check-deps` refuses a crate behind `zbm-app` (adapters, domain, orchestration) as a dependency of `zbm-tui` or `zbm-console`. The tests of `App` run on `FakeSystem`, as before | mod | M | DM2 |
 | DM9 | Done: every log message a constant template with its values as fields (`fmt logs` at 0), the journal keeping the template and the fields that name things; stable error codes (`ZBM-E0412`) on every error enum of the domain, the adapters and start-up through `zbm_types::error_codes!`, which matches every variant, and `zbm explain`; causes kept as `#[source]` and shown with `zbm_types::code::chain` (`SaveError` keeps its `io::Error`); `Step::run` returns `Result<StepOutcome, StartupError>`, a failed stage logged with its code and shown failed (the `zbm.hookroot` import's error, dropped before, and a ZFS module that does not load); `zbm` returns `ExitCode`; one meaning per log level (`crates/DESIGN.md`). Left: the legacy unlock path's attempts and `LuksError::Open`'s cause go with the unlocker's rewrite (DM6); the kernel log keeps the legacy format, which the parity tests and the recovery shell's error printer read | stab | M | |
-| DM10 | Proposed in [ADR 0013](docs/dev/adr/0013-host-tools.md). `zbm-host` anew: `generate-zbm` as configuration → plan (pure) → build (adapters) → install (atomic), with argument vectors instead of `sh -c`; `zbm-kcl` on `KernelCommandLine`; the Perl and Bash emulation goes; new golden files | mod, stab | L | SB8 |
+| DM10 | Decided by [ADR 0013](docs/dev/adr/0013-host-tools.md), accepted: `zbm-host` in orchestration, with `zbm-image`; the Perl accidents fixed and listed; flags as shell words without expansion; other option spellings warned for one release. `zbm-host` anew: `generate-zbm` as configuration → plan (pure) → build (adapters) → install (atomic), with argument vectors instead of `sh -c`; `zbm-kcl` on `KernelCommandLine`; the Perl and Bash emulation goes; new golden files | mod, stab | L | SB8 |
 | DM11 | Done: `zbm-core` dissolves (its parts into `zbm-platform`, `getopts` into `zbm-kcl`); shell helpers in configuration parsing at 0; the command line pipeline works on `KernelCommandLine`; `zbm-kcl` keeps the legacy tokenizer until DM10 | mod | S | DM3 |
 
 ### SB: the system boundary and the image
@@ -918,9 +918,10 @@ Decided on 29 October 2026:
     FIDO2 with `authenticator` if it covers hmac-secret without its async parts, otherwise our own CTAP2. Linking
     libcryptsetup, tss2-esys and libfido2 stays the way back if the Rust LUKS2 or TPM2 code fails its review.
 14. **The crate map** of [crates and layers](#crates-and-layers) ([ADR 0003](docs/dev/adr/0003-crate-map.md)): 24
-    crates in 11 layers, dependencies pointing down only, with two new rules for `check-deps`: orchestration does not
-    use adapters, and front ends reach the system only through `zbm-app`. The keyholder is an applet of `zbm`
-    (`zbm unlock serve`), the host tools' crate is `zbm-host` (DM10), and `zbm-bootenv` is a crate of its own (DM7).
+    crates in 11 layers, dependencies pointing down only, with two new rules for `check-deps`: start-up does not use
+    adapters, and front ends reach the system only through `zbm-app`. The keyholder is an applet of `zbm`
+    (`zbm unlock serve`), the host tools' crate is `zbm-host` (DM10), in orchestration with the plan of an image
+    ([ADR 0013](docs/dev/adr/0013-host-tools.md)), and `zbm-bootenv` is a crate of its own (DM7).
 16. **The image plan, and a native image backend after the cutover** ([ADR 0006](docs/dev/adr/0006-image-plan.md)):
     `zbm-host` computes an `ImagePlan`, checked by golden files under `cargo test`; dracut and mkinitcpio install it
     through shims that read it as a manifest of tab-separated lines (SB8), and the mkinitcpio hook runs `zbm` without

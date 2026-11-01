@@ -1,6 +1,6 @@
 # ADR 0013: The host tools as one crate, and what they keep of the Perl tools
 
-- **Status:** proposed, 1 November 2026
+- **Status:** accepted, 1 November 2026 (proposed the same day)
 - **Decides:** item DM10 of [ROADMAP.md](../../../ROADMAP.md), and the layer of `zbm-host`, which changes the crate
   map of [ADR 0003](0003-crate-map.md) (decision 14)
 - **Governs:** `generate-zbm`, `zbm-kcl` and `zbm-image`; CD12, SE12, SB12; fixes 23, 24 and 25 of the review;
@@ -38,7 +38,9 @@ of how Perl and Bash happened to implement it.**
 1. **The layer** (question 1). `zbm-host` joins orchestration, where `generate-zbm` and `zbm-image` are now, and they
    go into it as modules (`zbm_host::image`, `zbm_host::generate`, `zbm_host::kcl`). The front ends keep their rule.
    ADR 0003's table moves `zbm-host` from the front ends to orchestration; `zbm` keeps `zbm image` by depending on
-   `zbm-host`, as it depends on `zbm-startup`.
+   `zbm-host`, as it depends on `zbm-startup`. ADR 0003's rule 2, "orchestration does not use adapters", not yet
+   enforced, becomes a rule for `zbm-startup`: start-up reaches the system through `zbm-app` and the domain's
+   services, while the host tools, which have no `zbm-app`, use the adapters directly.
 2. **The pipeline.** `generate-zbm` becomes four steps, each a value or an adapter:
    - **Configuration:** `config.yaml` and the command line, read once into typed settings (`zbm-config`'s option
      table, as now), with every problem reported together.
@@ -58,7 +60,8 @@ of how Perl and Bash happened to implement it.**
    character is refused with the reason, rather than passed on with another meaning.
 5. **The command line** (question 4). `generate-zbm` and `zbm-kcl` take the options their manual pages document, in
    the spellings they document, through one parser shared by both. The spellings Getopt::Long and `getopts` also
-   took (unique prefixes, `+opt`, `-long`) are the subject of question 4.
+   took (unique prefixes, `+opt`, `-long`) still work for one release, each with a warning that names the documented
+   spelling, and are errors after it.
 6. **`--enable` and `--disable`** change the one value of `Global.ManageImages` in the text of `config.yaml`,
    keeping its comments and layout, and write it atomically; a file where that value is not a plain scalar on its
    own line is refused, with the line to change by hand. The YAML::PP emitter goes.
@@ -102,16 +105,16 @@ of how Perl and Bash happened to implement it.**
 
 ## Where the work stands
 
-On 1 November 2026, nothing of it is built. `generate-zbm` and `zbm-kcl` are the ports of Phase 3, and `zbm-image`
-(SB8) holds the plan of an image in the orchestration layer.
+On 1 November 2026, when the decision was accepted, nothing of it is built. `generate-zbm` and `zbm-kcl` are the
+ports of Phase 3, and `zbm-image` (SB8) holds the plan of an image in the orchestration layer.
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **The layer of `zbm-host`:** orchestration, with `zbm-image` in it (proposed); a front end with an exception for
-   adapters; or a front-end binary crate over an orchestration library?
-2. **Compatibility:** the same keys and options, with the Perl accidents fixed and listed (proposed); byte-for-byte
-   what the Perl tool did; or a new configuration format with a converter?
-3. **`Global.DracutFlags` and `Global.InitCPIOFlags`:** shell words without expansion, refusing `$`, `` ` `` and globs
-   (proposed); `/bin/sh -c` as now; or YAML lists of arguments only?
-4. **Other spellings of the options** (unique prefixes, `+opt`, `-long`): a warning for one release, then an error
-   (proposed); accepted for good; or refused at once?
+Accepted as proposed, on 1 November 2026:
+
+1. **The layer:** `zbm-host` in orchestration, with `zbm-image` in it; ADR 0003's rule 2 names `zbm-startup`.
+2. **Compatibility:** the same keys and options, with the Perl accidents fixed and listed in
+   `CHANGES-FROM-LEGACY.md`.
+3. **`Global.DracutFlags` and `Global.InitCPIOFlags`:** shell words without expansion; `$`, `` ` `` and globs refused.
+4. **Other spellings of the options:** accepted with a warning that names the documented spelling for one release,
+   then an error.
