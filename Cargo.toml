@@ -18,7 +18,6 @@ repository = "https://github.com/kiloclaw/zfsbootmenu-luks-gpg-yubikey-nitrokey-
 publish = false
 
 [workspace.dependencies]
-generate-zbm = { path = "crates/generate-zbm" }
 zbm = { path = "crates/zbm" }
 zbm-app = { path = "crates/zbm-app" }
 zbm-brush = { path = "crates/zbm-brush" }
@@ -27,8 +26,7 @@ zbm-config = { path = "crates/zbm-config" }
 zbm-console = { path = "crates/zbm-console" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-display = { path = "crates/zbm-display" }
-zbm-image = { path = "crates/zbm-image" }
-zbm-kcl = { path = "crates/zbm-kcl" }
+zbm-host = { path = "crates/zbm-host" }
 zbm-luks = { path = "crates/zbm-luks" }
 zbm-pool = { path = "crates/zbm-pool" }
 zbm-platform = { path = "crates/zbm-platform" }

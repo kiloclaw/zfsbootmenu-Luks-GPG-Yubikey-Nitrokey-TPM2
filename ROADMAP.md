@@ -86,7 +86,7 @@ Written anew, because the legacy code they copied is gone or because their shape
 | `generate-zbm` and `zbm-kcl`, as one `zbm-host` crate | 2,500 lines emulate Perl (`Getopt::Long`, `YAML::PP`, `Data::Dumper`, `File::Glob`, `Sort::Versions`) and Bash quirks for programs that no longer exist | DM10 |
 | The LUKS unlocker's core (`Unlocker`, the methods, the pilot) | A god object of 30 methods with two `KeyMethod` traits; the key handlers and the device suites stay | DM6 |
 | The supervisor's loop | A blocking `waitpid` loop cannot restart the console or react to it | PM6 |
-| The image assembly (`ImagePlan`) | `install-helpers.sh` was lists and distribution quirks in Bash, verified by diffing file lists; done, `zbm-image` | SB8 |
+| The image assembly (`ImagePlan`) | `install-helpers.sh` was lists and distribution quirks in Bash, verified by diffing file lists; done, `zbm_host::image` | SB8 |
 | The menu's run loops, as one front end | Three loops (start-up view, menu, demo) for one Elm model | UI3 |
 
 ## Principles

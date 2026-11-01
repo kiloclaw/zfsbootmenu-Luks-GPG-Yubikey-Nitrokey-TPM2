@@ -15,7 +15,7 @@ use zbm_display::layout::compile::{COMPOSE, XKB};
 use zbm_platform::{Clock, Files, RealFiles, SystemClock, SystemRunner};
 
 use crate::Io;
-use zbm_image::{Builder, Config, Entry, Host, Plan, plan, prune_firmware};
+use zbm_host::image::{Builder, Config, Entry, Host, Plan, plan, prune_firmware};
 
 /// The `PATH` of a builder that sets none.
 const DEFAULT_PATH: &str = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";

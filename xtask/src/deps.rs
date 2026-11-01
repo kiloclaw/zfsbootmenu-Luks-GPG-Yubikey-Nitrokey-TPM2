@@ -76,7 +76,7 @@ pub const LAYERS: &[Layer] = &[
         name: "domain",
         purpose: "LUKS volumes and key methods, pool import, kernel command lines of boot \
                   environments; boot environments, their kernels and keys, and booting",
-        crates: &["zbm-luks", "zbm-kcl", "zbm-pool", "zbm-boot"],
+        crates: &["zbm-luks", "zbm-pool", "zbm-boot"],
     },
     Layer {
         name: "application",
@@ -85,8 +85,9 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "orchestration",
-        purpose: "Start-up; image generation and the plan of an image",
-        crates: &["zbm-startup", "generate-zbm", "zbm-image"],
+        purpose: "Start-up; the host tools: image generation, the plan of an image, kernel command \
+                  lines",
+        crates: &["zbm-startup", "zbm-host"],
     },
     Layer {
         name: "front ends",
@@ -128,7 +129,6 @@ pub const TOOLS: &[&str] = &["xtask", "zbm-vmtest"];
 
 /// The third-party crates each crate may depend on, in any section.
 pub const THIRD_PARTY: &[(&str, &[&str])] = &[
-    ("generate-zbm", &["yaml-rust2"]),
     ("xtask", &["proc-macro2", "serde_json", "syn"]),
     // Ratatui in tests alone: the menu on the console's cells against its
     // test backend.
@@ -138,6 +138,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-brush", &["brush-shell", "rustix"]),
     ("zbm-config", &["thiserror"]),
     ("zbm-console", &["alacritty_terminal", "rustix"]),
+    ("zbm-host", &["yaml-rust2"]),
     (
         "zbm-crypt",
         &[

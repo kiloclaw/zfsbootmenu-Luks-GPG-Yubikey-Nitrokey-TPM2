@@ -85,11 +85,10 @@ cutover, with dracut and mkinitcpio kept as backends.**
 
 On 29 October 2026, when the decision was accepted, nothing of it was built. On 1 November 2026 (SB8):
 
-- **The plan** is a value, `zbm_image::Plan`, which `zbm_image::plan` computes from the builder's settings and the
+- **The plan** is a value, `zbm_host::image::Plan`, which `zbm_host::image::plan` computes from the builder's settings and the
   build host, through its files and its programs' answers (`zbm_tools::host`), for the legacy and the Rust runtime
-  (answer 2). It lives in `crates/zbm-image`, in the orchestration layer beside `generate-zbm`, until DM10 makes
-  `zbm-host`; the crate map puts the host tools among the front ends, which may not use adapters, so the plan cannot
-  live there yet. The plan names each binary's path, not its libraries, and the builders resolve them (decision 2).
+  (answer 2). It was the crate `zbm-image` at first; since DM10 it is the module `image` of `zbm-host`, in the
+  orchestration layer ([ADR 0013](0013-host-tools.md)). The plan names each binary's path, not its libraries, and the builders resolve them (decision 2).
 - **The manifest** is the plan's text (answer 1): `dir`, `file`, `link`, `hardlink`, `binary`, `library`, `module`,
   `rule`, `unomit`, `hook`, `hostonly`, `firmware`, `info` and `warn` lines, separated by tabs (`plan.rs` documents
   each). `zbm image plan --builder dracut|mkinitcpio --config FILE --stage DIR` prints it, the files the plan writes
@@ -102,7 +101,7 @@ On 29 October 2026, when the decision was accepted, nothing of it was built. On 
   builders.
 - **The mkinitcpio run hook** of the Rust runtime starts `zbm` from busybox's shell; only the legacy runtime's entry
   point needs Bash (decision 3).
-- **Golden plans** (decision 4): `crates/zbm-image/src/snapshots/` holds the plans of five configurations, dracut and
+- **Golden plans** (decision 4): `crates/zbm-host/src/image/snapshots/` holds the plans of five configurations, dracut and
   mkinitcpio, legacy and Rust, with LUKS, GnuPG, graphics firmware, keyboard layouts, the lock and the screen readers,
   and a release; `cargo insta review` takes a change.
 - **Still to come:** the `ImageBackend` trait, with the native backend (SB12, decision 5), which is when a second

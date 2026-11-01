@@ -1,5 +1,5 @@
 //! The C programs of the Rust image (ROADMAP.md CD1): the programs the
-//! lists of `crates/zbm-image/src/lists.rs` give a Rust image,
+//! lists of `crates/zbm-host/src/image/lists.rs` give a Rust image,
 //! but for those written in another language. Each has an item that
 //! replaces it, or a reason to stay (`docs/dev/dependencies.md`); their
 //! number may only go down.
@@ -10,7 +10,7 @@ use std::path::Path;
 use crate::error::{Error, Result};
 
 /// The file of the lists.
-pub const LISTS_FILE: &str = "crates/zbm-image/src/lists.rs";
+pub const LISTS_FILE: &str = "crates/zbm-host/src/image/lists.rs";
 
 /// The row of the metrics that holds the count.
 pub const ROW: &str = "rust-image";

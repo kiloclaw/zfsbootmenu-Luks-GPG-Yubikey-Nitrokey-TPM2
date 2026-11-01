@@ -1242,19 +1242,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "generate-zbm"
-version = "0.1.0"
-dependencies = [
- "serde",
- "yaml-rust2",
- "zbm-config",
- "zbm-platform",
- "zbm-sys",
- "zbm-testkit",
- "zbm-tools",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3960,7 +3947,7 @@ dependencies = [
  "zbm-config",
  "zbm-console",
  "zbm-display",
- "zbm-image",
+ "zbm-host",
  "zbm-luks",
  "zbm-platform",
  "zbm-pool",
@@ -4086,24 +4073,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "zbm-image"
+name = "zbm-host"
 version = "0.1.0"
 dependencies = [
  "insta",
  "pretty_assertions",
+ "serde",
+ "yaml-rust2",
  "zbm-config",
  "zbm-display",
- "zbm-platform",
- "zbm-testkit",
- "zbm-tools",
-]
-
-[[package]]
-name = "zbm-kcl"
-version = "0.1.0"
-dependencies = [
- "serde",
- "zbm-config",
  "zbm-platform",
  "zbm-sys",
  "zbm-testkit",

@@ -65,10 +65,7 @@ fn test_support_is_only_a_development_dependency() {
 
 #[test]
 fn third_party_crates_must_be_listed_per_crate() {
-    let allowed = package(
-        "generate-zbm",
-        &[("yaml-rust2", DependencyKind::Normal, false)],
-    );
+    let allowed = package("zbm-host", &[("yaml-rust2", DependencyKind::Normal, false)]);
     let refused = package("zbm-luks", &[("yaml-rust2", DependencyKind::Normal, false)]);
 
     assert_eq!(problems_of(&allowed), Vec::<String>::new());

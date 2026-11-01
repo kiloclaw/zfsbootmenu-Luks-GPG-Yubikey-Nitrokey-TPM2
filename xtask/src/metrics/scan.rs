@@ -15,7 +15,8 @@ use syn::visit::{self, Visit};
 use syn::{Attribute, Block, Expr, Lit, Meta, ReturnType, Signature, Token, Type};
 
 /// Helpers that emulate Bash's semantics: those of the former
-/// `zbm_core::shell`, and the copies `zbm-kcl` keeps until ROADMAP.md's DM10.
+/// `zbm_core::shell`, and the copies `zbm_host::kcl` keeps until DM10
+/// replaces them.
 pub const SHELL_HELPERS: &[&str] = &[
     "command_substitution",
     "echo",

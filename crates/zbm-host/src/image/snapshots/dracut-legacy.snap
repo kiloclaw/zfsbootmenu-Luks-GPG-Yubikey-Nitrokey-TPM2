@@ -1,0 +1,295 @@
+---
+source: crates/zbm-host/src/image/tests.rs
+---
+module	zfs	required	host
+module	zcommon	required	host
+module	znvpair	required	host
+module	zavl	required	host
+module	zunicode	required	host
+module	zlua	required	host
+module	icp	required	host
+module	spl	required	host
+module	zlib_deflate	optional	host
+module	zlib_inflate	optional	host
+module	fat	optional	host
+module	vfat	optional	host
+module	nls_iso8859_1	optional	host
+module	nls_cp437	optional	host
+module	dm_mod	optional	host
+module	dm_crypt	optional	host
+module	dm_integrity	optional	host
+module	af_alg	optional	host
+module	algif_skcipher	optional	host
+module	algif_hash	optional	host
+module	cryptd	optional	host
+module	crypto_simd	optional	host
+module	gf128mul	optional	host
+module	aes_generic	optional	host
+module	aesni_intel	optional	host
+module	aes_ce_blk	optional	host
+module	aes_ce_cipher	optional	host
+module	aes_neon_blk	optional	host
+module	aes_neon_bs	optional	host
+module	xts	optional	host
+module	cbc	optional	host
+module	ecb	optional	host
+module	ctr	optional	host
+module	lrw	optional	host
+module	essiv	optional	host
+module	sha256_generic	optional	host
+module	sha256_ssse3	optional	host
+module	sha512_generic	optional	host
+module	sha512_ssse3	optional	host
+module	sha2_ce	optional	host
+module	sha256_arm64	optional	host
+module	sha512_arm64	optional	host
+module	crc32c_generic	optional	host
+module	crc32c_cryptoapi	optional	host
+module	crc32c_intel	optional	host
+module	serpent_generic	optional	host
+module	twofish_generic	optional	host
+module	tpm	optional	host
+module	tpm_tis_core	optional	host
+module	tpm_tis	optional	host
+module	tpm_crb	optional	host
+module	xhci_pci	optional	host
+module	xhci_hcd	optional	host
+module	ehci_pci	optional	host
+module	ehci_hcd	optional	host
+module	ohci_pci	optional	host
+module	ohci_hcd	optional	host
+module	uhci_hcd	optional	host
+module	usbhid	optional	host
+module	hid_generic	optional	host
+module	hid	optional	host
+binary	/usr/libexec/zfsbootmenu/zbm	/libexec/zbm
+rule	90-zfs.rules	required
+rule	69-vdev.rules	required
+rule	60-zvol.rules	required
+binary	/usr/bin/bash	/usr/bin/bash
+binary	/usr/bin/zfs	/usr/bin/zfs
+binary	/usr/bin/zpool	/usr/bin/zpool
+binary	/usr/bin/zdb	/usr/bin/zdb
+binary	/usr/bin/lsblk	/usr/bin/lsblk
+binary	/usr/bin/hostid	/usr/bin/hostid
+binary	/usr/bin/mount	/usr/bin/mount
+binary	/usr/bin/mount.zfs	/usr/bin/mount.zfs
+binary	/usr/bin/kexec	/usr/bin/kexec
+binary	/usr/bin/mkdir	/usr/bin/mkdir
+binary	/usr/bin/tput	/usr/bin/tput
+binary	/usr/bin/head	/usr/bin/head
+binary	/usr/bin/mktemp	/usr/bin/mktemp
+binary	/usr/bin/sort	/usr/bin/sort
+binary	/usr/bin/sed	/usr/bin/sed
+binary	/usr/bin/grep	/usr/bin/grep
+binary	/usr/bin/tail	/usr/bin/tail
+binary	/usr/bin/tac	/usr/bin/tac
+binary	/usr/bin/blkid	/usr/bin/blkid
+binary	/usr/bin/awk	/usr/bin/awk
+binary	/usr/bin/ps	/usr/bin/ps
+binary	/usr/bin/env	/usr/bin/env
+binary	/usr/bin/chmod	/usr/bin/chmod
+binary	/usr/bin/chroot	/usr/bin/chroot
+binary	/usr/bin/od	/usr/bin/od
+binary	/usr/bin/stty	/usr/bin/stty
+binary	/usr/bin/insmod	/usr/bin/insmod
+binary	/usr/bin/modinfo	/usr/bin/modinfo
+binary	/usr/bin/lsmod	/usr/bin/lsmod
+binary	/usr/bin/depmod	/usr/bin/depmod
+binary	/usr/bin/dmesg	/usr/bin/dmesg
+binary	/usr/bin/fzf	/usr/bin/fzf
+binary	/usr/bin/setsid	/usr/bin/setsid
+binary	/usr/bin/cat	/usr/bin/cat
+warn	optional component 'mbuffer' not found, omitting from image
+binary	/usr/bin/column	/usr/bin/column
+binary	/usr/bin/less	/usr/bin/less
+binary	/usr/bin/cryptsetup	/usr/bin/cryptsetup
+binary	/usr/bin/dmsetup	/usr/bin/dmsetup
+binary	/usr/bin/udevadm	/usr/bin/udevadm
+binary	/usr/bin/cut	/usr/bin/cut
+binary	/usr/bin/tr	/usr/bin/tr
+binary	/usr/bin/wc	/usr/bin/wc
+binary	/usr/bin/base64	/usr/bin/base64
+binary	/usr/bin/sha256sum	/usr/bin/sha256sum
+rule	10-dm.rules	optional
+rule	95-dm-notify.rules	optional
+library	/usr/lib/x86_64-linux-gnu/cryptsetup/libcryptsetup-token-systemd-tpm2.so
+info	cryptsetup systemd-fido2 token plugin not found; using native support
+library	/usr/lib/x86_64-linux-gnu/libfido2.so.1
+binary	/usr/bin/tpm2_load	/usr/bin/tpm2_load
+binary	/usr/bin/tpm2_startauthsession	/usr/bin/tpm2_startauthsession
+binary	/usr/bin/tpm2_sessionconfig	/usr/bin/tpm2_sessionconfig
+binary	/usr/bin/tpm2_policypcr	/usr/bin/tpm2_policypcr
+binary	/usr/bin/tpm2_policyauthvalue	/usr/bin/tpm2_policyauthvalue
+binary	/usr/bin/tpm2_unseal	/usr/bin/tpm2_unseal
+binary	/usr/bin/tpm2_flushcontext	/usr/bin/tpm2_flushcontext
+binary	/usr/bin/tpm2_getcap	/usr/bin/tpm2_getcap
+binary	/usr/bin/openssl	/usr/bin/openssl
+binary	/usr/bin/fido2-token	/usr/bin/fido2-token
+info	fido2-tools not found; native FIDO2 unlocking unavailable
+binary	/usr/bin/gpg	/usr/bin/gpg
+binary	/usr/bin/gpgconf	/usr/bin/gpgconf
+binary	/usr/bin/gpg-connect-agent	/usr/bin/gpg-connect-agent
+binary	/usr/libexec/gpg-agent	/usr/libexec/gpg-agent
+binary	/usr/libexec/scdaemon	/usr/libexec/scdaemon
+binary	/usr/bin/ykchalresp	/usr/bin/ykchalresp
+binary	/usr/bin/ykinfo	/usr/bin/ykinfo
+file	/etc/zfsbootmenu/crypttab	/etc/zfsbootmenu/crypttab	0600
+file	/etc/zfsbootmenu/keys/root.key.gpg	/etc/zfsbootmenu/keys/root.key.gpg	0600
+warn	/etc/zfsbootmenu/keys/data.key.gpg is only protected by a passphrase; anyone with the image can attack it offline
+file	/etc/zfsbootmenu/keys/data.key.gpg	/etc/zfsbootmenu/keys/data.key.gpg	0600
+binary	/lib/cryptsetup/scripts/passdev	/lib/cryptsetup/scripts/passdev
+warn	crypttab entry 'plain' uses key file '/etc/zfsbootmenu/keys/plain.key', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device
+warn	key script '/none' for crypttab entry 'usb' not found
+warn	LUKS configuration was not fully installed
+file	@/etc/cmdline.d/zfsbootmenu-luks.conf	/etc/cmdline.d/zfsbootmenu-luks.conf	0644
+    | rd.luks=0
+library	/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+dir	/etc/zfs/compatibility.d	0755
+file	/etc/zfs/compatibility.d/grub2	/etc/zfs/compatibility.d/grub2	-
+file	/usr/share/zfsbootmenu/lib/echo-log-lib.sh	/lib/echo-log-lib.sh	-
+file	/usr/share/zfsbootmenu/lib/efi-firmware-lib.sh	/lib/efi-firmware-lib.sh	-
+file	/usr/share/zfsbootmenu/lib/fzf-defaults.sh	/lib/fzf-defaults.sh	-
+file	/usr/share/zfsbootmenu/lib/kmsg-log-lib.sh	/lib/kmsg-log-lib.sh	-
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-completions.sh	/lib/zfsbootmenu-completions.sh	-
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-core.sh	/lib/zfsbootmenu-core.sh	-
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-kcl.sh	/lib/zfsbootmenu-kcl.sh	-
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh	/lib/zfsbootmenu-luks-keys.sh	-
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks.sh	/lib/zfsbootmenu-luks.sh	-
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-ui.sh	/lib/zfsbootmenu-ui.sh	-
+file	/usr/share/zfsbootmenu/libexec/recovery-error-printer	/libexec/recovery-error-printer	-
+file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-diff	/libexec/zfsbootmenu-diff	-
+file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-edit-kcl	/libexec/zfsbootmenu-edit-kcl	-
+file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-help	/libexec/zfsbootmenu-help	-
+file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-init	/libexec/zfsbootmenu-init	-
+file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input	-
+file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
+file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-run-hooks	/libexec/zfsbootmenu-run-hooks	-
+file	/usr/share/zfsbootmenu/libexec/zfunc	/libexec/zfunc	-
+file	/usr/share/zfsbootmenu/libexec/zpowermenu	/libexec/zpowermenu	-
+link	ztrace	/bin/debug
+link	reboot	/bin/firmware-setup
+link	zlogtail	/bin/logs
+file	/usr/share/zfsbootmenu/bin/mount_esp	/bin/mount_esp	-
+link	reboot	/bin/poweroff
+file	/usr/share/zfsbootmenu/bin/reboot	/bin/reboot	-
+link	reboot	/bin/shutdown
+link	zfsbootmenu	/bin/zbm
+file	/usr/share/zfsbootmenu/bin/zfs-chroot	/bin/zfs-chroot	-
+file	/usr/share/zfsbootmenu/bin/zfsbootmenu	/bin/zfsbootmenu	-
+file	/usr/share/zfsbootmenu/bin/zkexec	/bin/zkexec	-
+file	/usr/share/zfsbootmenu/bin/zlogtail	/bin/zlogtail	-
+file	/usr/share/zfsbootmenu/bin/zluks	/bin/zluks	-
+file	/usr/share/zfsbootmenu/bin/zsnapshots	/bin/zsnapshots	-
+file	/usr/share/zfsbootmenu/bin/ztrace	/bin/ztrace	-
+file	/usr/share/zfsbootmenu/init.d/10-kmods	/libexec/init.d/10-kmods	-
+file	/usr/share/zfsbootmenu/init.d/20-hostid	/libexec/init.d/20-hostid	-
+file	/usr/share/zfsbootmenu/init.d/30-device-wait	/libexec/init.d/30-device-wait	-
+file	/usr/share/zfsbootmenu/init.d/40-early-hooks	/libexec/init.d/40-early-hooks	-
+file	/usr/share/zfsbootmenu/init.d/45-luks-unlock	/libexec/init.d/45-luks-unlock	-
+file	/usr/share/zfsbootmenu/init.d/50-import-pools	/libexec/init.d/50-import-pools	-
+dir	/libexec/hooks/early-setup.d	0755
+file	/usr/share/zfsbootmenu/hooks/early-setup.d/10-generic-efi-init.sh	/libexec/hooks/early-setup.d/10-generic-efi-init.sh	-
+file	/usr/share/zfsbootmenu/hooks/early-setup.d/20-dracut-console-init.sh	/libexec/hooks/early-setup.d/20-dracut-console-init.sh	-
+file	/usr/share/zfsbootmenu/hooks/early-setup.d/30-console-autosize.sh	/libexec/hooks/early-setup.d/30-console-autosize.sh	-
+dir	/libexec/hooks/teardown.d	0755
+file	/usr/share/zfsbootmenu/hooks/teardown.d/80-luks-close.sh	/libexec/hooks/teardown.d/80-luks-close.sh	-
+file	/usr/share/zfsbootmenu/hooks/teardown.d/90-xhci-unbind.sh	/libexec/hooks/teardown.d/90-xhci-unbind.sh	-
+dir	/libexec/hooks/boot-sel.d	0755
+file	/etc/zfsbootmenu/hooks/boot-sel.d/10-pick.sh	/libexec/hooks/boot-sel.d/10-pick.sh	-
+hook	cmdline	95	/usr/share/zfsbootmenu/pre-init/zfsbootmenu-parse-commandline.sh
+hook	pre-mount	90	/usr/share/zfsbootmenu/pre-init/zfsbootmenu-preinit.sh
+hook	initqueue/settled	99	/usr/lib/dracut/modules.d/90zfsbootmenu/zfsbootmenu-ready-set.sh
+hook	initqueue/finished	99	/usr/lib/dracut/modules.d/90zfsbootmenu/zfsbootmenu-ready-chk.sh
+file	/usr/share/zfsbootmenu/help-files/132/diff-viewer.ansi	/usr/share/docs/help-files/132/diff-viewer.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/kernel-management.ansi	/usr/share/docs/help-files/132/kernel-management.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/main-screen.ansi	/usr/share/docs/help-files/132/main-screen.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/recovery-shell.ansi	/usr/share/docs/help-files/132/recovery-shell.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/snapshot-management.ansi	/usr/share/docs/help-files/132/snapshot-management.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/zbm-kcl.8.ansi	/usr/share/docs/help-files/132/zbm-kcl.8.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/zfsbootmenu-luks.7.ansi	/usr/share/docs/help-files/132/zfsbootmenu-luks.7.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/zfsbootmenu.7.ansi	/usr/share/docs/help-files/132/zfsbootmenu.7.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/zluks.8.ansi	/usr/share/docs/help-files/132/zluks.8.ansi	-
+file	/usr/share/zfsbootmenu/help-files/132/zpool-health.ansi	/usr/share/docs/help-files/132/zpool-health.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/diff-viewer.ansi	/usr/share/docs/help-files/52/diff-viewer.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/kernel-management.ansi	/usr/share/docs/help-files/52/kernel-management.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/main-screen.ansi	/usr/share/docs/help-files/52/main-screen.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/recovery-shell.ansi	/usr/share/docs/help-files/52/recovery-shell.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/snapshot-management.ansi	/usr/share/docs/help-files/52/snapshot-management.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/zbm-kcl.8.ansi	/usr/share/docs/help-files/52/zbm-kcl.8.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/zfsbootmenu-luks.7.ansi	/usr/share/docs/help-files/52/zfsbootmenu-luks.7.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/zfsbootmenu.7.ansi	/usr/share/docs/help-files/52/zfsbootmenu.7.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/zluks.8.ansi	/usr/share/docs/help-files/52/zluks.8.ansi	-
+file	/usr/share/zfsbootmenu/help-files/52/zpool-health.ansi	/usr/share/docs/help-files/52/zpool-health.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/diff-viewer.ansi	/usr/share/docs/help-files/92/diff-viewer.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/kernel-management.ansi	/usr/share/docs/help-files/92/kernel-management.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/main-screen.ansi	/usr/share/docs/help-files/92/main-screen.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/recovery-shell.ansi	/usr/share/docs/help-files/92/recovery-shell.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/snapshot-management.ansi	/usr/share/docs/help-files/92/snapshot-management.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/zbm-kcl.8.ansi	/usr/share/docs/help-files/92/zbm-kcl.8.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/zfsbootmenu-luks.7.ansi	/usr/share/docs/help-files/92/zfsbootmenu-luks.7.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/zfsbootmenu.7.ansi	/usr/share/docs/help-files/92/zfsbootmenu.7.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/zluks.8.ansi	/usr/share/docs/help-files/92/zluks.8.ansi	-
+file	/usr/share/zfsbootmenu/help-files/92/zpool-health.ansi	/usr/share/docs/help-files/92/zpool-health.ansi	-
+file	@/etc/zbm-release	/etc/zbm-release	0644
+    | NAME="ZFSBootMenu"
+    | PRETTY_NAME="ZFSBootMenu"
+    | ID="zfsbootmenu"
+    | ID_LIKE="void"
+    | HOME_URL="https://zfsbootmenu.org"
+    | DOCUMENTATION_URL="https://docs.zfsbootmenu.org"
+    | BUG_REPORT_URL="https://github.com/zbm-dev/zfsbootmenu/issues"
+    | SUPPORT_URL="https://github.com/zbm-dev/zfsbootmenu/discussions"
+    | VERSION="3.1.0+dev"
+    | BUILD_ID="2026-11-01"
+link	zbm-release	/etc/os-release
+file	/etc/zfs/vdev_id.conf	/etc/zfs/vdev_id.conf	-
+hostonly	/etc/zfs/vdev_id.conf
+file	/etc/hostid	/etc/hostid	-
+hostonly	/etc/hostid
+file	@/etc/zfsbootmenu.conf	/etc/zfsbootmenu.conf	0644
+    | # Include guard
+    | [ -n "${_ETC_ZFSBOOTMENU_CONF}" ] && return
+    | readonly _ETC_ZFSBOOTMENU_CONF=1
+    | export HAS_REFRESH="1"
+    | export HAS_DISABLED="1"
+    | export HAS_BORDER="1"
+    | export HAS_COLUMN="1"
+    | export HAS_COLORS="1"
+    | export HAS_RAW=""
+    | export ZBM_BUILDSTYLE="dracut"
+    | export ZBM_RELEASE_BUILD=""
+    | export ZBM_RUNTIME="legacy"
+file	@/etc/profile	/etc/profile	0644
+    | export PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    | export TERM=linux
+    | export HOME=/root
+file	@/root/.bashrc	/root/.bashrc	0644
+    | source /etc/zfsbootmenu.conf >/dev/null 2>&1
+    | source /lib/kmsg-log-lib.sh >/dev/null 2>&1
+    | source /lib/zfsbootmenu-core.sh >/dev/null 2>&1
+    | source /lib/zfsbootmenu-kcl.sh >/dev/null 2>&1
+    | [ -f /etc/profile ] && source /etc/profile
+    | [ -f /lib/zfsbootmenu-completions.sh ] && source /lib/zfsbootmenu-completions.sh
+    | 
+    | export PROMPT_COMMAND="/libexec/recovery-error-printer"
+    | export PS1='\[\033[0;33m\]zfsbootmenu\[\033[0m\] \w > '
+    | 
+    | alias clear="tput clear"
+    | alias reset="tput reset"
+    | alias trace="ztrace"
+    | alias help="/libexec/zfsbootmenu-help -L recovery-shell"
+    | 
+    | zdebug "sourced /root/.bashrc" || true
+link	/root/.bashrc	/root/.profile
+file	/usr/share/zfsbootmenu/profiling/profiling-lib.sh	/lib/profiling-lib.sh	-
+file	@/etc/profiling.conf	/etc/profiling.conf	0644
+    | export zfsbootmenu_trace_term=
+    | export zfsbootmenu_trace_baud=
+file	/usr/share/zfsbootmenu/fonts/ter-v12n.psf	/usr/share/zfsbootmenu/fonts/ter-v12n.psf	-
+file	/usr/share/zfsbootmenu/fonts/ter-v14b.psf	/usr/share/zfsbootmenu/fonts/ter-v14b.psf	-
+file	/usr/share/zfsbootmenu/fonts/ter-v20b.psf	/usr/share/zfsbootmenu/fonts/ter-v20b.psf	-
+file	/usr/share/zfsbootmenu/fonts/ter-v24b.psf	/usr/share/zfsbootmenu/fonts/ter-v24b.psf	-
+file	/usr/share/zfsbootmenu/fonts/ter-v28b.psf	/usr/share/zfsbootmenu/fonts/ter-v28b.psf	-
+file	/usr/share/zfsbootmenu/fonts/ter-v32b.psf	/usr/share/zfsbootmenu/fonts/ter-v32b.psf	-
+binary	/usr/bin/setfont	/usr/bin/setfont

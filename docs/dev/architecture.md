@@ -8,8 +8,8 @@ is going ("Target architecture"), and this page changes with each of its phases.
 | Program | Crate | Runs on | What it does |
 | --- | --- | --- | --- |
 | `zbm` | `zbm` | the boot image | One multi-call binary: the start-up program, the supervisor, `zluks` and the other applets; on the build host, `zbm image plan`, the plan of each image, which the dracut module and the mkinitcpio hook install |
-| `generate-zbm` | `generate-zbm` | the host | Builds boot images (initramfs, EFI bundles) from `/etc/zfsbootmenu/config.yaml` |
-| `zbm-kcl` | `zbm-kcl` | the host | Reads and writes the `org.zfsbootmenu:commandline` property of boot environments |
+| `generate-zbm` | `zbm-host` | the host | Builds boot images (initramfs, EFI bundles) from `/etc/zfsbootmenu/config.yaml` |
+| `zbm-kcl` | `zbm-host` | the host | Reads and writes the `org.zfsbootmenu:commandline` property of boot environments |
 | `cargo xtask` | `xtask` | developers' machines and CI | Lints, tests, dependency checks, code metrics ([tooling.md](tooling.md)) |
 
 The legacy Bash runtime in `legacy/zfsbootmenu/` still ships as the default; `zfsbootmenu_runtime=rust` in
@@ -26,9 +26,9 @@ dependencies that exist.
 | Layer | Crates | Purpose |
 | --- | --- | --- |
 | front ends | `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm` | The menus, the console on the display, the shell and the multi-call binary, whose applets start the programs |
-| orchestration | `zbm-startup`, `generate-zbm`, `zbm-image` | Start-up; image generation and the plan of an image |
+| orchestration | `zbm-startup`, `zbm-host` | Start-up; the host tools: image generation, the plan of an image, kernel command lines |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
-| domain | `zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
+| domain | `zbm-luks`, `zbm-pool`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-config` | State files, and the configuration: the table of options, the kernel command line, /etc/zfsbootmenu.conf and crypttab files |
 | platform | `zbm-platform`, `zbm-display` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context; the display and keyboard without a terminal |
@@ -48,7 +48,6 @@ Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`, `
 
 Third-party crates:
 
-- `generate-zbm`: `yaml-rust2`
 - `xtask`: `proc-macro2`, `serde_json`, `syn`
 - `zbm`: `ratatui`, `serde_json`, `tracing`
 - `zbm-app`: `serde`, `serde_json`, `thiserror`, `tracing`
@@ -56,6 +55,7 @@ Third-party crates:
 - `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`
+- `zbm-host`: `yaml-rust2`
 - `zbm-crypt`: `argon2`, `serde`, `serde_json`, `sha1`, `sha2`, `thiserror`, `tracing`
 - `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `serde`, `swash`, `thiserror`
 - `zbm-testkit`: `serde`, `serde_json`

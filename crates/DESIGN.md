@@ -84,11 +84,9 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
 | `zbm-pool` | Pool import: policies, host IDs, the retry loop of the start-up stage. | `init.d/50-import-pools` |
 | `zbm-boot` | Packages A, C and D: boot environments, kernels, ZFS encryption keys, hooks, `kexec`, snapshots, pool management, saved logs and reports. | `zfsbootmenu-core.sh` |
-| `zbm-kcl` | The host tool that reads and writes the kernel command line of boot environments and EFI images. | `bin/zbm-kcl` |
 | `zbm-app` | What front ends talk to: actions, events and the snapshot of the machine. | — |
 | `zbm-startup` | The start-up program: its stages as steps, the recovery shell, the start-up hooks. | `init.d/*`, `zfsbootmenu-init` |
-| `generate-zbm` | The host tool that builds images. | `bin/generate-zbm` |
-| `zbm-image` | The plan of an image (SB8, ADR 0006): what goes into it, for each runtime and builder, as the manifest the dracut module and the mkinitcpio hook install (`zbm image plan`), with golden plans. | `install-helpers.sh`, `module-setup.sh`, `install/zfsbootmenu` |
+| `zbm-host` | The host tools (DM10, ADR 0013): `generate-zbm`, which builds images (`generate_zbm`); `zbm-kcl`, which reads and writes the kernel command line of boot environments and EFI images (`kcl`); the plan of an image (`image`, SB8, ADR 0006), the manifest the dracut module and the mkinitcpio hook install (`zbm image plan`), with golden plans. | `bin/generate-zbm`, `bin/zbm-kcl`, `install-helpers.sh`, `module-setup.sh`, `install/zfsbootmenu` |
 | `zbm-tui` | The menu: an Elm architecture on Ratatui and nucleo-matcher. | `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `fzf` |
 | `zbm-console` | The console on the display: Alacritty's terminal on a pseudo-terminal, and the menu's cells on the client channel, drawn through DRM. | the kernel's console |
 | `zbm-brush` | The shell of the Rust images, brush. | Bash |
@@ -96,7 +94,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
 | `zbm-vmtest` | The VM tests: QEMU, disks, images and the scenarios. Developers' machines only. | `tests/luks/vm` |
 
-The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-platform`, `zbm-config`, `zbm-trace`
+The host tools `generate-zbm` and `zbm-kcl` are the two programs of `zbm-host`, which shares `zbm-platform`, `zbm-config`, `zbm-trace`
 and `zbm-zfs` with the runtime.
 
 Dependencies point from the program to the system and never back: each crate belongs to one layer and uses only

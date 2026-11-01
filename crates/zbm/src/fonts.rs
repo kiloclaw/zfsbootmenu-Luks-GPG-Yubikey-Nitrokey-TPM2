@@ -8,7 +8,7 @@ use std::io;
 use std::path::Path;
 
 use zbm_display::psf::SUBSET_GLYPHS;
-pub use zbm_image::psf::{Done, subsets};
+pub use zbm_host::image::psf::{Done, subsets};
 use zbm_platform::{Files, RealFiles};
 
 use crate::Io;

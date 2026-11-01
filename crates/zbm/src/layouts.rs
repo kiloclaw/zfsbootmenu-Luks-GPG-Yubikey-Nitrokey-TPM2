@@ -21,7 +21,7 @@ use crate::Io;
 /// Where images keep their layouts.
 pub const DIRECTORY: &str = zbm_app::LAYOUTS;
 
-pub use zbm_image::keymaps::{Compiled, DEAD_KEYS, INDEX, compile_layouts};
+pub use zbm_host::image::keymaps::{Compiled, DEAD_KEYS, INDEX, compile_layouts};
 
 /// The file of layout `name` in `directory`.
 pub fn keymap_path(directory: &Path, name: &str) -> PathBuf {

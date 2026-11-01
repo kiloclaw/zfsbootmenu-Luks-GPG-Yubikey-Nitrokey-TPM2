@@ -4,7 +4,6 @@
 # Raise a number by testing more and running the command again; never lower
 # one by hand.
 crate         line_coverage
-generate-zbm             91
 xtask                    71
 zbm                      83
 zbm-app                  99
@@ -14,8 +13,7 @@ zbm-config               99
 zbm-console              91
 zbm-crypt               100
 zbm-display              89
-zbm-image                96
-zbm-kcl                  93
+zbm-host                 93
 zbm-luks                 94
 zbm-platform             97
 zbm-pool                 98

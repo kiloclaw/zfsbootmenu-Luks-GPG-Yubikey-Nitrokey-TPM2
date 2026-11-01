@@ -2,7 +2,7 @@
 generate-zbm
 ============
 
-.. KEEP IN SYNC WITH crates/generate-zbm
+.. KEEP IN SYNC WITH crates/zbm-host/src/generate_zbm
 
 .. only:: html
 
