@@ -20,10 +20,10 @@ fn the_keyholder_and_its_programs_gain_no_privileges() {
 }
 
 #[test]
-fn the_console_keeps_two_capabilities_and_reaches_its_places_alone() {
+fn the_console_keeps_its_capabilities_and_reaches_its_places_alone() {
     let console = Console {
-        state: "/zfsbootmenu".into(),
-        sockets: "/run/zfsbootmenu".into(),
+        state: "/zfsbootmenu/console".into(),
+        sockets: Some("/run/zfsbootmenu".into()),
         share: "/usr/share/zfsbootmenu".into(),
         mirror: Some("/nowhere/mirror".into()),
         serial: Some("/dev/ttyS0".into()),
@@ -33,9 +33,15 @@ fn the_console_keeps_two_capabilities_and_reaches_its_places_alone() {
 
     assert_eq!(console.name(), "console");
     assert_eq!(confinement.user, None);
+    let uid = zbm_sys::credentials().uid;
+    assert_eq!(confinement.capabilities, Some(console_capabilities(uid)));
     assert_eq!(
-        confinement.capabilities,
-        Some(vec![Capability::SysTtyConfig, Capability::IpcLock])
+        console_capabilities(0),
+        [Capability::SysTtyConfig, Capability::IpcLock]
+    );
+    assert_eq!(
+        console_capabilities(CONSOLE_USER),
+        [Capability::SysTtyConfig]
     );
     let files = confinement.files.unwrap();
     let access = |path: &str| {
@@ -44,7 +50,19 @@ fn the_console_keeps_two_capabilities_and_reaches_its_places_alone() {
             .find(|(file, _)| file == std::path::Path::new(path))
             .map(|(_, access)| *access)
     };
-    assert_eq!(access("/zfsbootmenu"), Some(Access::Full));
+    assert_eq!(access("/zfsbootmenu/console"), Some(Access::Full));
+    assert_eq!(access("/zfsbootmenu"), None);
+    assert_eq!(access("/run/zfsbootmenu"), Some(Access::Full));
+    let passed = Console {
+        sockets: None,
+        ..console.clone()
+    };
+    let passed_files = passed.confinement().files.unwrap();
+    assert!(
+        !passed_files
+            .iter()
+            .any(|(file, _)| file.starts_with("/run"))
+    );
     assert_eq!(access("/dev/tty7"), Some(Access::Device));
     assert_eq!(access("/dev/input"), Some(Access::Device));
     // The serial console it serves too.

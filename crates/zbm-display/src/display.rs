@@ -172,7 +172,17 @@ impl Display {
     /// `PermissionDenied`).
     pub fn open_with(path: &Path, options: Options) -> io::Result<Display> {
         let file = OpenOptions::new().read(true).write(true).open(path);
-        let card = Card(file.map_err(context(&path.display().to_string()))?);
+        Display::of_card(file.map_err(context(&path.display().to_string()))?, options)
+    }
+
+    /// [`Display::open_with`] on `file`, a DRM card open for reading and
+    /// writing.
+    ///
+    /// # Errors
+    ///
+    /// As [`Display::open_with`], but for the opening.
+    pub fn of_card(file: File, options: Options) -> io::Result<Display> {
+        let card = Card(file);
         // The first program to open a card is its master already; asking
         // again fails then, and is needed after another master left.
         let _ = drm::Device::acquire_master_lock(&card);

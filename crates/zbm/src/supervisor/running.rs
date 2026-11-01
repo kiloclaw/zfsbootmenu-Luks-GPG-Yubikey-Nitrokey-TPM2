@@ -9,8 +9,7 @@
 //! - the recovery shell, whose fallback runs when it does not open, and
 //!   which is tried again after `retry` when it cannot start;
 //! - the console on the display, which starts again by its [`Backoff`],
-//!   between programs only, so that a program never changes terminal while
-//!   it runs.
+//!   between programs only: a program never changes terminal as it runs.
 //!
 //! Nothing here sleeps or blocks but the `poll`: every wait is a deadline.
 
@@ -269,6 +268,7 @@ impl Running<'_, '_> {
             return;
         };
         attached.detach(&self.supervisor.base);
+        self.supervisor.adopt_console_crashes();
         self.supervisor.error(&format!(
             "the console on the display ended (wait status {status}); \
              going on on the kernel console"
@@ -304,7 +304,7 @@ impl Running<'_, '_> {
         let Some(program) = &supervisor.console else {
             return;
         };
-        match Attached::start(program) {
+        match supervisor.attach_console(program) {
             Ok(attached) => {
                 supervisor.notice(&format!(
                     "the console on the display started again (process {})",

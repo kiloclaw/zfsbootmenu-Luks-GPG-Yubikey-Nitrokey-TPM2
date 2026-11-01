@@ -81,6 +81,9 @@ fn after_reset<T>(mut receive: impl FnMut(RecvFlags) -> rustix::io::Result<T>) -
 pub struct Listener {
     fd: OwnedFd,
     path: PathBuf,
+    /// Whether it removes its socket when dropped: the one that bound it
+    /// does, not one passed to another process.
+    removes: bool,
 }
 
 impl Listener {
@@ -113,9 +116,49 @@ impl Listener {
         let listener = Listener {
             fd,
             path: path.to_owned(),
+            removes: true,
         };
         listen(&listener.fd, BACKLOG)?;
         Ok(listener)
+    }
+
+    /// The listening socket this process was started with at `number`,
+    /// which another bound at `path` ([`Listener::into_fd`]): the console
+    /// on the display gets its control socket so, as its user may not make
+    /// it (ADR 0012). It leaves the socket when dropped.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::inherited`], and when the socket does not listen.
+    pub fn inherited(number: i32, path: &Path) -> io::Result<Listener> {
+        let fd = take_inherited(number)?;
+        if !sockopt::socket_acceptconn(&fd).unwrap_or(false) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("not listening: {number}"),
+            ));
+        }
+        Ok(Listener {
+            fd,
+            path: path.to_owned(),
+            removes: false,
+        })
+    }
+
+    /// The socket, to pass to the process that serves it: its path stays,
+    /// and the next to bind there replaces it once no process listens.
+    pub fn into_fd(self) -> OwnedFd {
+        let this = std::mem::ManuallyDrop::new(self);
+        // SAFETY: `this` is never dropped, so each field is read out once
+        // and owned here alone; the path is dropped as it would have been.
+        let (fd, path) = unsafe {
+            (
+                std::ptr::read(&raw const this.fd),
+                std::ptr::read(&raw const this.path),
+            )
+        };
+        drop(path);
+        fd
     }
 
     /// The next peer that connects, waiting at most `timeout` (without limit
@@ -154,8 +197,50 @@ impl Drop for Listener {
         reason = "a socket is no file the Files interface reads or writes"
     )]
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        if self.removes {
+            let _ = fs::remove_file(&self.path);
+        }
     }
+}
+
+/// The Unix socket of packets this process was started with at `number`,
+/// taken once, closed on `exec` from now on.
+///
+/// # Errors
+///
+/// When `number` is one of the standard streams, was taken before, or is
+/// not open on a Unix socket of packets.
+fn take_inherited(number: i32) -> io::Result<OwnedFd> {
+    static TAKEN: Mutex<Vec<i32>> = Mutex::new(Vec::new());
+    let refused =
+        |why: &str| io::Error::new(io::ErrorKind::InvalidInput, format!("{why}: {number}"));
+    if number <= 2 {
+        return Err(refused("a standard stream"));
+    }
+    let mut taken = TAKEN.lock().unwrap_or_else(PoisonError::into_inner);
+    if taken.contains(&number) {
+        return Err(refused("a descriptor taken before"));
+    }
+    // What the descriptor is, without touching it: `socket:[inode]`
+    // for a socket; nothing for a number that is not open.
+    let link = fs::read_link(format!("/proc/self/fd/{number}"))?;
+    if !link.as_os_str().as_encoded_bytes().starts_with(b"socket:") {
+        return Err(refused("not a socket"));
+    }
+    taken.push(number);
+    // SAFETY: the kernel says `number` is open on a socket, and this
+    // process takes it once: nothing else in it owns a socket it was
+    // started with.
+    let fd = unsafe { OwnedFd::from_raw_fd(number) };
+    let is_packets = sockopt::socket_type(&fd).is_ok_and(|kind| kind == SocketType::SEQPACKET)
+        && sockopt::socket_domain(&fd).is_ok_and(|family| family == AddressFamily::UNIX);
+    if !is_packets {
+        // Not ours to close.
+        let _ = fd.into_raw_fd();
+        return Err(refused("not a Unix socket of packets"));
+    }
+    rustix::io::fcntl_setfd(&fd, rustix::io::FdFlags::CLOEXEC)?;
+    Ok(fd)
 }
 
 /// Makes the directory of the socket at `path`, root's alone, as
@@ -223,36 +308,7 @@ impl Connection {
     /// When `number` is one of the standard streams, was taken before, or
     /// is not open on a Unix socket of packets.
     pub fn inherited(number: i32) -> io::Result<Connection> {
-        static TAKEN: Mutex<Vec<i32>> = Mutex::new(Vec::new());
-        let refused =
-            |why: &str| io::Error::new(io::ErrorKind::InvalidInput, format!("{why}: {number}"));
-        if number <= 2 {
-            return Err(refused("a standard stream"));
-        }
-        let mut taken = TAKEN.lock().unwrap_or_else(PoisonError::into_inner);
-        if taken.contains(&number) {
-            return Err(refused("a descriptor taken before"));
-        }
-        // What the descriptor is, without touching it: `socket:[inode]`
-        // for a socket; nothing for a number that is not open.
-        let link = fs::read_link(format!("/proc/self/fd/{number}"))?;
-        if !link.as_os_str().as_encoded_bytes().starts_with(b"socket:") {
-            return Err(refused("not a socket"));
-        }
-        taken.push(number);
-        // SAFETY: the kernel says `number` is open on a socket, and this
-        // process takes it once: nothing else in it owns a socket it was
-        // started with.
-        let fd = unsafe { OwnedFd::from_raw_fd(number) };
-        let is_packets = sockopt::socket_type(&fd).is_ok_and(|kind| kind == SocketType::SEQPACKET)
-            && sockopt::socket_domain(&fd).is_ok_and(|family| family == AddressFamily::UNIX);
-        if !is_packets {
-            // Not ours to close.
-            let _ = fd.into_raw_fd();
-            return Err(refused("not a Unix socket of packets"));
-        }
-        rustix::io::fcntl_setfd(&fd, rustix::io::FdFlags::CLOEXEC)?;
-        Ok(Connection { fd })
+        take_inherited(number).map(|fd| Connection { fd })
     }
 
     /// Has [`Connection::send`] fail with [`io::ErrorKind::WouldBlock`]
@@ -433,6 +489,13 @@ impl Connection {
         }
         buffer.truncate(received.bytes);
         Ok(Some((buffer, fds)))
+    }
+}
+
+impl From<Connection> for OwnedFd {
+    /// The connection's descriptor, to pass to another process.
+    fn from(connection: Connection) -> OwnedFd {
+        connection.fd
     }
 }
 

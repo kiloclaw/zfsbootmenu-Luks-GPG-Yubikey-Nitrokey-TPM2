@@ -396,9 +396,9 @@ fn the_state_directory_keeps_the_scrollback_and_screenshots() {
     assert!(status.clock.is_some());
     host.ring();
     let shot = host.save_screenshot(b"$\n", b"PNG").unwrap();
-    assert_eq!(shot, dir.join("screenshot-1.png"));
+    assert_eq!(shot, dir.join("console/screenshot-1.png"));
     let saved = host.save_scrollback(b"$ zpool status\n").unwrap();
-    assert_eq!(saved, dir.join("console-scrollback.txt"));
+    assert_eq!(saved, dir.join("console/scrollback.txt"));
     assert_eq!(std::fs::read(&saved).unwrap(), b"$ zpool status\n");
     std::fs::remove_dir_all(dir.path()).unwrap();
     assert!(host.save_scrollback(b"x").is_err());

@@ -156,7 +156,36 @@ released the display (`status`), instead of reading `console` and `released-cons
 
 ## Where the work stands
 
-Accepted; the work has not started. The console is still user 0 with `CAP_SYS_TTY_CONFIG` and `CAP_IPC_LOCK`.
+Built, on 1 November 2026:
+
+- **The broker** (`zbm_app::devices`): the requests and replies, `open_checked` (the kind's names below `/dev`, a
+  character device of the kind's numbers before and after it is opened), `serve`, and `Broker`, the console's
+  `Opener`. The kinds, their names, numbers and how each is opened are `zbm_display::devices`; the seat, the
+  keyboards, the speaker, the terminal's text, the serial terminal and the test mirror open through the `Opener`.
+  Its requests join the fuzz target `messages`.
+- **The start** (`zbm::supervisor::console::OwnUser`): the records directory made and given to user 60600, the
+  control socket bound (`--control-fd`), the kernel log opened (`--kmsg-fd`), the broker's socket pair
+  (`--devices-fd`) served by a thread of the supervisor, and the user change between `fork` and `exec`
+  (`zbm_sys::sandbox::run_as`): `CAP_SYS_TTY_CONFIG` as an ambient capability, `RLIMIT_MEMLOCK` lifted where the
+  supervisor may (not in a container without `CAP_SYS_RESOURCE`). When any of it fails, the console starts as user 0,
+  as before, and the kernel log says why.
+- **The records** in `/zfsbootmenu/console/` (`zbm_state::CONSOLE`). The console's crash reports go there; the
+  supervisor copies them into `/zfsbootmenu` once the console ended, regular files of at most 1 MiB alone.
+- **The sockets:** the control socket answers peers of user 0 when the console runs as its own user
+  (`zbm_console::control::trusted_user`).
+- **The profile:** landlock on the records directory, the sockets' directory only when the console binds its socket
+  itself, and `CAP_SYS_TTY_CONFIG` alone unless it is user 0.
+
+As built, two points of the proposal went otherwise:
+
+- **Clients do not check the socket's owner.** The supervisor binds and listens on the control socket, so the
+  kernel names root as its peer whoever serves it; what keeps another process from standing in for the console is
+  the sockets' directory, root's with mode `0700`, which the console's user cannot enter.
+- **The boot still reads `console/pid` and `console/released`** rather than asking `status`: a console that lies in
+  its own records can only skip its own hand-over, which it could refuse anyway.
+
+Left: the VM run of `runtime-rust-console` on the maintainer's machine, and a keyboard plugged in after the start
+through the broker, which no VM test does yet.
 
 ## Answers of the maintainer
 

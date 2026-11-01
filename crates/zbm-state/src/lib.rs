@@ -39,14 +39,20 @@ impl Drop for Active<'_> {
 /// The state directory of the boot image (`BASE`).
 pub const BASE: &str = "/zfsbootmenu";
 
+/// The directory of the state directory that the console on the display
+/// keeps its records in (ADR 0012): its own, made by the supervisor and
+/// given to the console's user, so that the rest stays root's.
+pub const CONSOLE: &str = "console";
+
 /// The file of the state directory that the console on the display saves
 /// its scrollback in, for `zbm report`.
-pub const SCROLLBACK: &str = "console-scrollback.txt";
+pub const SCROLLBACK: &str = "console/scrollback.txt";
 
 /// The most screenshots the state directory keeps.
 pub const MAX_SCREENSHOTS: u32 = 99;
 
-/// Whether `name`, a file of the state directory, is a screenshot.
+/// Whether `name`, a file of the console's records ([`CONSOLE`]), is a
+/// screenshot.
 pub fn is_screenshot(name: &str) -> bool {
     name.strip_prefix("screenshot-")
         .and_then(|rest| {

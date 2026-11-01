@@ -58,6 +58,20 @@ impl SerialPort {
             .write(true)
             .custom_flags(O_NOCTTY)
             .open(path)?;
+        SerialPort::of_file(file, size, scheme)
+    }
+
+    /// [`SerialPort::open`] on `file`, the serial terminal open for reading
+    /// and writing.
+    ///
+    /// # Errors
+    ///
+    /// When it cannot be written without blocking.
+    pub fn of_file(
+        file: File,
+        size: (u16, u16),
+        scheme: &'static Scheme,
+    ) -> io::Result<SerialPort> {
         rustix::io::ioctl_fionbio(&file, true)?;
         let saved = termios::tcgetattr(&file).ok();
         if let Some(saved) = &saved {

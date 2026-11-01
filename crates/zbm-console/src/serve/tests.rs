@@ -20,6 +20,7 @@ fn places(dir: &TempDir) -> Places {
         base: dir.join("zfsbootmenu"),
         kmsg: dir.write("kmsg", ""),
         socket: dir.join("run/console.sock"),
+        devices: Devices::direct(),
     }
 }
 
@@ -84,7 +85,7 @@ fn without_display_for(
     let asked = console.join().unwrap().unwrap();
 
     assert!(!asked, "no display, so no font");
-    assert!(!dir.join("zfsbootmenu/console").exists());
+    assert!(!dir.join("zfsbootmenu/console/pid").exists());
     String::from_utf8_lossy(&shown).into_owned()
 }
 
@@ -142,16 +143,23 @@ fn the_mirror_gets_lines_of_their_own() {
         ..Settings::default()
     };
 
-    settings.mirror_line(RELEASED);
-    Settings::default().mirror_line(RELEASED);
+    let places = places(&dir);
+    settings.mirror_line(&places, RELEASED);
+    Settings::default().mirror_line(&places, RELEASED);
 
     assert_eq!(
         std::fs::read_to_string(&mirror).unwrap(),
         format!("\x0c{RELEASED}\n")
     );
     assert_eq!(Places::system().kmsg, PathBuf::from("/dev/kmsg"));
-    assert!(open_mirror(&mirror).is_some());
-    assert!(open_mirror(&dir.join("none/mirror")).is_none());
+    assert!(
+        places
+            .open(Kind::Serial, &mirror)
+            .ok()
+            .and_then(open_mirror)
+            .is_some()
+    );
+    assert!(places.open(Kind::Serial, &dir.join("none/mirror")).is_err());
 }
 
 #[test]
@@ -335,4 +343,30 @@ fn the_text_for_screen_readers_is_the_terminal_s_and_its_absence_is_logged() {
     let log = std::fs::read_to_string(&places.kmsg).unwrap();
     assert!(log.contains("dev/vcsa3, 80x25"), "{log}");
     assert!(log.contains("no text for screen readers in"), "{log}");
+}
+
+#[test]
+fn the_kernel_log_given_is_written_and_devices_are_told_apart() {
+    let dir = TempDir::new("zbm-console-kmsg");
+    let given = dir.write("given-kmsg", "");
+    let mut places = places(&dir);
+    let file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&given)
+        .unwrap();
+    places.devices.kmsg = Some(Arc::new(file));
+
+    places.log(6, "taken from the supervisor");
+
+    let written = std::fs::read_to_string(&given).unwrap();
+    assert_eq!(
+        written,
+        "<6>ZFSBootMenu: console: taken from the supervisor\n"
+    );
+    assert_eq!(std::fs::read_to_string(&places.kmsg).unwrap(), "");
+    let same = places.devices.clone();
+    assert_eq!(same, places.devices);
+    assert_ne!(Devices::direct(), places.devices);
+    assert_ne!(Devices::direct(), Devices::direct());
+    assert!(format!("{same:?}").contains("kmsg: true"));
 }

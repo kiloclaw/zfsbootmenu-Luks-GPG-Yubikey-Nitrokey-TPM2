@@ -7,12 +7,14 @@
     reason = "the input devices are this module's system interface: it opens them and reads sysfs"
 )]
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{self, Read as _, Write as _};
 use std::os::fd::{AsFd, BorrowedFd};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
+use crate::devices::{Kind, Opener, direct};
 use crate::keys::{Decoder, KeyPress};
 use crate::layout::{Layout, Source};
 
@@ -194,17 +196,6 @@ impl Device {
     }
 }
 
-/// Opens the input device at `path`, for writing as well when it may be,
-/// to set its lights.
-fn open_device(path: &Path) -> io::Result<File> {
-    OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(path)
-        .or_else(|_| File::open(path))
-        .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", path.display())))
-}
-
 /// The record of an `EV_LED` event and the `SYN_REPORT` after it.
 fn led_records(code: u16, on: bool) -> Vec<u8> {
     let mut records = vec![0_u8; 16];
@@ -231,6 +222,9 @@ pub struct Keyboards {
     /// The key repeat asked for, in milliseconds: the delay and the period,
     /// which keyboards that come later get too.
     repeat: Option<(u32, u32)>,
+    /// What opens the keyboards: the process itself, or the supervisor's
+    /// broker (ADR 0012).
+    opener: Arc<dyn Opener>,
 }
 
 impl Keyboards {
@@ -240,7 +234,7 @@ impl Keyboards {
     ///
     /// When there is none, or none can be opened.
     pub fn open(sysfs: &Path, dev: &Path) -> io::Result<Keyboards> {
-        let (found, failed) = Keyboards::opened(sysfs, dev);
+        let (found, failed) = Keyboards::opened(sysfs, dev, direct());
         match failed {
             Some(error) if found.devices.is_empty() => Err(error),
             None if found.devices.is_empty() => {
@@ -254,20 +248,27 @@ impl Keyboards {
     /// keyboard may enumerate after the caller starts, and
     /// [`Keyboards::rescan`] adds it then.
     pub fn find(sysfs: &Path, dev: &Path) -> Keyboards {
-        Keyboards::opened(sysfs, dev).0
+        Keyboards::find_with(sysfs, dev, direct())
     }
 
-    /// The keyboards that `sysfs` lists and could be opened, and the last
-    /// error of those that could not.
-    fn opened(sysfs: &Path, dev: &Path) -> (Keyboards, Option<io::Error>) {
+    /// [`Keyboards::find`], each opened by `opener`, as those that come
+    /// later are.
+    pub fn find_with(sysfs: &Path, dev: &Path, opener: Arc<dyn Opener>) -> Keyboards {
+        Keyboards::opened(sysfs, dev, opener).0
+    }
+
+    /// The keyboards that `sysfs` lists and `opener` could open, and the
+    /// last error of those it could not.
+    fn opened(sysfs: &Path, dev: &Path, opener: Arc<dyn Opener>) -> (Keyboards, Option<io::Error>) {
         let mut found = Keyboards::from_files(Vec::new());
         found.places = Some((sysfs.to_owned(), dev.to_owned()));
+        found.opener = opener;
         let mut failed = None;
         let mut num_lock = false;
         for path in keyboards(sysfs, dev) {
             num_lock |= is_num_lock_lit(sysfs, &path);
             let id = DeviceId::of(sysfs, &path);
-            match open_device(&path) {
+            match found.opener.open(Kind::Input, &path) {
                 Ok(file) => found.devices.push(Device::new(file, Some(path), id, None)),
                 Err(error) => failed = Some(error),
             }
@@ -295,6 +296,7 @@ impl Keyboards {
             rules: Vec::new(),
             compose_key: None,
             repeat: None,
+            opener: direct(),
         }
     }
 
@@ -310,7 +312,7 @@ impl Keyboards {
                 .devices
                 .iter()
                 .any(|device| device.path.as_ref() == Some(&path));
-            if !known && let Ok(file) = open_device(&path) {
+            if !known && let Ok(file) = self.opener.open(Kind::Input, &path) {
                 if let Some((delay, period)) = self.repeat {
                     let _ = zbm_sys::console::set_key_repeat(&file, delay, period);
                 }

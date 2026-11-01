@@ -52,6 +52,16 @@ impl Terminal {
             .write(true)
             .custom_flags(O_NOCTTY)
             .open(path)?;
+        Terminal::take_file(file)
+    }
+
+    /// [`Terminal::take`] on `file`, the virtual terminal open for reading
+    /// and writing.
+    ///
+    /// # Errors
+    ///
+    /// When it is not a virtual terminal, or its modes cannot be set.
+    pub fn take_file(file: File) -> io::Result<Terminal> {
         let fd = file.as_fd();
         let keyboard = keyboard_mode(fd)?;
         set_keyboard_mode(fd, KeyboardMode::OFF)?;

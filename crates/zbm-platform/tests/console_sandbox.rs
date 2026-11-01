@@ -38,7 +38,7 @@ fn confined(base: &str) {
     zbm_sys::socket::make_directory(&sockets.join("console.sock")).unwrap();
     let console = Console {
         state: state.clone(),
-        sockets: sockets.clone(),
+        sockets: Some(sockets.clone()),
         share: base.join("share"),
         mirror: None,
         serial: None,

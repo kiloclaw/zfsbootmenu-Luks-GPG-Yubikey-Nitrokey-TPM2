@@ -18,7 +18,10 @@
 use std::io::ErrorKind;
 use std::process::Command;
 
-use zbm_sys::sandbox::{Access, Capability, Confinement, User, confine, landlock_abi, prepare};
+use zbm_sys::sandbox::{
+    Access, Capability, Confinement, RunAs, User, change_thread, confine, landlock_abi, prepare,
+    run_as,
+};
 
 /// What any Rust program needs to print, end a thread and exit.
 const BASE: &[&str] = &[
@@ -226,10 +229,90 @@ fn capabilities() {
     assert_eq!(dumpable.unwrap_err(), rustix::io::Errno::PERM);
 }
 
+/// A program started as another user keeps the capability it was given,
+/// as an ambient one, and may lock memory without a bound (ADR 0012).
+fn run_as_user() {
+    if status("Uid:").split_whitespace().next() != Some("0") {
+        println!("skipped: not root");
+        return;
+    }
+    let bounding = u64::from_str_radix(&status("CapBnd:"), 16).unwrap();
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command.arg("ran-as");
+    let may_lift = bounding >> 24 & 1 == 1;
+    command.env("ZBM_TEST_MAY_LIFT", if may_lift { "1" } else { "0" });
+    run_as(
+        &mut command,
+        &RunAs {
+            uid: 60600,
+            gid: 60600,
+            kept: vec![Capability::SysTtyConfig],
+            memlock_unlimited: true,
+        },
+    );
+    let output = command.output().unwrap();
+    let said = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{} {said}{stderr}", output.status);
+}
+
+/// The change of [`run_as_user`] in this process, from root to root: the
+/// capability kept as an ambient one, the others gone, as a process that
+/// can still write what it must (a coverage build's profile).
+fn change_to_root() {
+    if status("Uid:").split_whitespace().next() != Some("0") {
+        println!("skipped: not root");
+        return;
+    }
+    change_thread(&RunAs {
+        uid: 0,
+        gid: 0,
+        kept: vec![Capability::SysTtyConfig],
+        memlock_unlimited: true,
+    })
+    .unwrap();
+    let kept = format!("{:016x}", 1_u64 << 26);
+    assert_eq!(status("Uid:"), "0\t0\t0\t0");
+    assert_eq!(status("Groups:"), "");
+    assert_eq!(status("CapEff:"), kept);
+    assert_eq!(status("CapAmb:"), kept);
+}
+
+/// The other side of [`run_as_user`]: what this process became.
+fn ran_as() {
+    let kept = format!("{:016x}", 1_u64 << 26);
+    assert_eq!(status("Uid:"), "60600\t60600\t60600\t60600");
+    assert_eq!(status("Gid:"), "60600\t60600\t60600\t60600");
+    assert_eq!(status("Groups:"), "");
+    assert_eq!(status("CapEff:"), kept);
+    assert_eq!(status("CapAmb:"), kept);
+    // Lifted where the parent may: not in a container without
+    // `CAP_SYS_RESOURCE`.
+    let limit = rustix::process::getrlimit(rustix::process::Resource::Memlock);
+    let may = std::env::var("ZBM_TEST_MAY_LIFT").is_ok_and(|may| may == "1");
+    assert_eq!((limit.current, limit.maximum) == (None, None), may);
+    // Confined as the console confines itself: the capability stays, and
+    // nothing it could run would get it.
+    confine(&Confinement {
+        capabilities: Some(vec![Capability::SysTtyConfig]),
+        ..Confinement::default()
+    })
+    .unwrap();
+    assert_eq!(status("CapEff:"), kept);
+    assert_eq!(status("CapAmb:"), "0000000000000000");
+    assert_eq!(status("NoNewPrivs:"), "1");
+}
+
 fn main() {
     children();
-    let cases: [(&str, fn()); 6] = [
+    if std::env::args().nth(1).as_deref() == Some("ran-as") {
+        ran_as();
+        return;
+    }
+    let cases: [(&str, fn()); 8] = [
         ("capabilities", capabilities),
+        ("run-as", run_as_user),
+        ("change-to-root", change_to_root),
         ("same-user", same_user),
         ("filter", filter),
         ("threads", threads),

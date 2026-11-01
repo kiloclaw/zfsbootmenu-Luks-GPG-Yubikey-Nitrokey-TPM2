@@ -121,6 +121,44 @@ pub fn pass_fd(process: &mut std::process::Command, fd: OwnedFd) -> i32 {
     number
 }
 
+/// The file this process was started with at `number` ([`pass_fd`]),
+/// when it is open on `path`, as `/proc/self/fd` names it; closed on
+/// `exec` from now on. Each number is taken once.
+///
+/// # Errors
+///
+/// When `number` is a standard stream, was taken before, or is not open
+/// on `path`.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "what a descriptor is open on, read from /proc, not a file read"
+)]
+pub fn inherited_file(number: i32, path: &std::path::Path) -> io::Result<std::fs::File> {
+    use std::os::fd::FromRawFd as _;
+    static TAKEN: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
+    let refused =
+        |why: &str| io::Error::new(io::ErrorKind::InvalidInput, format!("{why}: {number}"));
+    if number <= 2 {
+        return Err(refused("a standard stream"));
+    }
+    let mut taken = TAKEN
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if taken.contains(&number) {
+        return Err(refused("a descriptor taken before"));
+    }
+    let link = std::fs::read_link(format!("/proc/self/fd/{number}"))?;
+    if link != path {
+        return Err(refused(&format!("not {}", path.display())));
+    }
+    taken.push(number);
+    // SAFETY: the kernel says `number` is open on `path`, and this process
+    // takes it once: nothing else in it owns a file it was started with.
+    let file = unsafe { std::fs::File::from_raw_fd(number) };
+    rustix::io::fcntl_setfd(&file, rustix::io::FdFlags::CLOEXEC)?;
+    Ok(file)
+}
+
 /// `SIGTTOU`, which the kernel sends a process of a background group that
 /// sets the terminal's foreground group (the same on x86 and Arm).
 const SIGTTOU: c_int = 22;

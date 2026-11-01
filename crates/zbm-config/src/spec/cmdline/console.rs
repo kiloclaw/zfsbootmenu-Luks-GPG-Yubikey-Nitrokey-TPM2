@@ -136,7 +136,7 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   programs; Escape or q ends it. Ctrl+Shift+F and Ctrl+Shift+B, or / and ? in vi mode, search down
   and up for the text typed, shown on the last row, and Enter keeps the match; n and N find the next
   match and the one before. Ctrl+Shift+S saves the scrollback in
-  ``/zfsbootmenu/console-scrollback.txt``, which **zbm report** adds to its report. None of these
+  ``/zfsbootmenu/console/scrollback.txt``, which **zbm report** adds to its report. None of these
   keys is the console's at a secret prompt or in a full-screen program.
 
 **zbm.console_palette=linux**
@@ -180,8 +180,8 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   centred on the display, until a key is typed on the display's keyboard again. Ctrl+L on the serial
   terminal writes the whole screen there again.
 
-Print Screen saves the screen's text and image in ``/zfsbootmenu/screenshot-N.txt`` and
-``screenshot-N.png``, which **zbm report** adds to its report; there is none at a secret prompt.
+Print Screen saves the screen's text and image in ``/zfsbootmenu/console/screenshot-N.txt``
+and ``screenshot-N.png``, which **zbm report** adds to its report; there is none at a secret prompt.
 
 Ctrl+Alt+= and Ctrl+Alt+- make the text larger and smaller while the console runs, and Ctrl+Alt+0
 gives it its first size again; the programs are told the new size. **zbm console font** says which

@@ -21,6 +21,7 @@ pub mod auth;
 mod boot;
 mod changes;
 pub mod console;
+pub mod devices;
 pub mod keyholder;
 pub mod model;
 mod plan;

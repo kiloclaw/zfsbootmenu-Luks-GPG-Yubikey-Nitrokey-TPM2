@@ -199,7 +199,7 @@ fn the_keyboard_puts_the_console_layout_first() {
     let fake = FakeSystem::new();
     fake.files
         .file("/layouts/layouts", "us\nde\n\nfr\n")
-        .file("/zfsbootmenu/console-layout", "fr\n");
+        .file("/zfsbootmenu/console/layout", "fr\n");
     let state = State::new(&fake.files, "/zfsbootmenu");
 
     let local = keyboard(&fake.files, Path::new("/layouts"), &state, "tty1");

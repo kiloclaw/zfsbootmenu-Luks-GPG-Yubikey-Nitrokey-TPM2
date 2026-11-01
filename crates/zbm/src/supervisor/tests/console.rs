@@ -72,7 +72,7 @@ fn when_the_console_ends_the_terminal_goes_back_to_the_kernel_console() {
         ),
         "{events:?}"
     );
-    assert!(!dir.join("console").exists());
+    assert!(!dir.join("console/pid").exists());
     let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
     assert!(
         kmsg.contains("the console on the display ended (wait status 0)"),
@@ -106,7 +106,7 @@ fn with_a_console_the_programs_and_the_message_go_to_its_terminal() {
     };
     let pid = started.strip_prefix("started ").unwrap().to_owned();
     // The console records itself (`zbm console`); this one does not.
-    assert!(!dir.join("console").exists());
+    assert!(!dir.join("console/pid").exists());
     assert_eq!(events.last(), Some(&Event::Shell));
     std::thread::sleep(Duration::from_millis(200));
     let _ = std::process::Command::new("kill").arg(&pid).status();
@@ -169,7 +169,7 @@ fn a_hung_up_terminal_is_given_up_even_if_its_console_is_not_collected() {
 
     assert_eq!(events.first(), Some(&Event::Console("hung up".to_owned())));
     assert_eq!(events.last(), Some(&Event::Shell));
-    assert!(!dir.join("console").exists());
+    assert!(!dir.join("console/pid").exists());
     assert!(dir.join("shell-ran").exists());
     let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
     assert!(

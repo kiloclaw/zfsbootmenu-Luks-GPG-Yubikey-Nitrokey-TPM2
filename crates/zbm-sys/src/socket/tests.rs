@@ -224,3 +224,42 @@ fn what_a_peer_sent_before_it_went_with_packets_unread_still_comes() {
         );
     }
 }
+
+#[test]
+fn a_listener_passed_on_keeps_its_socket_and_serves_where_it_was_bound() {
+    use std::os::fd::IntoRawFd as _;
+    // At a number of its own: the numbers other tests took are not taken
+    // again, even once closed.
+    let high = |fd: OwnedFd, at: i32| {
+        rustix::io::fcntl_dupfd_cloexec(&fd, at)
+            .unwrap()
+            .into_raw_fd()
+    };
+    let path = socket_path("passed");
+    let number = high(Listener::bind(&path).unwrap().into_fd(), 900);
+    assert!(path.exists(), "passing it on removes nothing");
+
+    let listener = Listener::inherited(number, &path).unwrap();
+    assert_eq!(listener.path(), path);
+    let client = Connection::connect(&path).unwrap();
+    let served = listener
+        .accept(Some(Duration::from_secs(5)))
+        .unwrap()
+        .unwrap();
+    client.send(b"hello").unwrap();
+    assert_eq!(served.receive(None).unwrap().unwrap(), b"hello");
+    drop(listener);
+    assert!(path.exists(), "the one passed it leaves the socket");
+
+    // Nothing listens there now: the next to bind replaces it.
+    drop((client, served));
+    let again = Listener::bind(&path).unwrap();
+    drop(again);
+    assert!(!path.exists());
+
+    // A connection is not a listener.
+    let (one, _other) = Connection::pair().unwrap();
+    let number = high(one.fd, 950);
+    let error = Listener::inherited(number, &path).unwrap_err();
+    assert!(error.to_string().contains("not listening"), "{error}");
+}

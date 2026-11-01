@@ -67,10 +67,10 @@ fn machine() -> FakeSystem {
             "/zfsbootmenu/crash-1767225600-77.txt",
             "ZFSBootMenu crash report\n",
         )
-        .file("/zfsbootmenu/console-scrollback.txt", "$ zpool status\n")
-        .file("/zfsbootmenu/screenshot-1.txt", "$\n")
-        .file("/zfsbootmenu/screenshot-1.png", "PNG")
-        .file("/zfsbootmenu/screenshot-1.jpg", "not a screenshot");
+        .file("/zfsbootmenu/console/scrollback.txt", "$ zpool status\n")
+        .file("/zfsbootmenu/console/screenshot-1.txt", "$\n")
+        .file("/zfsbootmenu/console/screenshot-1.png", "PNG")
+        .file("/zfsbootmenu/console/screenshot-1.jpg", "not a screenshot");
     fake
 }
 

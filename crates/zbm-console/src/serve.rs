@@ -12,13 +12,13 @@
     reason = "the console's own system interface: the kernel log, the mirror and the terminals"
 )]
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{self, Write as _};
 use std::os::fd::AsFd as _;
-use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use zbm_display::devices::Kind;
 use zbm_display::input::{DeviceId, Keyboards};
 use zbm_display::layout::{Layout, Source};
 use zbm_display::seat::{self, Seat};
@@ -34,50 +34,14 @@ use crate::mirror::{Mirror, open_mirror};
 use crate::relay::{Relayed, relay};
 use crate::run::{Client, Ended, Shown, run_with_client};
 use crate::screen::{Console, Ring};
+pub use devices::Devices;
 use display::held_seat;
 pub use layouts::{next_layout, switch_layout};
+pub use places::Places;
 use setup::{console_for, settle, with_bell};
 
 /// What the mirror gets once the display is handed back.
 pub const RELEASED: &str = "zbm console: handed the display back";
-
-/// `O_NOCTTY`, the same on every Linux architecture.
-const O_NOCTTY: i32 = 0o400;
-
-/// Where the console finds the system.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Places {
-    /// sysfs: the virtual terminal shown, the keyboards.
-    pub sys: PathBuf,
-    /// The device files: the DRM cards, the input devices.
-    pub dev: PathBuf,
-    /// The runtime's state directory, which holds the console's process ID.
-    pub base: PathBuf,
-    /// The kernel log.
-    pub kmsg: PathBuf,
-    /// The control socket.
-    pub socket: PathBuf,
-}
-
-impl Places {
-    /// The system's.
-    pub fn system() -> Places {
-        Places {
-            sys: PathBuf::from("/sys"),
-            dev: PathBuf::from("/dev"),
-            base: PathBuf::from(zbm_state::BASE),
-            kmsg: PathBuf::from("/dev/kmsg"),
-            socket: PathBuf::from(zbm_app::console::SOCKET),
-        }
-    }
-
-    /// Writes `text` to the kernel log at `level`; failures are ignored.
-    pub fn log(&self, level: u8, text: &str) {
-        if let Ok(mut kmsg) = OpenOptions::new().append(true).open(&self.kmsg) {
-            let _ = writeln!(kmsg, "<{level}>ZFSBootMenu: console: {text}");
-        }
-    }
-}
 
 /// What the console is asked for.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -120,14 +84,17 @@ pub struct Settings {
     /// The serial console served too (ROADMAP.md UI9, `--serial`): its
     /// device and its size, columns and rows.
     pub serial: Option<(PathBuf, (u16, u16))>,
+    /// The descriptor of its control socket, listening, when the
+    /// supervisor bound it (`--control-fd`, ADR 0012).
+    pub control_fd: Option<i32>,
 }
 
 impl Settings {
     /// Writes `line` to the mirror, if there is one, as a screen of its
-    /// own.
-    fn mirror_line(&self, line: &str) {
+    /// own; opened as `places` opens devices.
+    fn mirror_line(&self, places: &Places, line: &str) {
         if let Some(path) = &self.mirror
-            && let Ok(mut mirror) = OpenOptions::new().append(true).open(path)
+            && let Ok(mut mirror) = places.open(Kind::Serial, path)
         {
             let _ = mirror.write_all(format!("\x0c{line}\n").as_bytes());
         }
@@ -190,15 +157,11 @@ pub fn serve(
     // The console records itself, as hooks and users read it.
     let state = State::new(&RealFiles, &places.base);
     let _ = state.create();
+    let _ = state.create_console_records();
     let _ = state.set_console(std::process::id());
     let mut master = File::from(io::stdin().as_fd().try_clone_to_owned()?);
     let vt = active_terminal(&places.sys, &places.dev).unwrap_or_else(|| places.dev.join("tty0"));
-    let mut terminal = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .custom_flags(O_NOCTTY)
-        .open(&vt)
-        .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", vt.display())))?;
+    let mut terminal = places.open(Kind::Terminal, &vt)?;
     let cells = settings.cells_fd.and_then(|fd| {
         let taken = Connection::inherited(fd);
         taken
@@ -212,7 +175,11 @@ pub fn serve(
         cells,
     };
     let control = (&control, &mut wake);
-    with_socket(places, control.0, || {
+    let listener = match settings.control_fd {
+        Some(fd) => Listener::inherited(fd, &places.socket),
+        None => Listener::bind(&places.socket),
+    };
+    with_listener(places, listener, control.0, || {
         serve_on(settings, places, (grid, layouts), console, control)
     })
 }
@@ -229,7 +196,18 @@ pub fn with_socket<T>(
     control: &Arc<Control>,
     console: impl FnOnce() -> io::Result<T>,
 ) -> io::Result<T> {
-    let listener = Listener::bind(&places.socket)
+    with_listener(places, Listener::bind(&places.socket), control, console)
+}
+
+/// [`with_socket`] on `listener`, bound or passed; without it, the console
+/// runs and takes no request.
+fn with_listener<T>(
+    places: &Places,
+    listener: io::Result<Listener>,
+    control: &Arc<Control>,
+    console: impl FnOnce() -> io::Result<T>,
+) -> io::Result<T> {
+    let listener = listener
         .inspect_err(|error| {
             let socket = places.socket.display();
             places.log(4, &format!("{socket}: {error}; taking no request"));
@@ -364,7 +342,7 @@ fn after_display(
         Ok((Ended::Hangup, ..)) => None,
         Ok((Ended::Released, text, layout)) => {
             places.log(6, "handed the display back");
-            settings.mirror_line(RELEASED);
+            settings.mirror_line(places, RELEASED);
             Some((text, Some(layout)))
         }
         Err(error) => {
@@ -412,7 +390,7 @@ fn announce(settings: &Settings, places: &Places, started: &Started) {
     let text = started.to_string();
     places.log(6, &text);
     let _ = State::new(&RealFiles, &places.base).set_console_layout(&started.keyboard);
-    settings.mirror_line(&format!("zbm console: {text}"));
+    settings.mirror_line(places, &format!("zbm console: {text}"));
 }
 
 /// The keyboards there are, typing with `layout`, with Num Lock and the
@@ -420,7 +398,8 @@ fn announce(settings: &Settings, places: &Places, started: &Started) {
 /// console starts: it starts without one, and the host adds it when it
 /// comes.
 fn open_keyboards(settings: &Settings, places: &Places, layout: Option<Layout>) -> Keyboards {
-    let mut keyboards = Keyboards::find(&places.sys, &places.dev);
+    let opener = Arc::clone(&places.devices.opener);
+    let mut keyboards = Keyboards::find_with(&places.sys, &places.dev, opener);
     if keyboards.count() == 0 {
         places.log(5, "no keyboard yet; waiting for one");
     }
@@ -472,6 +451,7 @@ fn on_display(
     let mut mirror = settings
         .mirror
         .as_deref()
+        .and_then(|path| places.open(Kind::Serial, path).ok())
         .and_then(open_mirror)
         .map(Mirror::new);
     let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
@@ -505,7 +485,10 @@ fn on_display(
 /// none, or cannot be opened, which is logged.
 fn vcsa_text(places: &Places, vt: &Path) -> Option<crate::host::VcsaText> {
     let path = crate::vcsa::device(vt)?;
-    match crate::host::VcsaText::open(&path) {
+    match places
+        .open(Kind::Text, &path)
+        .and_then(crate::host::VcsaText::of_file)
+    {
         Ok(text) => {
             let (rows, columns) = text.size();
             places.log(
@@ -537,7 +520,8 @@ fn serial_port(
 ) -> Option<crate::host::SerialPort> {
     let (path, size) = settings.serial.as_ref()?;
     let name = path.display();
-    match crate::host::SerialPort::open(path, *size, scheme) {
+    let opened = places.open(Kind::Serial, path);
+    match opened.and_then(|file| crate::host::SerialPort::of_file(file, *size, scheme)) {
         Ok(port) => {
             let (columns, rows) = port.size();
             places.log(
@@ -577,8 +561,10 @@ fn real_host<'h>(
 }
 
 mod client;
+mod devices;
 mod display;
 mod layouts;
+mod places;
 mod setup;
 
 pub use client::{Released, Switched, reattach, release, request_font, request_layout, status};

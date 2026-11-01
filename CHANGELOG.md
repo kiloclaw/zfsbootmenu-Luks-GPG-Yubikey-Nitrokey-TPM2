@@ -154,6 +154,15 @@ recovery shell. A locked image ignores `zbm.hookroot`, and warns when neither lo
 changes its command line then gets past the lock; the lock is for signed images under Secure Boot. Every way to an
 interactive shell now goes through one gate (`zbm_app::auth::ShellGate`).
 
+The console on the display (`zbm.console=drm`) no longer runs as root (ROADMAP.md SE11, ADR 0012). The supervisor
+starts it as its own user, 60600, with one capability, the virtual terminal's modes, and opens each device it asks for:
+the display, the virtual terminal and its text, the keyboards and the serial terminal, each checked as a character
+device of its kind below `/dev`. A flaw in its terminal parser, which reads whatever programs print, no longer reaches
+root's files, the session's socket or the state the boot trusts. Its records move to a directory of their own,
+`/zfsbootmenu/console/`: its process ID (`pid`), its layout and font, the screenshots and `scrollback.txt`;
+`zbm report` collects them under the names it always gave them. Where the supervisor cannot change its user, the console
+runs as root, as before, and the kernel log says why.
+
 The Rust runtime's menu can show as lines, for screen readers (ROADMAP.md UI8, ADR 0011): with `TERM` dumb or unset,
 with `speakup` loaded, or with `zbm.menu=lines` (`zbm.menu=screen` keeps the screen), each screen prints as its title
 and a numbered list, with what can be typed under it, and prints again only when it changed; a number typed as a line

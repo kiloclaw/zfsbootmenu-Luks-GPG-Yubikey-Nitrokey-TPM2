@@ -69,6 +69,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use zbm_display::faces::{Faces, FontFace};
@@ -77,6 +78,7 @@ use zbm_display::outline::Outline;
 use zbm_platform::Files;
 use zbm_startup::autosize::FONTS;
 
+use zbm_app::devices::Broker;
 use zbm_console::scheme::{HIGH_CONTRAST, Scheme};
 use zbm_console::screen::Ring;
 use zbm_console::screen::zoom::Zoom;
@@ -99,6 +101,7 @@ Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
                    [--keyboard <vendor>:<product>=<layout>]... [--mirror <file>]
                    [--mode <width>x<height>] [--blank <minutes>] [--cells-fd <fd>]
                    [--serial <device> [--serial-size <columns>x<rows>]]
+                   [--control-fd <fd>] [--devices-fd <fd>] [--kmsg-fd <fd>]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
@@ -115,6 +118,18 @@ pub const MAX_SCROLLBACK: usize = zbm_config::spec::cmdline::MAX_SCROLLBACK;
 
 /// How long `zbm console release` waits by default.
 const RELEASE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// The descriptors the supervisor passes a console it started as its own
+/// user (ADR 0012).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Passed {
+    /// The control socket, bound and listening (`--control-fd`).
+    pub control: Option<i32>,
+    /// The broker's socket pair, which opens its devices (`--devices-fd`).
+    pub devices: Option<i32>,
+    /// The kernel log, open for writing (`--kmsg-fd`).
+    pub kmsg: Option<i32>,
+}
 
 /// What the command line asks for.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -156,6 +171,8 @@ pub struct Options {
     pub cells_fd: Option<i32>,
     /// The serial console served too (ROADMAP.md UI9).
     pub serial: Option<PathBuf>,
+    /// What the supervisor passed a console of its own user (ADR 0012).
+    pub passed: Passed,
     /// Its size, columns and rows; 80x25 otherwise.
     pub serial_size: Option<(u16, u16)>,
 }
@@ -197,9 +214,10 @@ pub fn parse(args: &[String]) -> Option<Options> {
                 options.blank_minutes =
                     Some(args.next()?.parse().ok().filter(|&minutes| minutes > 0)?);
             }
-            "--cells-fd" => {
-                options.cells_fd = Some(args.next()?.parse().ok().filter(|&fd| fd > 2)?);
-            }
+            "--cells-fd" => options.cells_fd = Some(descriptor(args.next()?)?),
+            "--control-fd" => options.passed.control = Some(descriptor(args.next()?)?),
+            "--devices-fd" => options.passed.devices = Some(descriptor(args.next()?)?),
+            "--kmsg-fd" => options.passed.kmsg = Some(descriptor(args.next()?)?),
             "--serial" => options.serial = Some(PathBuf::from(args.next()?)),
             "--serial-size" => {
                 let (columns, rows) = args.next()?.split_once('x')?;
@@ -356,6 +374,7 @@ fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &P
         compose_key: options.compose_key,
         mode: options.mode,
         cells_fd: options.cells_fd,
+        control_fd: options.passed.control,
         serial: options.serial.clone().map(|device| {
             let size = options
                 .serial_size
@@ -381,16 +400,21 @@ fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &P
 /// Confines the console (ROADMAP.md, SE11) before it starts its threads,
 /// with its directories made first, as their rules need them; what it
 /// could not confine is logged, and it runs on.
-fn confine(places: &Places, (mirror, serial): (Option<&Path>, Option<&Path>)) {
-    let _ = RealFiles.create_dir_all(&places.base);
-    let _ = zbm_sys::socket::make_directory(&places.socket);
+fn confine(places: &Places, passed: Passed, (mirror, serial): (Option<&Path>, Option<&Path>)) {
+    let records = zbm_state::State::new(&RealFiles, &places.base);
+    let _ = records.create();
+    let _ = records.create_console_records();
+    // A console given its control socket needs none of the sockets'
+    // directory, which its user may not reach anyway.
+    let sockets = if passed.control.is_some() {
+        None
+    } else {
+        let _ = zbm_sys::socket::make_directory(&places.socket);
+        places.socket.parent().map(Path::to_owned)
+    };
     let profile = sandbox::Console {
-        state: places.base.clone(),
-        sockets: places
-            .socket
-            .parent()
-            .map(Path::to_owned)
-            .unwrap_or_default(),
+        state: records.console_records(),
+        sockets,
         share: PathBuf::from("/usr/share/zfsbootmenu"),
         mirror: mirror.map(Path::to_owned),
         serial: serial.map(Path::to_owned),
@@ -415,7 +439,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         return USAGE;
     };
     let files = RealFiles;
-    let places = Places::system();
+    let places = places_of(options.passed);
     let directory = Path::new(crate::layouts::DIRECTORY);
     let settings = settings(&options, &files, &places, directory);
     // The screen and its history stay out of swap.
@@ -433,6 +457,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
     };
     confine(
         &places,
+        options.passed,
         (options.mirror.as_deref(), options.serial.as_deref()),
     );
     match serve(&settings, &places, &mut grid, layouts) {
@@ -443,6 +468,31 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             1
         }
     }
+}
+
+/// A descriptor number passed on the command line: not a standard stream.
+fn descriptor(arg: &str) -> Option<i32> {
+    arg.parse().ok().filter(|&fd| fd > 2)
+}
+
+/// The system's places, with what the supervisor `passed`: the kernel log
+/// to write, and the broker that opens the devices. One that cannot be
+/// taken is logged, and the console opens that itself.
+fn places_of(passed: Passed) -> Places {
+    let mut places = Places::system();
+    if let Some(number) = passed.kmsg {
+        match zbm_sys::inherited_file(number, &places.kmsg) {
+            Ok(kmsg) => places.devices.kmsg = Some(Arc::new(kmsg)),
+            Err(error) => places.log(4, &format!("no kernel log passed: {error}")),
+        }
+    }
+    if let Some(number) = passed.devices {
+        match zbm_sys::socket::Connection::inherited(number) {
+            Ok(broker) => places.devices.opener = Arc::new(Broker::new(broker)),
+            Err(error) => places.log(4, &format!("no device broker: {error}")),
+        }
+    }
+    places
 }
 
 /// `zbm console release`: asks the console to hand the display back, and

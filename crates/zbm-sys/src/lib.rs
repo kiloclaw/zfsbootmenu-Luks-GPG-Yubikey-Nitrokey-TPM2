@@ -32,7 +32,8 @@ pub mod socket;
 mod stack;
 
 pub use process::{
-    ChildSetup, Ended, Session, pass_fd, prepare_child, reap, take_terminal, try_wait, wait_any,
+    ChildSetup, Ended, Session, inherited_file, pass_fd, prepare_child, reap, take_terminal,
+    try_wait, wait_any,
 };
 pub use signals::{Process, SignalSet, Signals};
 pub use stack::{MAX_FRAMES, return_addresses};

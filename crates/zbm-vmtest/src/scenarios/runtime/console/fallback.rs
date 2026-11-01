@@ -16,7 +16,7 @@ use super::super::drm::Monitor;
 use super::{Pace, last_screen, type_text, wait_screen};
 
 /// Typed in the recovery shell: ends the console.
-pub(super) const KILL: &str = "kill -9 $(cat /zfsbootmenu/console)\n";
+pub(super) const KILL: &str = "kill -9 $(cat /zfsbootmenu/console/pid)\n";
 
 /// What the supervisor shows before the recovery shell that follows the
 /// start-up program, which ended with the console's terminal.
@@ -65,19 +65,24 @@ pub(super) const CELLS: &str = r"the menu draws on its cells \(client channel ve
 /// the kernel logs as audit records of type 1326, and how often a console
 /// said it was confined. In the characters the test can type: `.` stands
 /// for `=` and `: `.
-pub(super) const STATUS_LOG: &str = "cat /proc/$(cat /zfsbootmenu/console)/status > /dev/ttyS0\n";
+pub(super) const STATUS_LOG: &str =
+    "cat /proc/$(cat /zfsbootmenu/console/pid)/status > /dev/ttyS0\n";
 pub(super) const COUNTS_LOG: &str = "echo zbmtest-denied $(dmesg | grep -c type.1326) \
     zbmtest-confined $(dmesg | grep -c console..confined) > /dev/ttyS0\n";
 
 /// The lines of the console's status, in their order, and of the counts.
+pub(super) const USER: &str = r"Uid:\s+(\d+)";
 pub(super) const CAPABILITIES: &str = r"CapEff:\s+([0-9a-f]+)";
 pub(super) const NO_NEW_PRIVILEGES: &str = r"NoNewPrivs:\s+(\d+)";
 pub(super) const SECCOMP: &str = r"Seccomp:\s+(\d+)";
 pub(super) const COUNTS: &str = r"zbmtest-denied (\d+) zbmtest-confined (\d+)";
 
-/// The capabilities the console keeps: `CAP_IPC_LOCK` and
+/// The capability the console keeps as its own user (ADR 0012):
 /// `CAP_SYS_TTY_CONFIG`.
-pub(super) const CONSOLE_CAPABILITIES: &str = "0000000004004000";
+pub(super) const CONSOLE_CAPABILITIES: &str = "0000000004000000";
+
+/// The console's user (`zbm_platform::sandbox::CONSOLE_USER`).
+pub(super) const CONSOLE_USER: &str = "60600";
 
 /// The supervisor's message when the console ended.
 pub(super) const ENDED: &str = r"console on the display ended";
@@ -190,14 +195,19 @@ fn check_confined(test: &Test, vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -
             .unwrap_or_default()
     };
     type_text(vm, monitor, STATUS_LOG, pace.pause)?;
+    let user = read(vm, USER);
     let capabilities = read(vm, CAPABILITIES);
     let privileges = read(vm, NO_NEW_PRIVILEGES);
     let seccomp = read(vm, SECCOMP);
     test.check(
+        user == CONSOLE_USER,
+        &format!("virtio: the console runs as its own user, {CONSOLE_USER} (Uid {user:?})"),
+    );
+    test.check(
         privileges == "1" && seccomp == "2" && capabilities == CONSOLE_CAPABILITIES,
         &format!(
-            "virtio: the console is confined: no new privileges, a seccomp filter, two \
-             capabilities (NoNewPrivs {privileges:?}, Seccomp {seccomp:?}, CapEff \
+            "virtio: the console is confined: no new privileges, a seccomp filter, one \
+             capability (NoNewPrivs {privileges:?}, Seccomp {seccomp:?}, CapEff \
              {capabilities:?})"
         ),
     );

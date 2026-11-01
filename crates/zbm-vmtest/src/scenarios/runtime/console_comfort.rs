@@ -120,7 +120,7 @@ fn hex(bytes: &[u8]) -> String {
 /// command holds the marker only in hexadecimal.
 fn search() -> String {
     format!(
-        "(echo ZBMTEST-CONSOLE-$(cat /zfsbootmenu/console); \
+        "(echo ZBMTEST-CONSOLE-$(cat /zfsbootmenu/console/pid); \
          /libexec/zbm debug secrets --cells {}; echo ZBMTEST-SEARCH-END) > /dev/ttyS0 2>&1",
         hex(MARKER.as_bytes())
     )

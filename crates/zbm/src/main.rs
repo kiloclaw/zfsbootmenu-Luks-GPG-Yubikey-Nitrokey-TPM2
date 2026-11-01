@@ -22,12 +22,19 @@ fn main() -> std::process::ExitCode {
     // A panic leaves a crash report in the state directory (see
     // `zbm_platform::crash`); where that does not exist, as on a booted system,
     // only the standard message on standard error remains.
-    zbm_platform::CrashReporter::new(
-        &zbm_platform::RealFiles,
-        std::path::Path::new(zbm::debug::BASE),
-        &zbm::applet_name(&argv0, &args),
-    )
-    .install();
+    // The console on the display as its own user writes its reports in
+    // its records, which the supervisor takes into the state directory once
+    // it ended (ADR 0012).
+    let applet = zbm::applet_name(&argv0, &args);
+    let base = std::path::Path::new(zbm::debug::BASE);
+    let is_own_console =
+        applet == "console" && zbm_sys::credentials().uid == zbm_platform::sandbox::CONSOLE_USER;
+    let reports = if is_own_console {
+        base.join(zbm_state::CONSOLE)
+    } else {
+        base.to_owned()
+    };
+    zbm_platform::CrashReporter::new(&zbm_platform::RealFiles, &reports, &applet).install();
     let stdout = std::io::stdout();
     let stderr = std::io::stderr();
     let code = zbm::run(

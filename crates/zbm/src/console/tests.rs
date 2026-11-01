@@ -50,6 +50,7 @@ fn options_are_parsed_and_wrong_ones_refused() {
             blank_minutes: None,
             cells_fd: None,
             serial: None,
+            passed: Passed::default(),
             serial_size: None,
         })
     );
@@ -328,4 +329,32 @@ fn the_menu_on_the_cells_shows_what_it_draws() {
     }
     assert!(shown.contains("STARTING ZFSBOOTMENU"), "{shown}");
     assert_eq!(console.text(), shown);
+}
+
+#[test]
+fn what_the_supervisor_passes_is_parsed() {
+    let passed = parse(&args("--control-fd 4 --devices-fd 5 --kmsg-fd 6"))
+        .unwrap()
+        .passed;
+    assert_eq!(
+        passed,
+        Passed {
+            control: Some(4),
+            devices: Some(5),
+            kmsg: Some(6),
+        }
+    );
+    assert_eq!(parse(&args("--devices-fd 0")), None);
+    assert_eq!(parse(&args("--kmsg-fd")), None);
+}
+
+#[test]
+fn what_cannot_be_taken_is_logged_and_the_console_opens_itself() {
+    let places = places_of(Passed {
+        control: None,
+        devices: Some(997),
+        kmsg: Some(998),
+    });
+    assert!(places.devices.kmsg.is_none());
+    assert_eq!(format!("{:?}", places.devices.opener), "Direct");
 }

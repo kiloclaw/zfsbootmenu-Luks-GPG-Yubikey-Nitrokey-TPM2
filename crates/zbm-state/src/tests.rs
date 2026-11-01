@@ -13,6 +13,8 @@ fn the_console_s_records() {
     let files = FakeFiles::new();
     let state = State::new(&files, BASE);
     state.create().unwrap();
+    state.create_console_records().unwrap();
+    assert_eq!(state.console_records(), Path::new("/zfsbootmenu/console"));
 
     assert_eq!(state.console_pid(), None);
     state.set_console(42).unwrap();
@@ -21,7 +23,7 @@ fn the_console_s_records() {
     assert_eq!(state.released_console_pid(), Some(43));
     state.clear_released_console();
     assert_eq!(state.released_console_pid(), None);
-    assert_eq!(files.text("/zfsbootmenu/console").unwrap(), "42\n");
+    assert_eq!(files.text("/zfsbootmenu/console/pid").unwrap(), "42\n");
     assert_eq!(state.console_pid(), Some(42));
     state.set_console_layout("de").unwrap();
     assert_eq!(state.console_layout().as_deref(), Some("de"));
@@ -31,12 +33,12 @@ fn the_console_s_records() {
         Some("ter-v32b.psf 16x32, 80x25")
     );
     let shot = state.save_screenshot(b"$\n", b"PNG").unwrap();
-    assert_eq!(shot, Path::new("/zfsbootmenu/screenshot-1.png"));
+    assert_eq!(shot, Path::new("/zfsbootmenu/console/screenshot-1.png"));
     let next = state.save_screenshot(b"$\n", b"PNG").unwrap();
-    assert_eq!(next, Path::new("/zfsbootmenu/screenshot-2.png"));
+    assert_eq!(next, Path::new("/zfsbootmenu/console/screenshot-2.png"));
     assert_eq!(
         files
-            .read_to_string(Path::new("/zfsbootmenu/screenshot-2.txt"))
+            .read_to_string(Path::new("/zfsbootmenu/console/screenshot-2.txt"))
             .unwrap(),
         "$\n"
     );
@@ -50,11 +52,14 @@ fn the_console_s_records() {
         assert_eq!(is_screenshot(name), is_shot, "{name}");
     }
     for number in 3..=MAX_SCREENSHOTS {
-        files.file(format!("/zfsbootmenu/screenshot-{number}.png"), "PNG");
+        files.file(
+            format!("/zfsbootmenu/console/screenshot-{number}.png"),
+            "PNG",
+        );
     }
     assert!(state.save_screenshot(b"$\n", b"PNG").is_err());
     let saved = state.save_scrollback(b"$ ls\n").unwrap();
-    assert_eq!(saved, Path::new("/zfsbootmenu/console-scrollback.txt"));
+    assert_eq!(saved, Path::new("/zfsbootmenu/console/scrollback.txt"));
     assert_eq!(files.read_to_string(&saved).unwrap(), "$ ls\n");
     state.clear_console();
     assert_eq!(state.console_pid(), None);

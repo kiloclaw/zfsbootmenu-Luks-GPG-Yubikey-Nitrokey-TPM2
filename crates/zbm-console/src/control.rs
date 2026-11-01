@@ -445,11 +445,22 @@ impl Control {
     }
 }
 
+/// The user whose peers a console of user `uid` answers: root when it is
+/// the console's own user, which no peer is; its own otherwise.
+pub fn trusted_user(uid: u32) -> u32 {
+    if uid == zbm_platform::sandbox::CONSOLE_USER {
+        0
+    } else {
+        uid
+    }
+}
+
 /// Answers the peers that connect to `listener`, each on a thread of its
-/// own, until `until` is cancelled; only those of this process's user,
-/// root, are answered.
+/// own, until `until` is cancelled; only those of root are answered, also
+/// when the console runs as its own user (ADR 0012), and in tests those of
+/// the test's user.
 pub fn serve(control: &Arc<Control>, listener: &Listener, until: &CancelToken) {
-    let user = zbm_sys::credentials().uid;
+    let user = trusted_user(zbm_sys::credentials().uid);
     wire::accept_until(listener, until, "console", |peer| {
         if control.peers.fetch_add(1, Ordering::SeqCst) >= MAX_PEERS {
             control.peers.fetch_sub(1, Ordering::SeqCst);

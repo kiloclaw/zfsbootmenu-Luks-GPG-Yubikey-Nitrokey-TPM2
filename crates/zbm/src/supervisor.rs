@@ -83,6 +83,9 @@ pub struct Supervisor {
     pub base: PathBuf,
     /// The console on the display, if one is wanted (`zbm console`).
     pub console: Option<Program>,
+    /// How the console runs as its own user (ADR 0012); `None`: as root,
+    /// as in tests.
+    pub console_user: Option<console::OwnUser>,
     /// Whether what programs write to `/dev/console` goes to the console's
     /// terminal (`TIOCCONS`): off in tests, where it would take the
     /// machine's console.
@@ -138,6 +141,8 @@ impl Supervisor {
             log: PathBuf::from("/dev/kmsg"),
             base: PathBuf::from(crate::debug::BASE),
             console: None,
+            // Only root can start it as another user.
+            console_user: (zbm_sys::credentials().uid == 0).then(console::OwnUser::system),
             redirect_console: true,
             console_restart: Backoff::CONSOLE,
             lock: Lock::of(&RealFiles),
@@ -239,11 +244,26 @@ impl Supervisor {
         }
     }
 
+    /// Starts the console `program`, as its own user where it may be (ADR
+    /// 0012); why it may not is logged.
+    fn attach_console(&self, program: &Program) -> std::io::Result<Attached> {
+        let mut note = |text: &str| self.log_at(4, text);
+        Attached::start_as(program, self.console_user.as_ref(), &mut note)
+    }
+
+    /// Takes the crash reports the console left in its records, once it
+    /// ended (ADR 0012).
+    fn adopt_console_crashes(&self) {
+        if let Some(own) = &self.console_user {
+            console::adopt_crash_reports(&own.records, &self.base);
+        }
+    }
+
     /// Starts the console on the display, if one is wanted; without it,
     /// the programs run on the supervisor's terminal.
     fn start_console(&self, events: &mut dyn FnMut(Event)) -> Option<Attached> {
         let program = self.console.as_ref()?;
-        match Attached::start(program) {
+        match self.attach_console(program) {
             Ok(attached) => {
                 events(Event::Console(format!("started {}", attached.pid)));
                 self.redirect(&attached);

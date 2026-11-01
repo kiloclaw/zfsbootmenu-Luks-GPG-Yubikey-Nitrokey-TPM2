@@ -42,7 +42,15 @@ impl VcsaText {
         reason = "the virtual terminal's text is this host's own device, as the terminal is"
     )]
     pub fn open(path: &Path) -> io::Result<VcsaText> {
-        let file = OpenOptions::new().read(true).write(true).open(path)?;
+        VcsaText::of_file(OpenOptions::new().read(true).write(true).open(path)?)
+    }
+
+    /// The text device `file`, open for reading and writing.
+    ///
+    /// # Errors
+    ///
+    /// When its header cannot be read.
+    pub fn of_file(file: File) -> io::Result<VcsaText> {
         let mut header = [0_u8; HEADER];
         file.read_exact_at(&mut header, 0)?;
         Ok(VcsaText {

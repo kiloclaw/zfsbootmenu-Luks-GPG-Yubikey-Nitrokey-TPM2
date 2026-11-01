@@ -120,7 +120,8 @@ const LOGGED: &str = "speed 38400 baud; isig icanon\r\nSigIgn: 0000000000000000\
     going on on the kernel console\r\n\
     [   41.2] ZFSBootMenu: the console on the display started again (process 812)\r\n\
     [    3.1] ZFSBootMenu: console: the menu draws on its cells (client channel version 1)\r\n\
-    CapEff:\t0000000004004000\r\nNoNewPrivs:\t1\r\nSeccomp:\t2\r\nSeccomp_filters:\t1\r\n\
+    Uid:\t60600\t60600\t60600\t60600\r\nCapEff:\t0000000004000000\r\n\
+    NoNewPrivs:\t1\r\nSeccomp:\t2\r\nSeccomp_filters:\t1\r\n\
     zbmtest-denied 0 zbmtest-confined 2\r\n";
 
 #[test]
@@ -147,7 +148,7 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 21, "{checks:?}");
+    assert_eq!(checks.len(), 22, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
@@ -171,7 +172,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 26, "{checks:?}");
+    assert_eq!(checks.len(), 27, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"

@@ -12,7 +12,8 @@
 //! - `kernel.log`, the kernel log;
 //! - `console-scrollback.txt`, the console's scrollback, when it was saved
 //!   with Ctrl+Shift+S, and the screenshots Print Screen took
-//!   (`screenshot-N.txt`, `screenshot-N.png`).
+//!   (`screenshot-N.txt`, `screenshot-N.png`), from the console's records
+//!   (`console/`).
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -229,10 +230,21 @@ pub fn write(system: &System<'_>, base: &Path, parent: &Path) -> Result<PathBuf,
     ];
     let mut copied = crash_reports(system.files, base);
     copied.push("journal.jsonl".to_owned());
-    copied.push(zbm_state::SCROLLBACK.to_owned());
-    copied.extend(state_files(system.files, base, zbm_state::is_screenshot));
-    for name in copied {
-        if let Ok(contents) = system.files.read(&base.join(&name)) {
+    // The console's records, from its own directory (ADR 0012), under the
+    // names a report has always given them.
+    let console = Path::new(zbm_state::CONSOLE);
+    let shots = state_files(system.files, &base.join(console), zbm_state::is_screenshot);
+    let records = std::iter::once((
+        PathBuf::from(zbm_state::SCROLLBACK),
+        "console-scrollback.txt".to_owned(),
+    ))
+    .chain(shots.into_iter().map(|name| (console.join(&name), name)));
+    let copied = copied
+        .into_iter()
+        .map(|name| (PathBuf::from(&name), name))
+        .chain(records);
+    for (source, name) in copied {
+        if let Ok(contents) = system.files.read(&base.join(&source)) {
             files.push((name, contents));
         }
     }

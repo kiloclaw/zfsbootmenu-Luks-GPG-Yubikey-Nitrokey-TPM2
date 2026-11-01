@@ -6,7 +6,7 @@
     reason = "the speaker's input device is this module's system interface: it reads sysfs"
 )]
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{self, Write as _};
 use std::path::Path;
 
@@ -35,6 +35,15 @@ impl Speaker {
     /// The PC speaker among the input devices in `sysfs`, opened in `dev`;
     /// `None` when there is none, or it cannot be opened.
     pub fn find(sysfs: &Path, dev: &Path) -> Option<Speaker> {
+        Speaker::find_with(sysfs, dev, &crate::devices::Direct)
+    }
+
+    /// [`Speaker::find`], opened by `opener`.
+    pub fn find_with(
+        sysfs: &Path,
+        dev: &Path,
+        opener: &dyn crate::devices::Opener,
+    ) -> Option<Speaker> {
         let class = sysfs.join("class/input");
         let mut names: Vec<String> = std::fs::read_dir(&class)
             .ok()?
@@ -46,9 +55,8 @@ impl Speaker {
             let path = class.join(name).join("device/name");
             std::fs::read_to_string(path).is_ok_and(|text| text.trim() == NAME)
         })?;
-        let file = OpenOptions::new()
-            .write(true)
-            .open(dev.join("input").join(name))
+        let file = opener
+            .open(crate::devices::Kind::Input, &dev.join("input").join(name))
             .ok()?;
         Some(Speaker {
             file,

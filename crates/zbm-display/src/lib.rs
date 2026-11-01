@@ -37,6 +37,7 @@
 pub mod boxes;
 pub mod channel;
 pub mod decor;
+pub mod devices;
 pub mod display;
 pub mod faces;
 pub mod frame;

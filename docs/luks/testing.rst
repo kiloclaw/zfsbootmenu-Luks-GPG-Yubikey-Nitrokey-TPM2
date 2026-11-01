@@ -342,9 +342,9 @@ Following a boot
   pass for it), and ``dmesg | grep on.the.display > /dev/ttyS0`` must show the supervisor's messages that the console
   ended and started again; ``dmesg | grep draws.on.its.cells > /dev/ttyS0`` must show the console's message that the
   menu said hello on the client channel, so that the countdown was drawn on the console's cells (``ROADMAP.md``, UI6),
-  not on its terminal. Then the console must be confined (``ROADMAP.md``, SE11): its ``/proc/<pid>/status``
-  must say ``NoNewPrivs: 1``, ``Seccomp: 2`` and ``CapEff: 0000000004004000`` (``CAP_IPC_LOCK`` and
-  ``CAP_SYS_TTY_CONFIG`` alone), the kernel log must hold no seccomp record (audit type 1326) after the layouts, the
+  not on its terminal. Then the console must be confined (``ROADMAP.md``, SE11, ADR 0012): its
+  ``/proc/<pid>/status`` must say ``Uid: 60600``, its own user, ``NoNewPrivs: 1``, ``Seccomp: 2`` and
+  ``CapEff: 0000000004000000`` (``CAP_SYS_TTY_CONFIG`` alone), the kernel log must hold no seccomp record (audit type 1326) after the layouts, the
   fonts, the hand-back and the reattach ran confined, and both consoles, the first and the one started again, must
   have said they were confined. The shell on the kernel console, once the console is given up, is tested by the
   supervisor's own tests. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start must name a

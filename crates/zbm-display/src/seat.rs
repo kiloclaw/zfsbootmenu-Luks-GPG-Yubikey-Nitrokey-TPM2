@@ -10,7 +10,9 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use crate::devices::{Kind, Opener, direct};
 use crate::display::{Display, Options, Screen};
 use crate::vt::Terminal;
 
@@ -33,6 +35,8 @@ pub struct Seat<S> {
     card: PathBuf,
     terminal: Option<PathBuf>,
     options: Options,
+    /// What opens the card and the terminal (ADR 0012).
+    opener: Arc<dyn Opener>,
     state: S,
 }
 
@@ -51,8 +55,16 @@ impl Seat<Released> {
             card,
             terminal,
             options: Options::default(),
+            opener: direct(),
             state: Released,
         }
+    }
+
+    /// The seat, its card and terminal opened by `opener`.
+    #[must_use]
+    pub fn with_opener(mut self, opener: Arc<dyn Opener>) -> Seat<Released> {
+        self.opener = opener;
+        self
     }
 
     /// The seat, showing its display with `options`.
@@ -69,11 +81,20 @@ impl Seat<Released> {
     /// When either cannot be had: the seat back, with why; what was taken
     /// is handed back.
     pub fn take(self) -> Result<Seat<Held>, (Seat<Released>, io::Error)> {
-        let display = match Display::open_with(&self.card, self.options) {
+        let display = match self
+            .opener
+            .open(Kind::Card, &self.card)
+            .and_then(|file| Display::of_card(file, self.options))
+        {
             Ok(display) => display,
             Err(error) => return Err((self, error)),
         };
-        let terminal = match self.terminal.as_deref().map(Terminal::take).transpose() {
+        let terminal = self.terminal.as_deref().map(|path| {
+            self.opener
+                .open(Kind::Terminal, path)
+                .and_then(Terminal::take_file)
+        });
+        let terminal = match terminal.transpose() {
             Ok(terminal) => terminal,
             Err(error) => {
                 drop(display);
@@ -84,6 +105,7 @@ impl Seat<Released> {
             card: self.card,
             terminal: self.terminal,
             options: self.options,
+            opener: self.opener,
             state: Held { display, terminal },
         })
     }
@@ -110,6 +132,7 @@ impl Seat<Held> {
             card: self.card,
             terminal: self.terminal,
             options: self.options,
+            opener: self.opener,
             state: Released,
         }
     }

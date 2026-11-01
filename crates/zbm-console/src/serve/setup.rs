@@ -51,7 +51,7 @@ pub(super) fn with_bell<'h>(
     bell: Ring,
     places: &Places,
 ) -> RealHost<'h, &'h mut File> {
-    match Speaker::find(&places.sys, &places.dev) {
+    match Speaker::find_with(&places.sys, &places.dev, &*places.devices.opener) {
         Some(speaker) if matches!(bell, Ring::Audible | Ring::Both) => host.with_speaker(speaker),
         _ => host,
     }

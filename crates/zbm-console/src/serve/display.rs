@@ -24,7 +24,9 @@ pub(super) fn held_seat(
     };
     let released = match seat.take() {
         Some(released) => released,
-        None => Seat::new(card(settings, places)?, Some(vt.to_path_buf())).with_options(options),
+        None => Seat::new(card(settings, places)?, Some(vt.to_path_buf()))
+            .with_options(options)
+            .with_opener(std::sync::Arc::clone(&places.devices.opener)),
     };
     let mut held = take_seat(places, released, HOLD_WAIT).map_err(|(released, error)| {
         *seat = Some(released);

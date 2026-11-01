@@ -413,6 +413,8 @@ fn open_path(path: &Path) -> io::Result<OwnedFd> {
 }
 
 mod calls;
+mod run_as;
+pub use run_as::{RunAs, change_thread, run_as};
 #[cfg(coverage)]
 mod coverage;
 mod filter;

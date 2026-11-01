@@ -7,17 +7,15 @@
     reason = "the mirror is a file the console writes"
 )]
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io;
-use std::path::Path;
 
 use crate::run::Shown;
 
-/// Opens the mirror at `path` without blocking: when it cannot take a
+/// The mirror `mirror`, open, without blocking: when it cannot take a
 /// screen, as a serial port whose line is full, the console goes on and
 /// writes the rest later.
-pub fn open_mirror(path: &Path) -> Option<File> {
-    let mirror = OpenOptions::new().append(true).open(path).ok()?;
+pub fn open_mirror(mirror: File) -> Option<File> {
     rustix::io::ioctl_fionbio(&mirror, true).ok()?;
     Some(mirror)
 }

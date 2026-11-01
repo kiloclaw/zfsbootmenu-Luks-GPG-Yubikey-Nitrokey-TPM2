@@ -75,20 +75,38 @@ impl Profile for Keyholder {
     }
 }
 
+/// The user and group of the console on the display (ADR 0012): a number
+/// of its own, which nothing looks up by name, so the image needs no
+/// `/etc/passwd` entry; the initramfs has root alone.
+pub const CONSOLE_USER: u32 = 60600;
+
+/// The capabilities the console keeps as user `uid`: the virtual
+/// terminal's modes, and as user 0 its locked memory, which its own user
+/// locks within a limit the supervisor lifted.
+pub fn console_capabilities(uid: u32) -> Vec<Capability> {
+    if uid == 0 {
+        vec![Capability::SysTtyConfig, Capability::IpcLock]
+    } else {
+        vec![Capability::SysTtyConfig]
+    }
+}
+
 /// The console on the display (zone Z3, `zbm console`), from before it
-/// starts its threads. It stays user 0, as it opens the display, the
-/// virtual terminal and the keyboards again when it takes the display
-/// back after a failed `kexec`, and writes the state files the boot reads:
-/// so it keeps two capabilities, the virtual terminal's modes and its
-/// locked memory; reaches the devices, `/sys`, `/proc`, its fonts and
-/// layouts, the state directory and the sockets' directory alone; runs
-/// nothing; and makes the calls of [`CONSOLE_CALLS`] alone.
+/// starts its threads. The supervisor starts it as its own user,
+/// [`CONSOLE_USER`] (ADR 0012), and opens its devices for it; it keeps the
+/// virtual terminal's modes (`CAP_SYS_TTY_CONFIG`), and as user 0, where
+/// the supervisor could not change its user, its locked memory too
+/// (`CAP_IPC_LOCK`). It reaches the devices, `/sys`, `/proc`, its fonts and
+/// layouts, its records and, when it binds its control socket itself, the
+/// sockets' directory alone; runs nothing; and makes the calls of
+/// [`CONSOLE_CALLS`] alone.
 #[derive(Clone, Debug)]
 pub struct Console {
-    /// The state directory, `/zfsbootmenu`.
+    /// Its records, `/zfsbootmenu/console`.
     pub state: PathBuf,
-    /// The directory of the sockets, `/run/zfsbootmenu`.
-    pub sockets: PathBuf,
+    /// The directory of the sockets, `/run/zfsbootmenu`, when it binds its
+    /// control socket itself; `None` when the supervisor passed it.
+    pub sockets: Option<PathBuf>,
     /// The image's fonts and layouts, `/usr/share/zfsbootmenu`.
     pub share: PathBuf,
     /// Where test builds mirror the screen's text, if anywhere.
@@ -231,8 +249,12 @@ impl Console {
             (PathBuf::from("/proc"), Access::Read),
             (self.share.clone(), Access::Read),
             (self.state.clone(), Access::Full),
-            (self.sockets.clone(), Access::Full),
         ];
+        files.extend(
+            self.sockets
+                .iter()
+                .map(|sockets| (sockets.clone(), Access::Full)),
+        );
         // The virtual terminals, each a file: the console takes the one
         // that is shown.
         files.extend(
@@ -271,7 +293,7 @@ impl Profile for Console {
             user: None,
             files: Some(self.files()),
             calls: Some(CONSOLE_CALLS),
-            capabilities: Some(vec![Capability::SysTtyConfig, Capability::IpcLock]),
+            capabilities: Some(console_capabilities(zbm_sys::credentials().uid)),
         }
     }
 }

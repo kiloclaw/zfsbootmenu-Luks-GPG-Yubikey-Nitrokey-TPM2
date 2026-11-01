@@ -8,7 +8,8 @@
 //! on the session's and the console's sockets (I17), a remote menu's among
 //! them, which a root login can send, on the client channel between the
 //! console and the menu (I18), and between a client and the keyholder that
-//! opens its volumes (I19).
+//! opens its volumes (I19), and between the console and the supervisor
+//! that opens its devices (I20).
 
 #![no_main]
 
@@ -24,9 +25,9 @@ const STATE: [&str; 8] = [
     "bootfs",
     "degraded",
     "cmdline",
-    "console",
-    "console-layout",
-    "console-released",
+    "console/pid",
+    "console/layout",
+    "console/released",
 ];
 
 fuzz_target!(|data: &[u8]| {
@@ -94,6 +95,25 @@ fuzz_target!(|data: &[u8]| {
             zbm_app::remote::ToMenu::decode(&encoded).ok(),
             Some(message)
         );
+    }
+    // The device broker's socket pair (I20 of SE11): a request decodes to
+    // one that encodes back, and its path is judged by name without a
+    // panic; the console reads the supervisor's replies the same way.
+    if let Ok(request) = zbm_app::devices::Request::decode(data) {
+        assert_eq!(
+            zbm_app::devices::Request::decode(&request.encode()),
+            Ok(request.clone())
+        );
+        let _ = request.kind.is_name(&request.path.to_string_lossy());
+    }
+    if let Some(reply) = zbm_app::devices::Reply::decode(data) {
+        assert_eq!(
+            zbm_app::devices::Reply::decode(&reply.encode()),
+            Some(reply)
+        );
+    }
+    for kind in zbm_display::devices::KINDS {
+        let _ = kind.is_name(&text);
     }
     // The client channel between the console and the menu (I18): what is
     // decoded is exactly one message, and encodes to the same bytes.

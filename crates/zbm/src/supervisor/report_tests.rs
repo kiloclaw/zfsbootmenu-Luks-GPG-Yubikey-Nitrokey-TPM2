@@ -22,6 +22,7 @@ fn the_newest_crash_report_of_the_program_is_named() {
         startup: program.clone(),
         shell: program,
         retry: Duration::ZERO,
+        console_user: None,
         redirect_console: false,
         fallback: None,
         log: dir.join("kmsg"),

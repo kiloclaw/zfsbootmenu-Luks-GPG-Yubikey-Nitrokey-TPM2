@@ -29,7 +29,7 @@ use std::fs::File;
 use std::io::{self, Write as _};
 use std::os::fd::AsFd as _;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 use zbm_platform::RealFiles;
@@ -40,11 +40,14 @@ use zbm_sys::console::{
 };
 
 use super::Program;
+pub use own_user::{OwnUser, adopt_crash_reports};
 use zbm_console::keys::Flavour;
 use zbm_console::relay::SavedModes;
 use zbm_display::channel::FromClient;
 use zbm_sys::socket::Connection;
 pub use zbm_tui::menu::cells::CELLS_FD;
+
+mod own_user;
 
 /// The supervisor's terminal: its standard input.
 fn terminal() -> std::io::Stdin {
@@ -71,6 +74,69 @@ pub struct Attached {
     cells: Option<Connection>,
 }
 
+/// The console's command: `program` on the terminal `master`, with the
+/// console's end of the client channel `cells`.
+///
+/// # Errors
+///
+/// When the terminal cannot be shared with it.
+fn command(program: &Program, master: &File, cells: Option<&Connection>) -> io::Result<Command> {
+    let mut command = Command::new(&program.path);
+    command
+        .args(&program.args)
+        .stdin(Stdio::from(master.try_clone()?));
+    if let Some(end) = cells.and_then(|cells| cells.as_fd().try_clone_to_owned().ok()) {
+        let number = zbm_sys::pass_fd(&mut command, end);
+        command.args(["--cells-fd", &number.to_string()]);
+    }
+    // Without the supervisor's blocked `SIGCHLD`, when it starts again.
+    zbm_sys::prepare_child(&mut command, &zbm_sys::ChildSetup::default());
+    Ok(command)
+}
+
+/// Starts the console `program` as user 0.
+///
+/// # Errors
+///
+/// When it cannot be started.
+fn spawn(program: &Program, master: &File, cells: Option<&Connection>) -> io::Result<Child> {
+    command(program, master, cells)?.spawn()
+}
+
+/// Starts the console `program` as `own` says, with the broker of its
+/// devices.
+///
+/// # Errors
+///
+/// When what it needs cannot be had, or it cannot be started so.
+fn spawn_as(
+    program: &Program,
+    master: &File,
+    cells: Option<&Connection>,
+    own: &OwnUser,
+) -> io::Result<Child> {
+    let mut command = command(program, master, cells)?;
+    let broker = own.prepare(&mut command)?;
+    let child = command.spawn()?;
+    let log = own.kmsg.clone();
+    own_user::serve_devices(broker, own.dev.clone(), move |line| {
+        log_line(&log, 4, line);
+    })?;
+    Ok(child)
+}
+
+/// Writes `text` to the kernel log at `path` at `level`, as the
+/// supervisor's other messages; failures are ignored.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the kernel log, which the supervisor writes as its own"
+)]
+fn log_line(path: &Path, level: u8, text: &str) {
+    if let Ok(mut kmsg) = std::fs::OpenOptions::new().append(true).open(path) {
+        let _ = writeln!(kmsg, "<{level}>ZFSBootMenu: {text}");
+    }
+}
+
 /// The variable that tells programs they run on the console on the
 /// display, whose palette is the Linux console's and which draws lines
 /// whatever the locale (the menu's capabilities).
@@ -86,26 +152,42 @@ impl Attached {
     /// # Errors
     ///
     /// When the pseudo-terminal or the console cannot be had.
+    #[cfg(test)]
     pub fn start(program: &Program) -> io::Result<Attached> {
+        Attached::start_as(program, None, &mut |_| {})
+    }
+
+    /// [`Attached::start`], as the user `own` says when given (ADR 0012):
+    /// when that cannot be, it starts as user 0, as before, and `note` is
+    /// told why.
+    ///
+    /// # Errors
+    ///
+    /// When the pseudo-terminal or the console cannot be had.
+    pub fn start_as(
+        program: &Program,
+        own: Option<&OwnUser>,
+        note: &mut dyn FnMut(&str),
+    ) -> io::Result<Attached> {
         let keyboard = keyboard_mode(terminal()).ok();
         let modes = SavedModes::of(io::stdin());
         let (master, slave) = zbm_console::host::open_pty()?;
-        let mut command = Command::new(&program.path);
-        command.args(&program.args).stdin(Stdio::from(master));
         // Without it, the menu draws on the terminal.
         let channel = Connection::pair().ok();
-        if let Some((_, console)) = &channel
-            && let Ok(end) = console.as_fd().try_clone_to_owned()
-        {
-            let number = zbm_sys::pass_fd(&mut command, end);
-            command.args(["--cells-fd", &number.to_string()]);
+        let cells = channel.as_ref().map(|(_, console)| console);
+        let mut child = None;
+        if let Some(own) = own {
+            match spawn_as(program, &master, cells, own) {
+                Ok(spawned) => child = Some(spawned),
+                Err(error) => note(&format!("the console on the display runs as root: {error}")),
+            }
         }
-        // Without the supervisor's blocked `SIGCHLD`, when it starts again.
-        zbm_sys::prepare_child(&mut command, &zbm_sys::ChildSetup::default());
-        let child = command.spawn()?;
-        let pid = child.id();
+        let child = match child {
+            Some(child) => child,
+            None => spawn(program, &master, cells)?,
+        };
         Ok(Attached {
-            pid,
+            pid: child.id(),
             slave,
             keyboard,
             modes,
@@ -246,7 +328,7 @@ mod tests {
         let missing = dir.join("missing");
 
         assert!(Attached::start(&program(missing.to_str().unwrap(), &[])).is_err());
-        assert!(!dir.join("console").exists());
+        assert!(!dir.join("console/pid").exists());
     }
 
     #[test]
@@ -284,7 +366,7 @@ mod tests {
         assert_eq!(&shown, b"hello");
 
         attached.detach(dir.path());
-        assert!(!dir.join("console").exists());
+        assert!(!dir.join("console/pid").exists());
     }
 
     #[test]
