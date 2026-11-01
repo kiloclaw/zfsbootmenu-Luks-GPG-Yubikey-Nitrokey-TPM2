@@ -2122,6 +2122,7 @@ dependencies = [
  "zbm-app",
  "zbm-boot",
  "zbm-config",
+ "zbm-display",
  "zbm-platform",
  "zbm-pool",
  "zbm-state",

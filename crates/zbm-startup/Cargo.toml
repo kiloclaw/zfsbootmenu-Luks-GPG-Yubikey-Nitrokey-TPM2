@@ -13,6 +13,7 @@ zbm-app.workspace = true
 thiserror.workspace = true
 zbm-boot.workspace = true
 zbm-config.workspace = true
+zbm-display.workspace = true
 zbm-platform.workspace = true
 zbm-pool.workspace = true
 zbm-state.workspace = true

@@ -78,7 +78,8 @@ stays for a reason:
 | `mount` | SB3 (done for ZFS mounts and single unmounts, with `mount` as the fallback); `mount` stays for block devices, FAT, `efivarfs` and `umount -R` | — |
 | `kexec` | SB4 (done: `kexec_file_load` and `reboot(LINUX_REBOOT_CMD_KEXEC)`, with `kexec` as the fallback); `kexec` stays for device trees, Xen, old kernels and what the call refuses | — |
 | `tput`, `stty` | PM11 (done: the Rust runtime runs neither: its screen changes are ECMA-48 sequences, and the terminal's settings and size are `termios` calls) | The legacy runtime, and the recovery shell's `clear` and `reset`, which are `tput`; Rust images drop them with their own list (SB7) |
-| `insmod`, `modinfo`, `lsmod`, `depmod` | CD4 | — |
+| `insmod`, `modinfo`, `lsmod`, `depmod` | CD4 (done: the Rust runtime loads modules itself, `finit_module` with the kernel's index and `modprobe.d`, the kernel decompressing them; `modprobe`, `modinfo` and `insmod` only for an image without the index, a module the configuration loads with a command, or a kernel before 5.17 with compressed modules) | The legacy runtime's code, which Rust images still carry until SB7, and dracut's and mkinitcpio's base, which install kmod in every image |
+| `setfont` | CD5 (done: the Rust runtime loads the console's font through `KDFONTOP` and `PIO_UNIMAP`; `zbm console-font` for the recovery shell) | Legacy images; Rust images leave it out |
 | `cryptsetup`, `dmsetup` | CD9; `cryptsetup` stays for enrolment and as the fallback | — |
 | `tpm2_*` | CD10; `tpm2-tools` stay in the recovery shell | — |
 | `fido2-token`, `fido2-assert` | CD7 | — |

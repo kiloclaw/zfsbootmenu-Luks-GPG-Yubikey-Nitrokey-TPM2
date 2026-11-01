@@ -69,10 +69,12 @@ pub mod event;
 pub mod exec;
 pub mod files;
 pub mod filetest;
+pub mod fonts;
 pub mod hid;
 pub mod interaction;
 pub mod kernel;
 pub mod log;
+pub mod modules;
 pub mod process;
 mod quiet;
 pub mod sandbox;
@@ -89,10 +91,12 @@ pub use crash::CrashReporter;
 pub use env::{Environment, ProcessEnvironment};
 pub use exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner, TerminalRunner};
 pub use files::{FileKind, FileLock, Files, LockWait, Metadata, RealFiles};
+pub use fonts::{ConsoleFonts, KernelFont, NoFonts, SystemFonts};
 pub use hid::{FeatureReports, HidDevices, NoHid, Report, SystemHid};
 pub use interaction::Interaction;
 pub use kernel::{KernelLoader, NoKernelLoader, SystemKernelLoader};
 pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};
+pub use modules::{ModuleLoader, NoModules, SystemModules};
 pub use process::{Processes, Signal, SystemProcesses};
 pub use quiet::QuietRunner;
 pub use secret::Secret;
@@ -117,6 +121,10 @@ pub struct System<'a> {
     pub kernel: &'a dyn KernelLoader,
     /// HID devices' feature reports, which YubiKeys answer.
     pub hid: &'a dyn HidDevices,
+    /// The kernel console's font.
+    pub fonts: &'a dyn ConsoleFonts,
+    /// Kernel modules.
+    pub modules: &'a dyn ModuleLoader,
 }
 
 impl<'a> System<'a> {
@@ -151,6 +159,8 @@ pub struct RealSystem {
     environment: ProcessEnvironment,
     kernel: SystemKernelLoader,
     hid: SystemHid,
+    fonts: SystemFonts,
+    modules: SystemModules,
 }
 
 impl RealSystem {
@@ -164,6 +174,8 @@ impl RealSystem {
             environment: ProcessEnvironment,
             kernel: SystemKernelLoader,
             hid: SystemHid,
+            fonts: SystemFonts,
+            modules: SystemModules,
         }
     }
 
@@ -194,6 +206,8 @@ impl RealSystem {
             environment: &self.environment,
             kernel: &self.kernel,
             hid: &self.hid,
+            fonts: &self.fonts,
+            modules: &self.modules,
         }
     }
 }
@@ -223,6 +237,8 @@ pub struct Context<'a> {
     environment: &'a dyn Environment,
     /// HID devices' feature reports.
     hid: &'a dyn HidDevices,
+    /// Kernel modules.
+    modules: &'a dyn ModuleLoader,
 }
 
 impl<'a> Context<'a> {
@@ -236,6 +252,7 @@ impl<'a> Context<'a> {
             processes: system.processes,
             environment: system.environment,
             hid: system.hid,
+            modules: system.modules,
         }
     }
 
@@ -279,6 +296,11 @@ impl<'a> Context<'a> {
     /// HID devices' feature reports.
     pub fn hid(&self) -> &'a dyn HidDevices {
         self.hid
+    }
+
+    /// Kernel modules.
+    pub fn modules(&self) -> &'a dyn ModuleLoader {
+        self.modules
     }
 
     /// Sends this thread's kernel log messages to this context's files, for

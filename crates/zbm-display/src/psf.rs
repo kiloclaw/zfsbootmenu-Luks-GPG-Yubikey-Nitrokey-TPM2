@@ -451,5 +451,7 @@ pub fn repertoire() -> Vec<char> {
     ascii.chain(latin1).chain(extra).chain(lines).collect()
 }
 
+mod kernel;
+
 #[cfg(test)]
 mod tests;

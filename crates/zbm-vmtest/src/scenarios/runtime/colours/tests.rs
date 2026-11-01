@@ -74,16 +74,16 @@ fn a_font_is_loaded_drawn_and_counted_from_the_screenshot() {
     let test = Test::new(&settings, "runtime-rust-colours").unwrap();
     let leak = |text: String| -> &'static str { Box::leak(text.into_boxed_str()) };
     let script = vec![
-        Step::Hear(leak(format!("setfont -C /dev/tty1 {SUBSET}; echo RC=$?"))),
+        Step::Hear(leak(format!("{LOAD_FONT} {SUBSET}; echo RC=$?"))),
         Step::Say("RC=0\r\n"),
         Step::Hear(leak(format!("{BAR}; echo RC=$?"))),
         Step::Say("RC=0\r\n"),
-        Step::Hear(leak(format!("setfont -C /dev/tty1 {WHOLE}; echo RC=$?"))),
+        Step::Hear(leak(format!("{LOAD_FONT} {WHOLE}; echo RC=$?"))),
         Step::Say("RC=0\r\n"),
         Step::Hear(leak(format!("{BAR}; echo RC=$?"))),
         Step::Say("RC=0\r\n"),
-        Step::Hear(leak(format!("setfont -C /dev/tty1 {WHOLE}; echo RC=$?"))),
-        Step::Say("setfont: KDFONTOP: Invalid argument\r\nRC=1\r\n"),
+        Step::Hear(leak(format!("{LOAD_FONT} {WHOLE}; echo RC=$?"))),
+        Step::Say("zbm console-font: /dev/tty1: Invalid argument (os error 22)\r\nRC=1\r\n"),
     ];
     let (mut vm, guest) = scripted(&test, script);
     let sixteen = |_: &Vm<'_>, path: &Path| -> Result<()> {
@@ -106,7 +106,7 @@ fn a_font_is_loaded_drawn_and_counted_from_the_screenshot() {
     assert_eq!(
         checks(&test),
         [
-            format!("FAIL - vga: setfont loads {WHOLE}"),
+            format!("FAIL - vga: zbm console-font loads {WHOLE}"),
             "ok   - vga: the image's font: 16 colours (16 colours)".to_owned(),
             "FAIL - vga: the whole font: 8 colours (no screenshot)".to_owned(),
         ]

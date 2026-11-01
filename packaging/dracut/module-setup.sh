@@ -272,7 +272,11 @@ install() {
       >> "${initdir}/etc/zfsbootmenu.conf"
   fi
 
-  if command -v setfont >/dev/null 2>&1; then
+  # The Rust runtime loads the console's fonts itself (ROADMAP.md CD5).
+  # shellcheck disable=SC2154
+  if [ "${ZBM_RUNTIME}" = "rust" ]; then
+    install_zbm_fonts
+  elif command -v setfont >/dev/null 2>&1; then
     install_zbm_fonts && dracut_install setfont
   fi
 

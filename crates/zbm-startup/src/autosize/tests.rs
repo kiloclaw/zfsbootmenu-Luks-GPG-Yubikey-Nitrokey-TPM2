@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use pretty_assertions::assert_eq;
-use zbm_platform::exec::{Output, Status};
 use zbm_platform::files::Files;
+use zbm_platform::{ConsoleFonts, KernelFont, System};
 use zbm_testkit::fakes::FakeSystem;
 
 use super::choice::{Candidate, Density, MIN_COLUMNS, Request, order};
@@ -172,10 +172,55 @@ fn a_height_asked_for_comes_first() {
 }
 
 /// A machine with the image's fonts, a framebuffer of `screen` and a console
-/// on which `setfont` changes the cell, as the kernel does; with
+/// on which a font loaded changes the cell, as the kernel does; with
 /// `tall_fonts` false, it refuses fonts taller than 32 pixels.
 struct Machine {
     fake: FakeSystem,
+    fonts: Fonts,
+}
+
+/// The console's fonts: what the kernel takes, and the size it leaves.
+struct Fonts {
+    files: zbm_testkit::fakes::FakeFiles,
+    screen: (u16, u16),
+    takes_tall: bool,
+    /// Whether a font loads at all.
+    loads: bool,
+    /// Whether the console's size can be read.
+    sized: bool,
+    loaded: std::sync::Mutex<Vec<String>>,
+}
+
+impl ConsoleFonts for Fonts {
+    fn load(&self, console: &Path, font: &KernelFont) -> std::io::Result<()> {
+        if !self.loads || (font.height > 32 && !self.takes_tall) {
+            return Err(std::io::Error::from_raw_os_error(22));
+        }
+        self.loaded.lock().unwrap().push(format!(
+            "{} {}x{}",
+            console.display(),
+            font.width,
+            font.height
+        ));
+        let (width, height) = (
+            u16::try_from(font.width).unwrap(),
+            u16::try_from(font.height).unwrap(),
+        );
+        // The kernel's console takes the size the font leaves.
+        if self.sized {
+            self.files
+                .terminal("/dev/tty1", self.screen.0 / width, self.screen.1 / height);
+        }
+        Ok(())
+    }
+}
+
+/// A whole PSF 2 font with cells of `width`×`height`: 512 blank glyphs.
+fn whole_psf2(width: u32, height: u32) -> Vec<u8> {
+    let mut bytes = psf2(width, height);
+    let size = usize::try_from(height * width.div_ceil(8)).unwrap();
+    bytes.resize(bytes.len() + size * 512, 0);
+    bytes
 }
 
 impl Machine {
@@ -183,17 +228,15 @@ impl Machine {
         Machine::failing(screen, tall_fonts, None)
     }
 
-    /// The machine of [`Machine::new`], on which `program` fails; `stty`
-    /// for a console whose size cannot be read.
-    fn failing(screen: (u16, u16), tall_fonts: bool, program: Option<&str>) -> Machine {
+    /// The machine of [`Machine::new`], on which `failing` fails: `font`
+    /// for a console that takes no font, `stty` for one whose size cannot
+    /// be read.
+    fn failing(screen: (u16, u16), tall_fonts: bool, failing: Option<&str>) -> Machine {
         let fake = FakeSystem::new();
-        let sized = program != Some("stty");
-        if let Some(program) = program.filter(|_| sized) {
-            fake.runner.respond_program(program, 1, "");
-        }
         for (name, width, height) in TERMINUS {
             let path = Path::new("/").join(FONTS).join(name);
-            fake.files.file(path, psf2(width.into(), height.into()));
+            fake.files
+                .file(path, whole_psf2(width.into(), height.into()));
         }
         fake.files
             .file(Path::new("/").join(FONTS).join("README"), "fonts");
@@ -202,30 +245,20 @@ impl Machine {
         let geometry = format!("{},{}\n", screen.0, screen.1);
         fake.files
             .file("/sys/class/graphics/fb0/virtual_size", geometry);
-        let files = fake.files.clone();
-        fake.runner.on(move |command| {
-            let line = command.display();
-            let words: Vec<&str> = line.split_whitespace().collect();
-            let output = |status: u8, text: String| Ok(Output::new(Status::exited(status), text));
-            match words.first().copied() {
-                Some("setfont") => {
-                    let name = Path::new(words.last()?).file_name()?.to_str()?;
-                    let (_, width, height) = TERMINUS.iter().find(|(n, ..)| *n == name)?;
-                    let factor = if words.contains(&"-d") { 2 } else { 1 };
-                    let (width, height) = (width * factor, height * factor);
-                    if height > 32 && !tall_fonts {
-                        return Some(output(1, String::new()));
-                    }
-                    // The kernel's console takes the size the font leaves.
-                    if sized {
-                        files.terminal("/dev/tty1", screen.0 / width, screen.1 / height);
-                    }
-                    Some(output(0, String::new()))
-                }
-                _ => None,
-            }
-        });
-        Machine { fake }
+        let fonts = Fonts {
+            files: fake.files.clone(),
+            screen,
+            takes_tall: tall_fonts,
+            loads: failing != Some("font"),
+            sized: failing != Some("stty"),
+            loaded: std::sync::Mutex::new(Vec::new()),
+        };
+        Machine { fake, fonts }
+    }
+
+    /// The fonts loaded, on which console and of which cell.
+    fn loaded(&self) -> Vec<String> {
+        self.fonts.loaded.lock().unwrap().clone()
     }
 
     /// Adds a connector whose display has an EDID of `mm`.
@@ -244,7 +277,14 @@ impl Machine {
             request,
             font_given: false,
         };
-        run(&self.fake.system(), Path::new("/"), &settings)
+        run(&self.system(), Path::new("/"), &settings)
+    }
+
+    fn system(&self) -> System<'_> {
+        System {
+            fonts: &self.fonts,
+            ..self.fake.system()
+        }
     }
 }
 
@@ -268,10 +308,8 @@ fn a_4k_laptop_gets_a_doubled_font() {
     let outcome = machine.run(Request::Auto);
 
     assert_eq!(set(&outcome), Some(font("ter-v28b.psf", true, (137, 42))));
-    assert_eq!(
-        machine.fake.runner.lines(),
-        ["setfont -C /dev/tty1 -d /usr/share/zfsbootmenu/fonts/ter-v28b.psf",]
-    );
+    assert_eq!(machine.loaded(), ["/dev/tty1 28x56"]);
+    assert!(machine.fake.runner.lines().is_empty());
 }
 
 #[test]
@@ -378,7 +416,7 @@ fn a_height_asked_for_is_kept_when_the_size_is_unknown() {
 
 #[test]
 fn when_no_font_loads_it_fails() {
-    let machine = Machine::failing((1920, 1080), true, Some("setfont"));
+    let machine = Machine::failing((1920, 1080), true, Some("font"));
 
     assert_eq!(machine.run(Request::Auto), Outcome::Failed);
 }
@@ -386,7 +424,7 @@ fn when_no_font_loads_it_fails() {
 #[test]
 fn serial_consoles_chosen_fonts_and_off_are_left_alone() {
     let machine = Machine::new((1920, 1080), true);
-    let system = machine.fake.system();
+    let system = machine.system();
     let settings = |console: &str, request, font_given| Settings {
         console: console.to_owned(),
         request,
@@ -499,7 +537,7 @@ fn the_hook_reads_the_image_and_sizes_the_console_given() {
         "export control_term=\"/dev/ttyS0\"\nexport loglevel=\"7\"\n",
     );
     files.file("/zfsbootmenu/zbm.cmdline", "zbm.autosize=1\n");
-    let system = machine.fake.system();
+    let system = machine.system();
 
     let serial = super::hook(&system, Path::new("/"), None).unwrap();
     let tty1 = super::hook(&system, Path::new("/"), Some("/dev/tty1".to_owned())).unwrap();

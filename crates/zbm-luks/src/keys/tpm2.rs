@@ -81,7 +81,8 @@ impl Unlocker<'_> {
         }
         if !self.tpm2_probed {
             self.tpm2_probed = true;
-            let modules = Modules::new(self.context().runner());
+            let context = self.context();
+            let modules = Modules::new(context.runner(), context.files(), context.modules());
             for module in ["tpm_crb", "tpm_tis"] {
                 modules.probe_quietly(module);
             }

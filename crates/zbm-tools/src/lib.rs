@@ -18,7 +18,6 @@
 //! | [`modules`] | `modprobe`, `modinfo`, `insmod` |
 //! | [`mount`] | `mount`, `umount`, `mountpoint` |
 //! | [`programs`] | hooks, key scripts, editors, shells, Bash's `=~`, `cp` |
-//! | [`terminal`] | `setfont` |
 //! | [`udev`] | `udevadm` |
 
 #![cfg_attr(
@@ -36,7 +35,6 @@ pub mod kexec;
 pub mod modules;
 pub mod mount;
 pub mod programs;
-pub mod terminal;
 pub mod udev;
 
 /// Where a program's output goes when the caller does not read it.

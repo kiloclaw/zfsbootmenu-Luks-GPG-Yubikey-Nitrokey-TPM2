@@ -154,6 +154,15 @@ recovery shell. A locked image ignores `zbm.hookroot`, and warns when neither lo
 changes its command line then gets past the lock; the lock is for signed images under Secure Boot. Every way to an
 interactive shell now goes through one gate (`zbm_app::auth::ShellGate`).
 
+Images with the Rust runtime load the console's font and the kernel's modules themselves (ROADMAP.md CD5, CD4). The
+font goes to the kernel through `KDFONTOP` with its Unicode map, so these images carry no `setfont`; `zbm console-font
+-C /dev/tty1 [-d] FONT` loads a font from the recovery shell. Modules load through `finit_module`, from the kernel's
+`modules.dep`, `modules.alias`, `modules.softdep` and `modules.builtin`, with the options of `modprobe.d` and of the
+command line (`zfs.zfs_arc_max=...`), the kernel decompressing them; `modprobe` loads what the runtime cannot: a module
+that `modprobe.d` loads with an `install` command, an image without the kernel's index, and compressed modules on a
+kernel before 5.17. A large font the kernel refuses (fonts taller than 32 pixels need Linux 6.2) is passed over for the
+next, as when `setfont` failed.
+
 The console on the display (`zbm.console=drm`) no longer runs as root (ROADMAP.md SE11, ADR 0012). The supervisor
 starts it as its own user, 60600, with one capability, the virtual terminal's modes, and opens each device it asks for:
 the display, the virtual terminal and its text, the keyboards and the serial terminal, each checked as a character

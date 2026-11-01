@@ -6,9 +6,11 @@
 //! pixels) that leaves 110 columns, whatever the size of the screen. This one
 //! reads the display's physical size from its EDID, when a DRM driver offers
 //! it, and takes the font closest to [`choice::TEXT_HEIGHT_MM`] tall, so that
-//! a 4K laptop and a 4K monitor both get readable text; fonts doubled by
-//! `setfont -d` reach 64 pixels for the densest panels. Without an EDID it
-//! does what the legacy hook does. `zbm.autosize=<pixels>` asks for a height.
+//! a 4K laptop and a 4K monitor both get readable text; fonts doubled, as
+//! `setfont -d` doubles them, reach 64 pixels for the densest panels.
+//! Without an EDID it does what the legacy hook does. `zbm.autosize=<pixels>`
+//! asks for a height. It loads each font itself (`KDFONTOP`, ROADMAP.md
+//! CD5), without `setfont`.
 
 pub mod choice;
 pub mod edid;
@@ -19,10 +21,10 @@ use std::path::{Path, PathBuf};
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::spec::cmdline::{AUTOSIZE, VCONSOLE_FONT};
+use zbm_display::psf::Font;
 use zbm_platform::System;
 use zbm_platform::error::Result;
 use zbm_platform::files::Files;
-use zbm_tools::terminal;
 
 use self::choice::{Candidate, Density, Request};
 use self::edid::Edid;
@@ -124,9 +126,7 @@ pub fn run(system: &System<'_>, root: &Path, settings: &Settings) -> Outcome {
     }
     let console = settings.console.as_str();
     for candidate in choice::order(&fonts, settings.request, density) {
-        if !terminal::setfont(system.runner, console, &candidate.path, candidate.doubled)
-            .is_ok_and(|output| output.status.is_success())
-        {
+        if !has_loaded(system, console, &candidate.path, candidate.doubled) {
             continue;
         }
         let size = terminal_size(system, console);
@@ -140,14 +140,40 @@ pub fn run(system: &System<'_>, root: &Path, settings: &Settings) -> Outcome {
     let Some(smallest) = choice::smallest(&fonts) else {
         return Outcome::Failed;
     };
-    if terminal::setfont(system.runner, console, &smallest.path, false)
-        .is_ok_and(|output| output.status.is_success())
-    {
+    if has_loaded(system, console, &smallest.path, false) {
         let size = terminal_size(system, console);
         return set(console, smallest, size);
     }
     zbm_trace::warn!("unable to load a console font on {console}"; %console);
     Outcome::Failed
+}
+
+/// Loads the font of the file `path` on `console`, doubled when `doubled`;
+/// whether the kernel took it. A font it takes no such size of, as a
+/// doubled one too tall, it refuses, and the next is tried.
+fn has_loaded(system: &System<'_>, console: &str, path: &Path, doubled: bool) -> bool {
+    let font = system
+        .files
+        .read(path)
+        .ok()
+        .and_then(|bytes| Font::parse(&bytes).ok());
+    let Some(font) = font else {
+        zbm_trace::debug!("not a console font: {path}"; path = %path.display());
+        return false;
+    };
+    match system
+        .fonts
+        .load(Path::new(console), &font.kernel_font(doubled))
+    {
+        Ok(()) => true,
+        Err(error) => {
+            zbm_trace::debug!(
+                "{console} refused {path}: {error}";
+                %console, path = %path.display(), %error
+            );
+            false
+        }
+    }
 }
 
 /// The columns and rows of the terminal `console`, or `None` when it

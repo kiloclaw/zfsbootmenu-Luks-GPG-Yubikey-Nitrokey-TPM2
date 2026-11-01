@@ -12,6 +12,7 @@ use std::io::Write;
 
 pub mod applets;
 pub mod console;
+pub mod console_font;
 pub mod debug;
 pub mod explain;
 pub mod fonts;
@@ -84,6 +85,12 @@ const CONSOLE_AUTOSIZE: Applet = Applet {
     run: applets::console_autosize,
 };
 
+const CONSOLE_FONT: Applet = Applet {
+    name: "console-font",
+    summary: "load a console font on a virtual terminal, as setfont does",
+    run: console_font::run,
+};
+
 const CONSOLE_FONTS: Applet = Applet {
     name: "console-fonts",
     summary: "write an image's console fonts as 256-glyph subsets (image build)",
@@ -146,6 +153,7 @@ pub const APPLETS: &[Applet] = &[
     ZLUKS,
     UNLOCK,
     CONSOLE_AUTOSIZE,
+    CONSOLE_FONT,
     CONSOLE_FONTS,
     KEYBOARD_LAYOUTS,
     CONSOLE,
@@ -347,6 +355,7 @@ mod tests {
             "zluks",
             "unlock",
             "console-autosize",
+            "console-font",
             "console-fonts",
             "keyboard-layouts",
             "console",

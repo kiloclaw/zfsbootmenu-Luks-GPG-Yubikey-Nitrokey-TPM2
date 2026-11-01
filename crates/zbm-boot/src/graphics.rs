@@ -353,7 +353,7 @@ fn leave_alone(files: &dyn Files, root: &Path, gpu: &Gpu) {
 
 /// Loads the drivers of the vendors of `chosen`.
 fn load_drivers(system: &System<'_>, drivers: &[String], chosen: &[Gpu]) {
-    let modules = Modules::new(system.runner);
+    let modules = Modules::of(system);
     let mut loaded: Vec<&str> = Vec::new();
     for gpu in chosen {
         for driver in drivers_of(drivers, gpu.vendor) {
@@ -362,16 +362,11 @@ fn load_drivers(system: &System<'_>, drivers: &[String], chosen: &[Gpu]) {
             }
             loaded.push(driver);
             match modules.load(driver) {
-                Ok(output) if output.status.is_success() => {
-                    zbm_trace::info!("graphics: loaded {driver}"; %driver);
-                }
-                Ok(output) => zbm_trace::warn!(
+                Ok(()) => zbm_trace::info!("graphics: loaded {driver}"; %driver),
+                Err(output) => zbm_trace::warn!(
                     "graphics: unable to load {driver}: {output}";
-                    %driver, output = %output.stdout_text().trim_end()
+                    %driver, %output
                 ),
-                Err(error) => {
-                    zbm_trace::warn!("graphics: unable to load {driver}: {error}"; %driver, %error);
-                }
             }
         }
     }

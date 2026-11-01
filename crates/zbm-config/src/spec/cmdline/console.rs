@@ -30,8 +30,8 @@ to virtual consoles only, and does nothing when **rd.vconsole.font** names a fon
 
 Images built with the Rust runtime (*zfsbootmenu_runtime=rust*) read the physical size of the
 display from its EDID, when a kernel graphics driver provides it, and choose the font that makes
-text about 4.5 millimetres tall while leaving at least 110 columns; fonts doubled by **setfont -d**
-reach 64 pixels for the densest panels, where the kernel and **setfont** accept them. Without an
+text about 4.5 millimetres tall while leaving at least 110 columns; fonts doubled, as **setfont -d**
+doubles them, reach 64 pixels for the densest panels, where the kernel accepts them. Without an
 EDID, and in images with the legacy runtime, the largest font up to 32 pixels that leaves at least
 110 columns is chosen.
 

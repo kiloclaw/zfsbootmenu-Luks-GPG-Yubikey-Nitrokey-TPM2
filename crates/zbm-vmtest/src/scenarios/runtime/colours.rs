@@ -31,6 +31,10 @@ use crate::vm::Vm;
 /// fonts 8 pixels wide only.
 const SUBSET: &str = "/usr/share/zfsbootmenu/fonts/ter-v14b.psf";
 
+/// What loads a font on `/dev/tty1`: the runtime itself, as images with
+/// the Rust runtime carry no `setfont` (ROADMAP.md CD5).
+pub(super) const LOAD_FONT: &str = "/libexec/zbm console-font -C /dev/tty1";
+
 /// The whole Terminus 8×14 of 512 glyphs, added to the image.
 const WHOLE: &str = "/build/ter-v14b-512.psf";
 
@@ -169,9 +173,9 @@ pub(super) fn draw(
     font: &str,
     dump: &dyn Fn(&Vm<'_>, &Path) -> Result<()>,
 ) -> Result<Option<usize>> {
-    let (rc, _) = vm.sh(&format!("setfont -C /dev/tty1 {font}"))?;
+    let (rc, _) = vm.sh(&format!("{LOAD_FONT} {font}"))?;
     if rc != 0 {
-        test.check(false, &format!("{boot}: setfont loads {font}"));
+        test.check(false, &format!("{boot}: zbm console-font loads {font}"));
         return Ok(None);
     }
     vm.must(BAR)?;

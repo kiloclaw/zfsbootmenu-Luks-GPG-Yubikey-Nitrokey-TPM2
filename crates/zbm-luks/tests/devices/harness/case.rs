@@ -315,6 +315,8 @@ impl<'l> Case<'l> {
             // A YubiKey of the host is not asked: the cases' `ykchalresp`
             // answers instead.
             hid: &zbm_platform::NoHid,
+            fonts: &zbm_platform::NoFonts,
+            modules: &zbm_platform::NoModules,
         };
         let mut settings = Settings::from_environment(&self.env);
         settings.colors = false;

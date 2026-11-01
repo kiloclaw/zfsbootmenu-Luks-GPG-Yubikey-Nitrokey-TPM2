@@ -26,7 +26,7 @@ impl Step for Modules {
     }
 
     fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
-        modules::stage(context.system.runner, context.front.recovery())?;
+        modules::stage(context.system, context.front.recovery())?;
         Ok(StepOutcome::Done)
     }
 }

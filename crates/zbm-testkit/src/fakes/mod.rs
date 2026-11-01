@@ -14,6 +14,7 @@ mod environment;
 mod files;
 mod hid;
 mod kernel;
+mod kernel_console;
 mod processes;
 
 use std::ffi::OsStr;
@@ -25,6 +26,7 @@ pub use environment::FakeEnvironment;
 pub use files::{FakeFiles, FileOperation};
 pub use hid::{FakeHid, FakeYubiKey, Respond};
 pub use kernel::{FakeKernelLoader, Loaded, Loads};
+pub use kernel_console::{FakeFonts, FakeModules};
 pub use processes::FakeProcesses;
 
 use zbm_platform::exec::Input;
@@ -50,6 +52,10 @@ pub struct FakeSystem {
     pub kernel: FakeKernelLoader,
     /// HID devices: no YubiKey until the test plugs one in.
     pub hid: FakeHid,
+    /// Fonts loaded on virtual terminals.
+    pub fonts: FakeFonts,
+    /// Kernel modules inserted.
+    pub modules: FakeModules,
 }
 
 impl Default for FakeSystem {
@@ -79,6 +85,8 @@ impl FakeSystem {
             environment: FakeEnvironment::new(),
             kernel: FakeKernelLoader::default(),
             hid: FakeHid::default(),
+            fonts: FakeFonts::default(),
+            modules: FakeModules::default(),
         }
     }
 
@@ -93,6 +101,8 @@ impl FakeSystem {
             environment: &self.environment,
             kernel: &self.kernel,
             hid: &self.hid,
+            fonts: &self.fonts,
+            modules: &self.modules,
         }
     }
 

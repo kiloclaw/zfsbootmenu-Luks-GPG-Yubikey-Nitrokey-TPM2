@@ -22,9 +22,11 @@
 
 pub mod console;
 pub mod drm;
+pub mod font;
 pub mod hidraw;
 pub mod kexec;
 pub mod memory;
+pub mod module;
 mod process;
 pub mod sandbox;
 pub mod signals;
