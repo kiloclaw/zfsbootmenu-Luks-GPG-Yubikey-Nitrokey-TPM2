@@ -32,40 +32,66 @@ impl<'a> Clevis<'a> {
         Clevis { runner, tcti }
     }
 
-    /// Standard output of `command` with `input`, or nothing.
-    fn filter(&self, command: Command, input: Vec<u8>) -> Vec<u8> {
+    /// Standard output of `command` with `input`, or why it gave none.
+    fn filter(&self, command: Command, input: Vec<u8>) -> Result<Vec<u8>, String> {
+        let program = command.program().to_string_lossy().into_owned();
         let command = command
             .stdin(Input::Bytes(input))
             .stdout(Stream::Capture)
-            .stderr(Stream::Null);
-        self.runner
+            .stderr(Stream::Capture);
+        let output = self
+            .runner
             .run(&command)
-            .map(|output| output.stdout)
-            .unwrap_or_default()
+            .map_err(|error| format!("{program} did not start: {error}"))?;
+        if !output.status.is_success() || output.stdout.is_empty() {
+            return Err(failure(&program, &output));
+        }
+        Ok(output.stdout)
     }
 
     /// The key that the clevis `token` protects, as `jose fmt -j- -Og jwe
-    /// -o- | jose jwe fmt -i- -c | clevis decrypt` recovers it; `None` when
-    /// it cannot.
-    pub fn decrypt(&self, token: &Token) -> Option<Secret> {
+    /// -o- | jose jwe fmt -i- -c | clevis decrypt` recovers it.
+    ///
+    /// # Errors
+    ///
+    /// Why it could not: what the program that failed said, its last line
+    /// first, so that the log can say it.
+    pub fn decrypt(&self, token: &Token) -> Result<Secret, String> {
         let jwe = self.filter(
             Command::new("jose").args(["fmt", "-j-", "-Og", "jwe", "-o-"]),
             format!("{}\n", token.to_json()).into_bytes(),
-        );
-        let compact = self.filter(Command::new("jose").args(["jwe", "fmt", "-i-", "-c"]), jwe);
+        )?;
+        let compact = self.filter(Command::new("jose").args(["jwe", "fmt", "-i-", "-c"]), jwe)?;
         let decrypt = Command::new("clevis")
             .arg("decrypt")
             .timeout(TIMEOUT)
             .env("TPM2TOOLS_TCTI", self.tcti)
             .stdin(Input::Bytes(compact))
             .stdout(Stream::CaptureSecret)
-            .stderr(Stream::Null);
-        self.runner
+            .stderr(Stream::Capture);
+        let output = self
+            .runner
             .run(&decrypt)
-            .ok()
-            .filter(|output| output.status.is_success())
-            .and_then(zbm_platform::Output::into_secret)
+            .map_err(|error| format!("clevis did not start: {error}"))?;
+        if !output.status.is_success() {
+            return Err(failure("clevis decrypt", &output));
+        }
+        output
+            .into_secret()
             .filter(|key| !key.is_empty())
+            .ok_or_else(|| "clevis decrypt printed no key".to_owned())
+    }
+}
+
+/// What `program` said when it failed: the last line of its standard
+/// error, where scripts put the reason, and its exit status.
+fn failure(program: &str, output: &zbm_platform::Output) -> String {
+    let text = output.stderr_text();
+    let said = text.lines().rev().find(|line| !line.trim().is_empty());
+    let status = output.status.shell_code();
+    match said {
+        Some(line) => format!("{program} failed ({status}): {}", line.trim()),
+        None => format!("{program} failed ({status})"),
     }
 }
 
@@ -109,27 +135,94 @@ mod tests {
         assert_eq!(*calls[2].get_stdin(), Input::Bytes(b"step\n".to_vec()));
     }
 
+    /// A runner whose `jose` prints a line and whose `clevis` gives
+    /// `clevis`'s answer.
+    fn with_clevis(clevis: impl Fn() -> Output + Send + Sync + 'static) -> FakeRunner {
+        let runner = FakeRunner::new();
+        runner.on(move |command| {
+            Some(Ok(if command.program() == "clevis" {
+                clevis()
+            } else {
+                Output::new(Status::exited(0), "step\n")
+            }))
+        });
+        runner
+    }
+
     #[test]
-    fn a_failed_or_empty_decryption_is_no_key() {
+    fn a_failed_or_empty_decryption_says_why() {
         let token = Token::without_fields("0", "clevis");
-        let failing = FakeRunner::new();
-        failing.respond_program("clevis", 1, "");
-        assert!(Clevis::new(&failing, "x").decrypt(&token).is_none());
-        let empty = FakeRunner::new();
-        empty.on(|command| {
-            (command.program() == "clevis").then(|| {
-                Ok(Output::with_secret(
-                    Status::exited(0),
-                    Secret::copy_from(b""),
-                ))
+        let failing = with_clevis(|| {
+            let mut output = Output::new(Status::exited(1), "");
+            output.stderr = b"Creating TPM2 primary key failed!\nERROR: tpm2\n\n".to_vec();
+            output
+        });
+        assert_eq!(
+            Clevis::new(&failing, "x").decrypt(&token).err().as_deref(),
+            Some("clevis decrypt failed (1): ERROR: tpm2")
+        );
+        let empty = with_clevis(|| Output::with_secret(Status::exited(0), Secret::copy_from(b"")));
+        assert_eq!(
+            Clevis::new(&empty, "x").decrypt(&token).err().as_deref(),
+            Some("clevis decrypt printed no key")
+        );
+        // jose that cannot read the token: clevis is not run.
+        let bad_jose = FakeRunner::new();
+        bad_jose.on(|command| {
+            (command.program() == "jose").then(|| {
+                let mut said = Output::new(Status::exited(1), "");
+                said.stderr = b"Invalid json!\n".to_vec();
+                Ok(said)
             })
         });
-        assert!(Clevis::new(&empty, "x").decrypt(&token).is_none());
+        assert_eq!(
+            Clevis::new(&bad_jose, "x").decrypt(&token).err().as_deref(),
+            Some("jose failed (1): Invalid json!")
+        );
+        assert!(
+            !bad_jose
+                .lines()
+                .iter()
+                .any(|line| line.starts_with("clevis"))
+        );
+    }
+
+    #[test]
+    fn a_program_that_does_not_start_or_says_nothing_is_named() {
+        let token = Token::without_fields("0", "clevis");
+        let missing = FakeRunner::new();
+        missing.on(|command| {
+            (command.program() == "jose").then(|| Err(std::io::Error::other("no such file")))
+        });
+        assert_eq!(
+            Clevis::new(&missing, "x").decrypt(&token).err().as_deref(),
+            Some("jose did not start: no such file")
+        );
+        let no_clevis = FakeRunner::new();
+        no_clevis.on(|command| {
+            Some(if command.program() == "clevis" {
+                Err(std::io::Error::other("no such file"))
+            } else {
+                Ok(Output::new(Status::exited(0), "step\n"))
+            })
+        });
+        assert_eq!(
+            Clevis::new(&no_clevis, "x")
+                .decrypt(&token)
+                .err()
+                .as_deref(),
+            Some("clevis did not start: no such file")
+        );
+        let silent = with_clevis(|| Output::new(Status::exited(2), ""));
+        assert_eq!(
+            Clevis::new(&silent, "x").decrypt(&token).err().as_deref(),
+            Some("clevis decrypt failed (2)")
+        );
     }
 
     #[test]
     fn decrypting_ends_after_its_time_out() {
-        let runner = FakeRunner::new();
+        let runner = with_clevis(|| Output::new(Status::exited(1), ""));
         let token = Token::without_fields("0", "clevis");
         let _ = Clevis::new(&runner, "device:/dev/tpmrm0").decrypt(&token);
         let calls = runner.calls();

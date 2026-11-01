@@ -33,7 +33,7 @@ impl Unlocker<'_> {
         let context = *self.context();
         let failed = |failure| target.token_error("clevis", id, failure);
         if !context.command_exists("clevis") || !context.command_exists("jose") {
-            zbm_trace::info!(
+            zbm_trace::warn!(
                 "clevis token {id} on {device} needs clevis and jose in the image";
                 %id, %device
             );
@@ -46,14 +46,17 @@ impl Unlocker<'_> {
         // The clevis policy may use the TPM.
         self.have_tpm2();
 
-        let key = Clevis::new(context.runner(), &self.settings().tpm2_tcti).decrypt(token);
-
-        let Some(key) = key else {
-            zbm_trace::debug!(
-                "clevis could not recover the key for slot {slot} on {device}";
-                %slot, %device
-            );
-            return Err(failed(TokenFailure::NotReleased));
+        let key = match Clevis::new(context.runner(), &self.settings().tpm2_tcti).decrypt(token) {
+            Ok(key) => key,
+            Err(why) => {
+                // A warning, which reaches the console and the kernel log:
+                // the volume falls back to a prompt, and this says why.
+                zbm_trace::warn!(
+                    "clevis token {id} on {device} did not recover the key of slot {slot}: {why}";
+                    %id, %device, %slot, %why
+                );
+                return Err(failed(TokenFailure::NotReleased));
+            }
         };
         let open = self.cryptsetup_open(target, Key::Stdin(&key))?;
         zbm_trace::info!("unlocked {device} with clevis"; %device);
@@ -158,10 +161,10 @@ mod tests {
                     .is_err()
             );
         });
-        assert!(
-            fake.kmsg()
-                .contains("clevis could not recover the key for slot 3 on /dev/sda")
-        );
+        assert!(fake.kmsg().contains(
+            "<4>ZFSBootMenu: clevis token 0 on /dev/sda did not recover the key of slot 3: \
+             clevis decrypt printed no key"
+        ));
         let fake = FakeSystem::new();
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(
@@ -170,9 +173,8 @@ mod tests {
                     .is_err()
             );
         });
-        assert!(
-            fake.kmsg()
-                .contains("clevis token 0 on /dev/sda needs clevis and jose in the image")
-        );
+        assert!(fake.kmsg().contains(
+            "<4>ZFSBootMenu: clevis token 0 on /dev/sda needs clevis and jose in the image"
+        ));
     }
 }
