@@ -5,6 +5,12 @@
 //! and old ones are pruned; the logic here decides which files to remove, in
 //! order, and the caller removes them.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a host tool works on the files and environment of the host it runs on; \
+              its tests run it in sandboxes (ADR 0013)"
+)]
+
 use std::collections::BTreeMap;
 
 use zbm_types::version::version_cmp;
@@ -109,7 +115,9 @@ fn version_of(file: &str, prefix: &str, suffix: &str) -> Option<String> {
         if byte == b'_'
             && index > 0
             && index + 1 < bytes.len()
-            && bytes[index + 1..].iter().all(u8::is_ascii_digit)
+            && bytes
+                .get(index + 1..)
+                .is_some_and(|rest| rest.iter().all(u8::is_ascii_digit))
         {
             split = Some(index);
         }
@@ -170,14 +178,14 @@ pub fn prune_versions(
     others.sort_by(|a, b| version_cmp(a, b));
 
     let keep = usize::try_from(keep).unwrap_or(usize::MAX);
-    let mut index = 0;
-    while others.len() - index > keep {
-        if let Some(files) = groups.get(others[index]) {
+    // The oldest go; the newest `keep` keep one image each.
+    let (gone, kept) = others.split_at(others.len().saturating_sub(keep));
+    for version in gone {
+        if let Some(files) = groups.get(*version) {
             removed.extend(purge(files, 0));
         }
-        index += 1;
     }
-    for version in &others[index..] {
+    for version in kept {
         if let Some(files) = groups.get(*version) {
             removed.extend(purge(files, 1));
         }

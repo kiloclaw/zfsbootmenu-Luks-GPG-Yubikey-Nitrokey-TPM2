@@ -5,6 +5,12 @@
 //! dot match only a pattern that does, and names that are not valid UTF-8 are
 //! skipped.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a host tool works on the files and environment of the host it runs on; \
+              its tests run it in sandboxes (ADR 0013)"
+)]
+
 /// The paths that `pattern` names, in byte order; a pattern without a
 /// wildcard names itself, whether or not the file exists.
 pub fn glob(pattern: &str) -> Vec<String> {
@@ -48,7 +54,9 @@ pub fn matches(pattern: &str, name: &str) -> bool {
 fn matches_from(pattern: &[char], name: &[char]) -> bool {
     match pattern.split_first() {
         None => name.is_empty(),
-        Some(('*', rest)) => (0..=name.len()).any(|skip| matches_from(rest, &name[skip..])),
+        Some(('*', rest)) => (0..=name.len())
+            .filter_map(|skip| name.get(skip..))
+            .any(|tail| matches_from(rest, tail)),
         Some(('?', rest)) => name
             .split_first()
             .is_some_and(|(_, tail)| matches_from(rest, tail)),

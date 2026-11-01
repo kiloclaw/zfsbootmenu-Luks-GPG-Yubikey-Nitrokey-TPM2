@@ -31,8 +31,11 @@ fn third_number(text: &[u8], start: usize) -> Option<usize> {
 /// numbers up to the end of the line.
 pub fn version_from_name(name: &str) -> Option<String> {
     let bytes = name.as_bytes();
-    (0..bytes.len())
-        .filter(|&dash| bytes[dash] == b'-')
+    bytes
+        .iter()
+        .enumerate()
+        .filter(|(_, byte)| **byte == b'-')
+        .map(|(dash, _)| dash)
         .find(|&dash| third_number(bytes, dash + 1).is_some())
         .map(|dash| {
             let rest = &name[dash + 1..];
@@ -48,11 +51,13 @@ pub fn version_in_line(line: &[u8]) -> Option<String> {
         let third = third_number(line, start)?;
         // `[0-9]+\S+` needs two characters that are not white space; it extends to the
         // next white space.
-        let end = line[third..]
+        let end = line
+            .get(third..)?
             .iter()
             .position(|byte| crate::generate_zbm::perl::is_space(*byte))
             .map_or(line.len(), |offset| third + offset);
-        (end - third >= 2).then(|| String::from_utf8_lossy(&line[start..end]).into_owned())
+        let found = line.get(start..end).filter(|_| end - third >= 2)?;
+        Some(String::from_utf8_lossy(found).into_owned())
     })
 }
 

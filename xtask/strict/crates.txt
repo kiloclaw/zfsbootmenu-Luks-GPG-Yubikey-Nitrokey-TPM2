@@ -10,6 +10,7 @@ zbm-config
 zbm-console
 zbm-crypt
 zbm-display
+zbm-host
 zbm-luks
 zbm-platform
 zbm-pool

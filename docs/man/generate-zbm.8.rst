@@ -21,6 +21,12 @@ OPTIONS
 
 Where noted, command-line options supersede options in the :doc:`generate-zbm(5) </man/generate-zbm.5>` configuration file.
 
+Options take the spellings shown here: a long option as **--name** with its value as **--name=value** or the next
+argument, and a short one as **-x**, grouped with others or with its value attached. The other spellings that earlier
+versions took (a unique start of a long name such as **--ver**, **+name**, **-name** with one dash, and **--noname**)
+still work in this release, each with a warning that names the spelling to use; they stop working in the next
+release. Operands may come anywhere, and are ignored; **--** ends the options.
+
 **--version|-v** *zbm-version*
 
   Override the ZFSBootMenu version in output files; supersedes *Global.Version*

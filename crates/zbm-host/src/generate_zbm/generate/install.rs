@@ -91,13 +91,11 @@ impl Generator<'_, '_, '_> {
     /// The image directory of a section, which must be set when the section
     /// is enabled: without it the images would go to `/`.
     fn image_dir(&mut self, spec: &zbm_config::spec::OptionSpec) -> Step<String> {
-        match self.setting(spec)?.filter(|dir| !dir.is_empty()) {
-            Some(dir) => Ok(dir),
-            None => {
-                self.print(&format!("ERROR: {} is not set\n", spec.name));
-                Err(Stop::Exit(1))
-            }
+        if let Some(dir) = self.setting(spec)?.filter(|dir| !dir.is_empty()) {
+            return Ok(dir);
         }
+        self.print(&format!("ERROR: {} is not set\n", spec.name));
+        Err(Stop::Exit(1))
     }
 
     /// Removes `file` if it exists, printing `message` first, or a confirmation

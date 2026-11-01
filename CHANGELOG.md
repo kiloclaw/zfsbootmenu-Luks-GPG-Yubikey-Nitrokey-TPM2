@@ -172,7 +172,20 @@ lines, which the dracut module and the mkinitcpio hook, now short shims, install
 ID, `vdev_id.conf` and the crypttab out for any value set; and an image without `SOURCE_DATE_EPOCH` takes its
 `BUILD_ID` from the day in UTC rather than in the build host's time zone. The mkinitcpio hook of the Rust runtime
 starts `zbm` from busybox's shell, without Bash. What goes into an image for a set of configurations is checked under
-`cargo test` against golden plans (`crates/zbm-image/src/snapshots/`).
+`cargo test` against golden plans (`crates/zbm-host/src/image/snapshots/`).
+
+`generate-zbm` and `zbm-kcl` keep their configuration and options but no longer imitate how Perl and Bash happened to
+implement them (ROADMAP.md DM10, ADR 0013); `CHANGES-FROM-LEGACY.md` lists each difference under "The host tools". They
+are one crate, `zbm-host`, with the plan of an image. `generate-zbm` runs dracut, mkinitcpio, `objcopy` and the hooks
+without a shell: `Global.DracutFlags` and `Global.InitCPIOFlags` are split into words, quotes honoured, and a flag with
+`$`, a backquote or a glob stops the build with the reason. Values of `config.yaml` keep their text (`Version: 3.10`
+is no longer 3.1), globs match case-sensitively, versions sort as the runtime sorts kernels and `git-abc` is pruned.
+`--enable` and `--disable` change the one line of `Global.ManageImages` and keep the file's comments. Images, the
+configuration and the EFI images `zbm-kcl` changes are replaced whole, through a new file renamed over the old one, so
+an interrupted run leaves no half-written file. `generate-zbm --dry-run` prints what a run would do and does none of
+it, and `generate-zbm` warns where the initramfs of a kernel prefix other than `vmlinuz` changed name (fix 23). Option
+spellings the manual does not document (`--ver`, `+debug`, `-kernel`) still work with a warning for this release. `zbm-kcl` reads command lines as
+the kernel splits them and says what it leaves out.
 
 The console on the display (`zbm.console=drm`) no longer runs as root (ROADMAP.md SE11, ADR 0012). The supervisor
 starts it as its own user, 60600, with one capability, the virtual terminal's modes, and opens each device it asks for:

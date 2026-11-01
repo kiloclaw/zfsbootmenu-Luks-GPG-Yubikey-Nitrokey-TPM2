@@ -4,6 +4,10 @@ What behaves differently in images with the Rust runtime (`zfsbootmenu_runtime=r
 Images with the legacy runtime, the default, are unchanged. The list grows with each step of R5 in
 [ROADMAP.md](ROADMAP.md); step 7 completes it as the migration guide for the switch.
 
+The last section, [The host tools](#the-host-tools-generate-zbm-and-zbm-kcl), is different: it lists what changed in
+`generate-zbm` and `zbm-kcl`, the programs that build images and change command lines on the host, whatever runtime
+the images have.
+
 ## The shell: brush
 
 Rust images include [brush](https://github.com/reubeno/brush), a shell compatible with Bash and written in Rust, and
@@ -230,3 +234,100 @@ takes over from a menu already running.
 
 The menu no longer uses `fzf`. Rust images still install it, for the tools of the recovery shell that are not ported
 yet (`logs`, `zsnapshots`, the help pages); it leaves the images when R5 and R6 port them.
+
+## The host tools: `generate-zbm` and `zbm-kcl`
+
+`generate-zbm` and `zbm-kcl` were ported from Perl and Bash step by step, quirks included. Since DM10 ([ADR
+0013](docs/dev/adr/0013-host-tools.md)) they keep every key of `config.yaml`, every documented option and every hook
+directory, and do what their manual pages say where Perl or Bash did something else. These are the differences.
+
+### Values keep their text
+
+- **Before:** `config.yaml` was read as Perl's YAML::PP read it: `Global.Version: 3.10` was the number 3.1, and
+  `false` became `0` in names and messages.
+- **Now:** a value is the text the file has (`3.10` stays `3.10`); a key that wants a number reads one, and one that
+  wants a yes or no takes `false`, `no`, `off`, `0` and an empty value as no.
+- **Why:** the manual never promised Perl's typing, and a version that loses its digits names the wrong image.
+
+### Globs match case-sensitively
+
+- **Before:** the globs that find kernels in the boot directory (by prefix, or by a `Kernel.Version` such as `6.1*`)
+  and the hooks in their directories matched with case ignored, through File::Glob.
+- **Now:** they match as the file system names files: `vmlinuz*` does not match `VMLINUZ-6.1`. Only the last part of
+  a path may have `*`, `?` and `[...]`; the directory part is taken as it is.
+- **Why:** two files whose names differ by case are two files.
+
+### Versions sort as the menu sorts kernels, and all are pruned
+
+- **Before:** image versions sorted as Perl's Sort::Versions sorts them, and a version such as `git-abc` was never
+  pruned.
+- **Now:** versions sort as the runtime sorts kernels, and a version such as `git-abc` is pruned with the others
+  (fix 25 of the review). A name that is a word, a dash and a number alone (`foo-2`) is taken as another prefix's.
+- **Why:** one order everywhere, and no image kept by accident.
+
+### The builders run without a shell
+
+- **Before:** dracut, mkinitcpio, `objcopy`, `objdump`, `mount` and the hooks ran through `/bin/sh -c`, and
+  `Global.DracutFlags` and `Global.InitCPIOFlags` were shell text: `$HOME` or `$(...)` in them was expanded.
+- **Now:** every program runs from a list of arguments. The flags are split into words as a shell splits them, quotes
+  and backslashes honoured, but nothing is expanded: a flag with `$`, a backquote, a glob character or other shell
+  syntax stops `generate-zbm` with the reason. A program that cannot be started gets status 127 or 126, and one a
+  signal ends is described as the shell described it (`Killed`).
+- **Why:** a path with a space or a quote cannot turn into another command, and a flag means what it says.
+
+### `--enable` and `--disable` change one line
+
+- **Before:** `--enable` and `--disable` wrote the whole of `config.yaml` again, without its comments and in another
+  order.
+- **Now:** they change the one value of `Global.ManageImages` in place, keep everything else as it was, and replace
+  the file whole (a new file beside it, renamed over it). When that value is not a plain value on its own line, they
+  refuse and say to set it by hand; a missing key or `Global` section is added.
+- **Why:** comments and layout are the user's (fix 25 of the review).
+
+### Options are spelled as the manual spells them
+
+- **Before:** `generate-zbm` took any spelling Perl's Getopt::Long took (`--ver`, `+debug`, `-kernel`, `--noinitcpio`),
+  and `POSIXLY_CORRECT` changed how it read its arguments.
+- **Now:** the documented spellings, and for one release the others too, each with a warning that names the spelling
+  to use; after it they are errors. `POSIXLY_CORRECT` changes nothing. `zbm-kcl` reads its options as before.
+- **Why:** one parser for both tools, and options that are the same in every release.
+
+### `generate-zbm --dry-run`
+
+- **Before:** there was no way to see what a run would do without doing it.
+- **Now:** `--dry-run` (`-n`) prints each thing a run would do (mount, run a hook, build, copy, rename, remove, change
+  `Global.ManageImages`) on a line that starts with `Would`, and does none of it.
+- **Why:** a configuration can be checked before it changes the boot partition.
+
+### Images are installed whole
+
+- **Before:** images were copied over the old ones in place, so a full disk or a power cut could leave a half-written
+  image where a good one was.
+- **Now:** each image is written beside its place under another name, written to the disk and renamed over the old
+  one: the old image or the new one is there, never part of either.
+- **Why:** the boot partition always has an image that boots.
+
+### Images of another prefix are named for it
+
+- **Before:** with kernels of a prefix other than `vmlinuz`, the initramfs changed name without a word.
+- **Now:** `generate-zbm` warns where images of the old name are left beside the new ones, which it neither uses nor
+  prunes, and `contrib/syslinux-update.sh` finds both names (fix 23 of the review).
+- **Why:** a boot loader entry that names the old file would boot an old image.
+
+### `zbm-kcl` reads command lines as the kernel does
+
+- **Before:** `zbm-kcl` split a command line with Bash's word splitting and `echo`: a property `-n` printed as an
+  empty line, and text the kernel cannot take as an argument was kept.
+- **Now:** it splits the command line as the kernel splits it, and writes each argument so that the kernel reads it
+  back the same. Text that is not a kernel argument, such as a name with spaces (`"a b"`), is left out, and
+  `zbm-kcl` says so on standard error. `-r` removes an argument by its name or as the whole argument; `-a` takes its
+  value as arguments. A `.cmdline` section is read up to its first NUL byte, as the EFI stub reads it.
+- **Why:** what `zbm-kcl` prints and saves is what the kernel will get.
+
+### `zbm-kcl` replaces EFI images whole
+
+- **Before:** `zbm-kcl` wrote a changed EFI image over the old one in place, the image the firmware boots.
+- **Now:** it writes the image to a new file beside the destination and renames it over the old one, which keeps its
+  permissions (fix 24 of the review). When that fails, it says why, and keeps the changed image in the temporary
+  directory as before.
+- **Why:** an interrupted write cannot leave a machine without an image that boots.

@@ -6,9 +6,13 @@
 
 #![allow(
     clippy::disallowed_methods,
-    reason = "the parity tests run the program in a sandbox"
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "the parity tests run the program in a sandbox and fail loudly when they cannot"
 )]
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -27,9 +31,9 @@ fn efi_tools() -> bool {
     Path::new(STUB).is_file() && have_program("objcopy") && have_program("objdump")
 }
 
-fn run(command: Command) -> Output {
+fn run(command: &Command) -> Output {
     SystemRunner
-        .run(&command)
+        .run(command)
         .expect("the program can be started")
 }
 
@@ -41,7 +45,7 @@ fn hex(field: &str) -> u64 {
 /// (none when `None`), followed by a `.linux` section one alignment unit later,
 /// as `generate-zbm` lays them out.
 fn build_efi(dir: &Path, name: &str, cmdline: Option<&[u8]>) -> PathBuf {
-    let headers = run(Command::new("objdump").args(["-w", "-h", STUB])).stdout_text();
+    let headers = run(&Command::new("objdump").args(["-w", "-h", STUB])).stdout_text();
     let last: Vec<&str> = headers.lines().last().unwrap().split_whitespace().collect();
     let end = hex(last[2]) + hex(last[3]);
     let align = 0x1000;
@@ -72,7 +76,7 @@ fn build_efi(dir: &Path, name: &str, cmdline: Option<&[u8]>) -> PathBuf {
         // objcopy stamps the PE header with the time unless this is set; a fixed stamp
         // makes the images of the two sandboxes identical.
         .env("SOURCE_DATE_EPOCH", "0");
-    let output = run(command);
+    let output = run(&command);
     assert!(output.status.is_success(), "{}", output.stderr_text());
     image
 }
@@ -125,7 +129,7 @@ impl Sandbox {
             Some(editor) => command.env("EDITOR", self.work.join(editor)),
             None => command.env_remove("EDITOR"),
         };
-        run(command.env("ZBM_PARITY_CWD", self.work.path()))
+        run(&command.env("ZBM_PARITY_CWD", self.work.path()))
     }
 
     /// The state the run left: properties, `zfs` calls and the files of the working
@@ -133,10 +137,7 @@ impl Sandbox {
     fn state(&self) -> String {
         let mut state = String::new();
         for dataset in DATASETS {
-            state.push_str(&format!(
-                "{dataset}: {:?}\n",
-                self.zfs.local(dataset, PROPERTY)
-            ));
+            let _ = writeln!(state, "{dataset}: {:?}", self.zfs.local(dataset, PROPERTY));
         }
         state.push_str(&self.zfs.calls());
         let mut files: Vec<_> = std::fs::read_dir(self.work.path())
@@ -156,10 +157,10 @@ impl Sandbox {
                     zbm_testkit::efi::fnv1a(&bytes)
                 )
             });
-            state.push_str(&format!("{name}: {contents}\n"));
+            let _ = writeln!(state, "{name}: {contents}");
         }
         let leftovers = std::fs::read_dir(self.tmp.path()).unwrap().count();
-        state.push_str(&format!("temporary files left: {leftovers}\n"));
+        let _ = writeln!(state, "temporary files left: {leftovers}");
         state
     }
 
@@ -324,7 +325,7 @@ fn intended(mut legacy: Outcome, args: &[&str], holds_text: bool) -> Outcome {
         }
     }
     if args == ["pool/flag"] {
-        legacy.stdout = "-n\n".to_owned();
+        "-n\n".clone_into(&mut legacy.stdout);
     }
     legacy.stderr = legacy.stderr.replace(
         "cp: cannot create regular file 'missing-dir/out.efi'",

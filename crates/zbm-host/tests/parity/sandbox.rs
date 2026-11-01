@@ -2,6 +2,7 @@
 //! kernels, and the comparison of what it did with what the Perl program
 //! did when it was recorded.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -306,32 +307,34 @@ impl Sandbox {
             let metadata = std::fs::symlink_metadata(&file).unwrap();
             let name = self.normalize(&relative, program);
             if metadata.is_dir() {
-                state.push_str(&format!("{name}/\n"));
+                let _ = writeln!(state, "{name}/");
                 continue;
             }
             let bytes = std::fs::read(&file).unwrap();
             // These name the sandbox, so their normalized text is compared instead of their
             // bytes.
             if relative == "calls.log" || relative == "config.yaml" {
-                state.push_str(&format!(
+                let _ = write!(
+                    state,
                     "{relative}, mode {:o}:\n{}",
                     std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o7777,
                     self.normalize(&String::from_utf8_lossy(&bytes), program)
-                ));
+                );
                 continue;
             }
             let mode = std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o7777;
             // An EFI bundle holds the host's stub: only what was added to it is
             // compared, so that recordings hold on other machines.
             if let Some(payload) = zbm_testkit::efi::describe(&bytes) {
-                state.push_str(&format!("{name}: {payload} mode {mode:o}\n"));
+                let _ = writeln!(state, "{name}: {payload} mode {mode:o}");
                 continue;
             }
             let hash = zbm_testkit::efi::fnv1a(&bytes);
-            state.push_str(&format!(
-                "{name}: {} bytes, {hash:016x}, mode {mode:o}\n",
+            let _ = writeln!(
+                state,
+                "{name}: {} bytes, {hash:016x}, mode {mode:o}",
                 bytes.len()
-            ));
+            );
         }
         state
     }

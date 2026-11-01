@@ -59,11 +59,11 @@ impl Generator<'_, '_, '_> {
             return Ok(version);
         };
         let (uname, status) = self.execute(&Invocation::new("uname").plain("-r"))?;
-        if status != 0 || uname.is_empty() {
+        let Some(first) = uname.first().filter(|_| status == 0) else {
             self.print("Cannot determine current kernel version\n");
             return Err(Stop::Exit(if status == 0 { 1 } else { status }));
-        }
-        let running = String::from_utf8_lossy(perl::chomp(&uname[0])).into_owned();
+        };
+        let running = String::from_utf8_lossy(perl::chomp(first)).into_owned();
         Ok(Some(perl::replace_current(&value, &running)))
     }
 
@@ -99,13 +99,11 @@ impl Generator<'_, '_, '_> {
             }
             return Ok(kernel);
         }
-        match self.latest_kernel(bootdir)? {
-            Some(kernel) => Ok(kernel),
-            None => {
-                self.print("Unable to find latest kernel; specify version or path manually\n");
-                Err(Stop::Exit(1))
-            }
+        if let Some(kernel) = self.latest_kernel(bootdir)? {
+            return Ok(kernel);
         }
+        self.print("Unable to find latest kernel; specify version or path manually\n");
+        Err(Stop::Exit(1))
     }
 
     /// The kernel version: `version` when it is given, else the one found from
@@ -114,15 +112,13 @@ impl Generator<'_, '_, '_> {
         if let Some(version) = version.filter(|text| !text.is_empty()) {
             return Ok(version);
         }
-        match self.kernel_version(kernel)? {
-            Some(version) => Ok(version),
-            None => {
-                self.print(&format!(
-                    "Unable to determine kernel version from {kernel}\n"
-                ));
-                Err(Stop::Exit(1))
-            }
+        if let Some(version) = self.kernel_version(kernel)? {
+            return Ok(version);
         }
+        self.print(&format!(
+            "Unable to determine kernel version from {kernel}\n"
+        ));
+        Err(Stop::Exit(1))
     }
 
     /// The prefix of the image names: `prefix` when it is given, else the
@@ -153,11 +149,10 @@ impl Generator<'_, '_, '_> {
                 self.log(&format!("Identified version {version} for kernel {kernel}"));
                 kernels.insert(version, kernel);
             }
-            let mut versions: Vec<&String> = kernels.keys().collect();
-            versions.sort_by(|a, b| version_cmp(b, a));
-            if let Some(latest) = versions.first() {
-                self.log(&format!("Latest kernel: {latest}"));
-                return Ok(Some(kernels[*latest].clone()));
+            let latest = kernels.iter().min_by(|(a, _), (b, _)| version_cmp(b, a));
+            if let Some((version, kernel)) = latest {
+                self.log(&format!("Latest kernel: {version}"));
+                return Ok(Some(kernel.clone()));
             }
         }
         Ok(None)

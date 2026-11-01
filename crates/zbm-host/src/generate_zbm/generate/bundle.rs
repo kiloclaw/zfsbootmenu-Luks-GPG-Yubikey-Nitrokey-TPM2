@@ -98,16 +98,14 @@ impl Generator<'_, '_, '_> {
             }
             return Ok(stub);
         }
-        match self.context.default_stubs.iter().find(|stub| is_file(stub)) {
-            Some(stub) => Ok(stub.clone()),
-            None => {
-                self.print("Unable to find UEFI stub loader at default locations:\n");
-                for stub in &self.context.default_stubs.clone() {
-                    self.print(&format!(" {stub}\n"));
-                }
-                Err(Stop::Exit(1))
-            }
+        if let Some(stub) = self.context.default_stubs.iter().find(|stub| is_file(stub)) {
+            return Ok(stub.clone());
         }
+        self.print("Unable to find UEFI stub loader at default locations:\n");
+        for stub in &self.context.default_stubs.clone() {
+            self.print(&format!(" {stub}\n"));
+        }
+        Err(Stop::Exit(1))
     }
 
     /// The section alignment of the stub, from objdump's private headers.

@@ -4,7 +4,11 @@
 //! one, even after a failed write, a full disk or a power cut. A failure
 //! leaves no temporary file.
 
-use std::io::Write;
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the one place the host tools replace files of the host"
+)]
+
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 
@@ -33,7 +37,7 @@ pub fn replace(
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let (temp, mut file) = temporary(directory, dest)?;
+    let (temp, mut staged) = temporary(directory, dest)?;
     let mode = match std::fs::metadata(dest) {
         Ok(existing) => Some(existing.permissions().mode()),
         Err(_) => match new_mode {
@@ -43,10 +47,10 @@ pub fn replace(
     };
     let written = mode
         .map_or(Ok(()), |mode| {
-            file.set_permissions(std::fs::Permissions::from_mode(mode & 0o7777))
+            staged.set_permissions(std::fs::Permissions::from_mode(mode & 0o7777))
         })
-        .and_then(|()| fill(&mut file))
-        .and_then(|()| file.sync_all())
+        .and_then(|()| fill(&mut staged))
+        .and_then(|()| staged.sync_all())
         .and_then(|()| std::fs::rename(&temp, dest));
     if written.is_err() {
         let _ = std::fs::remove_file(&temp);
@@ -67,14 +71,7 @@ pub fn replace(
 pub fn copy_over(source: &Path, dest: &Path, new_mode: NewMode) -> std::io::Result<()> {
     let mut from = std::fs::File::open(source)?;
     replace(dest, new_mode, |to| {
-        let mut buffer = vec![0_u8; 1 << 20];
-        loop {
-            let count = std::io::Read::read(&mut from, &mut buffer)?;
-            if count == 0 {
-                return Ok(());
-            }
-            to.write_all(&buffer[..count])?;
-        }
+        std::io::copy(&mut from, to).map(|_| ())
     })
 }
 
@@ -102,6 +99,8 @@ fn temporary(directory: &Path, dest: &Path) -> std::io::Result<(PathBuf, std::fs
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write as _;
+
     use zbm_testkit::TempDir;
 
     use super::*;

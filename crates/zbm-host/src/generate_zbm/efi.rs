@@ -10,13 +10,14 @@ use crate::generate_zbm::perl::split_whitespace;
 pub fn section_alignment(line: &[u8]) -> Option<u64> {
     const KEY: &[u8] = b"SectionAlignment";
     (0..line.len()).find_map(|at| {
-        let rest = line[at..].strip_prefix(KEY)?;
+        let rest = line.get(at..)?.strip_prefix(KEY)?;
         let spaces = rest
             .iter()
             .take_while(|byte| crate::generate_zbm::perl::is_space(**byte))
             .count();
-        let digits: Vec<u8> = rest[spaces..]
+        let digits: Vec<u8> = rest
             .iter()
+            .skip(spaces)
             .copied()
             .take_while(u8::is_ascii_digit)
             .collect();

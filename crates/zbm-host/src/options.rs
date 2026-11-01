@@ -11,10 +11,10 @@
 //!   or end the options ([`Order::StopAtOperand`], as `getopts` reads them,
 //!   stopping also at the first problem).
 //!
-//! The spellings that Perl's Getopt::Long also took, a unique prefix of a long
-//! name (`--ver`), `+name`, a single dash before a long name (`-kernel`) and
-//! `--noname`, still work for one release, each with a warning that names the
-//! documented spelling (ADR 0013, answer 4); after it they are errors.
+//! The spellings that Perl's `Getopt::Long` also took, a unique prefix of a
+//! long name (`--ver`), `+name`, a single dash before a long name (`-kernel`)
+//! and `--noname`, still work for one release, each with a warning that names
+//! the documented spelling (ADR 0013, answer 4); after it they are errors.
 
 /// One option.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -120,6 +120,7 @@ pub struct Parsed {
 /// A long option found for a name.
 struct Long {
     index: usize,
+    spec: Spec,
     negated: bool,
     /// The documented spelling, when the name given was not it.
     documented: Option<String>,
@@ -133,54 +134,62 @@ struct Parser<'a> {
 }
 
 impl Parser<'_> {
+    /// The option whose long name is `name`, with its place in the table.
+    fn exact(&self, name: &str) -> Option<(usize, Spec)> {
+        self.specs
+            .iter()
+            .copied()
+            .enumerate()
+            .find(|(_, spec)| spec.long == Some(name))
+    }
+
     /// The long option `name` names: exactly, or (warned) as `noNAME` or a
     /// unique prefix.
     fn long(&mut self, name: &str) -> Option<Long> {
-        let exact = |name: &str| self.specs.iter().position(|spec| spec.long == Some(name));
-        if let Some(index) = exact(name) {
+        if let Some((index, spec)) = self.exact(name) {
             return Some(Long {
                 index,
+                spec,
                 negated: false,
                 documented: None,
             });
         }
         let negations = [name.strip_prefix("no-"), name.strip_prefix("no")];
         for (form, base) in negations.into_iter().enumerate() {
-            let Some(index) = base
-                .and_then(exact)
-                .filter(|index| self.specs[*index].negatable)
+            let Some((index, spec)) = base
+                .and_then(|base| self.exact(base))
+                .filter(|(_, spec)| spec.negatable)
             else {
                 continue;
             };
             let documented = (form == 1).then(|| format!("--no-{}", base.unwrap_or_default()));
             return Some(Long {
                 index,
+                spec,
                 negated: true,
                 documented,
             });
         }
-        let hits: Vec<usize> = (0..self.specs.len())
-            .filter(|index| {
-                self.specs[*index]
-                    .long
-                    .is_some_and(|long| long.starts_with(name))
-            })
+        let hits: Vec<(usize, Spec)> = self
+            .specs
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(_, spec)| spec.long.is_some_and(|long| long.starts_with(name)))
             .collect();
         match hits.as_slice() {
-            [index] if !name.is_empty() => Some(Long {
+            [(index, spec)] if !name.is_empty() => Some(Long {
                 index: *index,
+                spec: *spec,
                 negated: false,
-                documented: Some(self.specs[*index].spelling()),
+                documented: Some(spec.spelling()),
             }),
             [] | [_] => {
                 self.parsed.problems.push(Problem::Unknown(name.to_owned()));
                 None
             }
             _ => {
-                let names = hits
-                    .iter()
-                    .map(|index| self.specs[*index].spelling())
-                    .collect();
+                let names = hits.iter().map(|(_, spec)| spec.spelling()).collect();
                 self.parsed
                     .problems
                     .push(Problem::Ambiguous(name.to_owned(), names));
@@ -209,7 +218,7 @@ impl Parser<'_> {
         let Some(found) = self.long(name) else {
             return;
         };
-        let spec = self.specs[found.index];
+        let spec = found.spec;
         let documented = if found.negated {
             format!("--no-{}", spec.long.unwrap_or_default())
         } else {
@@ -219,29 +228,33 @@ impl Parser<'_> {
             let given = arg.split('=').next().unwrap_or(arg).to_owned();
             self.warn(&given, &found.documented.unwrap_or(documented.clone()));
         }
-        self.finish(found.index, found.negated, inline, &documented, rest);
+        self.finish(
+            (found.index, spec),
+            found.negated,
+            inline,
+            &documented,
+            rest,
+        );
     }
 
-    /// Records the option `index`, its value taken from `inline` or `rest`.
+    /// Records the option `spec`, at `index` in the table, its value taken
+    /// from `inline` or `rest`.
     fn finish(
         &mut self,
-        index: usize,
+        (index, spec): (usize, Spec),
         negated: bool,
         inline: Option<String>,
         shown: &str,
         rest: &mut std::collections::VecDeque<String>,
     ) {
-        let spec = self.specs[index];
         let value = if spec.takes_value {
-            match inline.or_else(|| rest.pop_front()) {
-                Some(value) => Some(value),
-                None => {
-                    self.parsed
-                        .problems
-                        .push(Problem::MissingValue(shown.to_owned()));
-                    return;
-                }
-            }
+            let Some(value) = inline.or_else(|| rest.pop_front()) else {
+                self.parsed
+                    .problems
+                    .push(Problem::MissingValue(shown.to_owned()));
+                return;
+            };
+            Some(value)
         } else if inline.is_some() {
             self.parsed
                 .problems
@@ -260,14 +273,20 @@ impl Parser<'_> {
     /// A group of short options after `-`.
     fn take_short(&mut self, group: &str, rest: &mut std::collections::VecDeque<String>) {
         for (at, c) in group.char_indices() {
-            let Some(index) = self.specs.iter().position(|spec| spec.short == Some(c)) else {
+            let found = self
+                .specs
+                .iter()
+                .copied()
+                .enumerate()
+                .find(|(_, spec)| spec.short == Some(c));
+            let Some((index, spec)) = found else {
                 self.parsed.problems.push(Problem::Unknown(c.to_string()));
                 return;
             };
-            if self.specs[index].takes_value {
-                let attached = &group[at + c.len_utf8()..];
+            if spec.takes_value {
+                let attached = group.get(at + c.len_utf8()..).unwrap_or_default();
                 let inline = (!attached.is_empty()).then(|| attached.to_owned());
-                self.finish(index, false, inline, &format!("-{c}"), rest);
+                self.finish((index, spec), false, inline, &format!("-{c}"), rest);
                 return;
             }
             self.parsed.given.push(Given {

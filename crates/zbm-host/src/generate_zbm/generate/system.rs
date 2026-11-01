@@ -88,11 +88,8 @@ impl Generator<'_, '_, '_> {
             return;
         }
         let bytes = std::fs::read(&self.context.etc_hostid).unwrap_or_default();
-        let system = match bytes.get(..4) {
-            Some(word) => format!(
-                "{:08x}",
-                u32::from_le_bytes([word[0], word[1], word[2], word[3]])
-            ),
+        let system = match bytes.first_chunk::<4>() {
+            Some(word) => format!("{:08x}", u32::from_le_bytes(*word)),
             None => "00000000".to_owned(),
         };
         if module != system {
@@ -102,8 +99,8 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// File::Spec's `tmpdir`: `$TMPDIR` when it is a writable directory, otherwise
-    /// `/tmp`, otherwise `.`.
+    /// `File::Spec`'s `tmpdir`: `$TMPDIR` when it is a writable directory,
+    /// otherwise `/tmp`, otherwise `.`.
     fn temp_base(&self) -> PathBuf {
         let candidates = [self.context.tmpdir.clone(), Some(PathBuf::from("/tmp"))];
         let base = candidates
@@ -137,7 +134,7 @@ impl Generator<'_, '_, '_> {
     }
 }
 
-/// File::Spec's `canonpath` on Unix: no repeated `/`, no `/.` components, no
+/// `File::Spec`'s `canonpath` on Unix: no repeated `/`, no `/.` components, no
 /// leading `./` and no trailing `/`.
 pub(super) fn canonical_path(path: &Path) -> PathBuf {
     let text = path.display().to_string();

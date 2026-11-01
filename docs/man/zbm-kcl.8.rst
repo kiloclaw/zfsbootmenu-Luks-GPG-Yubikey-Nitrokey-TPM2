@@ -29,6 +29,14 @@ If an EFI executable of *-* is specified, *stdin* will be read as an EFI executa
 With no options specified, **zbm-kcl** will print the current value of *org.zfsbootmenu:commandline* of the selected
 filesystem or the *.cmdline* section of the named EFI executable and exit.
 
+**zbm-kcl** reads a command line as the kernel splits it into arguments, and writes each argument so that the kernel
+reads it back the same, with a value that has spaces in double quotes. Text that is not a kernel argument, such as a
+name with spaces, is left out, and **zbm-kcl** says so on standard error.
+
+A changed EFI executable is written to a new file beside the destination, which then replaces it, so the destination
+is either the old executable or the new one, never part of either. A new destination gets the permissions of a copy,
+and an existing one keeps its own.
+
 OPTIONS
 =======
 
@@ -48,7 +56,7 @@ OPTIONS
 
   Remove *argument* from the kernel command line. The value of *argument* can be a simple variable name, in which case
   all arguments of the form *argument* or *argument=<arbitrary-value>* will be stripped. Alternatively, a specific
-  argument may be selected by specifying *argument=<specific-value>*.
+  argument may be selected by specifying *argument=<specific-value>*, written as **zbm-kcl** prints it.
 
   This argument may be repeated any number of times.
 
@@ -61,7 +69,8 @@ OPTIONS
 
   Open the contents of the command-line in an interactive editor. If the environment defines *$EDITOR*, that will be
   used; otherwise, **vi** will be used by default. After making changes as desired, overwrite the (temporary) file that
-  was opened and quit the editor. The contents of the saved file will be written by **zbm-kcl** as the new command line.
+  was opened and quit the editor. The contents of the saved file, up to the first empty line and without comments
+  (from *#* to the end of a line), will be written by **zbm-kcl** as the new command line.
 
 **-d**
 

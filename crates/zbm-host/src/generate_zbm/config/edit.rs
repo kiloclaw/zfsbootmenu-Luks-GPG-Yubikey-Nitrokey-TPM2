@@ -2,6 +2,8 @@
 //! `Global.ManageImages` changed in the text of `config.yaml`, which keeps
 //! its comments, order and layout.
 
+use std::fmt::Write as _;
+
 /// The indentation of `line`, in bytes.
 fn indent(line: &str) -> usize {
     line.len() - line.trim_start_matches(' ').len()
@@ -57,43 +59,47 @@ pub fn with_manage_images(text: &str, enable: bool) -> Result<String, String> {
     let lines: Vec<&str> = text.split_inclusive('\n').collect();
     let global = lines
         .iter()
-        .position(|line| indent(line) == 0 && entry(line).is_some_and(|(key, _)| key == "Global"));
-    let Some(global) = global else {
+        .enumerate()
+        .find(|(_, line)| indent(line) == 0 && entry(line).is_some_and(|(key, _)| key == "Global"));
+    let Some((global, global_line)) = global else {
         let mut out = text.to_owned();
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
         }
-        out.push_str(&format!("Global:\n  ManageImages: {enable}\n"));
+        let _ = writeln!(out, "Global:\n  ManageImages: {enable}");
         return Ok(out);
     };
-    let (_, after) = entry(lines[global]).unwrap_or_default();
+    let (_, after) = entry(global_line).unwrap_or_default();
     if !is_blank(after) {
         return Err(refuse("Global is not a block mapping"));
     }
-    let block_end = lines[global + 1..]
+    // The lines of the section: up to the next key of the top level.
+    let following = lines.split_at(global + 1).1;
+    let block_len = following
         .iter()
         .position(|line| !is_blank(line) && indent(line) == 0)
-        .map_or(lines.len(), |end| global + 1 + end);
-    let block = &lines[global + 1..block_end];
+        .unwrap_or(following.len());
+    let block = following.split_at(block_len).0;
     let key_indent = block
         .iter()
         .find(|line| !is_blank(line))
         .map_or(2, |line| indent(line));
     let mut out: Vec<String> = lines.iter().map(|line| (*line).to_owned()).collect();
-    let found = block.iter().position(|line| {
+    let found = block.iter().enumerate().find(|(_, line)| {
         indent(line) == key_indent && entry(line).is_some_and(|(key, _)| key == "ManageImages")
     });
     match found {
-        Some(at) => {
-            let line = block[at];
+        Some((at, line)) => {
             let (_, rest) = entry(line).unwrap_or_default();
             let comment = plain_value(rest)
                 .ok_or_else(|| refuse("Global.ManageImages is not a plain value"))?;
             let ending = if line.ends_with('\n') { "\n" } else { "" };
-            out[global + 1 + at] = format!(
-                "{}ManageImages: {enable}{comment}{ending}",
-                " ".repeat(key_indent)
-            );
+            if let Some(slot) = out.get_mut(global + 1 + at) {
+                *slot = format!(
+                    "{}ManageImages: {enable}{comment}{ending}",
+                    " ".repeat(key_indent)
+                );
+            }
         }
         None => out.insert(
             global + 1,

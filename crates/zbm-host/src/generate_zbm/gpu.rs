@@ -19,6 +19,7 @@ mod ids;
 pub mod tables;
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use host::Device;
 use tables::Chip;
@@ -106,18 +107,16 @@ pub fn parse(words: &[String]) -> Result<Vec<Request>, String> {
                 "unknown graphics driver '{driver_name}': the drivers are amdgpu, i915 and xe"
             ));
         };
-        let index = match requests.iter().position(|request| request.driver == driver) {
-            Some(index) => index,
-            None => {
-                requests.push(Request {
-                    driver,
-                    host: false,
-                    names: Vec::new(),
-                });
-                requests.len() - 1
-            }
+        if !requests.iter().any(|request| request.driver == driver) {
+            requests.push(Request {
+                driver,
+                host: false,
+                names: Vec::new(),
+            });
+        }
+        let Some(request) = requests.iter_mut().find(|request| request.driver == driver) else {
+            continue;
         };
-        let request = &mut requests[index];
         let Some(names) = names else {
             request.host = true;
             continue;
@@ -237,12 +236,13 @@ fn host_choices(driver: Driver, devices: &[Device]) -> Result<Vec<Choice>, Strin
             driver.vendor_name()
         );
         for other in others {
-            message.push_str(&format!("; {other}"));
+            let _ = write!(message, "; {other}");
         }
-        message.push_str(&format!(
+        let _ = write!(
+            message,
             ": name the chips or families to build for, such as {}",
             example(driver)
-        ));
+        );
         return Err(message);
     }
     Ok(choices)
@@ -361,7 +361,7 @@ fn files_of<'a>(choice: &Choice, files: &'a [String]) -> Option<(Vec<&'a String>
         match matching {
             Some(found) => taken.extend(found),
             None if index == 0 => return None,
-            None => unlisted.push(alternatives[0].clone()),
+            None => unlisted.extend(alternatives.first().cloned()),
         }
     }
     taken.sort();
@@ -398,9 +398,11 @@ pub fn select(
         let name = choice.driver.name();
         let Some((taken, unlisted)) = found else {
             if choice.family.is_none() {
+                let stem = choice.stems.first().and_then(|stems| stems.first());
                 return Err(format!(
                     "{name} lists no firmware {}* for {}: the kernel does not know this GPU",
-                    choice.stems[0][0], choice.label
+                    stem.map_or("", String::as_str),
+                    choice.label
                 ));
             }
             let label = &choice.label;

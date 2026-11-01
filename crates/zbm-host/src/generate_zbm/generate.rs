@@ -15,6 +15,12 @@
 //! `kernels` (the choice of the kernel), `initramfs`, `bundle` (the EFI bundle)
 //! and `install` (placing the images and pruning old ones).
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a host tool works on the files and environment of the host it runs on; \
+              its tests run it in sandboxes (ADR 0013)"
+)]
+
 mod bundle;
 mod files;
 mod graphics;

@@ -1,5 +1,10 @@
 //! `generate-zbm` on a pipe whose reader is gone.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the test runs the program itself"
+)]
+
 use std::io::Read as _;
 use std::os::unix::process::ExitStatusExt as _;
 use std::process::{Command, Stdio};

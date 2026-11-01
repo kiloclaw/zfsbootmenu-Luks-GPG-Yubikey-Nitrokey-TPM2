@@ -105,8 +105,30 @@ of how Perl and Bash happened to implement it.**
 
 ## Where the work stands
 
-On 1 November 2026, when the decision was accepted, nothing of it is built. `generate-zbm` and `zbm-kcl` are the
-ports of Phase 3, and `zbm-image` (SB8) holds the plan of an image in the orchestration layer.
+Built on 1 November 2026, the day the decision was accepted (DM10a to DM10g):
+
+- **Points 1 and 7:** `zbm-host` in orchestration, with the modules `generate_zbm`, `kcl` and `image` and the
+  binaries `generate-zbm` and `zbm-kcl`; `check-deps` holds it there. `zbm-kcl` works on `KernelCommandLine`, and
+  writes a changed EFI image through the same atomic replace as the install (`zbm_host::files`). It keeps `objcopy`
+  (CD12).
+- **Points 3 and 6:** the configuration is read without Perl's typing, globs are case-sensitive, versions sort with
+  `version_cmp`, and `--enable` and `--disable` edit the one line. The emulations of YAML::PP, its emitter,
+  File::Glob, Sort::Versions, Getopt::Long and `getopts`, and the legacy tokenizer of `zbm-kcl`, are gone with their
+  recordings.
+- **Point 4:** every program runs from an argument vector (`zbm_tools::programs::merged`); the flags are split with
+  `zbm_platform::shell::split_words`.
+- **Point 5:** one parser, `zbm_host::options`, with the warnings of answer 4.
+- **Point 2, in part.** The pipeline is not four separate stages. The run keeps the order of the Perl program, and
+  every change it makes (a mount, a hook, a build, a copy, a rename, a removal, the edit of `config.yaml`) goes
+  through one guard, which `--dry-run` turns into a line that starts with `Would`; the install writes each file
+  beside its place and renames it. That gives the dry run and the atomic install the plan was for, with less code
+  than a plan as a value built before anything runs; such a plan is not built, and can come with CD12, which
+  rewrites the build step anyway.
+- **Point 8:** the golden runs of `--dry-run` under insta (`tests/parity/snapshots/`), fix 23's test, and the parity
+  recordings of whole runs, with the intended differences stated beside them (`Case::differs` for `generate-zbm`,
+  `intended()` for `zbm-kcl`).
+- `zbm-host` is on the strict lints (`xtask/strict/crates.txt`). It reads and writes the host's files and
+  environment itself, which its modules allow with that reason; its tests run it in sandboxes.
 
 ## Answers of the maintainer
 

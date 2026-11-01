@@ -183,7 +183,9 @@ pub static GLOBAL_DRACUT_FLAGS: OptionSpec = OptionSpec {
 
 const GLOBAL_DRACUT_FLAGS_DOC: &str = r"
 An array of additional arguments that will be passed to **dracut** when generating an initramfs.
-This option is ignored when *Global.InitCPIO* is *true*.
+This option is ignored when *Global.InitCPIO* is *true*. Each entry is split into words as a shell
+splits them, with quotes and backslashes honoured, but nothing is expanded: an entry with *$*, a
+backquote, a glob character or other shell syntax stops **generate-zbm** with the reason.
 ";
 
 /// `Global.InitCPIOFlags`: more arguments for mkinitcpio.
@@ -205,7 +207,8 @@ pub static GLOBAL_INIT_CPIO_FLAGS: OptionSpec = OptionSpec {
 
 const GLOBAL_INIT_CPIO_FLAGS_DOC: &str = r"
 An array of additional arguments that will be passed to **mkinitcpio** when generating an
-initramfs. This option is ignored when *Global.InitCPIO* is not *true*.
+initramfs. This option is ignored when *Global.InitCPIO* is not *true*. The entries are split into
+words as those of *Global.DracutFlags* are.
 ";
 
 /// `Global.PreHooksDir`: programs to run before images are made.

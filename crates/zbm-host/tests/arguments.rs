@@ -1,5 +1,10 @@
 //! `generate-zbm` given an argument that is not valid UTF-8.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the test runs the program itself"
+)]
+
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt as _;
 use std::process::Command;

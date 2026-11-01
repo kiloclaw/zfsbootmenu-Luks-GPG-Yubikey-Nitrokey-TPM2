@@ -5,8 +5,12 @@
 /// space up to the next section, from the section table that `objdump -h -w
 /// <file>` prints.
 ///
-/// The values follow the script's 64-bit shell arithmetic. Errors are the
-/// messages the script prints.
+/// The values follow the script's 64-bit shell arithmetic.
+///
+/// # Errors
+///
+/// When the table has no `.cmdline` section or no section after it: the
+/// messages the script printed.
 pub fn cmdline_gap(objdump: &str, file: &str) -> Result<(String, i64), Vec<String>> {
     let mut header_seen = false;
     let mut cmdline = None;
@@ -97,7 +101,7 @@ mod tests {
         let last = TABLE
             .lines()
             .filter(|line| !line.contains(".initrd") && !line.contains(".linux"))
-            .map(|line| format!("{line}\n"))
+            .flat_map(|line| [line, "\n"])
             .collect::<String>();
         assert_eq!(
             cmdline_gap(&last, "x"),

@@ -98,38 +98,38 @@ impl Generator<'_, '_, '_> {
     /// Combines the options with the configuration: the initramfs generator, its
     /// configuration and hook directories.
     pub(super) fn settings(&mut self, options: &Options) -> Step<Settings> {
-        let usecpio = match options.initcpio {
-            Some(usecpio) => usecpio,
-            None => match self.config.option(&GLOBAL_INIT_CPIO)? {
-                Some(value) => value.truthy(),
-                None => {
-                    let path = std::env::var_os("PATH");
-                    if zbm_platform::filetest::find_program("dracut", path.as_deref()).is_some() {
-                        self.print("No initramfs generator specified; using dracut\n");
-                        false
-                    } else {
-                        self.print("No initramfs generator specified; using mkinitcpio\n");
-                        true
-                    }
-                }
-            },
+        let configured = match options.initcpio {
+            Some(usecpio) => Some(usecpio),
+            None => self
+                .config
+                .option(&GLOBAL_INIT_CPIO)?
+                .map(|value| value.truthy()),
         };
-
-        let confd = match &options.confd {
-            Some(confd) => confd.clone(),
-            None => {
-                let (default, key) = if usecpio {
-                    ("/etc/zfsbootmenu/mkinitcpio.conf", &GLOBAL_INIT_CPIO_CONFIG)
-                } else {
-                    ("/etc/zfsbootmenu/dracut.conf.d", &GLOBAL_DRACUT_CONF_DIR)
-                };
-                self.setting(key)?.unwrap_or_else(|| default.to_owned())
+        let usecpio = configured.unwrap_or_else(|| {
+            let path = std::env::var_os("PATH");
+            if zbm_platform::filetest::find_program("dracut", path.as_deref()).is_some() {
+                self.print("No initramfs generator specified; using dracut\n");
+                false
+            } else {
+                self.print("No initramfs generator specified; using mkinitcpio\n");
+                true
             }
+        });
+
+        let confd = if let Some(confd) = &options.confd {
+            confd.clone()
+        } else {
+            let (default, key) = if usecpio {
+                ("/etc/zfsbootmenu/mkinitcpio.conf", &GLOBAL_INIT_CPIO_CONFIG)
+            } else {
+                ("/etc/zfsbootmenu/dracut.conf.d", &GLOBAL_DRACUT_CONF_DIR)
+            };
+            self.setting(key)?.unwrap_or_else(|| default.to_owned())
         };
 
         let mut hookd = options.hookd.clone();
         if usecpio && hookd.is_none() {
-            let hooks = match self.config.option(&GLOBAL_INIT_CPIO_HOOK_DIRS)? {
+            let directories = match self.config.option(&GLOBAL_INIT_CPIO_HOOK_DIRS)? {
                 Some(Value::Seq(items)) => items
                     .borrow()
                     .iter()
@@ -138,7 +138,7 @@ impl Generator<'_, '_, '_> {
                 Some(other) => vec![other.text().unwrap_or_default()],
                 None => Vec::new(),
             };
-            hookd = Some(hooks);
+            hookd = Some(directories);
         }
 
         Ok(Settings {

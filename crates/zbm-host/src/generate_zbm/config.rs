@@ -115,7 +115,10 @@ impl Value {
             return Some(number);
         }
         let number: f64 = text.parse().ok()?;
-        // Truncated toward zero, and saturating at the range
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "truncated toward zero and saturating at the range, as wanted"
+        )]
         number.is_finite().then(|| number.trunc() as i64)
     }
 
@@ -190,7 +193,11 @@ impl MarkedEventReceiver for Events {
 }
 
 /// Reads a configuration file's text. Only the first document counts, as when
-/// YAML::PP loads into a scalar, and it must be a mapping.
+/// `YAML::PP` loads into a scalar, and it must be a mapping.
+///
+/// # Errors
+///
+/// When the text is not YAML, or its first document is not a mapping.
 pub fn load(text: &str) -> Result<Value, LoadError> {
     let mut events = Events::default();
     Parser::new_from_str(text)

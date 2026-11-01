@@ -8,7 +8,7 @@ use zbm_platform::filetest::{is_dir, strerror};
 use super::{Step, Stop};
 use crate::generate_zbm::perl;
 
-/// File::Path's `make_path`: creates a directory and its missing parents;
+/// `File::Path`'s `make_path`: creates a directory and its missing parents;
 /// failing to create one is fatal.
 pub(super) fn make_path(path: &str) -> Step<()> {
     if path.is_empty() || is_dir(path) {
@@ -27,7 +27,7 @@ pub(super) fn make_path(path: &str) -> Step<()> {
     }
 }
 
-/// File::Copy's `copy`: copies the contents into `dest` (into a file of the
+/// `File::Copy`'s `copy`: copies the contents into `dest` (into a file of the
 /// same name when `dest` is a directory), with the default permissions.
 /// The copy replaces `dest` whole or not at all
 /// ([`crate::files::copy_over`]), keeping its mode.

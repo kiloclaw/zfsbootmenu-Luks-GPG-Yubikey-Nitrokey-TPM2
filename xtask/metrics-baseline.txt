@@ -14,7 +14,7 @@ zbm-config                 0           0               0            0           
 zbm-console                0           0               0            0              0             0             0              0             0              0            0           0
 zbm-crypt                  0           0               0            0              0             0             0              0             0              0            0           0
 zbm-display                0           0               0            0              0             0             0              0             0              0            0           0
-zbm-host                   0           0               0            0              2             0             0              0             0              7            0           0
+zbm-host                   0           0               0            0              0             0             0              0             0              0            0           0
 zbm-luks                   0           0               0            0              0             0             0              0             0             27            0           0
 zbm-platform               0           0               0            0              0             0             0              0             0              0            0           0
 zbm-pool                   0           0               0            0              0             0             0              0             0              5            0           0

@@ -3,6 +3,7 @@
 //! output.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 /// `s{(.)/*\z}{$1}s`: removes trailing slashes, keeping a lone `/`.
 fn strip_trailing_slashes(path: &str) -> &str {
@@ -14,7 +15,7 @@ fn strip_trailing_slashes(path: &str) -> &str {
     }
 }
 
-/// File::Basename's `fileparse` without suffixes: the directory part, ending
+/// `File::Basename`'s `fileparse` without suffixes: the directory part, ending
 /// with `/` (or `./`), and the rest.
 fn fileparse(path: &str) -> (&str, &str) {
     match path.rfind('/') {
@@ -23,7 +24,7 @@ fn fileparse(path: &str) -> (&str, &str) {
     }
 }
 
-/// File::Basename's `basename` on Unix.
+/// `File::Basename`'s `basename` on Unix.
 pub fn basename(path: &str) -> String {
     let path = strip_trailing_slashes(path);
     let (dir, base) = fileparse(path);
@@ -34,7 +35,7 @@ pub fn basename(path: &str) -> String {
     }
 }
 
-/// File::Basename's `dirname` on Unix.
+/// `File::Basename`'s `dirname` on Unix.
 pub fn dirname(path: &str) -> String {
     let (dir, base) = fileparse(path);
     let dir = strip_trailing_slashes(dir);
@@ -56,20 +57,14 @@ pub fn is_space(byte: u8) -> bool {
 /// at the end.
 pub fn split_whitespace(text: &[u8]) -> Vec<&[u8]> {
     let mut fields = Vec::new();
-    let mut start = 0;
-    let mut index = 0;
-    while index < text.len() {
-        if is_space(text[index]) {
-            fields.push(&text[start..index]);
-            while index < text.len() && is_space(text[index]) {
-                index += 1;
-            }
-            start = index;
-        } else {
-            index += 1;
-        }
+    let mut rest = text;
+    while let Some(at) = rest.iter().position(|byte| is_space(*byte)) {
+        let (field, after) = rest.split_at(at);
+        fields.push(field);
+        let spaces = after.iter().take_while(|byte| is_space(**byte)).count();
+        rest = after.split_at(spaces).1;
     }
-    fields.push(&text[start..]);
+    fields.push(rest);
     while fields.last().is_some_and(|field| field.is_empty()) {
         fields.pop();
     }
@@ -92,8 +87,9 @@ fn find_ignoring_case(text: &str, needle: &str) -> impl Iterator<Item = usize> {
     let haystack = text.as_bytes().to_vec();
     let needle = needle.as_bytes().to_vec();
     (0..=haystack.len().saturating_sub(needle.len())).filter(move |&at| {
-        haystack.len() >= needle.len()
-            && haystack[at..at + needle.len()].eq_ignore_ascii_case(&needle)
+        haystack
+            .get(at..at + needle.len())
+            .is_some_and(|window| window.eq_ignore_ascii_case(&needle))
     })
 }
 
@@ -133,6 +129,11 @@ pub fn strip_version_suffix(name: &str, version: &str) -> String {
 
 /// `sprintf("%08x", $text)`: the number at the start of the text in hex, as
 /// Perl converts a string to an unsigned integer for `%x`.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "Perl's conversions: toward zero, saturating at the range"
+)]
 pub fn hex_of_numeric_text(text: &str) -> String {
     let number = numeric_prefix(text);
     let value = if number < 0.0 {
@@ -144,7 +145,7 @@ pub fn hex_of_numeric_text(text: &str) -> String {
     format!("{value:08x}")
 }
 
-/// A string in single quotes, as Data::Dumper writes it.
+/// A string in single quotes, as `Data::Dumper` writes it.
 fn dumper_quote(text: &str) -> String {
     format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'"))
 }
@@ -187,10 +188,11 @@ pub fn decode_utf8_perlqq(bytes: &[u8]) -> String {
                 let (valid, after) = rest.split_at(error.valid_up_to());
                 text.push_str(std::str::from_utf8(valid).unwrap_or_default());
                 let bad = error.error_len().unwrap_or(after.len()).max(1);
-                for byte in &after[..bad] {
-                    text.push_str(&format!("\\x{byte:02X}"));
+                let (invalid, valid_after) = after.split_at(bad.min(after.len()));
+                for byte in invalid {
+                    let _ = write!(text, "\\x{byte:02X}");
                 }
-                rest = &after[bad..];
+                rest = valid_after;
             }
         }
     }
@@ -289,9 +291,7 @@ mod tests {
         for _ in 0..30 {
             let mut groups = BTreeMap::new();
             for _ in 0..rng.below(4) {
-                let files: Vec<String> = (0..1 + rng.below(3))
-                    .map(|_| rng.join(&pieces, 4))
-                    .collect();
+                let files: Vec<String> = (0..=rng.below(3)).map(|_| rng.join(&pieces, 4)).collect();
                 groups.insert(rng.join(&pieces, 3), files);
             }
             let mut args = Vec::new();

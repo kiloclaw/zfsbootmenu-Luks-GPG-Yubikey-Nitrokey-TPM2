@@ -10,12 +10,10 @@
 //! and a new `.cmdline` section holds the command line and a NUL byte, without
 //! the leading space the script meant to add.
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::disallowed_methods,
-        reason = "tests describe the commands they expect"
-    )
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a host tool works on the files and environment of the host it runs on; \
+              its tests run it in sandboxes (ADR 0013)"
 )]
 
 use std::ffi::OsString;
@@ -221,7 +219,7 @@ fn error(io: &mut Io, message: &str) {
 }
 
 /// Prints the messages of `failure`, then `then` when given; status 1.
-fn report(io: &mut Io, failure: Failure, then: Option<&str>) -> i32 {
+fn report(io: &mut Io, failure: &Failure, then: Option<&str>) -> i32 {
     for message in failure.0.iter().map(String::as_str).chain(then) {
         error(io, message);
     }
@@ -236,7 +234,7 @@ fn parse(context: &Context, args: &[String], io: &mut Io) -> Result<Options, i32
     // In order, as getopts reads them: the reading stopped at the first problem
     for given in &parsed.given {
         let value = given.value.clone().unwrap_or_default();
-        match SPECS[given.index].short {
+        match SPECS.get(given.index).and_then(|spec| spec.short) {
             Some('a') => options.appends.push(value),
             Some('r') => options.removes.push(value),
             Some('o') => options.output = value,
@@ -496,7 +494,7 @@ fn run_in(
         return Ok(());
     }
     let line = if options.edit {
-        edit::in_editor(context, &temp_kcl).map_err(|failure| report(io, failure, None))?;
+        edit::in_editor(context, &temp_kcl).map_err(|failure| report(io, &failure, None))?;
         let edited = std::fs::read(&temp_kcl)
             .map(|text| String::from_utf8_lossy(&text).into_owned())
             .unwrap_or_default();
@@ -509,7 +507,7 @@ fn run_in(
         Target::Zfs(_, destination) => save::to_dataset(&zfs, &assembled, destination),
         Target::Efi(image) => save::to_image(context, &assembled, image),
     };
-    saved.map_err(|failure| report(io, failure, Some("failed to save KCL changes")))?;
+    saved.map_err(|failure| report(io, &failure, Some("failed to save KCL changes")))?;
     if let Target::Efi(image) = &target {
         write_image(io, workspace, image, &options.output)?;
     }
@@ -540,7 +538,8 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
         Ok(output) if output.status.is_success() => std::fs::read(&section.0)
             .map(|bytes| {
                 let end = bytes.iter().position(|byte| *byte == 0);
-                String::from_utf8_lossy(&bytes[..end.unwrap_or(bytes.len())]).into_owned()
+                let text = end.map_or(&bytes[..], |end| bytes.get(..end).unwrap_or_default());
+                String::from_utf8_lossy(text).into_owned()
             })
             .unwrap_or_default(),
         Ok(output) => {

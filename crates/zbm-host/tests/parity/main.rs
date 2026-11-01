@@ -12,7 +12,10 @@
 
 #![allow(
     clippy::disallowed_methods,
-    reason = "the parity tests run the program in a sandbox"
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "the parity tests run the program in a sandbox and fail loudly when they cannot"
 )]
 
 mod dry_run;
@@ -394,6 +397,10 @@ fn configuration_states() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one recording holds these cases, replayed in order"
+)]
 fn mounts_and_hooks() {
     let mut parity = parity!("mounts_and_hooks");
     if !can_run(tools(), "binutils") {

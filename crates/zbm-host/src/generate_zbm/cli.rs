@@ -3,11 +3,15 @@
 
 use crate::options::{self, Order, Problem, Spec};
 
-/// The help text: the manual page embedded in the Perl program, as Pod::Usage
+/// The help text: the manual page embedded in the Perl program, as `Pod::Usage`
 /// renders it.
 pub const HELP: &str = include_str!("help.txt");
 
 /// The options, with the defaults of the Perl program.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "the switches of the manual page, each an option of its own"
+)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Options {
     /// `--version`: the ZFSBootMenu version in image names.
@@ -172,9 +176,14 @@ fn message(problem: &Problem) -> String {
     }
 }
 
+/// The field the option `given` sets: every option of [`SPECS`] has one.
+fn field(given: &options::Given) -> Option<Field> {
+    FIELDS.get(given.index).copied()
+}
+
 /// Sets the field of `option` in `options`.
-fn set(options: &mut Options, field: Field, value: Option<String>, negated: bool) {
-    let text = || value.clone().unwrap_or_default();
+fn set(options: &mut Options, field: Field, value: Option<&str>, negated: bool) {
+    let text = || value.unwrap_or_default().to_owned();
     match field {
         Field::Version => options.version = Some(text()),
         Field::Kernel => options.kernel = Some(text()),
@@ -207,7 +216,7 @@ pub fn parse(args: &[String]) -> Parsed {
     if read
         .given
         .iter()
-        .any(|given| FIELDS[given.index] == Field::Help)
+        .any(|given| field(given) == Some(Field::Help))
     {
         return Parsed {
             outcome: Outcome::Help,
@@ -221,13 +230,10 @@ pub fn parse(args: &[String]) -> Parsed {
         };
     }
     let mut options = Options::default();
-    for given in read.given {
-        set(
-            &mut options,
-            FIELDS[given.index],
-            given.value,
-            given.negated,
-        );
+    for given in &read.given {
+        if let Some(field) = field(given) {
+            set(&mut options, field, given.value.as_deref(), given.negated);
+        }
     }
     Parsed {
         outcome: Outcome::Run(Box::new(options)),

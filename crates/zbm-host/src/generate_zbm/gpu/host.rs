@@ -2,6 +2,12 @@
 //! address, vendor and device, and, for an AMD GPU that `amdgpu` drives, the
 //! versions of its IP blocks.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a host tool works on the files and environment of the host it runs on; \
+              its tests run it in sandboxes (ADR 0013)"
+)]
+
 use std::path::Path;
 
 /// A display controller on the PCI bus.
