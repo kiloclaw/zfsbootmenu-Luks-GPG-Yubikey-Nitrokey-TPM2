@@ -331,6 +331,30 @@ fn what_an_image_cannot_have_stops_the_build() {
     );
 }
 
+/// The `TERM` that `/etc/profile` of the plan of `settings` leaves, run by
+/// `sh` with `TERM` set to `term`.
+fn term_after_profile(settings: &str, term: &str) -> String {
+    let (files, runner) = (host_files(), host_runner());
+    let plan = plan_of(Builder::Dracut, settings, &files, &runner).unwrap();
+    let profile = plan.written(Path::new("/etc/profile")).unwrap();
+    let script = format!("{}\nprintf %s \"$TERM\"", String::from_utf8_lossy(profile));
+    let output = std::process::Command::new("sh")
+        .args(["-c", &script])
+        .env("TERM", term)
+        .output()
+        .unwrap();
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn the_rust_profile_keeps_a_dumb_terminal_for_the_line_view() {
+    let rust = "zfsbootmenu_runtime\trust\n";
+    assert_eq!(term_after_profile(rust, "dumb"), "dumb");
+    assert_eq!(term_after_profile(rust, "vt100"), "linux");
+    // The legacy runtime's menu needs the Linux console's description.
+    assert_eq!(term_after_profile("", "dumb"), "linux");
+}
+
 #[test]
 fn uutils_gives_its_programs_as_hard_links() {
     for builder in [Builder::Dracut, Builder::Mkinitcpio] {

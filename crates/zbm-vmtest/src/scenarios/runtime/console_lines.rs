@@ -1,6 +1,8 @@
 //! `runtime-rust-console-lines`: the menu as lines, and the console's text
 //! for a Braille display (ROADMAP.md UI8, ADR 0011). Three boots of the
-//! image of `runtime-rust-console`, with `tplain` (d0) and `tforeign` (d1):
+//! image of `runtime-rust-console`, with `tplain` (d0) and `tforeign` (d1),
+//! the pool of another host, which `zbm.import_policy=force` imports beside
+//! `tplain`:
 //!
 //! - `TERM=dumb` on the serial console: the menu prints its boot
 //!   environments as a numbered list, and the number of `tforeign`'s,
@@ -23,8 +25,10 @@ use crate::vm::Vm;
 
 use super::console::{last_screen, machine_extra, wait_screen};
 
-/// The command line of every boot, before the boot's own options.
-const APPEND: &str = "console=ttyS0 loglevel=7 zbm.timeout=60";
+/// The command line of the boots of the menu as lines, before the boot's
+/// own options: `tforeign` belongs to another host, and the default import
+/// policy leaves it out once `tplain` is in.
+const APPEND: &str = "console=ttyS0 loglevel=7 zbm.timeout=60 zbm.import_policy=force";
 
 /// The boots of the menu as lines: their names and their options.
 const LINE_BOOTS: [(&str, &str); 2] = [("dumb", " TERM=dumb"), ("lines", " zbm.menu=lines")];

@@ -10,11 +10,19 @@ use zbm_tools::host::fzf_supports;
 
 use super::{Builder, Image};
 
-/// `/etc/profile`.
-const PROFILE: &str = "export PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin
-export TERM=linux
-export HOME=/root
-";
+/// `/etc/profile`, around the line that sets `TERM`.
+const PROFILE: [&str; 2] = [
+    "export PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin\n",
+    "export HOME=/root\n",
+];
+
+/// The terminal of the legacy profile: always the Linux console.
+const TERM_LINUX: &str = "export TERM=linux\n";
+
+/// The terminal of the Rust runtime's profile: the Linux console, unless
+/// the command line or an SSH client asked for a dumb terminal, which shows
+/// the menu as lines (ADR 0011).
+const TERM_UNLESS_DUMB: &str = "[ \"${TERM}\" = dumb ] || export TERM=linux\n";
 
 /// `/root/.bashrc`.
 const BASHRC: &str = r#"source /etc/zfsbootmenu.conf >/dev/null 2>&1
@@ -103,7 +111,13 @@ pub fn conf(image: &mut Image) {
 /// `/etc/profile`, `/root/.bashrc`, and `/root/.profile`, a link to it for
 /// `/bin/sh`, which dropbear starts.
 pub fn profiles(image: &mut Image) {
-    image.plan.write("/etc/profile", 0o644, PROFILE);
+    let term = if image.is_rust() {
+        TERM_UNLESS_DUMB
+    } else {
+        TERM_LINUX
+    };
+    let profile = [PROFILE[0], term, PROFILE[1]].concat();
+    image.plan.write("/etc/profile", 0o644, profile);
     image.plan.write("/root/.bashrc", 0o644, BASHRC);
     image.plan.link("/root/.bashrc", "/root/.profile");
 }
