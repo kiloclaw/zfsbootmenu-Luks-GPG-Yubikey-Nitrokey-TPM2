@@ -257,12 +257,17 @@ const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.json
 /// What the recovery shell starts in the background before `zfsbootmenu`:
 /// 45 seconds later, once the remote menu ended, every process's state,
 /// group, session, terminal and the terminal's foreground group
-/// (`/proc/PID/stat`) and where it waits, for the serial log, in case the
-/// shell no longer answers.
+/// (`/proc/PID/stat`) and where it waits, then the serial terminal's modes,
+/// for the serial log, in case the shell no longer answers.
 const PROCESS_PROBE: &str = "(sleep 45; for f in /proc/[0-9]*/stat; do \
     read -r s < \"$f\" 2>/dev/null || continue; \
     read -r w < \"${f%stat}wchan\" 2>/dev/null; \
-    echo \"ZBMTEST-PS $s | $w\"; done) &";
+    echo \"ZBMTEST-PS $s | $w\"; done; \
+    stty -a -F /dev/ttyS0 2>&1 | while read -r l; do echo \"ZBMTEST-STTY $l\"; done) &";
+
+/// The serial terminal's modes, as the shell's programs get them, before
+/// `zfsbootmenu`.
+const TERMINAL_MODES: &str = "stty -a -F /dev/ttyS0";
 
 /// Runs `zfsbootmenu` from the recovery shell: the session serves it the
 /// menu (ROADMAP.md, PM10), which shows on the shell's terminal, and its
@@ -270,6 +275,7 @@ const PROCESS_PROBE: &str = "(sleep 45; for f in /proc/[0-9]*/stat; do \
 fn remote_menu(vm: &mut Vm<'_>) -> Result<()> {
     vm.test()
         .step("recovery shell -> zfsbootmenu: the session serves the menu");
+    vm.sh_show(TERMINAL_MODES)?;
     vm.sendline(PROCESS_PROBE)?;
     vm.sendline("clear; zfsbootmenu")?;
     vm.expect1(crate::boot::prompt::NEW_MENU, 120)?;
