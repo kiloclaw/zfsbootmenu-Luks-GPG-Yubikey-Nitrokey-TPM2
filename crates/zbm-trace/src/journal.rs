@@ -209,8 +209,13 @@ where
     fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
         let mut fields = Fields::default();
         attributes.record(&mut fields);
+        // Another journal under the same subscriber, as a program's own
+        // beside the state's, may have recorded the same fields already.
         if let Some(span) = context.span(id) {
-            span.extensions_mut().insert(fields);
+            let mut extensions = span.extensions_mut();
+            if extensions.get_mut::<Fields>().is_none() {
+                extensions.insert(fields);
+            }
         }
     }
 
@@ -404,6 +409,33 @@ mod tests {
         assert_eq!(parsed[1]["seq"], 1);
         assert_eq!(parsed[1]["level"], "WARN");
         assert_eq!(parsed[1]["fields"]["status"], 4);
+    }
+
+    #[test]
+    fn two_journals_under_one_subscriber_both_keep_the_spans() {
+        // A program's own journal beside the state's, as `zluks open
+        // --journal` and its keyholder have them: a span is recorded once
+        // for both, and each line has it.
+        let (first, second) = (JournalLayer::new(Buffer::default()), Buffer::default());
+        let lines = first.with_copy();
+        let copies = lines.lines();
+        let other = JournalLayer::new(second.clone());
+        let subscriber = tracing_subscriber::registry().with(lines).with(other);
+        tracing::subscriber::with_default(subscriber, || {
+            let span = info_span!(
+                "run",
+                program = "cryptsetup",
+                status = tracing::field::Empty
+            );
+            span.record("status", 0);
+            let _entered = span.entered();
+            info!("ran");
+        });
+
+        let expected = json!([{ "span": "run", "program": "cryptsetup", "status": 0 }]);
+        assert_eq!(copies.take()[0]["spans"], expected);
+        let line: Value = serde_json::from_str(second.text().trim()).unwrap();
+        assert_eq!(line["spans"], expected);
     }
 
     #[test]
