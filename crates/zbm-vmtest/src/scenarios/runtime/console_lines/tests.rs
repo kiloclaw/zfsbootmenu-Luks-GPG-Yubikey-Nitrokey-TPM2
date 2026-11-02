@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs;
 
 use pretty_assertions::assert_eq;
@@ -54,17 +53,19 @@ fn a_screen_without_the_list_fails_and_types_nothing() {
 }
 
 #[test]
-fn the_root_of_the_booted_environment_says_which_one_booted() {
+fn zfsbootmenu_s_last_boot_line_says_which_environment_booted() {
     let settings = settings("runtime-console-lines-booted");
     let test = Test::new(&settings, "runtime-rust-console-lines").unwrap();
-    let boot_of = |root: &str| Boot {
-        be_lines: HashMap::from([("BE-ROOT".to_owned(), vec![root.to_owned()])]),
-        ..Boot::default()
-    };
+    let booting = |be: &str| format!("Booting /boot/vmlinuz-7.3.0-9-generic for {be} ...\n");
 
-    check_booted(&test, "dumb", &boot_of("tforeign/ROOT/be zfs"));
-    check_booted(&test, "lines", &boot_of("tplain/ROOT/be zfs"));
-    check_booted(&test, "lines", &Boot::default());
+    // The countdown names tplain first; the line typed boots tforeign.
+    let typed = format!(
+        "Booting tplain/ROOT/be in 60 seconds\n{}",
+        booting("tforeign/ROOT/be")
+    );
+    check_booted(&test, "dumb", &typed);
+    check_booted(&test, "lines", &booting("tplain/ROOT/be"));
+    check_booted(&test, "lines", "Boot Environments\n");
 
     let found = found(&test, &settings);
     let passed: Vec<bool> = found.iter().map(|line| line.starts_with("ok")).collect();

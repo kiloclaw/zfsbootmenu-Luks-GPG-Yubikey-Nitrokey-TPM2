@@ -15,7 +15,7 @@
 use std::thread;
 use std::time::Duration;
 
-use crate::boot::{Boot, Follow, follow_boot, prompt};
+use crate::boot::{Follow, follow_boot, prompt};
 use crate::error::Result;
 use crate::expect::SCREEN;
 use crate::images::zbm_image;
@@ -78,12 +78,16 @@ pub(super) fn run(test: &Test) -> Result<()> {
         let machine = Machine::boot(&image, &format!("{APPEND}{extra}")).with_disks(disks);
         let mut vm = Vm::start(test, name, &machine)?;
         if choose_foreign(&mut vm, name, Duration::from_secs(2))? {
+            // Up to ZFSBootMenu's teardown: the boot environment's own
+            // initramfs leaves the pool of another host out, as after
+            // `runtime-rust-force`.
             let follow = Follow {
                 timeout: Some(PATIENCE),
+                no_be: true,
                 ..Follow::default()
             };
-            let boot = follow_boot(&mut vm, follow)?;
-            check_booted(test, name, &boot);
+            follow_boot(&mut vm, follow)?;
+            check_booted(test, name, &super::serial_text(&vm)?);
         }
         vm.kill();
     }
@@ -121,12 +125,20 @@ fn choose_foreign(vm: &mut Vm<'_>, name: &str, pause: Duration) -> Result<bool> 
     Ok(true)
 }
 
-/// The boot environment of `tforeign` booted.
-fn check_booted(test: &Test, name: &str, boot: &Boot) {
-    let root = boot.be_line("BE-ROOT");
+/// What ZFSBootMenu says it boots, the boot environment in group 1.
+const BOOTED: &str = r"Booting \S+ for (\S+)";
+
+/// ZFSBootMenu booted the boot environment of `tforeign`, as the serial
+/// console's text `log` says.
+fn check_booted(test: &Test, name: &str, log: &str) {
+    let booted = regex::Regex::new(BOOTED).ok().and_then(|pattern| {
+        let last = pattern.captures_iter(log).last()?;
+        Some(last.get(1)?.as_str().to_owned())
+    });
+    let booted = booted.unwrap_or_default();
     test.check(
-        root.starts_with("tforeign/"),
-        &format!("{name}: the number typed boots tforeign's boot environment ({root})"),
+        booted.starts_with("tforeign/"),
+        &format!("{name}: the number typed boots tforeign's boot environment ({booted})"),
     );
 }
 
