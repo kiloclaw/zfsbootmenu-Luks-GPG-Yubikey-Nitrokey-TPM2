@@ -119,6 +119,7 @@ pub(super) const CALLS: &[(&str, Option<u32>, Option<u32>)] = &[
     ("mlockall", Some(151), Some(230)),
     ("getresuid", Some(118), Some(148)),
     ("getresgid", Some(120), Some(150)),
+    ("getgroups", Some(115), Some(158)),
     ("sysinfo", Some(99), Some(179)),
     ("unlinkat", Some(263), Some(35)),
     ("renameat2", Some(316), Some(276)),

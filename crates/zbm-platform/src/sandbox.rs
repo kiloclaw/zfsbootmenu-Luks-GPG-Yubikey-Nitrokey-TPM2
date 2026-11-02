@@ -229,6 +229,7 @@ pub const CONSOLE_CALLS: &[&str] = &[
     "getegid",
     "getresuid",
     "getresgid",
+    "getgroups",
     "uname",
     "sysinfo",
     "prlimit64",

@@ -72,6 +72,9 @@ fn confined(base: &str) {
     std::fs::write(state.join("console.tmp"), b"1\n").unwrap();
     std::fs::rename(state.join("console.tmp"), state.join("console")).unwrap();
     std::fs::remove_file(state.join("console")).unwrap();
+    // Its own user and groups, as its control socket checks a peer
+    // (`zbm_sys::credentials`).
+    assert!(rustix::process::getgroups().is_ok(), "getgroups refused");
     // The kernel's view, as the console reads it.
     assert!(std::fs::read_dir("/sys/class").is_ok());
     // No program runs.
