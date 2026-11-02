@@ -97,6 +97,30 @@ fn redacted_fields() -> impl for<'w> tracing_subscriber::fmt::FormatFields<'w> +
     .delimited(" ")
 }
 
+/// The layers of a program's traces: standard error, and the journal the
+/// program was asked for. [`install`] installs them as they are; a kernel
+/// log installed for a thread takes them along (`zbm_platform::KernelLog`),
+/// so that they keep their events there too.
+pub type ProgramLayers =
+    Vec<Box<dyn tracing_subscriber::Layer<tracing_subscriber::Registry> + Send + Sync>>;
+
+/// The layers of `config`.
+pub fn program_layers(config: Config) -> ProgramLayers {
+    let stderr = tracing_subscriber::fmt::layer()
+        .fmt_fields(redacted_fields())
+        .with_writer(std::io::stderr)
+        .without_time()
+        .with_target(false)
+        .with_filter(config.stderr);
+    let mut layers: ProgramLayers = vec![Box::new(stderr)];
+    if let Some(journal) = config.journal {
+        layers.push(Box::new(
+            JournalLayer::new(journal).with_limit(journal::LIMIT),
+        ));
+    }
+    layers
+}
+
 /// Installs the subscriber of a program for the rest of its life.
 ///
 /// # Errors
@@ -104,19 +128,8 @@ fn redacted_fields() -> impl for<'w> tracing_subscriber::fmt::FormatFields<'w> +
 /// [`InstallError`] when a subscriber is installed already.
 pub fn install(config: Config) -> Result<(), InstallError> {
     keep_interest();
-    let stderr = tracing_subscriber::fmt::layer()
-        .fmt_fields(redacted_fields())
-        .with_writer(std::io::stderr)
-        .without_time()
-        .with_target(false)
-        .with_filter(config.stderr);
     tracing_subscriber::registry()
-        .with(stderr)
-        .with(
-            config
-                .journal
-                .map(|journal| JournalLayer::new(journal).with_limit(journal::LIMIT)),
-        )
+        .with(program_layers(config))
         .try_init()?;
     Ok(())
 }

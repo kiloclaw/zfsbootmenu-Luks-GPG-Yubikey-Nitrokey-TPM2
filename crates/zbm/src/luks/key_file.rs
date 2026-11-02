@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use zbm_app::OpenOptions;
 use zbm_app::model::{Action, Event, Outcome};
-use zbm_trace::{Config, LevelFilter};
+use zbm_trace::{Config, LevelFilter, ProgramLayers};
 
 use crate::Io;
 
@@ -87,11 +87,32 @@ pub fn install_tracing(parsed: &KeyFileOpen) -> Result<(), String> {
 /// # Errors
 ///
 /// When the journal cannot be opened, or traces are sent elsewhere already.
+pub fn install_tracing_to(journal: Option<&Path>, verbose: bool) -> Result<(), String> {
+    let config = tracing_config(journal, verbose)?;
+    zbm_trace::install(config).map_err(|error| error.to_string())
+}
+
+/// The program's own traces, as [`install_tracing_to`] installs them, for a
+/// kernel log to take along (`zbm_platform::System::kernel_log_with`).
+///
+/// # Errors
+///
+/// When the journal cannot be opened.
+pub fn program_layers(journal: Option<&Path>, verbose: bool) -> Result<ProgramLayers, String> {
+    tracing_config(journal, verbose).map(zbm_trace::program_layers)
+}
+
+/// Where the traces go: standard error, informational messages too when
+/// `verbose`, and the journal `journal`, appended to.
+///
+/// # Errors
+///
+/// When the journal cannot be opened.
 #[allow(
     clippy::disallowed_methods,
     reason = "the journal file is opened by the program, as `--journal` names it"
 )]
-pub fn install_tracing_to(journal: Option<&Path>, verbose: bool) -> Result<(), String> {
+fn tracing_config(journal: Option<&Path>, verbose: bool) -> Result<Config, String> {
     let journal = match journal {
         Some(path) => {
             let file = FileOptions::new()
@@ -108,7 +129,7 @@ pub fn install_tracing_to(journal: Option<&Path>, verbose: bool) -> Result<(), S
     } else {
         LevelFilter::WARN
     };
-    zbm_trace::install(Config { stderr, journal }).map_err(|error| error.to_string())
+    Ok(Config { stderr, journal })
 }
 
 /// Says how the action ended: what is open on standard output, or every

@@ -62,11 +62,14 @@ pub fn settings(system: &zbm_platform::System<'_>, conf: &zbm_config::conf::Conf
 pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     // The keyholder that opens the volumes traces where `zluks` does.
     let mut keyholders = ProcessKeyholders::new();
+    // What `--journal` and `--verbose` ask, for the kernel log to keep.
+    let mut program = Vec::new();
     if key_file::is_asked(args) {
         let installed = key_file::parse(args.get(1..).unwrap_or_default()).and_then(|parsed| {
             keyholders = keyholders
                 .clone()
                 .traced(parsed.journal.as_deref(), parsed.verbose);
+            program = key_file::program_layers(parsed.journal.as_deref(), parsed.verbose)?;
             key_file::install_tracing(&parsed)
         });
         if let Err(message) = installed {
@@ -93,7 +96,8 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         return 1;
     };
     let settings = settings(&system, &conf);
-    let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &settings.base);
+    let loglevel = conf.get("loglevel").unwrap_or_default();
+    let _log = system.kernel_log_with(loglevel, &settings.base, program);
     let prompter = ConsoleInteraction::new(system).colors(settings.colors);
     let luks = Luks {
         context: Context::new(system),

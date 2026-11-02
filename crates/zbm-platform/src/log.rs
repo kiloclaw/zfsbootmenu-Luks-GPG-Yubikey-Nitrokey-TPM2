@@ -110,6 +110,9 @@ pub struct KernelLog {
     labelled: bool,
     /// The journal, if any.
     journal: Option<PathBuf>,
+    /// The program's own layers, which keep their events while the log
+    /// takes the thread's (`zluks open --journal`, `--verbose`).
+    program: zbm_trace::ProgramLayers,
 }
 
 impl KernelLog {
@@ -127,7 +130,17 @@ impl KernelLog {
             loglevel: loglevel.to_owned(),
             pid,
             labelled: false,
+            program: Vec::new(),
         }
+    }
+
+    /// The same log, with the program's own layers too: a program that
+    /// traces to a journal of its own, or on standard error, goes on doing
+    /// so once its kernel log takes the thread's messages.
+    #[must_use]
+    pub fn with_program(mut self, layers: zbm_trace::ProgramLayers) -> KernelLog {
+        self.program = layers;
+        self
     }
 
     /// The same log, writing each message of any level as one `LEVEL: text`
@@ -166,6 +179,7 @@ impl KernelLog {
             layer = layer.labelled();
         }
         let subscriber = tracing_subscriber::registry()
+            .with(self.program)
             .with(layer)
             .with(journal)
             .with(zbm_trace::crash::SpanStack);
@@ -221,6 +235,39 @@ mod tests {
         );
         assert!(dir.join("have_warnings").exists());
         assert!(dir.join("have_errors").exists());
+    }
+
+    #[test]
+    fn the_programs_own_journal_keeps_its_events_under_the_kernel_log() {
+        // `zluks open --journal FILE` and its keyholder: the kernel log
+        // takes the thread's messages, and the program's journal, which
+        // took none of them before, takes them too.
+        let dir = TempDir::new("zbm-platform-log");
+        let own = dir.join("own.jsonl");
+        let file = std::fs::File::create(&own).unwrap();
+        let program = zbm_trace::program_layers(zbm_trace::Config {
+            stderr: zbm_trace::LevelFilter::OFF,
+            journal: Some(Box::new(file)),
+        });
+        let log = KernelLog::new(&RealFiles, "3", dir.path(), 42)
+            .with_device(&dir.join("kmsg"))
+            .with_program(program);
+
+        {
+            let _installed = log.install();
+            zbm_trace::debug!("refused");
+            zbm_trace::info!("opened");
+        }
+
+        let own = std::fs::read_to_string(own).unwrap();
+        assert!(own.contains(r#""message":"refused""#), "{own}");
+        assert!(own.contains(r#""message":"opened""#), "{own}");
+        let journal = std::fs::read_to_string(dir.join(JOURNAL)).unwrap();
+        assert_eq!(
+            journal.lines().count(),
+            2,
+            "the state's journal too: {journal}"
+        );
     }
 
     #[test]

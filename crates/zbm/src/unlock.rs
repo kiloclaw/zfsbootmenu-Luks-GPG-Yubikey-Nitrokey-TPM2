@@ -150,7 +150,16 @@ fn keep(connection: &Connection, options: &Options) -> io::Result<()> {
         return serve(connection, system.runner, unread, |_| false);
     };
     let settings = crate::luks::settings(&system, &conf);
-    let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &settings.base);
+    // The kernel log takes this thread's messages; the journal and standard
+    // error the client asked for (`zluks open --journal`) go on taking them.
+    let program = if options.journal.is_some() || options.verbose {
+        crate::luks::key_file::program_layers(options.journal.as_deref(), options.verbose)
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let loglevel = conf.get("loglevel").unwrap_or_default();
+    let _log = system.kernel_log_with(loglevel, &settings.base, program);
     let quiet_runner = QuietRunner::new(system.runner);
     let runs = if options.quiet {
         System {

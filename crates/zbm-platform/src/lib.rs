@@ -143,6 +143,19 @@ impl System<'_> {
         KernelLog::new(self.files, loglevel, base, self.processes.id()).install()
     }
 
+    /// [`System::kernel_log`], with the program's own layers along
+    /// ([`KernelLog::with_program`]).
+    pub fn kernel_log_with(
+        &self,
+        loglevel: &str,
+        base: &std::path::Path,
+        program: zbm_trace::ProgramLayers,
+    ) -> Installed {
+        KernelLog::new(self.files, loglevel, base, self.processes.id())
+            .with_program(program)
+            .install()
+    }
+
     /// Whether `name` is an executable file in a directory of `PATH`, as
     /// `command -v` finds it.
     pub fn command_exists(&self, name: &str) -> bool {
