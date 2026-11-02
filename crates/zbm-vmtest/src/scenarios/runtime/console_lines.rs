@@ -87,7 +87,8 @@ pub(super) fn run(test: &Test) -> Result<()> {
                 ..Follow::default()
             };
             follow_boot(&mut vm, follow)?;
-            check_booted(test, name, &super::serial_text(&vm)?);
+            let booted = booted(&mut vm);
+            check_booted(test, name, &booted);
         }
         vm.kill();
     }
@@ -125,17 +126,21 @@ fn choose_foreign(vm: &mut Vm<'_>, name: &str, pause: Duration) -> Result<bool> 
     Ok(true)
 }
 
-/// What ZFSBootMenu says it boots, the boot environment in group 1.
+/// What ZFSBootMenu says it boots, after its teardown: the boot
+/// environment in group 1.
 const BOOTED: &str = r"Booting \S+ for (\S+)";
 
-/// ZFSBootMenu booted the boot environment of `tforeign`, as the serial
-/// console's text `log` says.
-fn check_booted(test: &Test, name: &str, log: &str) {
-    let booted = regex::Regex::new(BOOTED).ok().and_then(|pattern| {
-        let last = pattern.captures_iter(log).last()?;
-        Some(last.get(1)?.as_str().to_owned())
-    });
-    let booted = booted.unwrap_or_default();
+/// The boot environment ZFSBootMenu says it boots; empty when it says
+/// none within a minute.
+fn booted(vm: &mut Vm<'_>) -> String {
+    match vm.expect(&[BOOTED], 60) {
+        Ok(_) => vm.group(1),
+        Err(_) => String::new(),
+    }
+}
+
+/// ZFSBootMenu booted `booted`, the boot environment of `tforeign`.
+fn check_booted(test: &Test, name: &str, booted: &str) {
     test.check(
         booted.starts_with("tforeign/"),
         &format!("{name}: the number typed boots tforeign's boot environment ({booted})"),

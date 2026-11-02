@@ -11,7 +11,7 @@ const PAGE: &str = "\r\nBoot Environments\r\n  1) tplain/ROOT/be, default, 1 ker
     Type a number to choose it, or a number and a key, as 2 k.\r\n";
 
 /// The checks of `test`, after its group's directory is gone.
-fn found(test: &Test, settings: &crate::settings::Settings) -> Vec<String> {
+fn found_checks(test: &Test, settings: &crate::settings::Settings) -> Vec<String> {
     let found = checks(test);
     cleanup(settings);
     found
@@ -27,7 +27,7 @@ fn the_number_of_tforeign_s_environment_is_typed_after_the_list() {
     let chosen = choose_foreign(&mut vm, "dumb", Duration::ZERO).unwrap();
 
     assert_eq!(guest.finish(), Vec::<String>::new());
-    let found = found(&test, &settings);
+    let found = found_checks(&test, &settings);
     assert!(chosen);
     assert_eq!(found.len(), 2, "{found:#?}");
     assert!(
@@ -46,28 +46,32 @@ fn a_screen_without_the_list_fails_and_types_nothing() {
     let chosen = choose_foreign(&mut vm, "dumb", Duration::ZERO).unwrap();
 
     assert_eq!(guest.finish(), Vec::<String>::new());
-    let found = found(&test, &settings);
+    let found = found_checks(&test, &settings);
     assert!(!chosen);
     assert_eq!(found.len(), 1, "{found:#?}");
     assert!(found[0].starts_with("FAIL"), "{found:#?}");
 }
 
 #[test]
-fn zfsbootmenu_s_last_boot_line_says_which_environment_booted() {
+fn zfsbootmenu_s_boot_line_after_its_teardown_says_which_environment_booted() {
     let settings = settings("runtime-console-lines-booted");
     let test = Test::new(&settings, "runtime-rust-console-lines").unwrap();
-    let booting = |be: &str| format!("Booting /boot/vmlinuz-7.3.0-9-generic for {be} ...\n");
+    // The boot line comes after the teardown report, where the boot was
+    // followed to.
+    let script = vec![Step::Say(
+        "ZBMTEST-TEARDOWN dm=[] pools=[tforeign tplain ] state=[]\r\n\r\n\
+         Booting /boot/vmlinuz-7.3.0-9-generic for tforeign/ROOT/be ...\r\n",
+    )];
+    let (mut vm, guest) = scripted(&test, script);
 
-    // The countdown names tplain first; the line typed boots tforeign.
-    let typed = format!(
-        "Booting tplain/ROOT/be in 60 seconds\n{}",
-        booting("tforeign/ROOT/be")
-    );
-    check_booted(&test, "dumb", &typed);
-    check_booted(&test, "lines", &booting("tplain/ROOT/be"));
-    check_booted(&test, "lines", "Boot Environments\n");
+    let found = booted(&mut vm);
+    check_booted(&test, "dumb", &found);
+    check_booted(&test, "lines", "tplain/ROOT/be");
+    check_booted(&test, "lines", "");
 
-    let found = found(&test, &settings);
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert_eq!(found, "tforeign/ROOT/be");
+    let found = found_checks(&test, &settings);
     let passed: Vec<bool> = found.iter().map(|line| line.starts_with("ok")).collect();
     assert_eq!(passed, [true, false, false], "{found:#?}");
 }
@@ -92,7 +96,7 @@ fn the_shell_reads_its_own_output_back_from_the_console_s_text() {
     check_vcsa(&mut vm, &mirror, Duration::ZERO).unwrap();
 
     assert_eq!(guest.finish(), Vec::<String>::new());
-    let found = found(&test, &settings);
+    let found = found_checks(&test, &settings);
     assert_eq!(found.len(), 4, "{found:#?}");
     assert!(
         found.iter().all(|line| line.starts_with("ok")),
