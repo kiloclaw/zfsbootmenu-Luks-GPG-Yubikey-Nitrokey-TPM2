@@ -255,14 +255,20 @@ const REFUSED: &str = "dmesg | grep -c 'type=1326'";
 const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.jsonl";
 
 /// What the recovery shell starts in the background before `zfsbootmenu`:
-/// 45 seconds later, once the remote menu ended, every process's state,
-/// group, session, terminal and the terminal's foreground group
-/// (`/proc/PID/stat`) and where it waits, then the serial terminal's modes,
-/// for the serial log, in case the shell no longer answers.
-const PROCESS_PROBE: &str = "(sleep 45; for f in /proc/[0-9]*/stat; do \
-    read -r s < \"$f\" 2>/dev/null || continue; \
-    read -r w < \"${f%stat}wchan\" 2>/dev/null; \
-    echo \"ZBMTEST-PS $s | $w\"; done; \
+/// 45 seconds later, once the remote menu ended, each thread of every
+/// process but the kernel's: its state, group, session, terminal, the
+/// terminal's foreground group (`stat`), where it waits (`wchan`) and the
+/// call it is in with its arguments (`syscall`); then every descriptor open
+/// on a terminal, and the serial terminal's modes. For the serial log, in
+/// case the shell no longer answers: whoever reads the terminal instead of
+/// the shell shows in a `read` of one of those descriptors.
+const PROCESS_PROBE: &str = "(sleep 45; for t in /proc/[0-9]*/task/[0-9]*; do \
+    read -r s < \"$t/stat\" 2>/dev/null || continue; set -- $s; \
+    [ \"$4\" = 2 ] && continue; [ \"$1\" = 2 ] && continue; \
+    read -r w < \"$t/wchan\" 2>/dev/null; read -r c < \"$t/syscall\" 2>/dev/null; \
+    echo \"ZBMTEST-PS $1 $2 $3 ppid=$4 pgrp=$5 sid=$6 tty=$7 tpgid=$8 | $w | $c\"; done; \
+    for d in /proc/[0-9]*/fd/*; do l=$(readlink \"$d\" 2>/dev/null); \
+    case \"$l\" in /dev/tty*|/dev/console|/dev/pts/*) echo \"ZBMTEST-FD $d $l\";; esac; done; \
     stty -a -F /dev/ttyS0 2>&1 | while read -r l; do echo \"ZBMTEST-STTY $l\"; done) &";
 
 /// The serial terminal's modes, as the shell's programs get them, before
