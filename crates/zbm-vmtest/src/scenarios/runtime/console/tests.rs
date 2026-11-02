@@ -159,6 +159,24 @@ fn the_console_shows_takes_keys_and_falls_back() {
 }
 
 #[test]
+fn the_calls_the_filter_refused_are_read_from_their_audit_records() {
+    let settings = settings("runtime-console-denied");
+    let test = Test::new(&settings, "runtime-rust-console").unwrap();
+    let records = "zbmtest-call audit: type=1326 comm=\"zbm\" syscall=99 zbmtest-call-end\r\n\
+        zbmtest-call audit: type=1326 comm=\"zbm\" syscall=315 zbmtest-call-end\r\n";
+    let (mut vm, guest) = scripted(&test, vec![Step::Say(records)]);
+    let monitor = Monitor { dump: no_dump, key };
+
+    let calls = fallback::denied_calls(&mut vm, &monitor, NOW).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert_eq!(calls.len(), 2, "{calls:?}");
+    assert!(calls[0].ends_with("syscall=99"), "{calls:?}");
+    assert!(calls[1].ends_with("syscall=315"), "{calls:?}");
+    cleanup(&settings);
+}
+
+#[test]
 fn a_console_that_shows_nothing_fails_its_checks() {
     let settings = settings("runtime-console-fail");
     let test = Test::new(&settings, "runtime-rust-console").unwrap();
@@ -232,7 +250,11 @@ fn the_saved_kernel_log_is_noted_by_zbm_lines_alone() {
 
 #[test]
 fn the_console_s_confinement_is_typed_in_keys_the_test_has() {
-    for line in [fallback::STATUS_LOG, fallback::COUNTS_LOG] {
+    for line in [
+        fallback::STATUS_LOG,
+        fallback::COUNTS_LOG,
+        fallback::DENIED_LOG,
+    ] {
         assert!(key_names(line).is_some(), "{line}");
         assert!(line.ends_with("> /dev/ttyS0\n"), "{line}");
     }

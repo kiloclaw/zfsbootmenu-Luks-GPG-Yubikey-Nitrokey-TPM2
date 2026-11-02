@@ -67,6 +67,10 @@ pub(super) const CELLS: &str = r"the menu draws on its cells \(client channel ve
 /// for `=` and `: `.
 pub(super) const STATUS_LOG: &str =
     "cat /proc/$(cat /zfsbootmenu/console/pid)/status > /dev/ttyS0\n";
+/// The audit records themselves, each between markers, when the filter
+/// refused calls: which calls (`syscall=`) and in which program.
+pub(super) const DENIED_LOG: &str = "dmesg | grep type.1326 | while read -r l\n\
+    do echo zbmtest-call $l zbmtest-call-end\ndone > /dev/ttyS0\n";
 pub(super) const COUNTS_LOG: &str = "echo zbmtest-denied $(dmesg | grep -c type.1326) \
     zbmtest-confined $(dmesg | grep -c console..confined) > /dev/ttyS0\n";
 
@@ -76,6 +80,7 @@ pub(super) const CAPABILITIES: &str = r"CapEff:\s+([0-9a-f]+)";
 pub(super) const NO_NEW_PRIVILEGES: &str = r"NoNewPrivs:\s+(\d+)";
 pub(super) const SECCOMP: &str = r"Seccomp:\s+(\d+)";
 pub(super) const COUNTS: &str = r"zbmtest-denied (\d+) zbmtest-confined (\d+)";
+pub(super) const DENIED: &str = r"zbmtest-call (.*?) zbmtest-call-end";
 
 /// The capability the console keeps as its own user (ADR 0012):
 /// `CAP_SYS_TTY_CONFIG`.
@@ -225,5 +230,20 @@ fn check_confined(test: &Test, vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -
              made ({confined:?} confined, {denied:?} refused)"
         ),
     );
+    if counted && denied != "0" {
+        let calls = denied_calls(vm, monitor, pace)?;
+        test.note(&format!("virtio: the calls refused: {}", calls.join(" | ")));
+    }
     Ok(())
+}
+
+/// The audit records of the calls the console's filter refused, eight at
+/// most.
+pub(super) fn denied_calls(vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -> Result<Vec<String>> {
+    type_text(vm, monitor, DENIED_LOG, pace.pause)?;
+    let mut calls = Vec::new();
+    while calls.len() < 8 && vm.expect(&[DENIED], 10).is_ok() {
+        calls.push(vm.group(1));
+    }
+    Ok(calls)
 }
