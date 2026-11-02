@@ -254,12 +254,23 @@ const REFUSED: &str = "dmesg | grep -c 'type=1326'";
 /// How many times the session served a menu, in its journal.
 const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.jsonl";
 
+/// What the recovery shell starts in the background before `zfsbootmenu`:
+/// 45 seconds later, once the remote menu ended, every process's state,
+/// group, session, terminal and the terminal's foreground group
+/// (`/proc/PID/stat`) and where it waits, for the serial log, in case the
+/// shell no longer answers.
+const PROCESS_PROBE: &str = "(sleep 45; for f in /proc/[0-9]*/stat; do \
+    read -r s < \"$f\" 2>/dev/null || continue; \
+    read -r w < \"${f%stat}wchan\" 2>/dev/null; \
+    echo \"ZBMTEST-PS $s | $w\"; done) &";
+
 /// Runs `zfsbootmenu` from the recovery shell: the session serves it the
 /// menu (ROADMAP.md, PM10), which shows on the shell's terminal, and its
 /// recovery shell ends it, back to this one.
 fn remote_menu(vm: &mut Vm<'_>) -> Result<()> {
     vm.test()
         .step("recovery shell -> zfsbootmenu: the session serves the menu");
+    vm.sendline(PROCESS_PROBE)?;
     vm.sendline("clear; zfsbootmenu")?;
     vm.expect1(crate::boot::prompt::NEW_MENU, 120)?;
     crate::boot::ask_menu_for_shell(vm)?;
