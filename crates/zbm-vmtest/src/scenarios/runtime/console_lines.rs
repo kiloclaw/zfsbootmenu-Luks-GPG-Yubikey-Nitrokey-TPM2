@@ -52,6 +52,12 @@ const VCS_COMMAND: &str = "echo zbm-$((6*7))-vcs; sleep 2; \
     if grep -q zbm-42-vcs /dev/vcs1; then echo ZBMTEST-VCS-$((1+1))-yes; \
     else echo ZBMTEST-VCS-no; fi\r";
 
+/// What the shell types when `/dev/vcs1` lacks the text: what the console
+/// logged about the text device, and the start of the terminal's text, for
+/// the serial log.
+const VCS_DIAGNOSIS: &str = "dmesg 2>&1 | grep -i -e vcsa -e 'screen readers' | tail -5; \
+    head -c 480 /dev/vcs1 | od -A d -c | head -8\r";
+
 /// What the shell prints after [`VCS_COMMAND`].
 const VCS_RESULT: &str = r"ZBMTEST-VCS-(2-yes|no)";
 
@@ -150,6 +156,11 @@ fn check_vcsa(vm: &mut Vm<'_>, mirror: &std::path::Path, pause: Duration) -> Res
     );
     if found.is_none() {
         test.note(&format!("the console shows: {}", last_screen(mirror)));
+    }
+    if found.as_deref() != Some("2-yes") {
+        vm.send(VCS_DIAGNOSIS)?;
+        thread::sleep(pause * 3);
+        test.note(&format!("after the diagnosis: {}", last_screen(mirror)));
     }
     Ok(())
 }
