@@ -109,6 +109,9 @@ fn the_shell_s_command_spells_its_marker_only_in_its_output() {
     assert!(!VCS_COMMAND.contains("zbm-42-vcs; "));
     assert!(VCS_COMMAND.contains("echo zbm-$((6*7))-vcs"));
     assert!(!VCS_COMMAND.contains("ZBMTEST-VCS-2-yes"));
+    // The line typed, which the screen shows, matches neither result.
+    let result = regex::Regex::new(VCS_RESULT).unwrap();
+    assert!(!result.is_match(VCS_COMMAND), "{VCS_COMMAND}");
     let lines: Vec<&str> = LINE_BOOTS.iter().map(|(_, extra)| *extra).collect();
     assert_eq!(lines, [" TERM=dumb", " zbm.menu=lines"]);
     assert!(DRM_APPEND.contains("zbm.console=drm"));

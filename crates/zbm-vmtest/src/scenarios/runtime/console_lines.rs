@@ -47,10 +47,11 @@ const NUMBER_HINT: &str = "Type a number to choose it";
 
 /// What the shell types: a line that prints `ZBMTEST-VCS-2-yes` when the
 /// console's text holds `zbm-42-vcs`, which only the output of `echo`
-/// spells, and `ZBMTEST-VCS-no` when it does not.
+/// spells, and `ZBMTEST-VCS-3-no` when it does not. Neither marker is in
+/// the line itself, which the screen shows as it is typed.
 const VCS_COMMAND: &str = "echo zbm-$((6*7))-vcs; sleep 2; \
     if grep -q zbm-42-vcs /dev/vcs1; then echo ZBMTEST-VCS-$((1+1))-yes; \
-    else echo ZBMTEST-VCS-no; fi\r";
+    else echo ZBMTEST-VCS-$((1+2))-no; fi\r";
 
 /// What the shell types when `/dev/vcs1` lacks the text: what the console
 /// logged about the text device, and the start of the terminal's text, for
@@ -59,7 +60,7 @@ const VCS_DIAGNOSIS: &str = "dmesg 2>&1 | grep -i -e vcsa -e 'screen readers' | 
     head -c 480 /dev/vcs1 | od -A d -c | head -8\r";
 
 /// What the shell prints after [`VCS_COMMAND`].
-const VCS_RESULT: &str = r"ZBMTEST-VCS-(2-yes|no)";
+const VCS_RESULT: &str = r"ZBMTEST-VCS-(2-yes|3-no)";
 
 /// How long a step may take, in seconds.
 const PATIENCE: u64 = 1200;
