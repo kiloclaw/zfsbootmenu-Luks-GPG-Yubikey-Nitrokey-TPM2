@@ -226,7 +226,7 @@ impl Interaction for ConsoleInteraction<'_> {
     /// The timed prompt; a skipped device or a retry leaves the screen clear
     /// with the cursor on, as the legacy unlock loop leaves it. A failed
     /// boot's says what failed and counts down to the menu, as the legacy
-    /// `kexec_kernel` does.
+    /// runtime's does.
     fn ask(&self, request: &PromptRequest) -> Answer {
         let mut prompt = TimedPrompt::new();
         if let Some(delay) = request.delay {
@@ -331,8 +331,8 @@ impl Interaction for ConsoleInteraction<'_> {
     }
 
     /// `Booting KERNEL for ENVIRONMENT ...` between blank lines, the kernel
-    /// in yellow and the environment in cyan, as the legacy `kexec_kernel`
-    /// says it.
+    /// in yellow and the environment in cyan, as the legacy runtime says
+    /// it.
     fn booting(&self, kernel: &str, environment: &str) {
         self.say(&format!(
             "\nBooting {} for {} ...\n\n",
