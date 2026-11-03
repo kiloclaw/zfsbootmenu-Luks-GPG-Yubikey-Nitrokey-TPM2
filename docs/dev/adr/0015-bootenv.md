@@ -1,6 +1,6 @@
 # ADR 0015: `zbm-bootenv`, and `zbm-boot` without the console
 
-- **Status:** proposed, 3 November 2026
+- **Status:** accepted, 3 November 2026 (proposed the same day)
 - **Decides:** item DM7 of [ROADMAP.md](../../../ROADMAP.md), and what [ADR 0003](0003-crate-map.md) left of its
   point 3: the crate `zbm-bootenv`, and the end of the `zbm-boot` → `zbm-pool` exception in `SAME_LAYER`
 - **Governs:** `zbm-boot`, the new `zbm-bootenv`, the read-write import in `zbm-pool`, `zbm_app`'s
@@ -127,15 +127,14 @@ report go to their owners; and every function takes a `Context` and asks through
 - The VM tests that boot encrypted environments and answer ZFS's prompts (`complex-badkey`, `runtime-rust-keysource`),
   and the rest of the suite.
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **The report:** in `zbm-app`, beside the snapshot, with `zbm debug report` its front end (proposed); in `zbm`, with
-   an exception for it to `NOT_THROUGH`, as it uses three adapters; or assembled in `zbm` from parts each domain crate
-   gives (the pools' status, the LUKS headers, the TPM)?
+Accepted as proposed, on 3 November 2026:
+
+1. **The report:** in `zbm-app`, beside the snapshot; `zbm debug report` stays its front end.
 2. **A ZFS passphrase:** asked through `Interaction::secret` and given to `zfs load-key` on its standard input, three
-   attempts, with `zfs`'s own prompt text on the plain console (proposed); or `zfs` asks on the terminal as now,
-   inside `Interaction::lease_console`, so that the passphrase never passes through ZFSBootMenu?
-3. **The read-write import and the hibernation check:** in `zbm-pool`, as an import (proposed); in `zbm-app`, as only
-   the menu's changes need it; or left in `zbm-boot`, which then keeps its `zbm-pool` edge?
-4. **The menu's dialogs for the new requests:** with the workspace's, after DM7, the menu stepping aside for a boot
-   until then (proposed); or in DM7, so that the menu stays on screen through a boot's questions?
+   attempts, with `zfs`'s own prompt text on the plain console.
+3. **The read-write import and the hibernation check:** in `zbm-pool`, as an import; `zbm-boot` no longer depends on
+   `zbm-pool`.
+4. **The menu's dialogs for the new requests:** with the workspace's, after DM7; until then the menu steps aside for a
+   boot and the plain console asks.
