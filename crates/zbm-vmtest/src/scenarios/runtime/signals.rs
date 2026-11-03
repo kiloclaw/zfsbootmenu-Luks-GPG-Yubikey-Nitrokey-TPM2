@@ -259,7 +259,8 @@ const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.json
 /// process but the kernel's: its state, group, session, terminal, the
 /// terminal's foreground group (`stat`), where it waits (`wchan`) and the
 /// call it is in with its arguments (`syscall`); then every descriptor open
-/// on a terminal, and the serial terminal's modes. For the serial log, in
+/// on a terminal, the serial terminal's modes, and the shell's own
+/// descriptors (`fdinfo`). For the serial log, in
 /// case the shell no longer answers: whoever reads the terminal instead of
 /// the shell shows in a `read` of one of those descriptors.
 const PROCESS_PROBE: &str = "(sleep 45; for t in /proc/[0-9]*/task/[0-9]*; do \
@@ -269,7 +270,15 @@ const PROCESS_PROBE: &str = "(sleep 45; for t in /proc/[0-9]*/task/[0-9]*; do \
     echo \"ZBMTEST-PS $1 $2 $3 ppid=$4 pgrp=$5 sid=$6 tty=$7 tpgid=$8 | $w | $c\"; done; \
     for d in /proc/[0-9]*/fd/*; do l=$(readlink \"$d\" 2>/dev/null); \
     case \"$l\" in /dev/tty*|/dev/console|/dev/pts/*) echo \"ZBMTEST-FD $d $l\";; esac; done; \
-    stty -a -F /dev/ttyS0 2>&1 | while read -r l; do echo \"ZBMTEST-STTY $l\"; done) &";
+    stty -a -F /dev/ttyS0 2>&1 | while read -r l; do echo \"ZBMTEST-STTY $l\"; done; \
+    for i in /proc/$$/fdinfo/*; do while read -r l; do \
+    echo \"ZBMTEST-FDINFO ${i##*/} $l\"; done < \"$i\"; done) &";
+
+/// The shell's own descriptors before `zfsbootmenu`, as the probe prints
+/// them after: their flags, and the descriptors each epoll set of its
+/// terminal library waits on (`tfd:`).
+const SHELL_DESCRIPTORS: &str = "for i in /proc/$$/fdinfo/*; do while read -r l; do \
+    echo \"${i##*/} $l\"; done < \"$i\"; done";
 
 /// The serial terminal's modes, as the shell's programs get them, before
 /// `zfsbootmenu`.
@@ -282,6 +291,7 @@ fn remote_menu(vm: &mut Vm<'_>) -> Result<()> {
     vm.test()
         .step("recovery shell -> zfsbootmenu: the session serves the menu");
     vm.sh_show(TERMINAL_MODES)?;
+    vm.sh_show(SHELL_DESCRIPTORS)?;
     vm.sendline(PROCESS_PROBE)?;
     vm.sendline("clear; zfsbootmenu")?;
     vm.expect1(crate::boot::prompt::NEW_MENU, 120)?;
