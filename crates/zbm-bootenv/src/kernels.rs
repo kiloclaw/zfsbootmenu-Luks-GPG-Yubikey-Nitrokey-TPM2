@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 use zbm_platform::files::Files;
 use zbm_types::KernelSelector;
-pub use zbm_types::version::version_sort;
+pub(crate) use zbm_types::version::version_sort;
 
 /// The kernel file names looked for in `/boot`, each also followed by `-` and
 /// anything.

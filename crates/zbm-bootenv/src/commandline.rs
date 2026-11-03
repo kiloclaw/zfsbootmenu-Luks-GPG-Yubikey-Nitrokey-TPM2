@@ -17,7 +17,8 @@ use zbm_types::{FilesystemName, KernelArg, KernelCommandLine};
 
 use crate::zfs::zfs_value;
 
-pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID, apparent_hostid as spl_hostid};
+pub(crate) use zbm_pool::hostid::apparent_hostid as spl_hostid;
+pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID};
 
 /// The command line of a boot environment that sets none.
 const DEFAULT_ARGS: &str = "quiet loglevel=4";

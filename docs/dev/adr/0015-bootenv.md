@@ -131,34 +131,42 @@ report go to their owners; and every function takes a `Context` and asks through
 
 Built on 3 November 2026, the day the decision was accepted (DM7a to DM7e), as decided but for what follows:
 
-- **Point 1:** as decided. `zbm-bootenv` also gives the root argument of a mounted environment (`boot_root`), so that
-  the dataset queries stay inside it; the boot sequence calls it rather than reading the property itself.
+- **Point 1:** as decided, but for the device tree. `zbm-bootenv` also gives the root argument of a mounted
+  environment (`boot_root`), which the boot sequence calls rather than reading `org.zfsbootmenu:rootprefix` itself.
+  The sequence still reads `org.zfsbootmenu:devicetree` through `zbm-zfs` and checks that the file exists;
+  `zbm-bootenv` gives only where the file would be (`commandline::devicetree_candidate`).
 - **Point 2:** as decided. The teardown keeps a check of its own whether a pool is imported read/write, before it
   exports the pool, since `zbm-boot` no longer depends on `zbm-pool`; the menu's checks use `zbm-pool`'s.
 - **Point 3:** as decided, but for `prompt.rs`: `zbm-startup`, in orchestration, which may use adapters and did
-  before, takes the plain console from `zbm_tools::console`; `zbm`, a front end, takes it from `zbm_app::prompt`.
-- **Point 4:** as decided. The resume question became a request in DM7a, with the read-write import. A ZFS key whose
-  `keyformat` is `hex` is asked for as a hex key; one that is `raw` cannot be typed, as `zfs load-key` reads a raw key
-  from a file only, so it fails without a prompt, as it did. The countdown's boot clears the screen before the
-  `load-key.d` hooks and the plain console does not clear it again before the key, so that what a hook said stays
-  above the prompt, as in the legacy runtime.
+  before, takes the plain console from `zbm_tools::console`. `zbm`, a front end, takes what it uses from
+  `zbm_app::prompt`, which re-exports `ConsoleInteraction`, `colorize` and `retry_delay`; `zbm` needs no
+  `TimedPrompt`.
+- **Point 4:** as decided, with these details. The resume question became a request in DM7a, with the read-write
+  import. The boot message is a method of the port, `Interaction::booting`, which tells `Told::Booting` unless a
+  front end does more, as the plain console does with its colours. A failed boot has two subjects, `LoadFailed` and
+  `KexecFailed`, for its two messages. A ZFS key whose `keyformat` is `hex` is asked for as a hex key. A raw key, 32
+  bytes, cannot be typed, and `zfs` refused to read one on the terminal, so it fails without a prompt, as it did. The
+  countdown's boot clears the screen before the `load-key.d` hooks and the plain console does not clear it again before
+  the key, so that what a hook said stays above the prompt, as in the legacy runtime.
 - **Point 5:** not yet. `Through::Console` still carries the `System`, from which `zbm-app` builds the `Context` and
   the plain console's `Interaction`, and the locked menu's PIN before an action it keeps is still read on that
   console (`App::is_allowed`). Both go with the menu's own dialogs for these requests (answer 4).
 - **Point 6:** the modules are private but for a few that are namespaces of their own: `zbm-bootenv`'s `commandline`,
   `hooks`, `kernels` and `keys`, and `zbm-boot`'s `graphics`, `saved_logs` and `measured`, a module of re-exports.
-  Their contents are narrowed to what other crates use, and `#![warn(unreachable_pub)]` keeps it so. Of the public
-  items, `zbm-boot` went from 58 to 49 and `zbm-bootenv` from 45 to 34; the key-source helpers no caller used and
-  `commandline::devicetree` are gone. `BootSettings` and `Kernel` are `#[non_exhaustive]` and built with
-  constructors (`Kernel::new`, `BootSettings::default()` and its setters), as `KeyLoad` is (`KeyLoad::new`). The metric
-  column `public_items` counts every crate, with the `error_codes!` tables and exported macros; its baseline may only
-  fall.
+  What no other crate used in them became `pub(crate)`, and `#![warn(unreachable_pub)]` flags a `pub` item that no
+  path from the crate's root reaches. Counted as at the start, without the `error_codes!` tables the metric counts
+  now, `zbm-boot` went from 58 public items to 48 and `zbm-bootenv` from 45 to 32; the key-source helpers no caller
+  used and `commandline::devicetree` are gone. `BootSettings` and `Kernel` are `#[non_exhaustive]` and built with
+  constructors (`Kernel::new`, `BootSettings::default()` and its setters), as `KeyLoad` is (`KeyLoad::new`); so is
+  `Copies`, which `measure` returns. `KexecLoad`, the borrowed arguments of a `kexec` load, which `zbm`'s tests build,
+  and the enums callers choose (`BootPath`, `Noise`, `Destination`) stay exhaustive. The metric column
+  `public_items` counts every crate, with the `error_codes!` tables and exported macros; its baseline may only fall.
 - **Point 7:** as decided, but for two codes. `Unmount` (605) is `zbm-bootenv`'s too, as the recursive unmount moved
   there. A failed export before the read-write import is `PoolError::Export` (304), a new code: 601 explains the
   export before `kexec`, which stays in `zbm-boot`.
 - **Point 8:** as decided.
-- **Checks:** unit tests of both crates and of the plain console on recording `Interaction`s, the plain console's
-  output compared with the legacy runtime's byte for byte, the parity tests of the locked boot and the resume
+- **Checks:** unit tests of both crates on recording `Interaction`s, the plain console's output on a fake console
+  compared with the legacy runtime's byte for byte, the parity tests of the locked boot and the resume
   question. Every VM test but the `oldzfs` ones passed after DM7c, on rebuilt images
   ([testing.rst](../../luks/testing.rst)).
 

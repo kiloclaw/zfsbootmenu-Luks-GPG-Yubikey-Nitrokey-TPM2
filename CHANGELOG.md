@@ -248,7 +248,7 @@ place for the menu.
 ZFSBootMenu now reads a ZFS passphrase or hex key itself, with `zfs`'s own prompt (`Enter passphrase for 'ROOT':`)
 and three tries, and gives it to `zfs load-key` on its standard input; before, `zfs` read it from the terminal. The
 typed key is held in locked memory and wiped once `zfs` has it. A key with `keyformat=raw` and `keylocation=prompt`
-still fails without a prompt, as `zfs` reads raw keys from files only. At the countdown, what the `load-key.d` hooks
+still fails without a prompt: it cannot be typed, and `zfs` refused one on the terminal. At the countdown, what the `load-key.d` hooks
 print stays above the prompt, as in the legacy runtime.
 
 ### The new menu in Rust images
@@ -708,14 +708,14 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   mounting it, its kernels, command line, keys and hooks), and `zbm-boot` boots one, without depending on `zbm-pool`.
   The import stage's console prompts and the graphics policy moved to `zbm-startup`, the code of `zbm report` to
   `zbm-app`, and the read-write import before a change, with its hibernation question, to `zbm-pool`.
-- No domain crate draws on the console or reads the keyboard any more, so `cargo xtask check-deps` has no exception
-  left: a ZFS key, the hibernation question, the `Booting ... for ...` line and the messages after a failed boot are
+- No domain crate draws on the console or reads the keyboard any more, so `cargo xtask check-deps` has no console
+  exception left: a ZFS key, the hibernation question, the `Booting ... for ...` line and the messages after a failed boot are
   requests the front end answers. The plain console shows them as before, which tests check byte for byte; the menu
   still steps aside for them.
 - Error codes keep their numbers: 602 to 605 are explained under `zbm-bootenv` and 606 to 608 under `zbm-pool`. A
   failed export before the read-write import has a code of its own, 304.
-- The two crates show other crates only what they use: 49 and 34 public items, from 58 and 45.
-  `cargo xtask metrics` counts each crate's public items, a number that may only fall.
+- Most of the two crates' modules are private, and what no other crate used is too: 48 and 32 public items, from 58
+  and 45. `cargo xtask metrics` counts each crate's public items, a number that may only fall.
 
 ### The parity-only parts removed
 

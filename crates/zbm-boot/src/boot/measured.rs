@@ -40,6 +40,7 @@ const DEVICES: [&str; 2] = ["/dev/tpmrm0", "/dev/tpm0"];
 
 /// The files the kernel loads in place of the boot environment's: their
 /// measured copies.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Copies {
     /// The kernel's copy.
