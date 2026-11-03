@@ -246,7 +246,10 @@ fn a_key_that_cannot_be_loaded_opens_the_shell() {
     runner.respond("zfs get -H -o value keylocation tank/ROOT", 0, "prompt\n");
     runner.respond("zfs load-key -L prompt tank/ROOT", 1, "");
     // Three wrong keys typed at the prompt.
-    fake.console.secret(b"wrong1").secret(b"wrong2").secret(b"wrong3");
+    fake.console
+        .secret(b"wrong1")
+        .secret(b"wrong2")
+        .secret(b"wrong3");
     startup(&fake, "zbm.timeout=0").run(console, Some(0));
     let tries = fake
         .runner

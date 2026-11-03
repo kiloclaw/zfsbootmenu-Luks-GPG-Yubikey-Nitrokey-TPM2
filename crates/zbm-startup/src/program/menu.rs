@@ -106,13 +106,8 @@ impl Startup<'_> {
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
-        hooks::run_stage(
-            &Context::new(*system),
-            &self.hooks,
-            HookStage::Setup,
-            false,
-            &pairs,
-        );
+        let context = Context::new(*system);
+        hooks::run_stage(&context, &self.hooks, HookStage::Setup, false, &pairs);
         // Clear the screen before a possible passphrase prompt.
         system.console.screen(Screen::Clear);
 
