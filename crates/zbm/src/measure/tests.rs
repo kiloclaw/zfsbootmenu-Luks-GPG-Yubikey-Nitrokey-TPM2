@@ -225,7 +225,7 @@ fn a_prediction_gives_what_a_measured_boot_extends() {
     let state = zbm_state::State::new(&fake.files, "/zfsbootmenu");
     let root: zbm_types::KernelArg = "root=zfs:tank/ROOT/void".parse().unwrap();
     let args: zbm_types::KernelCommandLine = "quiet".parse().unwrap();
-    let load = zbm_boot::commandline::KexecLoad {
+    let load = zbm_boot::load::KexecLoad {
         mnt: "",
         kernel: "/boot/vmlinuz-6.1.10",
         initramfs: "/boot/initramfs-6.1.10.img",

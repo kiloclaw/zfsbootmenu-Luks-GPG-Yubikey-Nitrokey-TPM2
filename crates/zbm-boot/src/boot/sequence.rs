@@ -16,14 +16,14 @@ use zbm_types::{
 };
 use zbm_zfs::ZfsText;
 
+use zbm_bootenv::kernels::Kernel;
+use zbm_bootenv::keys::{self, BootPath, KeyLoad};
+use zbm_bootenv::{Noise, commandline, hooks, mount_zfs, recursive_umount, umount, zfs_value};
+
 use super::measured;
-use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
-use super::zfs::{export_writable_pools, substituted, zfs_value};
-use crate::commandline::{self, KexecLoad};
+use super::zfs::{export_writable_pools, substituted};
 use crate::graphics;
-use crate::hooks;
-use crate::kernels::Kernel;
-use crate::keys::{self, BootPath, KeyLoad};
+use crate::load::KexecLoad;
 use crate::recovery::Recovery;
 use crate::saved_logs::{self, Destination, Saved};
 use zbm_platform::color::colorize;
@@ -475,7 +475,7 @@ const DROP_CACHES: &str = "/proc/sys/vm/drop_caches";
 /// and zeroes them with `init_on_free=1`; and warns when this process still
 /// holds secrets.
 pub fn wipe_before_kexec(context: &Context<'_>, state: &State<'_>) {
-    crate::keys::clear_key_caches(context.files(), state);
+    keys::clear_key_caches(context.files(), state);
     if let Err(error) = context.files().write(Path::new(DROP_CACHES), b"3\n") {
         zbm_trace::debug!("unable to drop the page cache: {error}"; %error);
     }

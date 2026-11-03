@@ -76,7 +76,7 @@ pub const LAYERS: &[Layer] = &[
         name: "domain",
         purpose: "LUKS volumes and key methods, pool import, kernel command lines of boot \
                   environments; boot environments, their kernels and keys, and booting",
-        crates: &["zbm-luks", "zbm-pool", "zbm-boot"],
+        crates: &["zbm-luks", "zbm-pool", "zbm-bootenv", "zbm-boot"],
     },
     Layer {
         name: "application",
@@ -101,7 +101,8 @@ pub const LAYERS: &[Layer] = &[
 pub const SAME_LAYER: &[(&str, &str)] = &[
     ("zbm", "zbm-tui"),
     ("zbm", "zbm-console"),
-    ("zbm-boot", "zbm-pool"),
+    ("zbm-bootenv", "zbm-pool"),
+    ("zbm-boot", "zbm-bootenv"),
 ];
 
 /// Layers whose crates may not use the crates of another, lower layer:
@@ -135,6 +136,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm", &["ratatui", "serde_json", "tracing"]),
     ("zbm-app", &["serde", "serde_json", "thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
+    ("zbm-bootenv", &["thiserror", "tracing"]),
     ("zbm-brush", &["brush-shell", "rustix"]),
     ("zbm-config", &["thiserror"]),
     ("zbm-console", &["alacritty_terminal", "rustix"]),

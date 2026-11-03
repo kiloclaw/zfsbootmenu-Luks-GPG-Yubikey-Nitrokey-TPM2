@@ -9,7 +9,7 @@ pub mod modules;
 
 use std::path::Path;
 
-use zbm_boot::hooks::executable_hooks;
+use zbm_bootenv::hooks::executable_hooks;
 use zbm_platform::System;
 use zbm_pool::ImportSettings;
 use zbm_types::{HookStage, RetryDelay, Stage};

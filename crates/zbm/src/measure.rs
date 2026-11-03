@@ -27,7 +27,7 @@ use zbm_boot::boot::measured::{
     Bank, COMMAND_LINE_PCR, Event, FILES_PCR, Measured, hex, parse_log, predicted, replay,
     unsealed_at,
 };
-use zbm_boot::kernels::{self, Kernel};
+use zbm_bootenv::kernels::{self, Kernel};
 use zbm_platform::{Context, NoConsole, RealSystem, System};
 use zbm_types::{FilesystemName, KernelSelector};
 
@@ -246,7 +246,7 @@ impl Predict {
         let chosen = if let Some(path) = &self.kernel {
             found.iter().find(|kernel| kernel.kernel == *path)
         } else {
-            let property = zbm_boot::boot::kernel_property(&Context::new(*system), dataset);
+            let property = zbm_bootenv::kernel_property(&Context::new(*system), dataset);
             let selector = property.and_then(|text| text.parse::<KernelSelector>().ok());
             kernels::select(&found, selector.as_ref())
         };

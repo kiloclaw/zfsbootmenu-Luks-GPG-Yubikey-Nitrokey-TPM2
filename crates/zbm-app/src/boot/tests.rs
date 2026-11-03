@@ -119,7 +119,7 @@ fn the_kernel_the_menu_shows_first_is_the_one_that_boots() {
             .kernels(&be())
             .first()
             .map(|kernel| kernel.version.get().clone());
-        let booted = kexec::select_kernel(
+        let booted = zbm_bootenv::select_kernel(
             &zbm_platform::Context::new(*boot.system),
             boot.state,
             &be().into(),

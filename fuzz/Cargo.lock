@@ -1997,6 +1997,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "zbm-boot",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-crypt",
  "zbm-display",
@@ -2016,8 +2017,24 @@ version = "0.1.0"
 dependencies = [
  "thiserror",
  "tracing",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-crypt",
+ "zbm-platform",
+ "zbm-state",
+ "zbm-tools",
+ "zbm-trace",
+ "zbm-types",
+ "zbm-zfs",
+]
+
+[[package]]
+name = "zbm-bootenv"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "tracing",
+ "zbm-config",
  "zbm-platform",
  "zbm-pool",
  "zbm-state",
@@ -2173,6 +2190,7 @@ dependencies = [
  "thiserror",
  "zbm-app",
  "zbm-boot",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-display",
  "zbm-platform",

@@ -25,8 +25,9 @@ use zbm_crypt::tpm2::Tpm2;
 use zbm_platform::{Context, Files};
 use zbm_state::State;
 
-use crate::commandline::KexecLoad;
-use crate::kernels::Kernel;
+use zbm_bootenv::kernels::Kernel;
+
+use crate::load::KexecLoad;
 
 /// The event log in the state directory, which the saved logs keep.
 pub const LOG: &str = "tpm-measure.json";

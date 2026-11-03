@@ -11,7 +11,7 @@ use std::path::Path;
 
 use zbm_app::auth;
 use zbm_boot::boot::measured::{self, Event, Extended};
-use zbm_boot::hooks::{HOOKS, run_stage};
+use zbm_bootenv::hooks::{HOOKS, run_stage};
 use zbm_platform::console::Screen;
 use zbm_platform::files::Files;
 use zbm_platform::{Context, System};

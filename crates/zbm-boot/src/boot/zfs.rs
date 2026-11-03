@@ -1,11 +1,9 @@
-//! What booting asks ZFS: dataset properties, encryption roots and their keys,
-//! whether a pool is writable; and the export of pools before the new kernel
-//! runs.
+//! The export of pools before the new kernel runs, and what a program's run
+//! gives as the shell's `$( command )`.
 
 use zbm_platform::Runner;
-pub use zbm_pool::writable::is_writable;
-use zbm_types::{DatasetName, PoolName};
-use zbm_zfs::{Stderr, ZfsName, ZfsText};
+use zbm_types::PoolName;
+use zbm_zfs::{Stderr, ZfsText};
 
 use crate::error::BootError;
 
@@ -20,42 +18,14 @@ pub(super) fn substituted(result: std::io::Result<zbm_platform::exec::Output>) -
     }
 }
 
-/// The value of `property` of `name`, quietly; `None` when `zfs` fails.
-pub(crate) fn zfs_value(
-    runner: &dyn Runner,
-    property: &str,
-    name: &impl ZfsName,
-) -> Option<String> {
-    ZfsText::new(runner).value(name, property, Stderr::Hidden)
-}
-
-/// The encryption root of `fs`, or `None` when its pool does not use
-/// encryption or `fs` is not encrypted. (A snapshot's is its dataset's.)
-pub fn encryption_root(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
-    zbm_trace::debug!("fs set to {fs}"; %fs);
-    let pool = fs.pool();
-    let feature =
-        ZfsText::new(runner).pool_list(Some(&pool), &["feature@encryption"], Stderr::Hidden);
-    if feature.trim_end_matches('\n') != "active" {
-        zbm_trace::debug!("feature@encryption not active on {pool}"; %pool);
-        return None;
-    }
-    let encroot = zfs_value(runner, "encryptionroot", fs)?;
-    zbm_trace::debug!("{fs} encryptionroot property: {encroot}"; %fs, %encroot);
-    encroot.parse().ok()
-}
-
-/// The encryption root of `fs` if its key is not loaded: its `keystatus` is
-/// `unavailable`.
-pub fn locked_root(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
-    zbm_trace::debug!("fs set to {fs}"; %fs);
-    let encroot = encryption_root(runner, fs)?;
-    zbm_trace::debug!("{encroot} discovered as encryption root for {fs}"; %encroot, %fs);
-    let keystatus = ZfsText::new(runner)
-        .value(&encroot, "keystatus", Stderr::Merged)
-        .unwrap_or_default();
-    zbm_trace::debug!("{encroot} keystatus: {keystatus}"; %encroot, %keystatus);
-    (keystatus == "unavailable").then_some(encroot)
+/// Whether `pool` is imported read-write: its `readonly` property is `off`.
+pub(super) fn is_writable(runner: &dyn Runner, pool: &PoolName) -> bool {
+    zbm_trace::debug!("pool set to {pool}"; %pool);
+    let Some(readonly) = ZfsText::new(runner).pool_value(pool, "readonly", Stderr::Hidden) else {
+        return false;
+    };
+    zbm_trace::debug!("{pool} readonly property: {readonly}"; %pool, %readonly);
+    readonly == "off"
 }
 
 /// Exports `pool` with `zpool export`.

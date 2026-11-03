@@ -8,15 +8,10 @@
 use std::path::{Component, Path, PathBuf};
 
 use zbm_config::parent::{CommandLineSource, read_kcl_contents, read_kcl_prop};
-use zbm_platform::exec::{Output, Runner};
 use zbm_platform::files::Files;
-use zbm_platform::kernel::KernelLoader;
 use zbm_state::State;
-use zbm_tools::kexec;
 use zbm_trace::Message;
 use zbm_types::{KernelArg, KernelCommandLine};
-
-use crate::boot::measured::Copies;
 
 pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID, apparent_hostid as spl_hostid};
 
@@ -361,7 +356,7 @@ pub(crate) fn is_root_prefix(prefix: &str) -> bool {
 /// space is quoted, so the argument stays one. `None` when the two do not
 /// make one argument with a value: the prefix has no `=`, no name before
 /// it, or a quote.
-pub(crate) fn root_argument(prefix: &str, fs: &str) -> Option<KernelArg> {
+pub fn root_argument(prefix: &str, fs: &str) -> Option<KernelArg> {
     let (name, value) = prefix.split_once('=')?;
     KernelArg::new(name, Some(&format!("{value}{fs}"))).ok()
 }
@@ -447,79 +442,7 @@ pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<
 
 /// The spaces between the root argument and the rest of the command line: the
 /// legacy script continues the quoted argument on an indented line.
-const SEPARATOR: &str = "           ";
-
-/// What the boot passes to `kexec -l`: the kernel, initramfs, device tree
-/// and command line.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct KexecLoad<'a> {
-    /// Where the boot environment is mounted.
-    pub mnt: &'a str,
-    /// The kernel, relative to the boot environment's root.
-    pub kernel: &'a str,
-    /// The initramfs, relative to the boot environment's root.
-    pub initramfs: &'a str,
-    /// The device tree, a full path, if any.
-    pub dtb: Option<&'a Path>,
-    /// The root argument, such as `root=zfs:zroot/ROOT/void`.
-    pub root: &'a KernelArg,
-    /// The rest of the command line.
-    pub args: &'a KernelCommandLine,
-    /// The measured copies to load in place of the kernel and initramfs
-    /// of the boot environment, after measured boot (ROADMAP.md SE10).
-    pub copies: Option<&'a Copies>,
-}
-
-impl KexecLoad<'_> {
-    /// The command line the kernel gets.
-    pub fn command_line(&self) -> String {
-        format!("{}{SEPARATOR}{}", self.root, self.args)
-    }
-
-    /// Calls `with` with what `kexec -l` loads.
-    fn with_image<T>(&self, with: impl FnOnce(&kexec::Image<'_>) -> T) -> T {
-        let (kernel, initrd) = match self.copies {
-            Some(copies) => (
-                copies.kernel.to_string_lossy().into_owned(),
-                copies.initramfs.to_string_lossy().into_owned(),
-            ),
-            None => (
-                format!("{}{}", self.mnt, self.kernel),
-                format!("{}{}", self.mnt, self.initramfs),
-            ),
-        };
-        let command_line = self.command_line();
-        with(&kexec::Image {
-            kernel: &kernel,
-            initrd: &initrd,
-            dtb: self.dtb,
-            command_line: &command_line,
-        })
-    }
-
-    /// The `kexec -a -l ...` command line, for logs and tests.
-    pub fn line(&self) -> String {
-        self.with_image(kexec::load_line)
-    }
-
-    /// Loads the kernel: with `kexec_file_load` through `loader`, or with
-    /// `kexec -a -l ...` on `runner` for a device tree or what the call does
-    /// not load, its two output streams merged as `2>&1` merges them; with
-    /// the call alone when `checked` names what requires the kernel to check
-    /// what it boots (`zbm_tools::kexec::checked_boot`).
-    ///
-    /// # Errors
-    ///
-    /// The error that kept `kexec` from starting.
-    pub fn run(
-        &self,
-        loader: &dyn KernelLoader,
-        runner: &dyn Runner,
-        checked: Option<kexec::CheckedBoot>,
-    ) -> std::io::Result<Output> {
-        self.with_image(|image| kexec::load(loader, runner, image, checked))
-    }
-}
+pub const SEPARATOR: &str = "           ";
 
 #[cfg(test)]
 mod devicetree_tests;

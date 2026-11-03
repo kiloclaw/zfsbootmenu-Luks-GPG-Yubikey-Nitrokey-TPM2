@@ -4,8 +4,9 @@
 
 use std::path::Path;
 
-use zbm_boot::boot::{self as kexec, BootSettings, Noise};
-use zbm_boot::keys::{self, BootPath, KeyLoad};
+use zbm_boot::boot::BootSettings;
+use zbm_bootenv::Noise;
+use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::{Context, System};
 use zbm_pool::writable::set_rw_pool;
 use zbm_state::State;
@@ -54,7 +55,7 @@ pub(crate) struct OnMachine<'s, 'a> {
 impl Needs for OnMachine<'_, '_> {
     fn writable(&mut self, pool: &PoolName) -> Result<(), Vec<String>> {
         if !self.asks {
-            if kexec::is_writable(self.system.runner, pool) {
+            if zbm_pool::writable::is_writable(self.system.runner, pool) {
                 return Ok(());
             }
             return Err(vec![format!("{pool} is imported read-only")]);
@@ -68,7 +69,7 @@ impl Needs for OnMachine<'_, '_> {
 
     fn load_key(&mut self, dataset: &DatasetName) -> Result<(), Vec<String>> {
         if !self.asks {
-            return match kexec::locked_root(self.system.runner, dataset) {
+            return match zbm_bootenv::locked_root(self.system.runner, dataset) {
                 None => Ok(()),
                 Some(root) => Err(vec![format!("the key of {root} is not loaded")]),
             };
@@ -85,13 +86,13 @@ impl Needs for OnMachine<'_, '_> {
 
     fn has_kernels(&mut self, snapshot: &SnapshotName) -> bool {
         let snapshot = FilesystemName::from(snapshot.clone());
-        kexec::find_kernels(&Context::new(*self.system), self.state, &snapshot).is_ok()
+        zbm_bootenv::find_kernels(&Context::new(*self.system), self.state, &snapshot).is_ok()
     }
 
     fn mount(&mut self, filesystem: &DatasetName) -> Result<String, Vec<String>> {
         let filesystem = FilesystemName::from(filesystem.clone());
         // Mounted until `unmount`, which unmounts what is below it too.
-        kexec::mount_zfs(
+        zbm_bootenv::mount_zfs(
             &Context::new(*self.system),
             self.state,
             &filesystem,
@@ -103,7 +104,7 @@ impl Needs for OnMachine<'_, '_> {
 
     fn unmount(&mut self, mounted: &str) {
         let context = Context::new(*self.system);
-        if let Err(error) = kexec::recursive_umount(&context, Path::new(mounted)) {
+        if let Err(error) = zbm_bootenv::recursive_umount(&context, Path::new(mounted)) {
             tracing::warn!(%error, "unmounting the boot environment");
         }
     }
@@ -133,14 +134,14 @@ impl Planning<'_, '_> {
 
 impl Needs for Planning<'_, '_> {
     fn writable(&mut self, pool: &PoolName) -> Result<(), Vec<String>> {
-        if !kexec::is_writable(self.machine.system.runner, pool) {
+        if !zbm_pool::writable::is_writable(self.machine.system.runner, pool) {
             self.step(StepKind::ImportReadWrite(pool.clone()));
         }
         Ok(())
     }
 
     fn load_key(&mut self, dataset: &DatasetName) -> Result<(), Vec<String>> {
-        if let Some(root) = kexec::locked_root(self.machine.system.runner, dataset) {
+        if let Some(root) = zbm_bootenv::locked_root(self.machine.system.runner, dataset) {
             self.step(StepKind::LoadKey(root));
         }
         Ok(())

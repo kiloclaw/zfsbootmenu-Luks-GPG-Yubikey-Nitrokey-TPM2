@@ -20,6 +20,7 @@ const TABLES: &[&[Explanation]] = &[
     zbm_pool::WRITABLE_CODES,
     zbm_luks::LUKS_CODES,
     zbm_app::codes::CRYPT_CODES,
+    zbm_bootenv::BOOTENV_CODES,
     zbm_boot::BOOT_CODES,
     zbm_boot::saved_logs::SAVE_CODES,
     zbm_startup::STARTUP_CODES,

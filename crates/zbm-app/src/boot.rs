@@ -9,9 +9,9 @@ use std::path::Path;
 use zbm_types::Untrusted;
 
 use zbm_boot::boot::{self as kexec, BootSettings};
-use zbm_boot::kernels::Kernel;
-use zbm_boot::keys::{self, BootPath, KeyLoad};
 use zbm_boot::recovery::Recovery;
+use zbm_bootenv::kernels::Kernel;
+use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::console::Screen;
 use zbm_platform::{Context, System};
 use zbm_state::State;
@@ -72,7 +72,7 @@ impl<'a> Boot<'_, 'a> {
     /// the newest, boots: the first here.
     pub fn kernels(&self, environment: &DatasetName) -> Vec<model::Kernel> {
         let fs = FilesystemName::from(environment.clone());
-        if kexec::find_kernels(&self.context(), self.state, &fs).is_err() {
+        if zbm_bootenv::find_kernels(&self.context(), self.state, &fs).is_err() {
             return Vec::new();
         }
         let list = self
@@ -81,8 +81,8 @@ impl<'a> Boot<'_, 'a> {
             .read_to_string(&self.state.kernels(environment.as_str()))
             .unwrap_or_default();
         let context = self.context();
-        let named = kexec::kernel_property(&context, &fs).is_some();
-        let chosen = kexec::select_kernel(&context, self.state, &fs);
+        let named = zbm_bootenv::kernel_property(&context, &fs).is_some();
+        let chosen = zbm_bootenv::select_kernel(&context, self.state, &fs);
         list.lines()
             .rev()
             .map(Kernel::parse)
@@ -123,7 +123,7 @@ impl<'a> Boot<'_, 'a> {
             );
         }
         let filesystem = FilesystemName::from(environment.clone());
-        if let Err(error) = kexec::find_kernels(&context, self.state, &filesystem) {
+        if let Err(error) = zbm_bootenv::find_kernels(&context, self.state, &filesystem) {
             return failed(format!("unable to boot {fs}"), vec![error.to_string()]);
         }
         let Some(selected) = self.selected(&filesystem, kernel) else {
@@ -160,7 +160,7 @@ impl<'a> Boot<'_, 'a> {
     /// its kernel list selects.
     fn selected(&self, fs: &FilesystemName, version: Option<&str>) -> Option<Kernel> {
         let Some(version) = version else {
-            return kexec::select_kernel(&self.context(), self.state, fs);
+            return zbm_bootenv::select_kernel(&self.context(), self.state, fs);
         };
         let list = self
             .system
@@ -178,7 +178,7 @@ impl<'a> Boot<'_, 'a> {
 /// machine resets.
 fn export_writable(system: &System<'_>, pools: &[model::Pool]) {
     for pool in pools.iter().filter(|pool| pool.imported) {
-        if kexec::is_writable(system.runner, &pool.name) {
+        if zbm_pool::writable::is_writable(system.runner, &pool.name) {
             let _ = kexec::export_pool(system.runner, &pool.name);
         }
     }

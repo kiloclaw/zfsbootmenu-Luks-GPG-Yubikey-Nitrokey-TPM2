@@ -247,7 +247,7 @@ mod tests {
         let mut names = generated_names();
         if let Some(live) = uutils_sort(&names) {
             if std::env::var_os("ZBM_RECORD_UUTILS_ORDER").is_some() {
-                let path = repo_root().join("crates/zbm-boot/tests/fixtures/uutils-sort-v.txt");
+                let path = repo_root().join("crates/zbm-bootenv/tests/fixtures/uutils-sort-v.txt");
                 std::fs::write(path, live.join("\n") + "\n").unwrap();
                 return;
             }

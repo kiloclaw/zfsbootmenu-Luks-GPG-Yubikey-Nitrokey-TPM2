@@ -13,7 +13,7 @@ use zbm_zfs::{Stderr, ZfsText};
 
 use super::load::{KeyLoad, load_key};
 use super::{keysource, stripped};
-use crate::boot::{Noise, mount_zfs};
+use crate::{Noise, mount_zfs};
 
 /// Removes every cached key file, and the cache, before `kexec`: the files
 /// are in memory, and their pages, freed now, are zeroed by the kernel with

@@ -22,7 +22,7 @@ use zbm_platform::{Files, Runner};
 use zbm_types::DatasetName;
 use zbm_zfs::ZfsText;
 
-use crate::boot::{encryption_root, zfs_value};
+use crate::{encryption_root, zfs_value};
 
 mod cache;
 mod load;

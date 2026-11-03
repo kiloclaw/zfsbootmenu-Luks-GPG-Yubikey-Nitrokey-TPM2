@@ -100,12 +100,12 @@ impl Machine {
         self
     }
 
-    fn load(&self, path: BootPath) -> Result<(), BootError> {
+    fn load(&self, path: BootPath) -> Result<(), BootEnvError> {
         self.load_fs(BE, path)
     }
 
     /// Loads the key of `fs`, asking on the machine's plain console.
-    fn load_fs(&self, fs: &str, path: BootPath) -> Result<(), BootError> {
+    fn load_fs(&self, fs: &str, path: BootPath) -> Result<(), BootEnvError> {
         // Copying a key from a key source holds it as a secret a moment.
         let _secrets = crate::testing::holding_a_secret();
         let context = self.fake.context();
@@ -154,8 +154,8 @@ impl Machine {
     }
 }
 
-fn not_loaded(root: &str) -> Result<(), BootError> {
-    Err(BootError::KeyNotLoaded {
+fn not_loaded(root: &str) -> Result<(), BootEnvError> {
+    Err(BootEnvError::KeyNotLoaded {
         root: root.to_owned(),
     })
 }

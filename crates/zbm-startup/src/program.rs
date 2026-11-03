@@ -20,11 +20,11 @@ use std::path::{Path, PathBuf};
 use crate::import::{self, Import, ImportSettings};
 use crate::support::{self, Facts};
 use zbm_boot::boot::{self, BootSettings};
-use zbm_boot::hooks;
-use zbm_boot::kernels::Kernel;
-use zbm_boot::keys::{self, BootPath, KeyLoad};
 use zbm_boot::recovery::Recovery;
 use zbm_boot::saved_logs::Destination;
+use zbm_bootenv::hooks;
+use zbm_bootenv::kernels::Kernel;
+use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
@@ -332,9 +332,10 @@ impl<'a> Startup<'a> {
             return;
         }
         let filesystem = FilesystemName::from(bootfs.clone());
-        if boot::find_kernels(&context, &self.state, &filesystem).is_ok() && !self.state.is_active()
+        if zbm_bootenv::find_kernels(&context, &self.state, &filesystem).is_ok()
+            && !self.state.is_active()
         {
-            let selected = boot::select_kernel(&context, &self.state, &filesystem)
+            let selected = zbm_bootenv::select_kernel(&context, &self.state, &filesystem)
                 .unwrap_or_else(|| Kernel::parse(""));
             // 50-import-pools exported BOOTFS in the legacy program.
             let settings = BootSettings {

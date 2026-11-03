@@ -18,11 +18,13 @@ use zbm_testkit::legacy::{Bash, log_lines, path};
 use zbm_testkit::parity::Parity;
 use zbm_testkit::{TempDir, parity};
 
-use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
+use super::zfs::is_writable;
 use crate::error::BootError;
-use crate::kernels::Kernel;
 use crate::recovery::Recovery;
 use crate::testing::{LINE_LOG_STUBS, Redirect, name, stub_lines};
+use zbm_bootenv::commandline::{ETC_HOSTID, SPL_HOSTID};
+use zbm_bootenv::kernels::Kernel;
+use zbm_bootenv::{encryption_root, find_kernels, locked_root, recursive_umount, select_kernel};
 
 /// A fake for every program the boot runs: it records each call and
 /// answers from `answers`, whose lines are `status<TAB>glob<TAB>output`

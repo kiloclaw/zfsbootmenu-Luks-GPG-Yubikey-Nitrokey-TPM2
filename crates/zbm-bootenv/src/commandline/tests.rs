@@ -242,44 +242,6 @@ fn host_ids_replace_those_of_the_command_line() {
 }
 
 #[test]
-fn kexec_commands() {
-    let dtb = PathBuf::from("/mnt/boot/dtbs/x.dtb");
-    let root = root_argument("root=zfs:", "tank/ROOT/void").unwrap();
-    let load = KexecLoad {
-        mnt: "/zfsbootmenu/environments/tank/ROOT/void/mnt",
-        kernel: "/boot/vmlinuz-6.12.9_1",
-        initramfs: "/boot/initramfs-6.12.9_1.img",
-        dtb: Some(&dtb),
-        root: &root,
-        args: &"ro quiet".parse().unwrap(),
-        copies: None,
-    };
-    let runner = zbm_testkit::FakeRunner::new();
-    load.run(&zbm_platform::NoKernelLoader, &runner, None)
-        .unwrap();
-    let command = &runner.calls()[0];
-    assert_eq!(command.program(), "kexec");
-    let args: Vec<String> = command
-        .get_args()
-        .iter()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect();
-    assert_eq!(
-        args,
-        [
-            "-a",
-            "-l",
-            "/zfsbootmenu/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.12.9_1",
-            "--initrd=/zfsbootmenu/environments/tank/ROOT/void/mnt/boot/initramfs-6.12.9_1.img",
-            "--dtb=/mnt/boot/dtbs/x.dtb",
-            "--command-line=root=zfs:tank/ROOT/void           ro quiet",
-        ]
-    );
-    assert!(command.merges_stderr());
-    assert_eq!(load.line(), command.display());
-}
-
-#[test]
 fn the_separator_is_the_legacy_one() {
     // The legacy argument continues after "\" and a newline on a line
     // indented by ten spaces.

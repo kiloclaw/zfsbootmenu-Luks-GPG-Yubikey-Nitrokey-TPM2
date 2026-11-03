@@ -10,9 +10,9 @@ use zbm_types::{DatasetName, HookStage};
 use zbm_zfs::ZfsText;
 
 use super::{BootPath, cache, keysource, stripped};
-use crate::boot::{locked_root, zfs_value};
-use crate::error::BootError;
+use crate::error::BootEnvError;
 use crate::hooks;
+use crate::{locked_root, zfs_value};
 
 /// How many times a key typed for an encryption root is tried, as `zfs
 /// load-key` tries one typed on its terminal.
@@ -38,8 +38,8 @@ enum KeyPath {
     Missing,
 }
 
-fn not_loaded(root: &DatasetName) -> BootError {
-    BootError::KeyNotLoaded {
+fn not_loaded(root: &DatasetName) -> BootEnvError {
+    BootEnvError::KeyNotLoaded {
         root: root.to_string(),
     }
 }
@@ -52,7 +52,7 @@ fn prompt(
     interaction: &dyn Interaction,
     root: &DatasetName,
     keyformat: &str,
-) -> Result<(), BootError> {
+) -> Result<(), BootEnvError> {
     let kind = match keyformat {
         "hex" => SecretKind::HexKey,
         "raw" => {
@@ -171,14 +171,14 @@ fn is_loaded_from(
 ///
 /// # Errors
 ///
-/// [`BootError::KeyNotLoaded`] when the root is still locked.
+/// [`BootEnvError::KeyNotLoaded`] when the root is still locked.
 pub fn load_key(
     context: &Context<'_>,
     interaction: &dyn Interaction,
     state: &State<'_>,
     how: &KeyLoad<'_>,
     fs: &DatasetName,
-) -> Result<(), BootError> {
+) -> Result<(), BootEnvError> {
     zbm_trace::debug!("fs set to {fs}"; %fs);
     let Some(root) = locked_root(context.runner(), fs) else {
         return Ok(());

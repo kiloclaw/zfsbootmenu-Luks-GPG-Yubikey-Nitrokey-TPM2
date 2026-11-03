@@ -1,6 +1,6 @@
 [package]
 name = "zbm-boot"
-description = "Start-up, pool import, boot environments, kernels, keys, kexec and pool management of the ZFSBootMenu runtime"
+description = "Booting a boot environment in the ZFSBootMenu runtime: the boot sequence, kexec, measured boot, the GPUs, saved logs and the recovery port"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,11 +11,11 @@ publish.workspace = true
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
+zbm-bootenv.workspace = true
 zbm-config.workspace = true
 zbm-crypt.workspace = true
 zbm-trace.workspace = true
 zbm-platform.workspace = true
-zbm-pool.workspace = true
 zbm-state.workspace = true
 zbm-types.workspace = true
 zbm-tools.workspace = true

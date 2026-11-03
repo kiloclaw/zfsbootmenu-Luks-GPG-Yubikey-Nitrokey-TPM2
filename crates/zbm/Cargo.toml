@@ -12,6 +12,7 @@ publish.workspace = true
 serde_json.workspace = true
 zbm-app.workspace = true
 zbm-boot.workspace = true
+zbm-bootenv.workspace = true
 zbm-startup.workspace = true
 zbm-config.workspace = true
 zbm-console.workspace = true

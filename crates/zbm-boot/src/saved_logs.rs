@@ -199,7 +199,7 @@ fn loader_partuuid(context: &Context<'_>) -> Option<String> {
     if !context.files().is_dir(Path::new("/sys/firmware/efi")) {
         return None;
     }
-    if !crate::boot::is_mount_point(context.files(), efivars) {
+    if !zbm_bootenv::is_mount_point(context.files(), efivars) {
         let _ = Mount::new(context.runner(), context.files()).efivarfs(efivars, "ro");
     }
     let bytes = context.files().read(Path::new(LOADER_DEVICE)).ok()?;

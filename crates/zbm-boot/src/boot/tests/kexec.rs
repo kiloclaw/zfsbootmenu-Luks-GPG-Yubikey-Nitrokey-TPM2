@@ -137,7 +137,7 @@ fn a_measured_boot_loads_the_copies_and_removes_them_after() {
     // The boot environment's files, wherever it is mounted.
     let kernel = "/boot/vmlinuz-6.1.10";
     let initramfs = "/boot/initramfs-6.1.10.img";
-    let mnt = crate::boot::mounts::be_location(&state, FS).join("mnt");
+    let mnt = state.environment(FS).unwrap().join("mnt");
     fake.files
         .file(mnt.join(&kernel[1..]), b"KERNEL")
         .file(mnt.join(&initramfs[1..]), b"INITRD");

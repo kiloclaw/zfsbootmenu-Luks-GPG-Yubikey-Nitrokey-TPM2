@@ -3944,6 +3944,7 @@ dependencies = [
  "tracing",
  "zbm-app",
  "zbm-boot",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-console",
  "zbm-display",
@@ -3970,6 +3971,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "zbm-boot",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-crypt",
  "zbm-display",
@@ -3991,8 +3993,26 @@ dependencies = [
  "serde",
  "thiserror",
  "tracing",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-crypt",
+ "zbm-platform",
+ "zbm-state",
+ "zbm-testkit",
+ "zbm-tools",
+ "zbm-trace",
+ "zbm-types",
+ "zbm-zfs",
+]
+
+[[package]]
+name = "zbm-bootenv"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror",
+ "tracing",
+ "zbm-config",
  "zbm-platform",
  "zbm-pool",
  "zbm-state",
@@ -4156,6 +4176,7 @@ dependencies = [
  "thiserror",
  "zbm-app",
  "zbm-boot",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-display",
  "zbm-platform",

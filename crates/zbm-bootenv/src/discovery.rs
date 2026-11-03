@@ -9,28 +9,28 @@ use zbm_platform::Context;
 use zbm_state::State;
 use zbm_types::{FilesystemName, KernelSelector};
 
-use super::mounts::{Noise, be_location, mount_zfs};
-use super::zfs::zfs_value;
-use crate::error::BootError;
+use crate::error::BootEnvError;
 use crate::kernels::{self, Kernel};
+use crate::mounts::{Noise, be_location, mount_zfs};
+use crate::zfs::zfs_value;
 
 /// Finds the kernels of `fs` and records them in its kernel list, and copies
 /// the command line files next to them into the command line cache.
 ///
 /// # Errors
 ///
-/// [`BootError::Mount`] when it cannot be mounted, [`BootError::NoKernel`]
+/// [`BootEnvError::Mount`] when it cannot be mounted, [`BootEnvError::NoKernel`]
 /// when no kernel can be selected.
 pub fn find_kernels(
     context: &Context<'_>,
     state: &State<'_>,
     filesystem: &FilesystemName,
-) -> Result<(), BootError> {
+) -> Result<(), BootEnvError> {
     zbm_trace::debug!("fs set to {filesystem}"; %filesystem);
     let fs = &filesystem.to_string();
     let Some(mounted) = mount_zfs(context, state, filesystem, Noise::Hidden) else {
         zbm_trace::error!("unable to mount {fs}"; %fs);
-        return Err(BootError::Mount { fs: fs.to_owned() });
+        return Err(BootEnvError::Mount { fs: fs.to_owned() });
     };
     let records = state.kernels(fs);
     let _ = context.files().write(&records, b"");
@@ -45,7 +45,7 @@ pub fn find_kernels(
     }
     zbm_trace::error!("failed to find kernels on {fs}"; %fs);
     let _ = context.files().remove_file(&records);
-    Err(BootError::NoKernel { fs: fs.to_owned() })
+    Err(BootEnvError::NoKernel { fs: fs.to_owned() })
 }
 
 /// Starts the command line cache of `fs` afresh: creates its directory and

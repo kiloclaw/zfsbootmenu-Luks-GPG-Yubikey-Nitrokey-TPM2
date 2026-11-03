@@ -1,0 +1,28 @@
+[package]
+name = "zbm-bootenv"
+description = "Boot environments of the ZFSBootMenu runtime: their datasets, mounts, kernels, command lines, keys and hooks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+zbm-config.workspace = true
+zbm-trace.workspace = true
+zbm-platform.workspace = true
+zbm-pool.workspace = true
+zbm-state.workspace = true
+zbm-types.workspace = true
+zbm-tools.workspace = true
+zbm-zfs.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+zbm-testkit.workspace = true
+
+[lints]
+workspace = true

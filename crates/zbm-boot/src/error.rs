@@ -5,9 +5,9 @@
 /// for the code that decides what to do next.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum BootError {
-    /// Pool import failed.
+    /// A boot environment's key, mount, kernels or unmount failed.
     #[error(transparent)]
-    Pool(#[from] zbm_pool::PoolError),
+    BootEnv(#[from] zbm_bootenv::BootEnvError),
     /// `zpool export` failed.
     #[error("zpool export {pool} failed (status {status})")]
     Export {
@@ -15,30 +15,6 @@ pub enum BootError {
         pool: String,
         /// Its exit status (126 when it could not start).
         status: i32,
-    },
-    /// The key of an encryption root could not be loaded.
-    #[error("unable to load the key of {root}")]
-    KeyNotLoaded {
-        /// The encryption root.
-        root: String,
-    },
-    /// A boot environment could not be mounted.
-    #[error("unable to mount {fs}")]
-    Mount {
-        /// The boot environment.
-        fs: String,
-    },
-    /// A boot environment has no kernel that can be booted.
-    #[error("no kernel to boot was found on {fs}")]
-    NoKernel {
-        /// The boot environment.
-        fs: String,
-    },
-    /// Some mount points could not be unmounted.
-    #[error("unable to unmount {}", mounts.join(", "))]
-    Unmount {
-        /// The mount points that stay mounted.
-        mounts: Vec<String>,
     },
     /// `cryptsetup` is not in the image.
     #[error("cryptsetup is not available")]
@@ -52,23 +28,13 @@ pub enum BootError {
 }
 
 zbm_types::error_codes! {
-    BootError, BOOT_CODES, delegate [Pool];
+    BootError, BOOT_CODES, delegate [BootEnv];
     Export = 601 => "a pool could not be exported":
         "zpool export failed before the kernel was booted, so the booted system imports a pool \
          that was not exported. A dataset may still be busy; the booted system may need zpool \
          import -f.",
-    KeyNotLoaded = 602 => "an encryption key could not be loaded":
-        "The key of an encrypted dataset was not loaded: the passphrase was wrong, or its \
-         keylocation could not be read. Its datasets cannot be mounted or booted.",
-    Mount = 603 => "a boot environment could not be mounted":
-        "The boot environment's dataset could not be mounted to find its kernels. Check that it \
-         exists, that its key is loaded, and that its mountpoint is / or legacy.",
-    NoKernel = 604 => "no kernel to boot was found":
-        "The boot environment has no kernel and initramfs pair in /boot that ZFSBootMenu \
-         recognizes. Install a kernel, or set org.zfsbootmenu:kernel.",
-    Unmount = 605 => "a mount point could not be unmounted":
-        "A file system stayed mounted, which can keep its pool from being exported before the \
-         boot.",
+    // 602 to 605 are the boot environment's, in zbm-bootenv
+    // (BOOTENV_CODES).
     // 606, 607 and 608 are the read-write import's, in zbm-pool
     // (WRITABLE_CODES).
     NoCryptsetup = 609 => "cryptsetup is not available":
@@ -85,24 +51,14 @@ mod tests {
 
     #[test]
     fn errors_name_what_failed() {
-        let cases = [
-            (
-                BootError::Pool(zbm_pool::PoolError::Import {
-                    target: "-a".to_owned(),
-                    status: 1,
-                }),
-                "zpool import -a failed (status 1)",
-            ),
-            (
-                BootError::Unmount {
-                    mounts: vec!["/a".to_owned(), "/a/b".to_owned()],
-                },
-                "unable to unmount /a, /a/b",
-            ),
-        ];
-
-        for (error, text) in cases {
-            assert_eq!(error.to_string(), text);
-        }
+        let export = BootError::Export {
+            pool: "tank".to_owned(),
+            status: 1,
+        };
+        assert_eq!(export.to_string(), "zpool export tank failed (status 1)");
+        let unmount = BootError::from(zbm_bootenv::BootEnvError::Unmount {
+            mounts: vec!["/a".to_owned()],
+        });
+        assert_eq!(unmount.to_string(), "unable to unmount /a");
     }
 }

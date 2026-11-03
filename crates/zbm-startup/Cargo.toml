@@ -12,6 +12,7 @@ publish.workspace = true
 zbm-app.workspace = true
 thiserror.workspace = true
 zbm-boot.workspace = true
+zbm-bootenv.workspace = true
 zbm-config.workspace = true
 zbm-display.workspace = true
 zbm-platform.workspace = true

@@ -1,22 +1,13 @@
-//! Start-up, pool import and booting of the ZFSBootMenu runtime: packages A, C
-//! and D, and the minimal runtime of Phase 5, of the port plan
-//! (`docs/dev/history/port-roadmap.md`).
-//!
-//! This crate will replace the start-up stages in `init.d/` and most of
-//! `lib/zfsbootmenu-core.sh`:
-//!
-//! - the start-up sequence, in the order "Processes" in `crates/DESIGN.md`
-//!   lists: kernel modules, the host ID, waiting for devices, hooks, LUKS
-//!   unlocking (through `zbm-luks`) and pool import with its policies and
-//!   retries;
-//! - running hooks with their environment;
-//! - boot environments, their kernels and command lines, ZFS encryption keys
-//!   and key sources, and booting with `kexec`;
-//! - snapshots, clones, rollbacks, checkpoints, read-write imports and chroot.
+//! Booting a boot environment in the ZFSBootMenu runtime (ADR 0015): the
+//! sequence from a chosen kernel to `kexec`, the `kexec` load, measured
+//! boot, the teardown, the GPUs handed back before `kexec`, the logs saved
+//! before the boot, `efivarfs` and `securityfs`, and the recovery port. What
+//! a boot environment is (its datasets, kernels, command line, keys and
+//! hooks) is `zbm-bootenv`'s.
 //!
 //! Every function reaches the system through `zbm_platform::Context`, asks
 //! the person through the `Interaction` it is given, and shares state only
-//! through `zbm_state::State` (ADR 0015).
+//! through `zbm_state::State`.
 
 #![cfg_attr(
     test,
@@ -27,12 +18,9 @@
 )]
 
 pub mod boot;
-pub mod commandline;
 pub mod error;
 pub mod graphics;
-pub mod hooks;
-pub mod kernels;
-pub mod keys;
+pub mod load;
 pub mod recovery;
 pub mod saved_logs;
 
