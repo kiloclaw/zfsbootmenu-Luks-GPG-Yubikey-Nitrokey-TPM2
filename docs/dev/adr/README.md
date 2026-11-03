@@ -22,5 +22,6 @@ stays, marked so.
 | [0012](0012-unprivileged-console.md) | The console on the display as an unprivileged user: a device broker in the supervisor, its records, its locked memory (SE11) | Accepted, 31 October 2026 |
 | [0013](0013-host-tools.md) | The host tools as one crate in orchestration, and what they keep of the Perl tools (DM10; changes decision 14's map) | Accepted, 1 November 2026 |
 | [0014](0014-efi-image.md) | The EFI image written by `zbm-host`, without `objcopy`: the stub's headers kept, the sections laid out as now, `zbm-kcl` free to grow `.cmdline` (CD12) | Accepted, 1 November 2026 |
+| [0015](0015-bootenv.md) | `zbm-bootenv` split out of `zbm-boot`, and `zbm-boot` without the console: prompts through `Interaction`, start-up's, the menu's and the report's code to their owners (DM7) | Proposed, 3 November 2026 |
 
 A new record takes the next number, the same headings, and a line in this table.
