@@ -37,6 +37,9 @@ On the display console the menu knows the layout typing uses, and UI1 gave it ea
 
 1. **Tabs instead of screens.** Four numbered tabs, Boot, Snapshots, Pools and Log, with the header naming the host,
    the ZFS version, what is degraded, and the time. The start-up timeline is the Boot tab until start-up ends.
+   (Superseded in part by [ADR 0016](0016-menu-workspace-built.md), decision 11: the tab bar shows the worst pool,
+   the open volumes and what needs attention, the host and the time from 120 columns, and the ZFS version moves to the
+   help view.)
 2. **Drill-down columns.** In a tab, columns go from the general to the particular (pool › environment › kernels or
    snapshots); moving in and out keeps the selection of each column, and the path is shown above them.
 3. **An inspector.** The selection's details, the checks of whether it will boot, and the next steps with their keys,

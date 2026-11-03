@@ -1,6 +1,6 @@
 # ADR 0016: The rest of the menu, built as the workspace
 
-- **Status:** proposed, 3 November 2026
+- **Status:** accepted, 3 November 2026 (proposed the same day)
 - **Decides:** item UI10 of [ROADMAP.md](../../../ROADMAP.md): what the menu does on a real machine, how the workspace
   of [ADR 0007](0007-menu-workspace.md) reaches it, and the parts that record left open; it changes ADR 0007's
   decision 1 (the tab bar) and fills its decision 6 (review pages)
@@ -226,3 +226,22 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
    for the distributions of the VM tests.
 8. **The tab bar.** Proposed: the wireframes' (pools, volumes, attention), with the host and the time from 120
    columns, and the ZFS version in the help. The alternative is ADR 0007's as written.
+
+## Answers of the maintainer
+
+Accepted as proposed, on 3 November 2026:
+
+1. **The workspace before the sessions:** it becomes the menu in UI10c, with `zbm.menu=classic` for one release, and
+   the sessions run on it.
+2. **What the machine cannot do:** not offered.
+3. **Destroy:** snapshots only, the selection or the marked ones, from the `Enter` menu, the palette and `Delete`,
+   refused when a clone or a hold depends on one.
+4. **The boot history:** a `boot.json` beside each saved boot's logs, listed in the Log tab, the last boot in the
+   inspector, "loaded" until #7 can say "booted".
+5. **The review page and the dry run:** one view of the plan, `zbm-app` computing what is lost, kept, the undo and the
+   safer action; the review page adds the typed confirmation.
+6. **The import:** one `Import(pool, ImportOptions)`.
+7. **Out of UI10:** package changes (#21), the checks (#6), boot tries (#7), kernel comparison (#22), destroying an
+   environment, and a persistent command-line edit (UI14).
+8. **The tab bar:** the wireframes', with the host and the time from 120 columns, and the ZFS version in the help;
+   ADR 0007's decision 1 changes so.
