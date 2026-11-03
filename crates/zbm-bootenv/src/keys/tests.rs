@@ -63,5 +63,10 @@ fn a_key_source_that_is_missing_unencrypted_or_unset_is_ignored() {
         );
     }
     let unreadable = FakeSystem::new();
+    unreadable.runner.respond(
+        "zfs get -H -o value org.zfsbootmenu:keysource tank/ROOT/be",
+        1,
+        "",
+    );
     assert_eq!(keysource(&unreadable.runner, &name("tank/ROOT/be")), None);
 }
