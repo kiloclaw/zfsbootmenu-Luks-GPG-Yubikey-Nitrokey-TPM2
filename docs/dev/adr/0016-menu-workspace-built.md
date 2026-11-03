@@ -20,26 +20,32 @@ On a real machine the menu is still the classic one:
 - **The map.** `Model::new` sets `Map::Classic`, and only the demo calls `set_map`. `zbm.menu` chooses between the
   screen and the line view (UI8), not between maps.
 - **What the machine does.** `App::apply` performs the boot, the snapshot changes (new default, snapshot, rollback,
-  clone, clone and promote, duplicate), the diff, the shell and the power actions. Eleven actions the menu offers end
+  clone, clone and promote, duplicate), the diff, the shell and the power actions. The others the menu can send end
   in "not available in this program yet" (`application::unavailable`): booting a snapshot, setting and inheriting the
-  default kernel, restoring files, resetting boot tries, resealing, the chroot, the read/write import, the rewind to a
-  checkpoint, an import with any policy, and unlocking a volume. The menu's `App` has no LUKS session
-  (`App::new(..)` without `with_luks`, `zbm/src/menu.rs` and `remote.rs`), so no volume shows, and the Pools view's
-  unlock dialog asks for a passphrase that the machine then refuses.
+  default kernel, restoring files, the chroot, the read/write import, the rewind to a checkpoint, an import with any
+  policy, and, from the unlock dialog, unlocking, skipping and resealing a volume, and resetting boot tries. The
+  menu's `App` has no LUKS session (`App::new(..)` without `with_luks`, `zbm/src/menu.rs` and `remote.rs`), so no
+  volume shows and the unlock dialog cannot open; with no boot tries read, their reset is never offered either. The
+  keyholder unlocks every volume (`UnlockAll`) or one (`Open`), and asks for secrets through the front end, which
+  answers with `Unlock`; it has no request for one volume with a secret typed beforehand.
 - **What the machine shows.** `Snapshot` has only imported pools, no devices or vdevs, no foreign host IDs; its checks
   and boot tries are empty (features #6 and #7 are prototypes); the log is the journal's warnings and errors; the
   snapshots of every environment are read when the menu starts, two listings each.
-- **What is undefined.** Destroy has no action, key or vocabulary entry, though ADR 0007 gives it a review page. The
-  boot history (#9) is one cell of a table: the saved logs (`zbm_boot::saved_logs`) hold the journal, the crash
-  reports and the kernel log, but nothing says which environment and kernel a saved boot booted. The review page's
+- **What is undefined.** Destroy has no action, key or vocabulary entry, though ADR 0007 gives it a review page; the
+  menu keeps two marks, the operands of a diff. The boot history (#9) is one cell of a table: the saved logs
+  (`zbm_boot::saved_logs`) hold the journal, the crash reports and the kernel log, and for a measured boot the TPM
+  event log, which names the kernel and the command line; for other boots nothing says what was booted, as the
+  journal names the environment at the debug level only. Nothing writes a saved boot after a failed `kexec`. The review page's
   parts beyond the plan's steps (what is lost, the undo, a safer alternative) have no data. The rollback's
-  confirmation in `information-architecture.md` speaks of a safety snapshot, which the menu does not take
-  (`CHANGES-FROM-LEGACY.md`, "Rollback has no safety snapshot"). `Import(pool, ImportPolicy)` cannot say read-only or
+  confirmation in `information-architecture.md`, `Rollback` in `interfaces.md`, `apple-hig.md` and the tasks of
+  `users-and-tasks.md` speak of a safety snapshot, which the menu does not take (`CHANGES-FROM-LEGACY.md`, "Rollback
+  has no safety snapshot"). `Import(pool, ImportPolicy)` cannot say read-only or
   read/write, or a rewind. The tab bar's contents differ between ADR 0007 (host, ZFS version, what is degraded, the
   time) and the wireframes (the worst pool, the open volumes, what needs attention).
 - **The exit.** No VM test drives a snapshot change, a diff, the palette, a kernel, an import or an unlock through
   the menu; the hostile-names fuzz target draws seven classic screens; the man page has no key section; the
-  10,000-snapshot test and the budget B5 do not exist, and ROADMAP decision 7 (Nucleo or its matcher) is open.
+  10,000-snapshot test and the benchmark that measures the budget B5 do not exist, and ROADMAP decision 7 (Nucleo or
+  its matcher) is open.
 
 ## Decision
 
@@ -51,36 +57,44 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
 1. **Every action the menu offers has a use case in `zbm-app`,** or is not offered:
    - **kernels:** `SetDefaultKernel` and `InheritDefaultKernel` write or inherit `org.zfsbootmenu:kernel`, as a
      change (the pool read/write first, as the other changes);
-   - **snapshots:** `BootSnapshot` clones the snapshot to a new environment, as `Clone` does, and boots it;
+   - **snapshots:** `BootSnapshot(SnapshotName, DatasetName)` clones the snapshot to a new environment of that name,
+     as `Clone` does, and boots it; the name is asked for as `Clone`'s is, and `interfaces.md`'s temporary clone goes;
      `RestoreFiles` copies the chosen files from the snapshot, mounted read-only, into the environment, as a change;
-   - **the chroot:** `Chroot` runs `zfs-chroot` on the console for the selection, read-only for a snapshot, until
-     SB6 makes it an applet;
+   - **the chroot:** `Chroot` runs `zfs-chroot` on the console for the selection through ADR 0010's `ShellGate`,
+     read-only for a snapshot, until SB6 makes it an applet; for an environment on a read-only pool, `zfs-chroot`
+     still asks itself whether to import it read/write;
    - **pools:** one `Import` (decision 3) for every way to import, and the export;
-   - **LUKS volumes:** the menu's `App` has a LUKS session, on the console and over SSH, and unlocking one volume
-     (`Unlock`) goes to the keyholder as start-up's does (SB10), so the menu never holds the key it opens.
+   - **LUKS volumes:** the menu's `App` has a LUKS session, on the console and over SSH. Unlocking a volume sends
+     `Open` for its device to the keyholder (SB10), which asks for the secret through the menu as it asks start-up:
+     the unlock dialog opens on the keyholder's request (`UnlockRequested`) and answers it with `Unlock` or
+     `SkipUnlock`, so the menu holds a secret only while it is typed, and the keyholder protocol gains nothing.
 2. **The model says what the machine can do.** `Snapshot` gains `offers`, the kinds of action this machine performs
    now (none of the volumes' without a LUKS session, no reseal without a TPM2 token, no boot tries before #7). The
    menu shows only what is offered: in the toolbar, the `Enter` menus, the palette and the help, and a key bound to
-   something not offered says why in the status line rather than opening a dialog. `unavailable` stays for actions
-   that come over the wire from an older menu.
+   something not offered says why in the status line rather than opening a dialog. `unavailable` stays as `App`'s
+   answer to an action it was not offered; a test checks that the menu never sends one.
 3. **One import.** `Action::Import(PoolName, ImportOptions)`, where `ImportOptions` says read-only or read/write, the
    `ImportPolicy` (as this host, as the host that owns it, forced), and whether to rewind to the checkpoint. It
    replaces `Import(pool, policy)`, `ImportReadWrite` and `RewindCheckpoint`; the import dialog's choices are its
-   values, and each that cannot be undone (forced, the rewind) opens its review page.
-4. **A diff needs no writable pool.** It mounts the snapshots read-only and loads their key if needed, but no longer
-   imports the pool read/write (`Diff` leaves `is_change`).
+   values, and each that cannot be undone (forced, the rewind) opens its review page. The locked menu keeps the
+   read/write, forced and rewinding imports, as ADR 0010 says (`is_kept_by_lock`).
+4. **A diff of two snapshots needs no writable pool.** It mounts the filesystem read-only and loads its key if
+   needed, but no longer imports the pool read/write. A diff against the filesystem still does, as `zfs diff` takes a
+   temporary snapshot of it; that one stays a change.
 
 ### What the machine shows
 
 5. **Pools as they are.** `Snapshot` lists the pools that can be imported as well as the imported ones, with the host
    that owns each and whether it is foreign, their vdevs and devices with their states and errors, and the checkpoint.
    `Enter` on a device shows its kernel messages.
-6. **Snapshots on demand.** The snapshots of an environment are read when its column opens (`LoadSnapshots`,
-   `SnapshotsLoaded`), not at start, and kept until a change touches them. The 10,000-snapshot test measures it.
+6. **Snapshots on demand.** At start each environment has its count of snapshots and its newest, which the
+   inspector shows; the snapshots themselves are read when its column opens (`LoadSnapshots`, `SnapshotsLoaded`), and
+   read again after a change, with the environments, for the columns open. The palette finds the snapshots read. The
+   10,000-snapshot test measures it.
 7. **The boot history (#9).** Each saved boot gets a record of what was booted, `boot.json` beside its logs: the
-   time, the environment, the kernel and initramfs, the command line, whether it was measured, and whether `kexec`
-   failed (written again by `update_logs`). The Log tab lists the saved boots, newest first, with their records and
-   their files; the inspector of an environment says when it last booted, and with which kernel. Whether a boot
+   time, the environment, the kernel and initramfs, the command line and whether it was measured, written with the
+   logs before the teardown hooks. A `kexec` that fails after it shows in the journal of the next saved boot, not in
+   the record. The Log tab lists the saved boots, newest first, with their records and their files; the inspector of an environment says when it last booted, and with which kernel. Whether a boot
    reached a login needs the booted system to say so, which is #7's `zbm bless`; until then the history says
    "loaded", not "booted". Without `zbm.save_logs` there is no history, and the Log tab says how to keep one.
 8. **What needs attention, from what exists.** The sidebar lists degraded pools, missing devices, foreign pools,
@@ -95,8 +109,8 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
    week and month; the Pools tab as pools › vdevs › devices, and the volumes. The key map is
    [keymap.md](../menu-design/keymap.md)'s workspace map, which the sessions (UI11) may still change: decision 8 stays
    open, and a change to it is a change of `keymap.rs` alone.
-10. **The classic menu stays one release.** `zbm.menu=classic` draws the current screens with the current map; it goes
-    with RL2, as the legacy runtime does. The line view (UI8) follows the workspace: it prints the tab's column, and
+10. **The classic menu stays one release.** `zbm.menu=classic` draws the current screens with the current map; the
+    line view still shows by itself where it does now. It goes with RL2, as the legacy runtime does. The line view (UI8) follows the workspace: it prints the tab's column, and
     the tabs are words (`boot`, `snapshots`, `pools`, `log`), since a number chooses an item there.
 11. **The tab bar** is the wireframes': the tabs, the worst pool, the open volumes and what needs attention; the host
     and the time join it from 120 columns. This changes ADR 0007's decision 1, which also named the ZFS version: it
@@ -110,12 +124,14 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
     target's name. UI14's dry run is the same view without the confirmation.
 13. **Rollback.** `zfs rollback -r` destroys the newer snapshots, and nothing taken first could undo it, so the page
     lists those snapshots with their sizes, says it has no undo, and offers cloning the snapshot as the safer action.
-    `information-architecture.md` loses the safety snapshot.
-14. **Destroy.** `Action::Destroy(Vec<SnapshotName>)` destroys snapshots: the selection, or the snapshots marked with
-    `Space`, which is also how #15 reclaims space. The page lists each with the space it frees and what depends on it
-    (clones, holds, bookmarks, a default environment's), and refuses a snapshot that a clone depends on. The key is
-    `Delete`, and `:destroy` on the command line (ADR 0007, rule 1); no letter, while decision 8 is open. Destroying
-    an environment is not in UI10.
+    When a newer snapshot has a clone, `zfs rollback -r` refuses, and the page says so and names the clone instead of
+    asking. The design pages lose the safety snapshot.
+14. **Destroy.** `Action::Destroy(Vec<SnapshotName>)` destroys snapshots: the selection, or the marked ones, which is
+    also how #15 reclaims space. Marks become a set; `f` diffs when one or two are marked and says so otherwise. The
+    page lists each snapshot with its size, the space they free together (`zfs destroy -nv`), and what stops it: a
+    clone or a hold, either of which makes the page refuse and name it. Bookmarks of a destroyed snapshot stay. It is
+    an entry of the snapshot's `Enter` menu and of the palette (rule 1), and `Delete` where the terminal sends it; no
+    letter, while decision 8 is open. Destroying an environment is not in UI10.
 15. **The forced import and the rewind** have pages too: who else may be using the pool (its host ID and host name,
     when it was last imported), and, for the rewind, what is lost since the checkpoint.
 
@@ -152,8 +168,8 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
   table.
 - Two menus to keep for a release: the classic screens stay drawn and tested until RL2, but get no new views.
 - The menu imports, rewinds, destroys and unlocks: the review pages and the locked menu (SE9, which keeps every change
-  behind the PIN) are what stand between a key and a lost pool. `Plan` stays free under the lock, so a locked menu
-  shows what an action would do; this record makes that explicit.
+  ADR 0010 names behind the PIN, and destroy, which this record adds to them) are what stand between a key and a lost pool. `Plan` stays free
+  under the lock, so a locked menu shows what an action would do.
 - Saved boots carry a small record of what they booted, written to the ESP with the logs, only with `zbm.save_logs`.
 - The model's vocabulary changes (`Import`, `Destroy`, `Plan`, `offers`, the pools' devices, `LoadSnapshots`): the
   wire of the menu over SSH changes with it, and both ends ship in one image.
@@ -170,8 +186,8 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
 - **A safety snapshot before a rollback.** It cannot undo `zfs rollback -r`, which destroys the snapshots newer than
   the target, including any safety snapshot; a clone first is what keeps the current state, and it is the page's
   safer action.
-- **Destroy on a letter.** `x` is power and `d` the default; the free letters (`a`, `g`, `q`, `t`, `v`) mean nothing
-  for it, and the map is open. `Delete` and the command line are rule 1's way.
+- **Destroy on a letter.** `x` is power and `d` the default; the free letters (`a`, `g`, `p`, `q`, `t`, `v`) mean
+  nothing for it, and the map is open. The `Enter` menu and the palette are rule 1's way, and `Delete` a shortcut.
 - **The boot history from the journal alone.** The journal names the boot environment only at the debug level, and a
   saved boot's journal can be cut short; a record written at the save is one read.
 - **Package changes now.** A preview from `xbps`, `apk`, `dpkg`, `pacman` and `rpm` databases is a feature of its own
@@ -194,10 +210,12 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
    release, and the sessions run on it. The alternative keeps the classic menu until UI11 has run and builds only
    UI10a and UI10b now.
 2. **What the machine cannot do.** Proposed: not offered at all. The alternative shows it, marked unavailable.
-3. **Destroy.** Proposed: snapshots only, the selection or the marked ones, on `Delete` and `:destroy`, refused when a
-   clone depends on one. The alternatives also destroy an environment, or put destroy on a letter.
+3. **Destroy.** Proposed: snapshots only, the selection or the marked ones, from the `Enter` menu, the palette and
+   `Delete`, refused when a clone or a hold depends on one. The alternatives also destroy an environment, or put
+   destroy on a letter.
 4. **The boot history.** Proposed: a `boot.json` beside each saved boot's logs, the Log tab's list, the last boot in
-   the inspector, "loaded" until #7 can say "booted". The alternative reads the journal of each saved boot.
+   the inspector, "loaded" until #7 can say "booted". The alternative reads the journal and the TPM event log of each
+   saved boot, which name what was booted only at the debug level or for a measured boot.
 5. **The review page and the dry run.** Proposed: one view of the plan, the review page adding what is lost and the
    typed confirmation, with `zbm-app` computing what is lost, kept, the undo and the safer action. The alternative is a
    page of its own in the view, which computes those.
