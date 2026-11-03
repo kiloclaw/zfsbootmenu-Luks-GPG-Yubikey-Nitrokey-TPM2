@@ -110,7 +110,7 @@ zbm_types::error_codes! {
         "The partition zbm.save_logs names was not found. Check its PARTUUID or label.",
     Mount = 624 => "the partition for the logs could not be mounted":
         "The partition zbm.save_logs names could not be mounted as FAT. Check that it is the EFI \
-         context partition and that the image has the vfat driver.",
+         system partition and that the image has the vfat driver.",
     Write = 625 => "the logs could not be written":
         "A file could not be written on the partition for the logs; it may be full or read-only.",
 }

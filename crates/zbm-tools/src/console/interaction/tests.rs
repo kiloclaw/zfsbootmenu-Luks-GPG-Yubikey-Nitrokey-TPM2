@@ -367,3 +367,17 @@ fn a_failed_boot_shows_the_legacy_prompts() {
     });
     assert_eq!(asked, legacy);
 }
+
+#[test]
+fn the_countdown_keeps_the_screen_before_a_zfs_key() {
+    let fake = FakeSystem::new();
+    fake.console.secret(b"key");
+    let console = console(&fake).clears_for_keys(false);
+    let asked = console.secret(&zfs_key("zroot/ROOT", SecretKind::Passphrase, 1));
+    assert_eq!(asked.secret().unwrap().expose(), b"key");
+    assert_eq!(fake.console.screen_count(Screen::Clear), 0);
+    assert_eq!(
+        fake.console.output_text(),
+        "Enter passphrase for 'zroot/ROOT':\n"
+    );
+}

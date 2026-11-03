@@ -321,7 +321,8 @@ impl<'a> Startup<'a> {
             path: BootPath::Countdown,
         };
         let context = Context::new(*system);
-        let interaction = ConsoleInteraction::new(*system);
+        // The screen was cleared before the hooks, whose words stay.
+        let interaction = ConsoleInteraction::new(*system).clears_for_keys(false);
         if keys::load_key(&context, &interaction, &self.state, &how, bootfs).is_err() {
             let message = format!(
                 "unable to load key for {}",

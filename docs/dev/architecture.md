@@ -120,21 +120,19 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   that builds a `Command`: the
   workspace's `clippy.toml` disallows `Command::new` and `Command::shell`, which the adapters' modules and test builds
   allow. Each adapter gives the programs that wait on a device a time-out.
-- **domain**: domain crates take a `Context`, which has no console, and ask the person through the `Interaction`
-  they are given; `check-deps` refuses `System` and `Console` in their code outside tests, apart from `zbm-boot`
-  until its prompts move to the front ends (ROADMAP.md, DM7). `zbm-luks` unlocks and closes LUKS volumes with every key method, through
-  the LUKS port of `zbm-crypt` (`LuksVolumes`), whose open alone turns a `Mapping<Closed>` into a `Mapping<Open>`.
-  Its `Unlocker` runs a `unlock::methods::Registry` of `KeyMethod`s on a `volume::Volume<Closed>`: each method
-  opens it or says why not (a `Refusal`), and every attempt is kept. LUKS2 tokens go through the `TokenHandler`
-  registry of `keys::handlers` in two passes (silent, then interactive), and the passphrase prompt comes last,
-  whose `PassphrasePrompt` state machine decides between another try, the retry prompt and giving up; a
-  `MappingStore` keeps the mappings and skipped volumes. `zbm-pool`
-  imports pools: the import settings as types, `zpool import` with typed options, host IDs, and the retry loop of the
-  start-up stage as a state machine (`ImportLoop`) whose transitions are pure; the stage reaches the console only
-  through its `Operator` port. `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, saved logs and
-  reports, and the prompts and recovery contract (`Recovery`) the start-up stages use; pool import runs through
-  `zbm-pool`, with these prompts as its `Operator`. `zbm-kcl` handles the kernel command lines stored on boot
-  environments.
+- **domain**: domain crates take a `Context`, which has no console, and ask the person through the `Interaction` they
+  are given; `check-deps` refuses `System` and `Console` in their code outside tests (ADR 0015). `zbm-luks` unlocks
+  and closes LUKS volumes with every key method, through the LUKS port of `zbm-crypt` (`LuksVolumes`), whose open
+  alone turns a `Mapping<Closed>` into a `Mapping<Open>`. Its `Unlocker` runs a `unlock::methods::Registry` of
+  `KeyMethod`s on a `volume::Volume<Closed>`: each method opens it or says why not (a `Refusal`), and every attempt is
+  kept. LUKS2 tokens go through the `TokenHandler` registry of `keys::handlers` in two passes (silent, then
+  interactive), and the passphrase prompt comes last, whose `PassphrasePrompt` state machine decides between another
+  try, the retry prompt and giving up; a `MappingStore` keeps the mappings and skipped volumes. `zbm-pool` imports
+  pools: the import settings as types, `zpool import` with typed options, host IDs, and the retry loop of the start-up
+  stage as a state machine (`ImportLoop`) whose transitions are pure; the stage reaches the console only through its
+  `Operator` port. `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, saved logs and reports, and the
+  prompts and recovery contract (`Recovery`) the start-up stages use; pool import runs through `zbm-pool`, with these
+  prompts as its `Operator`. `zbm-kcl` handles the kernel command lines stored on boot environments.
 - **application**: `zbm-app` is what front ends talk to, through the `Application` trait: they read the
   `model::Snapshot` of the machine (`snapshot`), apply a `model::Action` (`apply`, quietly or on the console:
   `Through`), and get `model::Event`s back, the last of them the outcome. `App` implements it on a `Context` and the

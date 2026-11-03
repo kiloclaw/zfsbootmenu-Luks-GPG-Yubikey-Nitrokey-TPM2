@@ -20,6 +20,8 @@ use super::{Answer, TimedPrompt, colorize, retry_delay};
 pub struct ConsoleInteraction<'a> {
     system: System<'a>,
     colors: bool,
+    /// Whether the screen is cleared before a ZFS key is asked for.
+    clears: bool,
 }
 
 impl<'a> ConsoleInteraction<'a> {
@@ -28,7 +30,16 @@ impl<'a> ConsoleInteraction<'a> {
         ConsoleInteraction {
             system,
             colors: true,
+            clears: true,
         }
+    }
+
+    /// The console, which leaves the screen as it is before a ZFS key is
+    /// asked for when `clears` does not hold: the countdown's boot, which
+    /// cleared it before the `load-key.d` hooks, keeps what they said.
+    #[must_use]
+    pub fn clears_for_keys(self, clears: bool) -> ConsoleInteraction<'a> {
+        ConsoleInteraction { clears, ..self }
     }
 
     /// The console, in colour when `colors` holds, plain otherwise.
@@ -78,9 +89,10 @@ impl<'a> ConsoleInteraction<'a> {
 
     /// The key of the ZFS encryption root `root`, of `kind`, as `zfs
     /// load-key` asks for it on a terminal: on a clear screen at the first
-    /// attempt, and after `zfs`'s own message about a wrong key at the next.
+    /// attempt, unless the screen is kept, and after `zfs`'s own message
+    /// about a wrong key at the next.
     fn zfs_key(&self, root: &str, kind: &SecretKind, attempt: u32) -> Asked {
-        if attempt <= 1 {
+        if attempt <= 1 && self.clears {
             let console = self.system.console;
             console.screen(Screen::Clear);
             console.screen(Screen::MoveTo { row: 0, column: 0 });
