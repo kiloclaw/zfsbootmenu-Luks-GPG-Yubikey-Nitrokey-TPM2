@@ -94,7 +94,9 @@ On 29 October 2026, when the map was accepted:
 - Done: `zbm-core` is gone (DM11), and so is the `zbm-boot` → `zbm-luks` exception (DM2); `zbm-sys` is on `rustix`
   (SE6); no domain crate takes a `Runner`. `zbm-tui` and `zbm-console` already depend on no domain or adapter crate
   (rule 3), and `zbm-app` uses `zbm-sys` directly for the session's socket (PM10), a lower layer.
-- Left: `zbm-bootenv` (DM7), so `zbm-boot` → `zbm-pool` stays in `SAME_LAYER` until then; `zbm-host` (DM10), so
+- Done since: `zbm-bootenv` (DM7, ADR 0015), so `SAME_LAYER` holds `zbm-bootenv` → `zbm-pool` and `zbm-boot` →
+  `zbm-bootenv`, and no longer `zbm-boot` → `zbm-pool`.
+- Left: `zbm-host` (DM10), so
   `generate-zbm` and `zbm-kcl` stay two crates until then; and `zbm-startup` still uses `zbm-zfs` and `zbm-tools`
   directly, so rule 2 joins `check-deps` once it no longer does, with start-up's steps over `zbm-app`. Rule 3 is
   enforced since DM8 (29 October 2026): `zbm-tui` and `zbm-console` may use no crate of the adapters, the domain or

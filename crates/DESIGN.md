@@ -82,8 +82,9 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-crypt` | `cryptsetup` with typed requests and mappings, and the key programs: `tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`. | the program calls of `zfsbootmenu-luks*.sh` |
 | `zbm-tools` | The system's other programs: `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, user scripts; block devices from `/sys`. | `zfsbootmenu-core.sh` helpers |
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
-| `zbm-pool` | Pool import: policies, host IDs, the retry loop of the start-up stage. | `init.d/50-import-pools` |
-| `zbm-boot` | Packages A, C and D: boot environments, kernels, ZFS encryption keys, hooks, `kexec`, snapshots, pool management, saved logs and reports. | `zfsbootmenu-core.sh` |
+| `zbm-pool` | Pool import: policies, host IDs, the retry loop of the start-up stage, the read-write import before a change. | `init.d/50-import-pools`, `zfsbootmenu-core.sh` |
+| `zbm-bootenv` | Boot environments: their datasets, mounts, kernels, command lines, ZFS encryption keys and hooks. | `zfsbootmenu-core.sh` |
+| `zbm-boot` | Booting a boot environment: the sequence to `kexec`, measured boot, the teardown, the GPUs, saved logs and the recovery port. | `zfsbootmenu-core.sh` |
 | `zbm-app` | What front ends talk to: actions, events and the snapshot of the machine. | — |
 | `zbm-startup` | The start-up program: its stages as steps, the recovery shell, the start-up hooks. | `init.d/*`, `zfsbootmenu-init` |
 | `zbm-host` | The host tools (DM10, ADR 0013): `generate-zbm`, which builds images (`generate_zbm`); `zbm-kcl`, which reads and writes the kernel command line of boot environments and EFI images (`kcl`); the plan of an image (`image`, SB8, ADR 0006), the manifest the dracut module and the mkinitcpio hook install (`zbm image plan`), with golden plans; PE images read and written without `objcopy` (`pe`, CD12, ADR 0014). | `bin/generate-zbm`, `bin/zbm-kcl`, `install-helpers.sh`, `module-setup.sh`, `install/zfsbootmenu` |
@@ -514,7 +515,8 @@ An error keeps its cause as its `#[source]` rather than as text, and its message
 of the domain, the adapters and start-up has stable codes (`ZBM-E0412`), given with `zbm_types::error_codes!`, which
 matches every variant, so a new variant needs a code; `zbm explain` reads the tables. A code is never given to another
 error: the numbers of errors that go are not used again. The hundreds name the crate: 02 `zbm-zfs`, 03 `zbm-pool`,
-04 `zbm-luks`, 05 `zbm-crypt`, 06 `zbm-boot`, 07 `zbm-startup`. `zbm_types::code::report` gives the code, the
+04 `zbm-luks`, 05 `zbm-crypt`, 06 `zbm-boot`, 07 `zbm-startup`; a code moves with its error, so 602 to 605 are
+`zbm-bootenv`'s and 606 to 608 `zbm-pool`'s (ADR 0015). `zbm_types::code::report` gives the code, the
 message and the causes on one line, for standard error and the start-up screen; a log message keeps the legacy
 text and carries the code in the field `error_code`.
 

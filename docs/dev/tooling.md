@@ -176,6 +176,6 @@ Coverage may only go up, to the whole percent: `xtask/coverage-baseline.txt` hol
 adding tests, run `cargo xtask coverage --bless` to raise the baseline in the same pull request; never lower a number
 by hand. CI's coverage job runs `--check`.
 
-The baseline is measured as root, as CI measures it: a parity test of `zbm-boot` compares with the legacy code only
+The baseline is measured as root, as CI measures it: a parity test of `zbm-bootenv` compares with the legacy code only
 as root, the user that code runs as. Run the command as root (`sudo env "PATH=$PATH" cargo xtask coverage --check`)
-to compare with it; as another user `zbm-boot` reads below its baseline.
+to compare with it; as another user `zbm-bootenv` reads below its baseline.

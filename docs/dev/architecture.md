@@ -132,9 +132,11 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   try, the retry prompt and giving up; a `MappingStore` keeps the mappings and skipped volumes. `zbm-pool` imports
   pools: the import settings as types, `zpool import` with typed options, host IDs, and the retry loop of the start-up
   stage as a state machine (`ImportLoop`) whose transitions are pure; the stage reaches the console only through its
-  `Operator` port. `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, saved logs and reports, and the
-  prompts and recovery contract (`Recovery`) the start-up stages use; pool import runs through `zbm-pool`, with these
-  prompts as its `Operator`. `zbm-kcl` handles the kernel command lines stored on boot environments.
+  `Operator` port, and the read-write import before a change, with the resume question. `zbm-bootenv` holds what a
+  boot environment is: its datasets, mounting it, its kernels, its command line, its keys and hooks; it reaches
+  `zbm-pool` for the host ID alone. `zbm-boot` boots one: the sequence to `kexec`, measured boot, the teardown, the
+  GPUs, the saved logs and the recovery contract (`Recovery`) the start-up stages use (ADR 0015). `zbm-kcl` handles
+  the kernel command lines stored on boot environments.
 - **application**: `zbm-app` is what front ends talk to, through the `Application` trait: they read the
   `model::Snapshot` of the machine (`snapshot`), apply a `model::Action` (`apply`, quietly or on the console:
   `Through`), and get `model::Event`s back, the last of them the outcome. `App` implements it on a `Context` and the

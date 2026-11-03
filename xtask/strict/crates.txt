@@ -5,6 +5,7 @@ xtask
 zbm
 zbm-app
 zbm-boot
+zbm-bootenv
 zbm-brush
 zbm-config
 zbm-console

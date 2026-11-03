@@ -1,9 +1,9 @@
-//! The kernel command line of a boot environment, and the `kexec` commands.
+//! The kernel command line of a boot environment.
 //!
 //! The command line is assembled from the user's override, a cache or the
 //! boot environment's own settings, with the host ID when it applies. This
-//! module also finds the prefix of the `root=` argument and the device tree,
-//! and builds the `kexec` commands that load and run the kernel.
+//! module also finds the prefix of the `root=` argument, the root argument
+//! itself ([`boot_root`]) and the device tree; `zbm-boot` loads them.
 
 use std::path::{Component, Path, PathBuf};
 
