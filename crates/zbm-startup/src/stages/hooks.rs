@@ -10,7 +10,7 @@
 use std::path::Path;
 
 use zbm_app::auth;
-use zbm_boot::boot::measured::{self, Event, Extended};
+use zbm_boot::measured::{self, Event, Extended};
 use zbm_bootenv::hooks::{HOOKS, run_stage};
 use zbm_platform::console::Screen;
 use zbm_platform::files::Files;
@@ -260,7 +260,7 @@ pub fn prepare_early_stage(
 /// Secure Boot being on: then whoever changes ZFSBootMenu's own command
 /// line, as with `rdinit=/bin/sh`, gets past the lock of the menu.
 fn warn_unless_checked(system: &System<'_>) {
-    zbm_boot::boot::mount_securityfs(&Context::new(*system));
+    zbm_boot::mount_securityfs(&Context::new(*system));
     if zbm_tools::kexec::checked_boot(system.files).is_none() {
         zbm_trace::warn!(
             "the menu is locked, but neither lockdown nor Secure Boot is on: \

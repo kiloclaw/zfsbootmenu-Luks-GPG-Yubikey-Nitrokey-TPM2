@@ -113,6 +113,10 @@ pub struct Counts {
     /// Log macros whose message is a format string, rather than a constant
     /// with fields (DM9).
     pub format_logs: usize,
+    /// Items of the library that other crates may reach (ADR 0015): `pub`
+    /// items outside tests in modules they reach, and the names `pub use`
+    /// exports there.
+    pub public_items: usize,
     /// The C programs of the Rust image, in its row ([`image::ROW`]) alone
     /// (CD1).
     pub c_programs: usize,
@@ -151,6 +155,7 @@ pub const METRICS: &[Metric] = &[
     metric("zfs_commands", "zfs cmds", true, |c| c.zfs_commands),
     metric("string_params", "str params", true, |c| c.string_params),
     metric("format_logs", "fmt logs", true, |c| c.format_logs),
+    metric("public_items", "pub items", true, |c| c.public_items),
     metric("c_programs", "C programs", true, |c| c.c_programs),
 ];
 
@@ -202,6 +207,9 @@ pub fn count(files: &[ScannedFile]) -> Counts {
         counts.unsafe_blocks += file.scan.unsafe_blocks;
         counts.zfs_commands += file.scan.zfs_commands;
         counts.format_logs += file.scan.format_logs;
+        if file.public && !file.test_code {
+            counts.public_items += file.scan.public_items;
+        }
         for function in &file.scan.functions {
             if function.role.is_test() {
                 counts.tests += 1;

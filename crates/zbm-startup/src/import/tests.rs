@@ -12,12 +12,12 @@ mod machine;
 /// Recovery whose late unlocking opens a volume once.
 struct OpensOnce(std::sync::atomic::AtomicBool);
 
-impl zbm_boot::recovery::Recovery for OpensOnce {
-    fn unlock_late(&self) -> Result<(), zbm_boot::error::BootError> {
+impl zbm_boot::Recovery for OpensOnce {
+    fn unlock_late(&self) -> Result<(), zbm_boot::BootError> {
         if self.0.swap(false, std::sync::atomic::Ordering::Relaxed) {
             Ok(())
         } else {
-            Err(zbm_boot::error::BootError::NoCryptsetup)
+            Err(zbm_boot::BootError::NoCryptsetup)
         }
     }
 

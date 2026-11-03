@@ -9,8 +9,8 @@
 use std::path::Path;
 
 use zbm_app::session;
-use zbm_boot::boot::BootSettings;
-use zbm_boot::recovery::Recovery;
+use zbm_boot::BootSettings;
+use zbm_boot::Recovery;
 use zbm_bootenv::hooks;
 use zbm_platform::Signal;
 use zbm_platform::console::Screen;
@@ -111,14 +111,7 @@ impl Startup<'_> {
         // Clear the screen before a possible passphrase prompt.
         system.console.screen(Screen::Clear);
 
-        let settings = BootSettings {
-            set_hostid: self.options.set_hostid,
-            hooks: self.hooks.clone(),
-            env,
-            save_logs: self.save_logs(),
-            command_line: None,
-            import_policy: self.options.import_policy,
-        };
+        let settings = self.boot_settings(env);
         menu.show(&settings, &self.shell());
         0
     }

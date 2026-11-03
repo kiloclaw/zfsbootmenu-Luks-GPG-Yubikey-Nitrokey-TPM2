@@ -2,7 +2,7 @@
 
 use crate::import::{ImportSettings, Imported};
 use zbm_app::model::Event;
-use zbm_boot::recovery::Recovery;
+use zbm_boot::Recovery;
 use zbm_platform::System;
 use zbm_state::State;
 use zbm_tools::console::Answer;

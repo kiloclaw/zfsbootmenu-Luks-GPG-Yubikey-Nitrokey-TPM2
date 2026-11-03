@@ -23,7 +23,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use zbm_boot::boot::measured::{
+use zbm_boot::measured::{
     Bank, COMMAND_LINE_PCR, Event, FILES_PCR, Measured, hex, parse_log, predicted, replay,
     unsealed_at,
 };

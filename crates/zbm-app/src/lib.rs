@@ -40,8 +40,8 @@ pub use model::Encryption;
 pub use read::stage_name;
 pub use volumes::{NO_CRYPTSETUP, device_not_found};
 pub use zbm_boot::BootError;
-pub use zbm_boot::boot::BootSettings;
-pub use zbm_boot::recovery::Recovery;
+pub use zbm_boot::BootSettings;
+pub use zbm_boot::Recovery;
 pub use zbm_crypt::OpenOptions;
 
 /// Why the machine could not be read.

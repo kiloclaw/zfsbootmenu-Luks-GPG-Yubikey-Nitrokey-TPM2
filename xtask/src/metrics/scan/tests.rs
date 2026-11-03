@@ -65,7 +65,7 @@ fn trait_methods_are_marked() {
 
 #[test]
 fn out_of_line_modules_are_recorded_with_their_inline_parents() {
-    let source = "mod a;\nmod outer {\n    #[cfg(test)]\n    mod b;\n}\n";
+    let source = "pub mod a;\nmod outer {\n    #[cfg(test)]\n    pub mod b;\n}\n";
 
     let file = scan(source);
 
@@ -76,14 +76,51 @@ fn out_of_line_modules_are_recorded_with_their_inline_parents() {
                 inline: Vec::new(),
                 name: "a".to_owned(),
                 test_code: false,
+                public: true,
             },
             ModDecl {
                 inline: vec!["outer".to_owned()],
                 name: "b".to_owned(),
                 test_code: true,
+                // Its inline parent is private.
+                public: false,
             },
         ]
     );
+}
+
+#[test]
+fn public_items_are_those_other_crates_may_reach() {
+    let source = "\
+pub fn a() {}
+pub(crate) fn b() {}
+fn c() {}
+pub struct S;
+impl S {
+    pub fn method(&self) {}
+}
+pub use x::{y, z as w, v::*};
+pub(crate) use x::q;
+pub mod inline {
+    pub const C: u8 = 0;
+    mod hidden {
+        pub fn d() {}
+    }
+}
+mod private {
+    pub enum E {}
+}
+#[cfg(test)]
+pub fn e() {}
+pub fn f() {
+    pub fn inner() {}
+}
+";
+
+    let file = scan(source);
+
+    // a, S, y, w, the glob, C and f.
+    assert_eq!(file.public_items, 7);
 }
 
 #[test]

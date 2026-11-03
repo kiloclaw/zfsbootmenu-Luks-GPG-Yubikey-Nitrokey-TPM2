@@ -41,8 +41,8 @@
 //! ```
 
 use zbm_app::model::{Event, StageState};
-use zbm_boot::error::BootError;
-use zbm_boot::recovery::Recovery;
+use zbm_boot::BootError;
+use zbm_boot::Recovery;
 use zbm_platform::System;
 use zbm_state::State;
 use zbm_types::code::{Coded as _, chain, report};

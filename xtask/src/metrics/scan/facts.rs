@@ -1,8 +1,9 @@
-//! What the scanner tells of a call, a macro's input or a type: ZFS
-//! command lines, format-string messages and string parameters.
+//! What the scanner tells of a call, a macro's input, a type or an
+//! attribute: ZFS command lines, format-string messages, string parameters
+//! and doc text.
 
 use proc_macro2::{TokenStream, TokenTree};
-use syn::{Expr, Lit, Type};
+use syn::{Attribute, Expr, Lit, Meta, Type};
 
 use super::{ZFS_BUILDERS, ZFS_PROGRAMS};
 
@@ -126,4 +127,21 @@ pub(super) fn mentions_string(ty: &Type) -> bool {
         }),
         _ => false,
     }
+}
+
+/// The text of a doc attribute (`///` or `//!`), if `attr` is one.
+pub(super) fn doc_text(attr: &Attribute) -> Option<String> {
+    let Meta::NameValue(pair) = &attr.meta else {
+        return None;
+    };
+    if !pair.path.is_ident("doc") {
+        return None;
+    }
+    let Expr::Lit(literal) = &pair.value else {
+        return None;
+    };
+    let Lit::Str(text) = &literal.lit else {
+        return None;
+    };
+    Some(text.value())
 }

@@ -30,7 +30,7 @@ use zbm_bootenv::kernels::Kernel;
 use crate::load::KexecLoad;
 
 /// The event log in the state directory, which the saved logs keep.
-pub const LOG: &str = "tpm-measure.json";
+pub(crate) const LOG: &str = "tpm-measure.json";
 
 /// The directory of the copies the kernel loads, in the state directory.
 const COPIES: &str = "measured";
@@ -69,6 +69,7 @@ fn tpm_device(context: &Context<'_>) -> Option<&'static str> {
 }
 
 /// What became of events for the TPM.
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Extended {
     /// There is no TPM: nothing was measured.

@@ -1,5 +1,5 @@
 use pretty_assertions::assert_eq;
-use zbm_boot::boot::measured::{Bank, Digests, Event, measure};
+use zbm_boot::measured::{Bank, Digests, Event, measure};
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
@@ -156,15 +156,14 @@ fn a_prediction_takes_the_kernel_the_root_the_command_line_and_the_bank_given() 
     let (code, out, err) = call(&fake, &args);
 
     assert_eq!((code, err.as_str()), (0, ""));
-    let kernel = Kernel {
-        dataset: "tank/ROOT/new".to_owned(),
-        kernel: "/boot/vmlinuz-6.2".to_owned(),
-        initramfs: "/boot/initramfs-6.2.img".to_owned(),
-    };
+    let kernel = Kernel::new(
+        "tank/ROOT/new",
+        "/boot/vmlinuz-6.2",
+        "/boot/initramfs-6.2.img",
+    );
     let line = Event::command_line("root=zfs:tank/ROOT/new");
     let events =
-        zbm_boot::boot::measured::predicted(&fake.files, Path::new("/mnt/be"), &kernel, line)
-            .unwrap();
+        zbm_boot::measured::predicted(&fake.files, Path::new("/mnt/be"), &kernel, line).unwrap();
     assert!(out.ends_with(&expected(&events, Bank::Sha1)), "{out}");
     // The kernel was given: no property is read.
     assert!(fake.runner.lines().is_empty());
@@ -225,7 +224,7 @@ fn a_prediction_gives_what_a_measured_boot_extends() {
     let state = zbm_state::State::new(&fake.files, "/zfsbootmenu");
     let root: zbm_types::KernelArg = "root=zfs:tank/ROOT/void".parse().unwrap();
     let args: zbm_types::KernelCommandLine = "quiet".parse().unwrap();
-    let load = zbm_boot::load::KexecLoad {
+    let load = zbm_boot::KexecLoad {
         mnt: "",
         kernel: "/boot/vmlinuz-6.1.10",
         initramfs: "/boot/initramfs-6.1.10.img",

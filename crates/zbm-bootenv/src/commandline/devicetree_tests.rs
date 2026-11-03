@@ -3,6 +3,18 @@
 use super::*;
 use zbm_testkit::fakes::FakeFiles;
 
+/// The device tree the boot loads: the candidate of `property`, when it is
+/// set and the file exists, as the boot sequence checks it.
+fn devicetree(
+    files: &dyn Files,
+    property: Option<&str>,
+    kernel: &str,
+    mnt: &Path,
+) -> Option<PathBuf> {
+    let property = property?;
+    devicetree_candidate(property, kernel, mnt).filter(|candidate| files.is_file(candidate))
+}
+
 #[test]
 fn device_trees() {
     let files = FakeFiles::new();

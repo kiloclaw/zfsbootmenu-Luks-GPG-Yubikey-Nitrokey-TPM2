@@ -24,6 +24,7 @@ const KERNEL_NAMES: [&str; 5] = ["vmlinux", "vmlinuz", "linux", "linuz", "kernel
 
 /// A kernel of a boot environment, with paths relative to its root, as a line
 /// of `environments/<dataset>/kernels` holds it.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Kernel {
     /// The boot environment.
@@ -35,6 +36,15 @@ pub struct Kernel {
 }
 
 impl Kernel {
+    /// The kernel `kernel` of `dataset`, with its initramfs `initramfs`.
+    pub fn new(dataset: &str, kernel: &str, initramfs: &str) -> Kernel {
+        Kernel {
+            dataset: dataset.to_owned(),
+            kernel: kernel.to_owned(),
+            initramfs: initramfs.to_owned(),
+        }
+    }
+
     /// The line of the kernel list: the three fields separated by tabs.
     pub fn line(&self) -> String {
         format!("{}\t{}\t{}\n", self.dataset, self.kernel, self.initramfs)
@@ -58,7 +68,7 @@ impl Kernel {
 /// version order: the entries of `/boot` that exist and are named `vmlinux`,
 /// `vmlinuz`, `linux`, `linuz` or `kernel`, alone or followed by `-` and
 /// anything, sorted as `sort -V` sorts them.
-pub fn kernel_files(files: &dyn Files, mnt: &Path) -> Vec<String> {
+pub(crate) fn kernel_files(files: &dyn Files, mnt: &Path) -> Vec<String> {
     let boot = mnt.join("boot");
     let names = files.read_dir(&boot).unwrap_or_default();
     let mut found: Vec<String> = names
@@ -84,7 +94,7 @@ pub fn kernel_files(files: &dyn Files, mnt: &Path) -> Vec<String> {
 /// file that exists in the kernel's directory among names made of `initramfs`
 /// or `initrd`, the kernel's file name or its version (from the first `-` on),
 /// and `.img` with or without a compression suffix, tried in a fixed order.
-pub fn find_initramfs(files: &dyn Files, kernel: &Path) -> Option<PathBuf> {
+pub(crate) fn find_initramfs(files: &dyn Files, kernel: &Path) -> Option<PathBuf> {
     if !files.exists(kernel) {
         return None;
     }
@@ -126,6 +136,7 @@ fn relative(path: &str, mnt: &str) -> String {
 }
 
 /// The kernels and command line files of a boot environment.
+#[non_exhaustive]
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Discovery {
     /// The kernels with an initramfs, in version order.

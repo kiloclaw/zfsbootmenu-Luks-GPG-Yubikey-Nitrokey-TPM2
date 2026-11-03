@@ -1,24 +1,18 @@
-//! Where the key of an encryption root comes from, in the order the legacy
-//! runtime looks for it, decided without loading anything:
+//! Keys of encryption roots: where one comes from, in the order the legacy
+//! runtime looks for it, and loading it (`load`), with the cache of keys
+//! copied from key sources (`cache`):
 //!
-//! 1. `keylocation=prompt`: the passphrase prompt;
-//! 2. a `file://` key that exists in ZFSBootMenu's own file system: that file;
-//! 3. a key source (`org.zfsbootmenu:keysource`) that names an encrypted
+//! 1. the `load-key.d` hooks, which may unlock the root in their own way;
+//! 2. `keylocation=prompt`: the passphrase prompt;
+//! 3. a `file://` key that exists in ZFSBootMenu's own file system: that file;
+//! 4. a key source (`org.zfsbootmenu:keysource`) that names an encrypted
 //!    filesystem: the key file copied from it into `/zfsbootmenu/.keys`, for
 //!    a boot chosen in the menu; the countdown's boot skips key sources;
-//! 4. a `passphrase` key: the passphrase prompt;
-//! 5. otherwise nothing ZFSBootMenu can load it with.
-//!
-//! The legacy runtime runs the `load-key.d` hooks first, which may unlock
-//! the root in their own way; this decision leaves them out.
-//!
-//! The loading in `load` follows the same order.
-
-use std::fmt;
-use std::path::Path;
+//! 5. a `passphrase` key: the passphrase prompt;
+//! 6. otherwise nothing ZFSBootMenu can load it with.
 
 use zbm_config::spec::properties::KEYSOURCE;
-use zbm_platform::{Files, Runner};
+use zbm_platform::Runner;
 use zbm_types::DatasetName;
 use zbm_zfs::ZfsText;
 
@@ -29,7 +23,7 @@ mod cache;
 mod load;
 
 pub use cache::clear_key_caches;
-pub use load::{KEY_TRIES, KeyLoad, load_key};
+pub use load::{KeyLoad, load_key};
 
 /// How the boot was chosen, which decides whether key sources are tried.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -42,38 +36,9 @@ pub enum BootPath {
     Menu,
 }
 
-/// Where the key of an encryption root comes from.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum KeySource {
-    /// The passphrase prompt.
-    Prompt,
-    /// A key file in ZFSBootMenu's own file system.
-    File(String),
-    /// A key file copied from this key source filesystem.
-    Keysource(DatasetName),
-    /// Nothing ZFSBootMenu can load the key with.
-    Nothing,
-}
-
-impl fmt::Display for KeySource {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            KeySource::Prompt => formatter.write_str("prompt"),
-            KeySource::File(path) => write!(formatter, "file {path}"),
-            KeySource::Keysource(source) => write!(formatter, "keysource {source}"),
-            KeySource::Nothing => formatter.write_str("nothing"),
-        }
-    }
-}
-
-/// The value of `org.zfsbootmenu:keysource` on `fs`, unset (`-`) as `None`.
-pub fn keysource_property(runner: &dyn Runner, fs: &DatasetName) -> Option<String> {
-    zfs_value(runner, KEYSOURCE.name, fs).filter(|value| !value.is_empty() && value != "-")
-}
-
 /// The key source of `fs`: the filesystem its
 /// `org.zfsbootmenu:keysource` names, if that exists and is encrypted.
-pub fn keysource(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
+pub(crate) fn keysource(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
     zbm_trace::debug!("fs set to {fs}"; %fs);
     let Some(source) = zfs_value(runner, KEYSOURCE.name, fs) else {
         zbm_trace::warn!("failed to read {property} on {fs}"; property = %KEYSOURCE.name, %fs);
@@ -102,48 +67,6 @@ pub fn keysource(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
 fn stripped(keylocation: &str) -> &str {
     let key = keylocation.strip_prefix("file://").unwrap_or(keylocation);
     key.strip_prefix('/').unwrap_or(key)
-}
-
-/// The key file of a `file://` key location, relative to the root, as the
-/// legacy runtime strips it; `None` for other locations.
-pub fn key_file(keylocation: &str) -> Option<&str> {
-    let file = keylocation.strip_prefix("file://")?;
-    let file = file.strip_prefix('/').unwrap_or(file);
-    (!file.is_empty()).then_some(file)
-}
-
-/// The encryption root of `fs` and where its key would come from on a boot
-/// chosen by `path`; `None` when `fs` is not encrypted.
-pub fn key_source(
-    runner: &dyn Runner,
-    files: &dyn Files,
-    fs: &DatasetName,
-    path: BootPath,
-) -> Option<(DatasetName, KeySource)> {
-    let root = encryption_root(runner, fs)?;
-    let keylocation = zfs_value(runner, "keylocation", &root).unwrap_or_else(|| "prompt".into());
-    if keylocation == "prompt" {
-        return Some((root, KeySource::Prompt));
-    }
-    if let Some(file) = key_file(&keylocation) {
-        let in_image = format!("/{file}");
-        if files.exists(Path::new(&in_image)) {
-            return Some((root, KeySource::File(in_image)));
-        }
-        let source = (path == BootPath::Menu)
-            .then(|| keysource(runner, fs))
-            .flatten();
-        if let Some(source) = source {
-            return Some((root, KeySource::Keysource(source)));
-        }
-    }
-    let passphrase = zfs_value(runner, "keyformat", &root).as_deref() == Some("passphrase");
-    let source = if passphrase {
-        KeySource::Prompt
-    } else {
-        KeySource::Nothing
-    };
-    Some((root, source))
 }
 
 #[cfg(test)]

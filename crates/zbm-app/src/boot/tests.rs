@@ -45,10 +45,7 @@ fn machine() -> FakeSystem {
 }
 
 fn settings() -> BootSettings {
-    BootSettings {
-        hooks: "/libexec/hooks".into(),
-        ..BootSettings::default()
-    }
+    BootSettings::default().hooks("/libexec/hooks")
 }
 
 /// Runs `test` with the boot use case on `fake`.

@@ -369,7 +369,7 @@ pub(crate) fn root_argument(prefix: &str, fs: &str) -> Option<KernelArg> {
 /// `ID_LIKE` of the `os-release` of the boot environment mounted at `mnt`, if
 /// it is one with a known prefix: Void, Ubuntu, Debian, Devuan, Chimera, Arch,
 /// Artix, CachyOS, Gentoo or Alpine.
-pub fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String> {
+pub(crate) fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String> {
     let mut id = String::new();
     let mut id_like = String::new();
     for file in ["usr/lib/os-release", "etc/os-release"] {
@@ -396,21 +396,6 @@ pub fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String> {
         return Some(prefix.to_owned());
     }
     None
-}
-
-/// The device tree of `kernel` in the boot environment mounted at `mnt`, from
-/// `org.zfsbootmenu:devicetree` (`property`): an absolute path, in which
-/// `%{kernel}` is the kernel's version, or a file in
-/// `/boot/dtbs/dtbs-<version>/`. `None` when the property is unset or the file
-/// does not exist.
-pub fn devicetree(
-    files: &dyn Files,
-    property: Option<&str>,
-    kernel: &str,
-    mnt: &Path,
-) -> Option<PathBuf> {
-    let candidate = devicetree_candidate(property?, kernel, mnt)?;
-    files.is_file(&candidate).then_some(candidate)
 }
 
 /// The file to try as the device tree of `kernel` for the value of

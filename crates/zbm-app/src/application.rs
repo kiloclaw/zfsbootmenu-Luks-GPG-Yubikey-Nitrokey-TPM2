@@ -5,8 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_boot::boot::BootSettings;
-use zbm_boot::recovery::Recovery;
+use zbm_boot::BootSettings;
+use zbm_boot::Recovery;
 use zbm_config::args::ZbmArgs;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::Luks;

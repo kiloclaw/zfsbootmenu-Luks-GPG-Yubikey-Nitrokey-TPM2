@@ -17,9 +17,10 @@ use crate::zfs::zfs_value;
 
 /// How many times a key typed for an encryption root is tried, as `zfs
 /// load-key` tries one typed on its terminal.
-pub const KEY_TRIES: u32 = 3;
+pub(crate) const KEY_TRIES: u32 = 3;
 
 /// How a key is loaded: where the hooks are, and how the boot was chosen.
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct KeyLoad<'p> {
     /// Where the hook directories are.
@@ -27,6 +28,13 @@ pub struct KeyLoad<'p> {
     /// How the boot was chosen: only a boot chosen in the menu tries key
     /// sources (`NO_CACHE=1` on the countdown).
     pub path: BootPath,
+}
+
+impl<'p> KeyLoad<'p> {
+    /// A key loaded with the hooks below `hooks`, for a boot chosen by `path`.
+    pub fn new(hooks: &'p Path, path: BootPath) -> KeyLoad<'p> {
+        KeyLoad { hooks, path }
+    }
 }
 
 /// Where the key file of a locked root is, if anywhere.

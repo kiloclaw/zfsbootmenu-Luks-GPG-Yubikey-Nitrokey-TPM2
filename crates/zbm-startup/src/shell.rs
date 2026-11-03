@@ -7,9 +7,8 @@ use std::path::Path;
 
 use crate::support::{self, Unsupported};
 use zbm_app::auth::{self, Authority};
-use zbm_boot::boot;
-use zbm_boot::error::BootError;
-use zbm_boot::recovery::Recovery;
+use zbm_boot::BootError;
+use zbm_boot::Recovery;
 use zbm_platform::console::Screen;
 use zbm_platform::dmesg::read_logs;
 use zbm_platform::{Context, System};
@@ -144,7 +143,7 @@ impl Recovery for Shell<'_, '_> {
             self.state.clear_errors();
         }
         if system.command_exists("efibootmgr") {
-            boot::mount_efivarfs(&Context::new(*system), "rw");
+            zbm_boot::mount_efivarfs(&Context::new(*system), "rw");
         }
 
         let _ = auth::recovery_shell(
@@ -167,7 +166,7 @@ impl Recovery for Shell<'_, '_> {
                 .unmount(Path::new(mountpoint), Shown::Console);
             zbm_trace::debug!("unmounting: {mountpoint}"; %mountpoint);
         }
-        boot::mount_efivarfs(&Context::new(*system), "ro");
+        zbm_boot::mount_efivarfs(&Context::new(*system), "ro");
     }
 }
 

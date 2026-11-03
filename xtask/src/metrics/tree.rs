@@ -19,6 +19,9 @@ pub struct ScannedFile {
     pub path: PathBuf,
     /// Whether the whole file is test code.
     pub test_code: bool,
+    /// Whether other crates may reach the file's module: the library's root,
+    /// or a `pub` module of one they may reach.
+    pub public: bool,
     /// What it holds.
     pub scan: FileScan,
 }
@@ -31,6 +34,8 @@ struct Pending {
     children: PathBuf,
     /// Whether the whole file is test code.
     test_code: bool,
+    /// Whether other crates may reach the file's module.
+    public: bool,
 }
 
 /// Scans every source file of `package`.
@@ -52,6 +57,7 @@ pub fn scan_package(package: &Package, legacy_names: &HashSet<String>) -> Result
                 .unwrap_or_default(),
             path: target.src.clone(),
             test_code: target.kind == TargetKind::Test,
+            public: target.kind == TargetKind::Lib,
         })
         .collect();
     let mut seen = HashSet::new();
@@ -76,11 +82,13 @@ pub fn scan_package(package: &Package, legacy_names: &HashSet<String>) -> Result
                 path,
                 children,
                 test_code: decl.test_code,
+                public: pending.public && decl.public,
             });
         }
         files.push(ScannedFile {
             path: pending.path,
             test_code: pending.test_code,
+            public: pending.public,
             scan,
         });
     }

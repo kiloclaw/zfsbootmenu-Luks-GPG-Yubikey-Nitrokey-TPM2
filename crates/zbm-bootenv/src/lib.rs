@@ -19,10 +19,11 @@
         reason = "tests describe the commands they expect"
     )
 )]
+#![warn(unreachable_pub)]
 
 pub mod commandline;
 mod discovery;
-pub mod error;
+mod error;
 pub mod hooks;
 pub mod kernels;
 pub mod keys;

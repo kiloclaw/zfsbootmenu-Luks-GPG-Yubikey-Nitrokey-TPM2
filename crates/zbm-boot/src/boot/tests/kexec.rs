@@ -19,11 +19,7 @@ fn the_kernel_loads_the_boot_environment_s_kernel_and_kexec_starts_it_when_it_ca
     fake.runner
         .respond("kexec -e -i", 1, "kexec: no kernel loaded\n");
     let state = State::new(&fake.files, "/zfsbootmenu");
-    let selected = Kernel {
-        dataset: FS.to_owned(),
-        kernel: "/boot/vmlinuz-6.1.10".to_owned(),
-        initramfs: "/boot/initramfs-6.1.10.img".to_owned(),
-    };
+    let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
     let shells = Shells::default();
 
     kexec_kernel(
@@ -79,11 +75,7 @@ fn under_lockdown_a_kernel_the_call_refuses_is_not_loaded_by_kexec() {
     fake.runner.respond_program("mount", 0, "");
     fake.runner.respond_program("umount", 0, "");
     let state = State::new(&fake.files, "/zfsbootmenu");
-    let selected = Kernel {
-        dataset: FS.to_owned(),
-        kernel: "/boot/vmlinuz-6.1.10".to_owned(),
-        initramfs: "/boot/initramfs-6.1.10.img".to_owned(),
-    };
+    let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
     let shells = Shells::default();
 
     kexec_kernel(
@@ -141,11 +133,7 @@ fn a_measured_boot_loads_the_copies_and_removes_them_after() {
     fake.files
         .file(mnt.join(&kernel[1..]), b"KERNEL")
         .file(mnt.join(&initramfs[1..]), b"INITRD");
-    let selected = Kernel {
-        dataset: FS.to_owned(),
-        kernel: kernel.to_owned(),
-        initramfs: initramfs.to_owned(),
-    };
+    let selected = Kernel::new(FS, kernel, initramfs);
 
     kexec_kernel(
         &fake.context(),

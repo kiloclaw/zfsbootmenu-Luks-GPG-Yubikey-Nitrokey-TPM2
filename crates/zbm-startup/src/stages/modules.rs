@@ -5,7 +5,7 @@ use zbm_platform::error::{Error, Result};
 use zbm_tools::modules::Modules;
 use zbm_tools::{Shown, udev};
 
-use zbm_boot::recovery::Recovery;
+use zbm_boot::Recovery;
 
 use crate::error::StartupError;
 
@@ -62,8 +62,8 @@ mod tests {
     struct Shells(std::sync::Mutex<Vec<String>>);
 
     impl Recovery for Shells {
-        fn unlock_late(&self) -> std::result::Result<(), zbm_boot::error::BootError> {
-            Err(zbm_boot::error::BootError::NoCryptsetup)
+        fn unlock_late(&self) -> std::result::Result<(), zbm_boot::BootError> {
+            Err(zbm_boot::BootError::NoCryptsetup)
         }
 
         fn emergency_shell(&self, message: &str) {

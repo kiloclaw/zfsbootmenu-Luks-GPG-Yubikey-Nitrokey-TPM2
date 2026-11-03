@@ -16,14 +16,28 @@
         reason = "tests describe the commands they expect"
     )
 )]
+#![warn(unreachable_pub)]
 
-pub mod boot;
-pub mod error;
+mod boot;
+mod error;
 pub mod graphics;
-pub mod load;
-pub mod recovery;
+mod load;
+mod recovery;
 pub mod saved_logs;
 
 #[cfg(test)]
 mod testing;
+
+pub use boot::{BootSettings, export_pool, kexec_kernel, mount_efivarfs, mount_securityfs};
 pub use error::{BOOT_CODES, BootError};
+pub use load::KexecLoad;
+pub use recovery::Recovery;
+
+/// Measured boot (ROADMAP.md SE10, ADR 0008): what the boot measures into
+/// the TPM, the event log and the prediction of the values the PCRs take.
+pub mod measured {
+    pub use crate::boot::measured::{
+        Bank, COMMAND_LINE_PCR, Digests, Event, Extended, FILES_PCR, Measured, extend_events,
+        has_tpm, hex, measure, parse_log, predicted, replay, unsealed_at,
+    };
+}

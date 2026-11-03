@@ -383,11 +383,7 @@ fn boot_machine() -> Machine {
 
 fn boot(machine: &Machine, parity: &mut Parity) {
     let _secrets = crate::testing::booting();
-    let selected = Kernel {
-        dataset: FS.to_owned(),
-        kernel: "/boot/vmlinuz-6.1.10".to_owned(),
-        initramfs: "/boot/initramfs-6.1.10.img".to_owned(),
-    };
+    let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
     let legacy: Outcome = parity.legacy(format!("{machine:?}"), || {
         machine.run_legacy(&format!(
             "kexec_kernel \"$(printf '%s\\t%s\\t%s' {FS} /boot/vmlinuz-6.1.10 \

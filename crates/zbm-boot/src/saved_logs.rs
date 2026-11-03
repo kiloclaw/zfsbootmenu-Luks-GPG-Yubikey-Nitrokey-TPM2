@@ -19,17 +19,17 @@ use zbm_tools::devices::Devices;
 use zbm_tools::mount::Mount;
 
 /// The GPT partition type of an EFI system partition.
-pub const ESP_TYPE: &str = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b";
+pub(crate) const ESP_TYPE: &str = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b";
 
 /// The EFI variable with the partition the boot loader was loaded from.
-pub const LOADER_DEVICE: &str =
+pub(crate) const LOADER_DEVICE: &str =
     "/sys/firmware/efi/efivars/LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f";
 
 /// Where on the ESP the logs go, one directory per boot.
-pub const DIRECTORY: &str = "EFI/zfsbootmenu/logs";
+pub(crate) const DIRECTORY: &str = "EFI/zfsbootmenu/logs";
 
 /// How many boots' logs stay.
-pub const KEEP: usize = 5;
+pub(crate) const KEEP: usize = 5;
 
 /// Where the ESP is mounted while the logs are written.
 pub const MOUNT_POINT: &str = "/run/zbm-saved-logs";
@@ -63,6 +63,7 @@ impl Destination {
 }
 
 /// Why the logs could not be saved or listed.
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
     /// The machine has no EFI system partition.
@@ -116,6 +117,7 @@ zbm_types::error_codes! {
 }
 
 /// What was saved, and where.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Saved {
     /// The partition.
@@ -128,6 +130,7 @@ pub struct Saved {
 
 /// One boot's saved logs: its directory's name and its files with their
 /// sizes in bytes.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SavedBoot {
     /// The directory's name, the time of the save.
@@ -160,7 +163,10 @@ pub fn stamp(seconds: u64) -> String {
 /// # Errors
 ///
 /// When it does not exist, or there is no single ESP to take.
-pub fn device(context: &Context<'_>, destination: &Destination) -> Result<String, SaveError> {
+pub(crate) fn device(
+    context: &Context<'_>,
+    destination: &Destination,
+) -> Result<String, SaveError> {
     let devices = Devices::new(context.runner(), context.files());
     match destination {
         Destination::Device(path) if path.starts_with('/') => Ok(path.clone()),
@@ -392,7 +398,11 @@ fn write_boot(context: &Context<'_>, base: &Path, dir: &Path) -> Result<Vec<Stri
 ///
 /// When the partition cannot be mounted, as when a teardown hook took its
 /// device away, or the saved boot is gone.
-pub fn update_logs(context: &Context<'_>, base: &Path, saved: &Saved) -> Result<(), SaveError> {
+pub(crate) fn update_logs(
+    context: &Context<'_>,
+    base: &Path,
+    saved: &Saved,
+) -> Result<(), SaveError> {
     with_mounted(context, &saved.device, |root| {
         let dir = root.join(&saved.directory);
         if !context.files().is_dir(&dir) {

@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use zbm_boot::boot::BootSettings;
+use zbm_boot::BootSettings;
 use zbm_bootenv::Noise;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::{Context, System};
@@ -74,10 +74,7 @@ impl Needs for OnMachine<'_, '_> {
                 Some(root) => Err(vec![format!("the key of {root} is not loaded")]),
             };
         }
-        let how = KeyLoad {
-            hooks: &self.settings.hooks,
-            path: BootPath::Menu,
-        };
+        let how = KeyLoad::new(&self.settings.hooks, BootPath::Menu);
         let context = Context::new(*self.system);
         let interaction = ConsoleInteraction::new(*self.system);
         keys::load_key(&context, &interaction, self.state, &how, dataset)

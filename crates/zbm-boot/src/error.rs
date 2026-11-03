@@ -3,6 +3,7 @@
 /// Why a step of this crate did not succeed. The step has logged the details
 /// to the kernel log, as the legacy runtime does; the error says what failed
 /// for the code that decides what to do next.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum BootError {
     /// A boot environment's key, mount, kernels or unmount failed.

@@ -8,8 +8,8 @@
 use std::path::Path;
 use zbm_types::Untrusted;
 
-use zbm_boot::boot::{self as kexec, BootSettings};
-use zbm_boot::recovery::Recovery;
+use zbm_boot::BootSettings;
+use zbm_boot::Recovery;
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::console::Screen;
@@ -106,14 +106,12 @@ impl<'a> Boot<'_, 'a> {
         recovery: &dyn Recovery,
     ) -> Vec<Event> {
         let fs = environment.as_str();
-        let how = KeyLoad {
-            hooks: &self.settings.hooks,
-            path: if countdown {
-                BootPath::Countdown
-            } else {
-                BootPath::Menu
-            },
+        let path = if countdown {
+            BootPath::Countdown
+        } else {
+            BootPath::Menu
         };
+        let how = KeyLoad::new(&self.settings.hooks, path);
         let context = self.context();
         let interaction = ConsoleInteraction::new(*self.system);
         if let Err(error) = keys::load_key(&context, &interaction, self.state, &how, environment) {
@@ -134,15 +132,13 @@ impl<'a> Boot<'_, 'a> {
             );
         };
         // The typed line is for this boot only: nothing is written down.
-        let settings = BootSettings {
-            command_line: command_line.map(str::to_owned),
-            ..self.settings.clone()
-        };
+        let mut settings = self.settings.clone();
+        settings.command_line = command_line.map(str::to_owned);
         // The plain console boots on a clear screen, as the legacy menu's
         // boot does once the key is loaded.
         self.system.console.screen(Screen::ShowCursor);
         self.system.console.screen(Screen::Clear);
-        kexec::kexec_kernel(
+        zbm_boot::kexec_kernel(
             &context,
             &interaction,
             self.state,
@@ -179,7 +175,7 @@ impl<'a> Boot<'_, 'a> {
 fn export_writable(system: &System<'_>, pools: &[model::Pool]) {
     for pool in pools.iter().filter(|pool| pool.imported) {
         if zbm_pool::writable::is_writable(system.runner, &pool.name) {
-            let _ = kexec::export_pool(system.runner, &pool.name);
+            let _ = zbm_boot::export_pool(system.runner, &pool.name);
         }
     }
 }
@@ -202,7 +198,7 @@ fn request_firmware_setup(system: &System<'_>) -> Result<(), String> {
     {
         return Err("the firmware cannot open its setup at the next boot".to_owned());
     }
-    kexec::mount_efivarfs(&Context::new(*system), "rw");
+    zbm_boot::mount_efivarfs(&Context::new(*system), "rw");
     let mut current = files
         .read(Path::new(OS_INDICATIONS))
         .map_err(|_| "the firmware has no OsIndications variable".to_owned())?;

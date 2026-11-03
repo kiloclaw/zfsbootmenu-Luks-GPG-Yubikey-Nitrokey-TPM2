@@ -3,7 +3,7 @@
 //! systems it needs (`mounts`) and the export of pools before the new
 //! kernel runs (`zfs`). Everything public is re-exported here.
 
-pub mod measured;
+pub(crate) mod measured;
 mod mounts;
 mod sequence;
 mod zfs;

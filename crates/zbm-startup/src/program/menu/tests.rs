@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use zbm_app::session::SessionSocket;
-use zbm_boot::error::BootError;
+use zbm_boot::BootError;
 use zbm_config::args::ZbmArgs;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;

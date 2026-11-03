@@ -29,6 +29,7 @@ use crate::saved_logs::{self, Destination, Saved};
 use zbm_platform::color::colorize;
 
 /// What booting needs besides the kernel.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BootSettings {
     /// `zbm_set_hostid`: replace the host ID on the command line.
@@ -46,6 +47,38 @@ pub struct BootSettings {
     pub command_line: Option<String>,
     /// `zbm.import_policy`: a read/write import forces (`-f`) with `force`.
     pub import_policy: ImportPolicy,
+}
+
+impl BootSettings {
+    /// These settings with `zbm_set_hostid` set to `set_hostid`.
+    #[must_use]
+    pub fn set_hostid(self, set_hostid: bool) -> BootSettings {
+        BootSettings { set_hostid, ..self }
+    }
+
+    /// These settings with the hook directories below `hooks`.
+    #[must_use]
+    pub fn hooks(self, hooks: impl Into<PathBuf>) -> BootSettings {
+        BootSettings {
+            hooks: hooks.into(),
+            ..self
+        }
+    }
+
+    /// These settings, saving the logs of the boot to `save_logs`, if given.
+    #[must_use]
+    pub fn save_logs(self, save_logs: Option<Destination>) -> BootSettings {
+        BootSettings { save_logs, ..self }
+    }
+
+    /// These settings with the import policy `import_policy`.
+    #[must_use]
+    pub fn import_policy(self, import_policy: ImportPolicy) -> BootSettings {
+        BootSettings {
+            import_policy,
+            ..self
+        }
+    }
 }
 
 impl Default for BootSettings {
@@ -71,10 +104,7 @@ fn load_key(
     settings: &BootSettings,
     fs: &DatasetName,
 ) {
-    let how = KeyLoad {
-        hooks: &settings.hooks,
-        path: BootPath::Menu,
-    };
+    let how = KeyLoad::new(&settings.hooks, BootPath::Menu);
     let _ = keys::load_key(context, interaction, state, &how, fs);
 }
 
@@ -115,11 +145,7 @@ pub fn kexec_kernel(
     if !names_a_kernel(selected) {
         return;
     }
-    let Kernel {
-        dataset: fs,
-        kernel,
-        initramfs,
-    } = selected;
+    let (fs, kernel, initramfs) = (&selected.dataset, &selected.kernel, &selected.initramfs);
     let Some((filesystem, mnt)) = load_and_mount(context, interaction, state, settings, fs) else {
         recovery.emergency_shell(&format!("unable to mount {}", colorize("cyan", fs)));
         return;
@@ -172,6 +198,7 @@ fn names_a_kernel(selected: &Kernel) -> bool {
         dataset: fs,
         kernel,
         initramfs,
+        ..
     } = selected;
     if fs.is_empty() && kernel.is_empty() && initramfs.is_empty() {
         zbm_trace::error!("fs, kernel, initramfs undefined");
@@ -402,7 +429,7 @@ fn tear_down(
 /// Saves the logs of this boot to `destination`, if given, once the kernel
 /// is loaded and before the teardown hooks, which may unbind the device the
 /// partition is on; a failure is logged and the boot goes on.
-pub fn save_logs(
+pub(crate) fn save_logs(
     context: &Context<'_>,
     state: &State<'_>,
     destination: Option<&Destination>,
@@ -467,7 +494,7 @@ const DROP_CACHES: &str = "/proc/sys/vm/drop_caches";
 /// key files read from key devices, so that the kernel frees those pages,
 /// and zeroes them with `init_on_free=1`; and warns when this process still
 /// holds secrets.
-pub fn wipe_before_kexec(context: &Context<'_>, state: &State<'_>) {
+pub(crate) fn wipe_before_kexec(context: &Context<'_>, state: &State<'_>) {
     keys::clear_key_caches(context.files(), state);
     if let Err(error) = context.files().write(Path::new(DROP_CACHES), b"3\n") {
         zbm_trace::debug!("unable to drop the page cache: {error}"; %error);

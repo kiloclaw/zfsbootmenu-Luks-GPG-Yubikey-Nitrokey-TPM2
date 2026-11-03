@@ -16,11 +16,7 @@ fn a_root_prefix_cannot_add_kernel_arguments() {
             "root=zfs: init=/bin/sh \\n",
         ),
     );
-    let selected = Kernel {
-        dataset: FS.to_owned(),
-        kernel: "/boot/vmlinuz-6.1.10".to_owned(),
-        initramfs: "/boot/initramfs-6.1.10.img".to_owned(),
-    };
+    let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
     let outcome = machine.rust(|system, state, shells, hooks| {
         let settings = BootSettings {
             hooks: hooks.to_path_buf(),

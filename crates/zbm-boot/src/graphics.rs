@@ -35,6 +35,7 @@ pub const VIRTIO: u16 = 0x1af4;
 pub const QEMU_VGA: u16 = 0x1234;
 
 /// A display controller on the PCI bus.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Gpu {
     /// Its PCI address.

@@ -12,7 +12,7 @@ use std::collections::{BTreeSet, HashSet};
 use proc_macro2::{TokenStream, TokenTree};
 use syn::punctuated::Punctuated;
 use syn::visit::{self, Visit};
-use syn::{Attribute, Block, Expr, Lit, Meta, ReturnType, Signature, Token, Type};
+use syn::{Attribute, Block, Expr, Meta, ReturnType, Signature, Token, Type};
 
 /// Helpers that emulate Bash's semantics: those of the former
 /// `zbm_core::shell`, and the copies `zbm_host::kcl` keeps until DM10
@@ -58,6 +58,10 @@ pub struct FileScan {
     pub functions: Vec<FnScan>,
     /// The out-of-line modules (`mod name;`) the file declares.
     pub modules: Vec<ModDecl>,
+    /// Items outside tests declared `pub` where other crates may reach them
+    /// if the file is: outside private inline modules, each name a `pub use`
+    /// exports counted once; modules and methods are not counted.
+    pub public_items: usize,
     /// Doc comment lines, outside tests, that name a legacy function.
     pub legacy_docs: usize,
     /// Uses of [`SHELL_HELPERS`] outside tests.
@@ -156,6 +160,9 @@ pub struct ModDecl {
     pub name: String,
     /// Whether the module is test code.
     pub test_code: bool,
+    /// Whether other crates may reach it from the declaring file: it is
+    /// `pub`, inside inline modules that are.
+    pub public: bool,
 }
 
 /// Scans `file`, whose text has `lines` lines.
@@ -174,6 +181,7 @@ pub fn scan_file(
         test_code,
         trait_impl: false,
         inline: Vec::new(),
+        public: true,
         current: Vec::new(),
         recording: 0,
         scan: FileScan {
@@ -195,6 +203,8 @@ struct Scanner<'n> {
     trait_impl: bool,
     /// The inline modules the walk is inside.
     inline: Vec<String>,
+    /// Whether every inline module the walk is inside is `pub`.
+    public: bool,
     /// Indexes into `scan.functions` of the functions the walk is inside.
     current: Vec<usize>,
     /// How many arguments of `parity.legacy(...)` the walk is inside: legacy
@@ -239,7 +249,10 @@ impl Scanner<'_> {
             self.visit_attribute(attr);
         }
         self.visit_signature(sig);
+        // Items inside a body are never reachable from other crates.
+        let saved_public = std::mem::replace(&mut self.public, false);
         self.visit_block(body);
+        self.public = saved_public;
         self.current.pop();
         self.test_code = saved;
     }
@@ -284,11 +297,13 @@ impl Scanner<'_> {
 impl<'ast> Visit<'ast> for Scanner<'_> {
     fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
         let test_code = self.test_code || is_cfg_test(&item.attrs);
+        let public = self.public && is_public(&item.vis);
         let Some((_, items)) = &item.content else {
             self.scan.modules.push(ModDecl {
                 inline: self.inline.clone(),
                 name: item.ident.to_string(),
                 test_code,
+                public,
             });
             return;
         };
@@ -302,6 +317,7 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
             self.scan.test_lines.push((start, end));
         }
         self.test_code = test_code;
+        let saved_public = std::mem::replace(&mut self.public, public);
         self.inline.push(item.ident.to_string());
         for attr in &item.attrs {
             self.visit_attribute(attr);
@@ -310,7 +326,15 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
             self.visit_item(item);
         }
         self.inline.pop();
+        self.public = saved_public;
         self.test_code = saved;
+    }
+
+    fn visit_item(&mut self, item: &'ast syn::Item) {
+        if self.public && !self.test_code && !is_cfg_test(item_attrs(item)) {
+            self.scan.public_items += public_names(item);
+        }
+        visit::visit_item(self, item);
     }
 
     fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
@@ -543,23 +567,6 @@ fn split_commas(tokens: TokenStream) -> Vec<TokenStream> {
     parts
 }
 
-/// The text of a doc attribute (`///` or `//!`), if `attr` is one.
-fn doc_text(attr: &Attribute) -> Option<String> {
-    let Meta::NameValue(pair) = &attr.meta else {
-        return None;
-    };
-    if !pair.path.is_ident("doc") {
-        return None;
-    }
-    let Expr::Lit(literal) = &pair.value else {
-        return None;
-    };
-    let Lit::Str(text) = &literal.lit else {
-        return None;
-    };
-    Some(text.value())
-}
-
 /// Whether `text` names one of `names` as code: the first word between
 /// backticks, as in "as `luks_open` does".
 pub fn names_legacy_function(text: &str, names: &HashSet<String>) -> bool {
@@ -574,7 +581,11 @@ pub fn names_legacy_function(text: &str, names: &HashSet<String>) -> bool {
 
 mod facts;
 
-use facts::{has_format_message, is_zfs_command, mentions_string};
+use facts::{doc_text, has_format_message, is_zfs_command, mentions_string};
+
+mod public;
+
+use public::{is_public, item_attrs, public_names};
 
 #[cfg(test)]
 mod tests;

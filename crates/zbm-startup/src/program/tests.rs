@@ -1,5 +1,5 @@
 use super::*;
-use zbm_boot::error::BootError;
+use zbm_boot::BootError;
 use zbm_platform::KernelLog;
 use zbm_platform::console::Screen;
 use zbm_platform::exec::{Input, Signal};

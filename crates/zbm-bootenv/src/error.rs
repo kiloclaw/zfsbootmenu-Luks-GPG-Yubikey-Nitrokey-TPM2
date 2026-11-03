@@ -4,6 +4,7 @@
 /// Why a step of a boot environment did not succeed. The step has logged
 /// the details to the kernel log, as the legacy runtime does; the error says
 /// what failed for the code that decides what to do next.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum BootEnvError {
     /// The key of an encryption root could not be loaded.

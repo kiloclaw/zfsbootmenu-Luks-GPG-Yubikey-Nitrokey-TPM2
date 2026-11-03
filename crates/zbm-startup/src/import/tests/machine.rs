@@ -18,7 +18,7 @@ use zbm_types::ImportPolicy;
 use zbm_types::PoolName;
 
 use crate::import::stage;
-use zbm_boot::recovery::Recovery;
+use zbm_boot::Recovery;
 use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID};
 use zbm_testkit::legacy::{LINE_LOG_STUBS, stub_lines};
 use zbm_testkit::redirect::Redirect;
@@ -379,8 +379,8 @@ struct Shell {
 }
 
 impl Recovery for Shell {
-    fn unlock_late(&self) -> Result<(), zbm_boot::error::BootError> {
-        Err(zbm_boot::error::BootError::NoCryptsetup)
+    fn unlock_late(&self) -> Result<(), zbm_boot::BootError> {
+        Err(zbm_boot::BootError::NoCryptsetup)
     }
 
     fn emergency_shell(&self, message: &str) {

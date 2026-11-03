@@ -19,8 +19,8 @@ use std::path::{Path, PathBuf};
 
 use crate::import::{self, Import, ImportSettings};
 use crate::support::{self, Facts};
-use zbm_boot::boot::{self, BootSettings};
-use zbm_boot::recovery::Recovery;
+use zbm_boot::BootSettings;
+use zbm_boot::Recovery;
 use zbm_boot::saved_logs::Destination;
 use zbm_bootenv::hooks;
 use zbm_bootenv::kernels::Kernel;
@@ -147,6 +147,17 @@ impl<'a> Startup<'a> {
         Destination::from_option(value.as_deref())
     }
 
+    /// How to boot, from the options, with `env` for the hooks.
+    fn boot_settings(&self, env: Vec<(String, String)>) -> BootSettings {
+        let mut settings = BootSettings::default()
+            .set_hostid(self.options.set_hostid)
+            .hooks(self.hooks.clone())
+            .save_logs(self.save_logs())
+            .import_policy(self.options.import_policy);
+        settings.env = env;
+        settings
+    }
+
     /// Runs the program. Without the console mode it returns after the stages;
     /// otherwise it returns only after `rounds` rounds of the recovery loop
     /// (never, with `None`).
@@ -166,7 +177,7 @@ impl<'a> Startup<'a> {
         stages: Option<(&System<'_>, &mut dyn Front)>,
     ) -> Option<DatasetName> {
         let _ = self.state.create();
-        boot::mount_efivarfs(&Context::new(self.system), "ro");
+        zbm_boot::mount_efivarfs(&Context::new(self.system), "ro");
 
         let bootfs = match stages {
             Some((system, front)) => {
@@ -316,10 +327,7 @@ impl<'a> Startup<'a> {
         // Clear the screen before a possible passphrase prompt.
         system.console.screen(Screen::Clear);
         // `NO_CACHE=1 load_key`: the countdown tries no key sources.
-        let how = KeyLoad {
-            hooks: &self.hooks,
-            path: BootPath::Countdown,
-        };
+        let how = KeyLoad::new(&self.hooks, BootPath::Countdown);
         let context = Context::new(*system);
         // The screen was cleared before the hooks, whose words stay.
         let interaction = ConsoleInteraction::new(*system).clears_for_keys(false);
@@ -338,20 +346,13 @@ impl<'a> Startup<'a> {
             let selected = zbm_bootenv::select_kernel(&context, &self.state, &filesystem)
                 .unwrap_or_else(|| Kernel::parse(""));
             // 50-import-pools exported BOOTFS in the legacy program.
-            let settings = BootSettings {
-                set_hostid: self.options.set_hostid,
-                hooks: self.hooks.clone(),
-                env: vec![("BOOTFS".to_owned(), bootfs.to_string())],
-                save_logs: self.save_logs(),
-                command_line: None,
-                import_policy: self.options.import_policy,
-            };
+            let settings = self.boot_settings(vec![("BOOTFS".to_owned(), bootfs.to_string())]);
             let shell = self.shell();
             // The boot runs on a clear screen, as the legacy one does once
             // the key is loaded.
             system.console.screen(Screen::ShowCursor);
             system.console.screen(Screen::Clear);
-            boot::kexec_kernel(
+            zbm_boot::kexec_kernel(
                 &context,
                 &interaction,
                 &self.state,
