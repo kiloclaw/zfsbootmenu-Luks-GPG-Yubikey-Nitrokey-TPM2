@@ -3,13 +3,13 @@
 //! start-up program ([`ConsoleFront`]), or the start-up view of the menu,
 //! which `zbm` builds on `zbm-tui` (ROADMAP.md, R5 step 4).
 
+use crate::import::{self, ImportSettings, Imported};
 use zbm_app::model::Event;
-use zbm_boot::import::{self, ImportSettings, Imported};
-use zbm_boot::prompt::Answer;
 use zbm_boot::recovery::Recovery;
 use zbm_platform::System;
 use zbm_platform::console::Screen;
 use zbm_state::State;
+use zbm_tools::console::Answer;
 
 use crate::shell::{Attempt, Shell, zluks_unlock};
 use crate::stages::devices;

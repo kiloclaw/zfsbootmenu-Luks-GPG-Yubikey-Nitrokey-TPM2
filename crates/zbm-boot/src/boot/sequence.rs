@@ -24,9 +24,9 @@ use crate::graphics;
 use crate::hooks;
 use crate::kernels::Kernel;
 use crate::keys::{self, BootPath, Clear, KeyLoad};
-use crate::prompt::{TimedPrompt, colorize};
 use crate::recovery::Recovery;
 use crate::saved_logs::{self, Destination, Saved};
+use zbm_tools::console::{TimedPrompt, colorize};
 
 /// What booting needs besides the kernel.
 #[derive(Clone, Debug, Eq, PartialEq)]

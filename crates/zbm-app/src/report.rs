@@ -27,7 +27,7 @@ use zbm_tools::devices::Devices;
 use zbm_types::KernelCommandLine;
 use zbm_zfs::ZfsText;
 
-use crate::saved_logs::{self, SaveError, stamp};
+use zbm_boot::saved_logs::{self, SaveError, stamp};
 
 /// The TPM device of the resource manager.
 const TPM: &str = "/dev/tpmrm0";

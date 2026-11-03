@@ -1,10 +1,10 @@
-//! The GPUs known to come back after `kexec` (ROADMAP.md #17): handed back
-//! by ZFSBootMenu ([`super::hand_back`]), they started again under the
+//! The GPUs known to come back after `kexec` (ROADMAP.md #17): handed back by
+//! ZFSBootMenu (`zbm_boot::graphics::hand_back`), they started again under the
 //! booted kernel with a working display. Only these get a graphics driver,
-//! unless `zbm.gpu_untested` asks for the others too; a GPU joins the list
-//! once it booted twenty times in a row that way.
+//! unless `zbm.gpu_untested` asks for the others too; a GPU joins the list once
+//! it booted twenty times in a row that way.
 
-use super::{Gpu, QEMU_VGA, VIRTIO};
+use zbm_boot::graphics::{Gpu, QEMU_VGA, VIRTIO};
 
 /// A GPU known to come back: its PCI vendor and device ID, and its name.
 struct Known {

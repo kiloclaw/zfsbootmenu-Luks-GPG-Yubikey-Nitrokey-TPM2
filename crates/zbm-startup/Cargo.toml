@@ -29,6 +29,7 @@ console-mirror = []
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+serde.workspace = true
 zbm-testkit.workspace = true
 
 [lints]

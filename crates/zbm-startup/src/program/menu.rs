@@ -11,12 +11,12 @@ use std::path::Path;
 use zbm_app::session;
 use zbm_boot::boot::BootSettings;
 use zbm_boot::hooks;
-use zbm_boot::prompt::{Answer, TimedPrompt, colorize};
 use zbm_boot::recovery::Recovery;
 use zbm_platform::Signal;
 use zbm_platform::System;
 use zbm_platform::console::Screen;
 use zbm_platform::process::deepest_child;
+use zbm_tools::console::{Answer, TimedPrompt, colorize};
 use zbm_types::HookStage;
 
 use super::{Modes, Startup};

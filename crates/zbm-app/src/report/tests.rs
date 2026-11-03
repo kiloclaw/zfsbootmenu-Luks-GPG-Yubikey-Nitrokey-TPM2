@@ -2,7 +2,7 @@ use zbm_platform::Files as _;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
-use crate::saved_logs::{Destination, MOUNT_POINT};
+use zbm_boot::saved_logs::{Destination, MOUNT_POINT};
 
 /// What must never reach a report: a passphrase, the sealed TPM2 key and
 /// the Clevis JWE of the tokens, and a key slot's salt.

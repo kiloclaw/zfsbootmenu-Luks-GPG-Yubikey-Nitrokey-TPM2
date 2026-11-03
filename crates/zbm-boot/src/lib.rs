@@ -30,16 +30,10 @@ pub mod commandline;
 pub mod error;
 pub mod graphics;
 pub mod hooks;
-pub mod import;
 pub mod kernels;
 pub mod keys;
-pub mod prompt;
 pub mod recovery;
-pub mod report;
-pub mod resume;
 pub mod saved_logs;
-pub mod support;
-pub mod writable;
 
 #[cfg(test)]
 mod testing;

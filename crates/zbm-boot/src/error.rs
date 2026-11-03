@@ -40,28 +40,6 @@ pub enum BootError {
         /// The mount points that stay mounted.
         mounts: Vec<String>,
     },
-    /// The user did not allow a read-write import of a pool that a
-    /// hibernated system may still use.
-    #[error("a read-write import of {pool} was not allowed while a system may be resumed")]
-    ResumeRefused {
-        /// The pool.
-        pool: String,
-    },
-    /// The pool may not be imported read/write: its
-    /// `org.zfsbootmenu:readonly` property forbids it, or it is degraded.
-    #[error("{pool} may not be imported read/write: {reason}")]
-    ReadWriteProhibited {
-        /// The pool.
-        pool: String,
-        /// Why, for people.
-        reason: String,
-    },
-    /// The pool's properties could not be read.
-    #[error("unable to read the properties of {pool}")]
-    PoolProperty {
-        /// The pool.
-        pool: String,
-    },
     /// `cryptsetup` is not in the image.
     #[error("cryptsetup is not available")]
     NoCryptsetup,
@@ -91,15 +69,8 @@ zbm_types::error_codes! {
     Unmount = 605 => "a mount point could not be unmounted":
         "A file system stayed mounted, which can keep its pool from being exported before the \
          boot.",
-    ResumeRefused = 606 => "a read-write import was refused for a hibernated system":
-        "A hibernated system on the pool may still be resumed, and a read-write import could \
-         corrupt it, so the import was declined at the prompt. Resume that system first, or allow \
-         the import, which loses its hibernated state.",
-    ReadWriteProhibited = 607 => "a pool may not be imported read-write":
-        "The pool's org.zfsbootmenu:readonly property is on, or the pool is degraded, so it stays \
-         read-only.",
-    PoolProperty = 608 => "a pool's properties could not be read":
-        "zpool get failed for the pool; it may have been exported meanwhile.",
+    // 606, 607 and 608 are the read-write import's, in zbm-pool
+    // (WRITABLE_CODES).
     NoCryptsetup = 609 => "cryptsetup is not available":
         "The image has no cryptsetup, so LUKS volumes cannot be unlocked. Rebuild it with LUKS \
          support.",

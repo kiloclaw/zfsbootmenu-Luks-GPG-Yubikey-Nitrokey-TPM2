@@ -17,10 +17,11 @@ use zbm_testkit::parity::Parity;
 use zbm_types::ImportPolicy;
 use zbm_types::PoolName;
 
-use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
 use crate::import::stage;
-use crate::recovery::Recovery;
-use crate::testing::{LINE_LOG_STUBS, Redirect, stub_lines};
+use zbm_boot::recovery::Recovery;
+use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID};
+use zbm_testkit::legacy::{LINE_LOG_STUBS, stub_lines};
+use zbm_testkit::redirect::Redirect;
 
 /// The settings of a scenario, as the legacy stage reads its variables. Their
 /// printed form is part of the input of the recordings, so the name and the
@@ -378,8 +379,8 @@ struct Shell {
 }
 
 impl Recovery for Shell {
-    fn unlock_late(&self) -> Result<(), crate::error::BootError> {
-        Err(crate::error::BootError::NoCryptsetup)
+    fn unlock_late(&self) -> Result<(), zbm_boot::error::BootError> {
+        Err(zbm_boot::error::BootError::NoCryptsetup)
     }
 
     fn emergency_shell(&self, message: &str) {

@@ -358,12 +358,7 @@ fn the_loop_runs_the_menu_program_then_the_shell() {
         .filter(|program| program == MENU || program == "/bin/bash")
         .collect();
     assert_eq!(programs, [MENU, "/bin/bash"]);
-    assert!(
-        !fake
-            .console
-            .output_text()
-            .contains(zbm_boot::support::MESSAGE)
-    );
+    assert!(!fake.console.output_text().contains(crate::support::MESSAGE));
 }
 
 /// A session's menu that records whether each round counted down.

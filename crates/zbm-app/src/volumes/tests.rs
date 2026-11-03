@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
-use zbm_boot::prompt::ConsoleInteraction;
 use zbm_luks::device::OpenCheck;
 use zbm_luks::unlocker::Settings;
 use zbm_platform::KernelLog;
@@ -9,6 +8,7 @@ use zbm_platform::interaction::{
     Answer, Asked, Interaction, PromptRequest, SecretRequest, Tell, Wait, WaitRequest,
 };
 use zbm_testkit::fakes::FakeSystem;
+use zbm_tools::console::ConsoleInteraction;
 
 use super::*;
 use crate::read::tests::NoPrompts;

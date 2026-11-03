@@ -26,12 +26,14 @@ pub mod autosize;
 pub mod console;
 pub mod error;
 pub mod front;
-pub use zbm_boot::graphics;
+pub mod graphics;
+pub mod import;
 pub mod preinit;
 pub mod program;
 pub mod shell;
 pub mod stages;
 pub mod step;
+pub mod support;
 pub mod unattended;
 
 #[cfg(test)]

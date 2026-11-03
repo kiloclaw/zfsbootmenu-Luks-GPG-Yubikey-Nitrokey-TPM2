@@ -3,6 +3,7 @@
 //! runs.
 
 use zbm_platform::Runner;
+pub use zbm_pool::writable::is_writable;
 use zbm_types::{DatasetName, PoolName};
 use zbm_zfs::{Stderr, ZfsName, ZfsText};
 
@@ -55,16 +56,6 @@ pub fn locked_root(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName>
         .unwrap_or_default();
     zbm_trace::debug!("{encroot} keystatus: {keystatus}"; %encroot, %keystatus);
     (keystatus == "unavailable").then_some(encroot)
-}
-
-/// Whether `pool` is imported read-write: its `readonly` property is `off`.
-pub fn is_writable(runner: &dyn Runner, pool: &PoolName) -> bool {
-    zbm_trace::debug!("pool set to {pool}"; %pool);
-    let Some(readonly) = ZfsText::new(runner).pool_value(pool, "readonly", Stderr::Hidden) else {
-        return false;
-    };
-    zbm_trace::debug!("{pool} readonly property: {readonly}"; %pool, %readonly);
-    readonly == "off"
 }
 
 /// Exports `pool` with `zpool export`.

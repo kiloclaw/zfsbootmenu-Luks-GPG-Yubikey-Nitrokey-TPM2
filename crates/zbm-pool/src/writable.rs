@@ -6,17 +6,16 @@
 //! system may resume.
 
 use std::path::Path;
-use zbm_types::code::Coded as _;
 
-use zbm_platform::{Context, System};
-use zbm_pool::import::{Access, Import, import_pool};
+use zbm_platform::interaction::Interaction;
+use zbm_platform::{Context, Runner};
 use zbm_state::State;
-use zbm_types::ImportPolicy;
-use zbm_types::PoolName;
+use zbm_types::code::Coded as _;
+use zbm_types::{ImportPolicy, PoolName};
 use zbm_zfs::{Stderr, ZfsText};
 
-use crate::boot::{export_pool, is_writable};
-use crate::error::BootError;
+use crate::error::{PoolError, WritableError};
+use crate::import::{Access, Import, import_pool};
 use crate::resume::resume_prompt;
 
 /// The module parameters set to 0 before a pool is written, as the legacy
@@ -36,13 +35,39 @@ const PARAMETERS: [(&str, &str); 2] = [
 /// The pool property that forbids read/write imports.
 pub const READONLY: &str = "org.zfsbootmenu:readonly";
 
+/// Whether `pool` is imported read-write: its `readonly` property is `off`.
+pub fn is_writable(runner: &dyn Runner, pool: &PoolName) -> bool {
+    zbm_trace::debug!("pool set to {pool}"; %pool);
+    let Some(readonly) = ZfsText::new(runner).pool_value(pool, "readonly", Stderr::Hidden) else {
+        return false;
+    };
+    zbm_trace::debug!("{pool} readonly property: {readonly}"; %pool, %readonly);
+    readonly == "off"
+}
+
+/// Exports `pool` with `zpool export`.
+fn export(runner: &dyn Runner, pool: &PoolName) -> Result<(), PoolError> {
+    zbm_trace::debug!("pool set to {pool}"; %pool);
+    let code = ZfsText::new(runner).export(pool);
+    zbm_trace::debug!("{pool} export process return: {code}"; %pool, %code);
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(PoolError::Export {
+            pool: pool.to_string(),
+            status: code,
+        })
+    }
+}
+
 /// Turns off the module parameters of [`PARAMETERS`] that exist.
-fn disable_risky_writes(system: &System<'_>) {
+fn disable_risky_writes(context: &Context<'_>) {
+    let files = context.files();
     for (parameter, what) in PARAMETERS {
         let path = Path::new(parameter);
-        if system.files.exists(path) {
+        if files.exists(path) {
             zbm_trace::debug!("disabling {what} on writeable pools"; %what);
-            let _ = system.files.write(path, b"0");
+            let _ = files.write(path, b"0");
         }
     }
 }
@@ -52,15 +77,15 @@ fn disable_risky_writes(system: &System<'_>) {
 ///
 /// # Errors
 ///
-/// [`BootError::PoolProperty`] when the property cannot be read.
+/// [`WritableError::PoolProperty`] when the property cannot be read.
 fn prohibition(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     pool: &PoolName,
-) -> Result<Option<String>, BootError> {
-    let flag = ZfsText::new(system.runner)
+) -> Result<Option<String>, WritableError> {
+    let flag = ZfsText::new(context.runner())
         .pool_value(pool, READONLY, Stderr::Console)
-        .ok_or_else(|| BootError::PoolProperty {
+        .ok_or_else(|| WritableError::PoolProperty {
             pool: pool.to_string(),
         })?;
     let pool = pool.as_str();
@@ -86,45 +111,45 @@ fn prohibition(
 
 /// Makes `pool` writable: does nothing when it is imported read/write
 /// already; otherwise, unless a property or its health forbids it, asks
-/// about hibernation where a suspend partition exists, then exports the
-/// pool and imports it read/write with `policy`. When that import fails,
-/// the pool is imported read-only again, as it was.
+/// the resume question through `interaction` where a suspend partition
+/// exists, then exports the pool and imports it read/write with `policy`.
+/// When that import fails, the pool is imported read-only again, as it was.
 ///
 /// # Errors
 ///
-/// [`BootError::ReadWriteProhibited`], [`BootError::PoolProperty`],
-/// [`BootError::ResumeRefused`], [`BootError::Export`] or
-/// [`BootError::Pool`] when the pool stays read-only.
+/// [`WritableError::ReadWriteProhibited`], [`WritableError::PoolProperty`],
+/// [`WritableError::ResumeRefused`], or [`WritableError::Pool`] when the
+/// export or the import fails: the pool stays read-only.
 pub fn set_rw_pool(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     pool: &PoolName,
     policy: ImportPolicy,
-) -> Result<(), BootError> {
+) -> Result<(), WritableError> {
     zbm_trace::debug!("pool set to {pool}"; %pool);
-    disable_risky_writes(system);
-    if is_writable(system.runner, pool) {
+    disable_risky_writes(context);
+    if is_writable(context.runner(), pool) {
         return Ok(());
     }
     zbm_trace::debug!("{pool} is not already writable"; %pool);
-    if let Some(reason) = prohibition(system, state, pool)? {
-        return Err(BootError::ReadWriteProhibited {
+    if let Some(reason) = prohibition(context, state, pool)? {
+        return Err(WritableError::ReadWriteProhibited {
             pool: pool.to_string(),
             reason,
         });
     }
-    let _choice = resume_prompt(system, state, pool)?;
-    export_pool(system.runner, pool)?;
+    let _choice = resume_prompt(context, interaction, state, pool)?;
+    export(context.runner(), pool)?;
     let import = Import::pool(pool).policy(policy);
-    let context = Context::new(*system);
-    let imported = import_pool(&context, state, import.access(Access::ReadWrite));
+    let imported = import_pool(context, state, import.access(Access::ReadWrite));
     zbm_trace::debug!("import_pool: {status}"; status = %i32::from(imported.is_err()));
     if imported.is_err() {
         zbm_trace::warn!(
             "{pool} could not be imported read/write; importing it read-only again";
             %pool
         );
-        if let Err(error) = import_pool(&context, state, import.access(Access::ReadOnly)) {
+        if let Err(error) = import_pool(context, state, import.access(Access::ReadOnly)) {
             zbm_trace::error!(
                 "{pool} could not be imported again: {error}";
                 %pool, %error, error_code = %error.code()

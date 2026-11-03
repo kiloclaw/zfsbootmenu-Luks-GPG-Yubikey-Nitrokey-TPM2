@@ -4,9 +4,11 @@
 //! Each crate gives its error enums codes with
 //! [`error_codes!`](crate::error_codes), in a range of
 //! its own: 02xx `zbm-zfs`, 03xx `zbm-pool`, 04xx `zbm-luks`, 05xx
-//! `zbm-crypt`, 06xx `zbm-boot`, 07xx `zbm-startup`. The macro matches every
-//! variant, so a new variant does not compile without a code. A code is never
-//! given to another error: when an error goes, its number is not used again.
+//! `zbm-crypt`, 06xx `zbm-boot`, 07xx `zbm-startup`. A code moves with its
+//! error: 606 to 608, the read-write import's, are `zbm-pool`'s now. The
+//! macro matches every variant, so a new variant does not compile without a
+//! code. A code is never given to another error: when an error goes, its
+//! number is not used again.
 //!
 //! ```
 //! use zbm_types::code::{Coded, ErrorCode, report};

@@ -5,16 +5,16 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
+use crate::support::{self, Unsupported};
 use zbm_app::auth::{self, Authority};
 use zbm_boot::boot;
 use zbm_boot::error::BootError;
-use zbm_boot::prompt::colorize;
 use zbm_boot::recovery::Recovery;
-use zbm_boot::support::{self, Unsupported};
 use zbm_platform::System;
 use zbm_platform::console::Screen;
 use zbm_platform::dmesg::read_logs;
 use zbm_state::State;
+use zbm_tools::console::colorize;
 use zbm_tools::mount::Mount;
 use zbm_tools::{Shown, programs};
 use zbm_types::Printable;

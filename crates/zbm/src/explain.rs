@@ -17,6 +17,7 @@ Usage: zbm explain           list the error codes
 const TABLES: &[&[Explanation]] = &[
     zbm_app::codes::ZFS_CODES,
     zbm_pool::POOL_CODES,
+    zbm_pool::WRITABLE_CODES,
     zbm_luks::LUKS_CODES,
     zbm_app::codes::CRYPT_CODES,
     zbm_boot::BOOT_CODES,

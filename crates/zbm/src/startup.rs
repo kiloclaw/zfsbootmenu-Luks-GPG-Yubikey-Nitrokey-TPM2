@@ -23,9 +23,9 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Question, Snapshot, Stage, StageState, UnlockOutcome};
+use zbm_app::prompt::retry_delay;
 use zbm_app::session::{self, Handover, SessionSocket};
 use zbm_app::{App, BootError, Recovery, Runtime, Volumes};
-use zbm_boot::prompt::retry_delay;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::{Luks, Settings};

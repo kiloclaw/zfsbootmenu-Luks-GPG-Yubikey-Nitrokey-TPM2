@@ -1,5 +1,5 @@
 //! `zbm report`: a bug report for an issue (ROADMAP.md #9), with no key
-//! material ([`zbm_boot::report`]).
+//! material ([`zbm_app::report`]).
 //!
 //! - `zbm report` writes it on the partition `zbm.save_logs` names, or the
 //!   EFI system partition, below `EFI/zfsbootmenu/reports`, mounting the
@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use zbm_boot::report;
+use zbm_app::report;
 use zbm_boot::saved_logs::Destination;
 use zbm_platform::{NoConsole, RealSystem, System};
 

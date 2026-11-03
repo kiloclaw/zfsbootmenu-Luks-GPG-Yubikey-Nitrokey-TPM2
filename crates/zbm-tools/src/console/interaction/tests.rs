@@ -211,3 +211,33 @@ fn a_heading_without_a_device_is_plain() {
     });
     assert_eq!(fake.console.output_text(), "\nUnlocking the volumes\n");
 }
+
+#[test]
+fn the_resume_question_clears_warns_and_reads_the_answer_typed() {
+    let cases = [
+        ("NORESUME", Resume::Noresume),
+        ("  DANGEROUS\t", Resume::Dangerous),
+        ("noresume", Resume::Refuse),
+        ("", Resume::Refuse),
+    ];
+    for (typed, answer) in cases {
+        let fake = FakeSystem::new();
+        fake.console.line(typed);
+        let request = ResumeRequest { pool: "tank" };
+        assert_eq!(console(&fake).resume(&request), answer, "{typed:?}");
+        assert_eq!(
+            fake.console.screens()[..2],
+            [Screen::Clear, Screen::ShowCursor]
+        );
+        let shown = fake.console.output_text();
+        assert!(shown.starts_with("WARNING!!!\n"), "{shown}");
+        assert!(shown.contains("\n    tank\n"), "{shown}");
+        assert!(shown.ends_with("Proceed [No] ?\n> "), "{shown}");
+    }
+
+    // The input ended: nothing was typed.
+    let fake = FakeSystem::new();
+    fake.console.push(ConsoleInput::End);
+    let request = ResumeRequest { pool: "tank" };
+    assert_eq!(console(&fake).resume(&request), Resume::Refuse);
+}

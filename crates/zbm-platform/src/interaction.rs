@@ -1,6 +1,7 @@
 //! The person at the console, as a port: what domain code asks of them
-//! ([`PromptRequest`], [`SecretRequest`]), waits for ([`WaitRequest`]) and
-//! tells them ([`Tell`]), and the [`Interaction`] front ends implement.
+//! ([`PromptRequest`], [`SecretRequest`], [`ResumeRequest`]), waits for
+//! ([`WaitRequest`]) and tells them ([`Tell`]), and the [`Interaction`]
+//! front ends implement.
 //!
 //! The requests are data a front end can show its own way: the menu answers
 //! them with its dialogs (ROADMAP.md, R5 step 4), the start-up program with
@@ -9,7 +10,7 @@
 use crate::Runner;
 use crate::secret::Secret;
 pub use zbm_types::Answer;
-pub use zbm_types::interaction::{Awaited, PromptRequest, SecretKind, Subject, Told, Wait};
+pub use zbm_types::interaction::{Awaited, PromptRequest, Resume, SecretKind, Subject, Told, Wait};
 
 /// The volume a request is about.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -86,6 +87,14 @@ pub struct WaitRequest<'r> {
     pub present: &'r dyn Fn() -> bool,
 }
 
+/// The resume question, before `pool` is imported read-write while a
+/// suspend partition may hold a hibernated system.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ResumeRequest<'r> {
+    /// The pool.
+    pub pool: &'r str,
+}
+
 /// A message of [`Told`] kind, as plain text, a line without its newline.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Tell<'r> {
@@ -131,6 +140,13 @@ pub trait Interaction: Send + Sync {
     /// Says something along the way.
     fn notify(&self, tell: Tell<'_>);
 
+    /// Asks the resume question. A front end that cannot ask it refuses,
+    /// and the pool stays read-only.
+    fn resume(&self, request: &ResumeRequest<'_>) -> Resume {
+        let _ = request;
+        Resume::Refuse
+    }
+
     /// Runs `run`, whose program needs the console: an interactive key
     /// script, or `fido2-assert` asking for its PIN. A front end that draws
     /// on the console steps aside meanwhile and gives `run` the runner whose
@@ -143,7 +159,7 @@ pub trait Interaction: Send + Sync {
 
 /// No one at the console, for code that must not ask anything, such as a
 /// report: timed prompts are escaped, no secret comes, no device is waited
-/// for, and nothing is said.
+/// for, the resume question is refused, and nothing is said.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NoInteraction;
 
@@ -196,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn no_one_answers_nothing_and_lends_no_console() {
+    fn no_one_answers_nothing_refuses_and_lends_no_console() {
         let volume = VolumeRef {
             name: "root",
             device: "/dev/sda2",
@@ -229,6 +245,10 @@ mod tests {
         assert_eq!(wait(&|| true), Wait::Present);
         assert_eq!(wait(&|| false), Wait::TimedOut);
         NoInteraction.notify(Tell::new(Told::Working, "Unlocking"));
+        assert_eq!(
+            NoInteraction.resume(&ResumeRequest { pool: "tank" }),
+            Resume::Refuse
+        );
         let mut lent = None;
         NoInteraction.lease_console(&mut |runner| lent = Some(runner.is_some()));
         assert_eq!(lent, Some(false));

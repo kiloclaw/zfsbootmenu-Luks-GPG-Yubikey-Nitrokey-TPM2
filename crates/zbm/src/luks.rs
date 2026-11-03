@@ -5,8 +5,8 @@ use std::path::Path;
 use zbm_types::Printable;
 
 use zbm_app::model::{Action, Event, Outcome};
+use zbm_app::prompt::{ConsoleInteraction, colorize};
 use zbm_app::{NO_CRYPTSETUP, Volumes, device_not_found};
-use zbm_boot::prompt::{ConsoleInteraction, colorize};
 use zbm_luks::device::{describe_device, is_block_device, is_open};
 use zbm_luks::tokens::list_tokens;
 use zbm_luks::unlocker::{Luks, Settings, Unlocker};

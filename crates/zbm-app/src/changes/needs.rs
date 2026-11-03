@@ -6,9 +6,10 @@ use std::path::Path;
 
 use zbm_boot::boot::{self as kexec, BootSettings, Noise};
 use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
-use zbm_boot::writable::set_rw_pool;
-use zbm_platform::System;
+use zbm_platform::{Context, System};
+use zbm_pool::writable::set_rw_pool;
 use zbm_state::State;
+use zbm_tools::console::ConsoleInteraction;
 use zbm_types::{DatasetName, FilesystemName, PoolName, SnapshotName};
 
 use crate::model::{Step, StepKind};
@@ -58,7 +59,10 @@ impl Needs for OnMachine<'_, '_> {
             }
             return Err(vec![format!("{pool} is imported read-only")]);
         }
-        set_rw_pool(self.system, self.state, pool, self.settings.import_policy)
+        let context = Context::new(*self.system);
+        let interaction = ConsoleInteraction::new(*self.system);
+        let policy = self.settings.import_policy;
+        set_rw_pool(&context, &interaction, self.state, pool, policy)
             .map_err(|error| causes(&error))
     }
 

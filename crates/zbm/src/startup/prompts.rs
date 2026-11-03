@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Notice, Question, Volume, VolumeState};
-use zbm_boot::prompt::retry_delay;
+use zbm_app::prompt::retry_delay;
 use zbm_platform::Clock;
 use zbm_platform::interaction::{
     Asked, Awaited, SecretKind, SecretRequest, Tell, Told, VolumeRef, WaitRequest,

@@ -1,11 +1,11 @@
 //! Helpers for the tests of this crate.
 
+use crate::import::{ImportSettings, Imported};
 use zbm_app::model::Event;
-use zbm_boot::import::{ImportSettings, Imported};
-use zbm_boot::prompt::Answer;
 use zbm_boot::recovery::Recovery;
 use zbm_platform::System;
 use zbm_state::State;
+use zbm_tools::console::Answer;
 
 use crate::front::Front;
 use crate::step::NoRecovery;

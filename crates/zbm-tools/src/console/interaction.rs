@@ -6,15 +6,16 @@ use std::time::Duration;
 use zbm_platform::System;
 use zbm_platform::console::{Screen, Timed};
 use zbm_platform::interaction::{
-    Asked, Awaited, Interaction, PromptRequest, SecretKind, SecretRequest, Subject, Tell, Told,
-    Wait, WaitRequest,
+    Asked, Awaited, Interaction, PromptRequest, Resume, ResumeRequest, SecretKind, SecretRequest,
+    Subject, Tell, Told, Wait, WaitRequest,
 };
 
 use super::{Answer, TimedPrompt, colorize, retry_delay};
 
 /// The plain console, the [`Interaction`] of a terminal without the menu:
 /// timed prompts as [`TimedPrompt`]s, secrets read with echo off, devices
-/// waited for with a countdown any key stops, and messages in colour.
+/// waited for with a countdown any key stops, messages in colour, and the
+/// resume question as the legacy runtime asked it.
 pub struct ConsoleInteraction<'a> {
     system: System<'a>,
     colors: bool,
@@ -123,6 +124,44 @@ impl<'a> ConsoleInteraction<'a> {
         };
         self.paint("cyan", &text)
     }
+}
+
+/// The warning of the resume question about `pool`, as the legacy runtime
+/// shows it, painted with `paint`.
+fn resume_warning(pool: &str, paint: impl Fn(&str, &str) -> String) -> String {
+    format!(
+        "WARNING!!!
+
+This system appears to have an active suspend partition.
+
+The action you are requesting requires the ZFS pool
+
+    {pool}
+
+be imported read-write. Importing read-write and then resuming
+from an active suspend partition may DESTROY YOUR POOL.
+
+If you choose to proceed, ZFSBootMenu can attempt to remove any
+\"resume=\" arguments from your kernel command line and append a
+\"noresume\" argument to prevent your system from attempting to
+restore from the active suspend partition.
+
+Type {noresume} to proceed with the import, allowing ZFSBootMenu
+to add a \"noresume\" argument to your kernel command line.
+
+Type {dangerous} to proceed with the import without allowing
+ZFSBootMenu to modify your kernel command line. Make sure to
+add the \"noresume\" argument yourself if necessary.
+
+Type any other text, or just press enter, to abort.
+
+Proceed {no} ?
+",
+        pool = paint("red", pool),
+        noresume = paint("green", "NORESUME"),
+        dangerous = paint("red", "DANGEROUS"),
+        no = paint("red", "[No]"),
+    )
 }
 
 /// The heading and the prompt of a secret of `kind`, for the volume on
@@ -241,6 +280,26 @@ impl Interaction for ConsoleInteraction<'_> {
             Told::Touch => self.say(&self.paint("yellow", &line)),
             Told::Refused => self.say(&self.paint("red", &line)),
             Told::Heading => self.heading(tell.text, tell.highlight.unwrap_or_default()),
+        }
+    }
+
+    /// The warning on a clear screen, then the line typed after `> `:
+    /// `NORESUME` or `DANGEROUS`, anything else refuses.
+    fn resume(&self, request: &ResumeRequest<'_>) -> Resume {
+        let console = self.system.console;
+        console.screen(Screen::Clear);
+        console.screen(Screen::ShowCursor);
+        console.screen(Screen::MoveTo { row: 0, column: 0 });
+        self.say(&resume_warning(request.pool, |color, text| {
+            self.paint(color, text)
+        }));
+        // zfsbootmenu-input: `read -r -e -p "> "`, then `echo`
+        self.say("> ");
+        let line = console.read_line().ok().flatten().unwrap_or_default();
+        match line.trim_matches([' ', '\t', '\n']) {
+            "NORESUME" => Resume::Noresume,
+            "DANGEROUS" => Resume::Dangerous,
+            _ => Resume::Refuse,
         }
     }
 }

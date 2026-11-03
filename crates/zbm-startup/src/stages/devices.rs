@@ -5,7 +5,7 @@ use std::path::Path;
 use zbm_platform::System;
 use zbm_types::RetryDelay;
 
-use zbm_boot::prompt::{Answer, TimedPrompt, colorize, retry_delay};
+use zbm_tools::console::{Answer, TimedPrompt, colorize, retry_delay};
 
 /// The fields `IFS=',' read -r -a fields <<< "${text}"` reads: a trailing
 /// empty field is dropped, other empty fields are kept.

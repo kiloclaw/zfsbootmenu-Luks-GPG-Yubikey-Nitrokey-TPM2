@@ -17,15 +17,14 @@ pub mod menu;
 
 use std::path::{Path, PathBuf};
 
+use crate::import::{self, Import, ImportSettings};
+use crate::support::{self, Facts};
 use zbm_boot::boot::{self, BootSettings};
 use zbm_boot::hooks;
-use zbm_boot::import::{self, Import, ImportSettings};
 use zbm_boot::kernels::Kernel;
 use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
-use zbm_boot::prompt::{Answer, TimedPrompt, colorize};
 use zbm_boot::recovery::Recovery;
 use zbm_boot::saved_logs::Destination;
-use zbm_boot::support::{self, Facts};
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
@@ -34,6 +33,7 @@ use zbm_platform::console::Screen;
 use zbm_platform::{Context, Installed, System};
 use zbm_pool::Build;
 use zbm_state::State;
+use zbm_tools::console::{Answer, TimedPrompt, colorize};
 use zbm_tools::programs;
 use zbm_types::{DatasetName, FilesystemName, PoolRequirement};
 use zbm_zfs::{Stderr, ZfsText};

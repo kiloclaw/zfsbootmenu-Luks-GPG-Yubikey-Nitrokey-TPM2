@@ -3,17 +3,17 @@
 //! Importing a pool read-write and then resuming from hibernation, whose
 //! image still holds the pool's old state, can destroy the pool. Before a
 //! read-write import, ZFSBootMenu looks for a suspend partition and, if it
-//! finds one, asks the user whether to go on and whether to add `noresume`
-//! to the boot environment's command line.
+//! finds one, asks the user through the front end's [`Interaction`]
+//! whether to go on and whether to add `noresume` to the boot
+//! environment's command line.
 
-use zbm_platform::System;
-use zbm_platform::console::Screen;
+use zbm_platform::Context;
+use zbm_platform::interaction::{Interaction, Resume, ResumeRequest};
 use zbm_state::State;
 use zbm_tools::devices::Devices;
 use zbm_types::PoolName;
 
-use crate::error::BootError;
-use crate::prompt::colorize;
+use crate::error::WritableError;
 
 /// The partition types of a hibernation image, from dracut's `95resume`
 /// module.
@@ -21,51 +21,14 @@ pub const SUSPEND_TYPES: [&str; 3] = ["suspend", "swsuspend", "swsupend"];
 
 /// Whether a block device holds a hibernation image: a partition of one of
 /// the [`SUSPEND_TYPES`].
-pub fn has_resume_device(system: &System<'_>) -> bool {
+pub fn has_resume_device(context: &Context<'_>) -> bool {
     SUSPEND_TYPES.iter().any(|kind| {
-        let found = Devices::new(system.runner, system.files).has_type(kind);
+        let found = Devices::new(context.runner(), context.files()).has_type(kind);
         if found {
             zbm_trace::debug!("resume device: {kind}"; %kind);
         }
         found
     })
-}
-
-/// The warning shown before a read-write import of `pool`.
-fn warning(pool: &str) -> String {
-    format!(
-        "WARNING!!!
-
-This system appears to have an active suspend partition.
-
-The action you are requesting requires the ZFS pool
-
-    {pool}
-
-be imported read-write. Importing read-write and then resuming
-from an active suspend partition may DESTROY YOUR POOL.
-
-If you choose to proceed, ZFSBootMenu can attempt to remove any
-\"resume=\" arguments from your kernel command line and append a
-\"noresume\" argument to prevent your system from attempting to
-restore from the active suspend partition.
-
-Type {noresume} to proceed with the import, allowing ZFSBootMenu
-to add a \"noresume\" argument to your kernel command line.
-
-Type {dangerous} to proceed with the import without allowing
-ZFSBootMenu to modify your kernel command line. Make sure to
-add the \"noresume\" argument yourself if necessary.
-
-Type any other text, or just press enter, to abort.
-
-Proceed {no} ?
-",
-        pool = colorize("red", pool),
-        noresume = colorize("green", "NORESUME"),
-        dangerous = colorize("red", "DANGEROUS"),
-        no = colorize("red", "[No]"),
-    )
 }
 
 /// Why a read-write import may go ahead as far as hibernation goes.
@@ -76,55 +39,45 @@ pub enum ResumeChoice {
     NoResumeDevice,
     /// The boot environment gets `noresume`, chosen now or before.
     Noresume,
-    /// The user typed `DANGEROUS` and goes on without `noresume`.
+    /// The user chose to go on without `noresume`.
     Dangerous,
 }
 
 /// Whether `pool` may be imported read-write as far as hibernation goes: yes
 /// without a suspend partition, or when the user already chose `noresume`;
-/// otherwise the user decides. `NORESUME` records
-/// the choice in the state directory, so the boot environment's command line
-/// gets `noresume`; `DANGEROUS` goes on without it.
+/// otherwise the user decides, through `interaction`. [`Resume::Noresume`]
+/// records the choice in the state directory, so the boot environment's
+/// command line gets `noresume`; [`Resume::Dangerous`] goes on without it.
 ///
 /// # Errors
 ///
-/// [`BootError::ResumeRefused`] when the user typed neither choice.
+/// [`WritableError::ResumeRefused`] when the user refused.
 pub fn resume_prompt(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     pool: &PoolName,
-) -> Result<ResumeChoice, BootError> {
+) -> Result<ResumeChoice, WritableError> {
     zbm_trace::debug!("pool set to {pool}"; %pool);
-    if !has_resume_device(system) {
+    if !has_resume_device(context) {
         return Ok(ResumeChoice::NoResumeDevice);
     }
     // A noresume already given is never taken back.
     if state.noresume().is_some() {
         return Ok(ResumeChoice::Noresume);
     }
-
-    system.console.screen(Screen::Clear);
-    system.console.screen(Screen::ShowCursor);
-    system.console.screen(Screen::MoveTo { row: 0, column: 0 });
-    let _ = system.console.write(warning(pool.as_str()).as_bytes());
-
-    // zfsbootmenu-input: `read -r -e -p "> "`, then `echo`
-    let _ = system.console.write(b"> ");
-    let line = system
-        .console
-        .read_line()
-        .ok()
-        .flatten()
-        .unwrap_or_default();
-    match line.trim_matches([' ', '\t', '\n']) {
-        "DANGEROUS" => Ok(ResumeChoice::Dangerous),
-        "NORESUME" => {
+    let request = ResumeRequest {
+        pool: pool.as_str(),
+    };
+    match interaction.resume(&request) {
+        Resume::Dangerous => Ok(ResumeChoice::Dangerous),
+        Resume::Noresume => {
             if let Err(error) = state.set_noresume() {
                 zbm_trace::error!("{error}"; %error);
             }
             Ok(ResumeChoice::Noresume)
         }
-        _ => Err(BootError::ResumeRefused {
+        Resume::Refuse => Err(WritableError::ResumeRefused {
             pool: pool.to_string(),
         }),
     }
@@ -138,8 +91,9 @@ mod tests {
     use zbm_platform::exec::{Output, Status};
     use zbm_platform::files::Files;
     use zbm_testkit::fakes::FakeSystem;
-    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, stub_lines};
     use zbm_testkit::{TempDir, parity};
+    use zbm_tools::console::ConsoleInteraction;
 
     fn legacy_core() -> Bash {
         Bash::new()
@@ -173,13 +127,13 @@ mod tests {
     fn suspend_partitions_are_found_by_type() {
         let fake = machine(Some("swsuspend"));
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-        assert!(has_resume_device(&fake.system()));
+        assert!(has_resume_device(&Context::new(fake.system())));
         assert_eq!(
             fake.runner.lines(),
             ["blkid -t TYPE=suspend", "blkid -t TYPE=swsuspend"]
         );
         assert!(fake.kmsg().contains("resume device: swsuspend"));
-        assert!(!has_resume_device(&machine(None).system()));
+        assert!(!has_resume_device(&Context::new(machine(None).system())));
     }
 
     #[test]
@@ -240,7 +194,9 @@ mod tests {
             }
             let state = State::new(&fake.files, "/zfsbootmenu");
             let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-            let rust = resume_prompt(&fake.system(), &state, &crate::testing::name("tank"));
+            let tank = "tank".parse::<PoolName>().unwrap();
+            let interaction = ConsoleInteraction::new(fake.system());
+            let rust = resume_prompt(&Context::new(fake.system()), &interaction, &state, &tank);
             assert_eq!(rust.is_ok(), success, "{case}");
             assert_eq!(
                 fake.files.exists(Path::new("/zfsbootmenu/noresume")),
@@ -251,7 +207,7 @@ mod tests {
             let shown = fake.console.output_text();
             let shown = shown.strip_suffix("> ").unwrap_or(&shown);
             assert_eq!(shown, stdout, "{case}");
-            assert_eq!(crate::testing::stub_lines(&fake.kmsg()), logged, "{case}");
+            assert_eq!(stub_lines(&fake.kmsg()), logged, "{case}");
         }
     }
 }

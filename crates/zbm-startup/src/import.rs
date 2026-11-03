@@ -11,8 +11,8 @@ pub use zbm_pool::import::{Access, Import, Rewind, import_pool, imported_pools};
 pub use zbm_pool::text::{tab_fields, tab_lines};
 pub use zbm_pool::{ImportSettings, Imported, choose_bootfs};
 
-use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
-use crate::recovery::Recovery;
+use zbm_boot::recovery::Recovery;
+use zbm_tools::console::{Answer, TimedPrompt, colorize, retry_delay};
 
 /// The operator of the import stage: the countdown prompts of the start-up
 /// program, and its recovery shell and late LUKS unlocking.

@@ -24,13 +24,15 @@ fn every_code_is_unique_and_in_its_crates_range() {
     numbers.dedup();
     assert_eq!(numbers.len(), all.len(), "a code is used twice");
     // The tables, by crate, and the hundreds each may use.
-    let ranges: [(&[Explanation], u16); 7] = [
+    let ranges: [(&[Explanation], u16); 8] = [
         (zbm_app::codes::ZFS_CODES, 2),
         (zbm_pool::POOL_CODES, 3),
         (zbm_luks::LUKS_CODES, 4),
         (zbm_app::codes::CRYPT_CODES, 5),
         (zbm_boot::BOOT_CODES, 6),
         (zbm_boot::saved_logs::SAVE_CODES, 6),
+        // The read-write import's codes kept zbm-boot's numbers (ADR 0015).
+        (zbm_pool::WRITABLE_CODES, 6),
         (zbm_startup::STARTUP_CODES, 7),
     ];
     for (table, hundreds) in ranges {

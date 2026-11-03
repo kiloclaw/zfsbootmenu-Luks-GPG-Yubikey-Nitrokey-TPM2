@@ -81,7 +81,7 @@ zbm report /media/usb           # ... in a directory
 zbm report LABEL=USB            # ... on another FAT partition
 ```
 
-A report (`zbm_boot::report`) is a directory `zbm-report-<time>` with `report.txt` (versions, `zpool status -P`,
+A report (`zbm_app::report`) is a directory `zbm-report-<time>` with `report.txt` (versions, `zpool status -P`,
 each LUKS header's UUID and its tokens' IDs, types and key slots, whether `/dev/tpmrm0` is there and in lockout,
 and the crash reports' names), `journal.jsonl`, the crash reports and `kernel.log`. It never copies a token's fields
 or anything else of the LUKS header, which hold sealed keys and credentials; a unit test checks that no file of a

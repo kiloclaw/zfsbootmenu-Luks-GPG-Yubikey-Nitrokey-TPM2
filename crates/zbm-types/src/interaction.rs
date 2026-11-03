@@ -125,6 +125,20 @@ impl PromptRequest {
     }
 }
 
+/// The answer to the resume question: a suspend partition may hold a
+/// hibernated system, and importing a pool read-write before that system
+/// resumes can destroy the pool (ADR 0015).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use]
+pub enum Resume {
+    /// Go on, and give the boot environment `noresume`.
+    Noresume,
+    /// Go on without `noresume`: the user adds it where needed.
+    Dangerous,
+    /// Keep the pool read-only.
+    Refuse,
+}
+
 /// How waiting for a device ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[must_use]
