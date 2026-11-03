@@ -2,7 +2,7 @@
 //!
 //! The kernels are the files `/boot/{vmlinux,vmlinuz,linux,linuz,kernel}` and
 //! `/boot/<name>-*` of the mounted boot environment, in the order `sort -V`
-//! gives their paths, each with the first initramfs [`find_initramfs`] finds;
+//! gives their paths, each with the first initramfs `find_initramfs` finds;
 //! kernels without an initramfs are left out. The default kernel is the last
 //! one, or the last one whose path matches the regular expression in
 //! `org.zfsbootmenu:kernel`.

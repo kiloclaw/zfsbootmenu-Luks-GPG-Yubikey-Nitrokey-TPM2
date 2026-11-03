@@ -1,8 +1,8 @@
 //! Logs saved on the EFI system partition (`zbm.save_logs`, ROADMAP.md #9):
 //! the runtime journal, the crash reports and the kernel log of a boot,
 //! which the memory file system loses at `kexec` or a restart, go to a
-//! directory named for the time below [`DIRECTORY`] on the ESP, and the
-//! newest [`KEEP`] of them stay.
+//! directory named for the time below `EFI/zfsbootmenu/logs` on the ESP,
+//! and the newest five of them stay.
 //!
 //! The partition is mounted only for the write. It is the one `zbm.save_logs`
 //! names (`PARTUUID=...`, `LABEL=...` or a device path), or the one the boot
@@ -319,7 +319,7 @@ fn state_files(files: &dyn Files, base: &Path) -> Vec<String> {
 
 /// Saves the journal and the crash reports of the state directory `base`
 /// and the kernel log to `destination`, in a new directory, and removes the
-/// oldest saved boots but [`KEEP`].
+/// oldest saved boots but the newest five.
 ///
 /// # Errors
 ///
