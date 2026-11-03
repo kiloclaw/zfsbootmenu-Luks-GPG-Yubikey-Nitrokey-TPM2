@@ -547,29 +547,30 @@ Virtual-machine tests with the Rust runtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The same tests, with images built with ``zfsbootmenu_runtime="rust"``, the default of the harness since 27 October
-2026, with KVM (``ZBMTEST_ACCEL=kvm``), in four lanes at a time: on 27 October 2026 at the commits from ``632e0c85``
-to ``c1cd05c2``, then for the fixes of the bug review at ``bd19d252``, and on 28 October 2026, all of them, at
-``ec817dde``, which adds the security hardening of phase 0 (SE2, SE3, SE8, PM5) and the RustCrypto hashes (SE7,
-CD3). The images were rebuilt for each run, and the durations include building them. The build container image was
-the same as above. The ``oldzfs`` tests used an image that ``tests/luks/vm/old-image.sh`` built on Ubuntu 24.04 (Linux
-6.8.0-147, OpenZFS 2.2.2); they did not run again after 27 October, and their rows are of the earlier run. The table
-lists the last run of each test; durations are with KVM, which is several times faster than the software emulation of
-the table above. Once, at ``9ef915a3``, ``runtime-rust-console`` found the console's mirror empty on the virtio
-display; it passed at ``b3439ca2`` and ``ec817dde``, and the test now keeps the boot's saved kernel log
-(``virtio-kernel.log``) should it happen again.
+2026, with KVM (``ZBMTEST_ACCEL=kvm``), in four lanes at a time. Earlier full runs passed on 27 October 2026, at the
+commits from ``632e0c85`` to ``c1cd05c2``, and on 28 October 2026 at ``ec817dde``. The table is of the run of 1 to 3
+November 2026, after the image plan in Rust (SB8), the host tools as one crate (DM10) and the EFI image without
+``objcopy`` (CD12): the groups ``layouts``, ``complex``, ``keys``, ``firmware``, ``procedures``, ``secrets`` and
+``integrity`` passed at ``4c601d77``, on images rebuilt for that run, whose durations include building them; the
+``runtime`` group passed at ``8f349b72``, on images built at ``745674cf`` (the commits between change only the
+harness), whose durations do not. The run found the problems listed below as of November 2026, each fixed before its
+test's last run. The build container image was the same as above. The ``oldzfs`` tests did not run (no older image in
+the work directory); their rows are of the run of 27 October, with an image that ``tests/luks/vm/old-image.sh`` built
+on Ubuntu 24.04 (Linux 6.8.0-147, OpenZFS 2.2.2). Durations are with KVM, which is several times faster than the
+software emulation of the table above.
 
 ================================  ======  ======  ========
 Test                              Passed  Failed  Duration
 ================================  ======  ======  ========
-``layouts-main-rust``             44      0       10 min
+``layouts-main-rust``             44      0       8 min
 ``layouts-parity-rust``           37      0       8 min
 ``layouts-parity-oldzfs-rust``    16      0       2 min
 ``complex-setup-rust``            19      0       4 min
-``complex-healthy-rust``          37      0       3 min
+``complex-healthy-rust``          37      0       4 min
 ``complex-crypttab-rust``         36      0       6 min
 ``complex-degraded-rust``         30      0       4 min
 ``complex-hotplug-rust``          36      0       4 min
-``complex-hotplug-auto-rust``     36      0       6 min
+``complex-hotplug-auto-rust``     36      0       4 min
 ``complex-badkey-rust``           4       0       3 min
 ``complex-skip-recover-rust``     40      0       4 min
 ``complex-oldzfs-rust``           4       0       4 min
@@ -578,37 +579,45 @@ Test                              Passed  Failed  Duration
 ``keys-native-rust``              13      0       3 min
 ``keys-lockout-rust``             13      0       3 min
 ``keys-notpm-rust``               13      0       3 min
-``firmware-setup-rust``           3       0       2 min
-``firmware-boot-rust``            14      0       2 min
+``firmware-setup-rust``           3       0       4 min
+``firmware-boot-rust``            14      0       3 min
 ``firmware-usbkey-rust``          14      0       3 min
-``firmware-usblate-rust``         14      0       2 min
-``firmware-nostick-rust``         14      0       2 min
-``procedures-rust``               78      0       13 min
-``secrets-setup-rust``            2       0       2 min
-``secrets-passphrase-rust``       4       0       3 min
-``secrets-keyfile-rust``          4       0       3 min
-``runtime-setup``                 4       0       3 min
+``firmware-usblate-rust``         14      0       3 min
+``firmware-nostick-rust``         14      0       3 min
+``procedures-rust``               78      0       15 min
+``runtime-setup``                 4       0       1 min
 ``runtime-rust``                  15      0       3 min
-``runtime-rust-hostid``           15      0       3 min
-``runtime-rust-strict``           2       0       2 min
-``runtime-rust-force``            3       0       2 min
-``runtime-rust-prefer``           16      0       3 min
-``runtime-rust-late``             15      0       3 min
-``runtime-rust-waitfor``          15      0       3 min
-``runtime-rust-hooks``            13      0       3 min
-``runtime-rust-signals``          3       0       2 min
-``runtime-rust-keysource``        4       0       2 min
-``runtime-rust-pilot``            7       0       2 min
+``runtime-rust-hostid``           15      0       1 min
+``runtime-rust-strict``           2       0       1 min
+``runtime-rust-force``            3       0       1 min
+``runtime-rust-prefer``           16      0       1 min
+``runtime-rust-late``             15      0       1 min
+``runtime-rust-waitfor``          15      0       1 min
+``runtime-rust-hooks``            13      0       1 min
+``runtime-rust-signals``          6       0       1 min
+``runtime-rust-keysource``        4       0       1 min
+``runtime-rust-keyfile``          7       0       1 min
 ``runtime-rust-crash``            7       0       2 min
-``runtime-rust-autosize``         9       0       4 min
-``runtime-rust-colours``          5       0       2 min
+``runtime-rust-autosize``         9       0       5 min
+``runtime-rust-colours``          5       0       3 min
 ``runtime-rust-drm``              12      0       3 min
-``runtime-rust-console``          23      0       13 min
+``runtime-rust-console``          27      0       17 min
 ``runtime-rust-console-start``    16      0       12 min
 ``runtime-rust-console-comfort``  12      0       18 min
-``runtime-rust-saved``            36      0       3 min
-``runtime-rust-gpu``              25      0       3 min
-Total                             804     0
+``runtime-rust-console-serial``   10      0       1 min
+``runtime-rust-console-lines``    10      0       1 min
+``runtime-rust-saved``            37      0       1 min
+``runtime-rust-gpu``              25      0       4 min
+``secrets-setup-rust``            2       0       4 min
+``secrets-passphrase-rust``       5       0       3 min
+``secrets-keyfile-rust``          5       0       3 min
+``integrity-setup-rust``          4       0       3 min
+``integrity-unattended-rust``     22      0       9 min
+``integrity-lockdown-rust``       2       0       3 min
+``integrity-measured-rust``       14      0       3 min
+``integrity-hookroot-rust``       22      0       6 min
+``integrity-locked-rust``         22      0       4 min
+Total                             920     0
 ================================  ======  ======  ========
 
 Problems found and fixed
@@ -650,6 +659,25 @@ Each fix of ZFSBootMenu's code has a regression test that fails without it.
   size is not a multiple of 4 KiB; the example now says to give the partition a size in MiB. Example 7 said that
   ``zpool add`` needs ``-f`` for a special mirror on a RAIDZ pool; OpenZFS 2.4 accepts a mirror whose redundancy
   matches the parity level without it.
+
+* November 2026, with the Rust runtime: on the build container's Ubuntu 26.10, whose coreutils are uutils' (one
+  program, with a hard link for each command), the image plan planned the multi-call program again for each command,
+  after the links already made to it; the dracut and mkinitcpio shims ignored the links they could not make, and the
+  image had only the last command planned: ``zfs create`` failed in ``layouts-main`` for want of ``head``. The plan
+  now gives the program once, before its first link, and a link the shims cannot make stops the build.
+* ``zluks open --journal`` wrote nothing to its journal: the keyholder's kernel log took the events of its thread,
+  which no longer reached the program's journal (``runtime-rust-keyfile``). The kernel log now keeps the program's
+  journal and standard error; with two journals under one subscriber, a span's fields are recorded once for both.
+* ``TERM=dumb`` on the kernel command line did not show the menu as lines (UI8): the image's ``/etc/profile``
+  exported ``TERM=linux`` before the start-up program read it (``runtime-rust-console-lines``). The Rust runtime's
+  profile now leaves a dumb terminal as it is.
+* The console on the display, run as its own user, was refused ``getgroups`` by its seccomp filter, once each time it
+  started: it reads its credentials for the peers of its control socket (``runtime-rust-console``). The call is now
+  one of its own.
+* The harness's own checks: ``runtime-rust-console-lines`` now imports the pool of another host with
+  ``zbm.import_policy=force`` and checks the boot environment ZFSBootMenu boots, and its marker of a failed check is
+  no longer in the line it types; ``runtime-rust-signals`` waits for the shell's prompt after the menu that the
+  session serves, which dropped the keys typed before it ended.
 
 Observations
 ~~~~~~~~~~~~
