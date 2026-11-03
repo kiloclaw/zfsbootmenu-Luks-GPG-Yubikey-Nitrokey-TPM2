@@ -41,13 +41,14 @@ fn a_crate_may_not_depend_on_a_higher_layer() {
 
 #[test]
 fn same_layer_edges_must_be_listed() {
-    let listed = package("zbm-boot", &[("zbm-pool", DependencyKind::Normal, true)]);
-    let unlisted = package("zbm-pool", &[("zbm-boot", DependencyKind::Normal, true)]);
+    let listed = package("zbm-boot", &[("zbm-bootenv", DependencyKind::Normal, true)]);
+    // ADR 0015: zbm-boot reaches pools through zbm-bootenv alone.
+    let unlisted = package("zbm-boot", &[("zbm-pool", DependencyKind::Normal, true)]);
 
     assert_eq!(problems_of(&listed), Vec::<String>::new());
     assert_eq!(
         problems_of(&unlisted),
-        ["zbm-pool -> zbm-boot: same layer, and not listed in SAME_LAYER"]
+        ["zbm-boot -> zbm-pool: same layer, and not listed in SAME_LAYER"]
     );
 }
 
