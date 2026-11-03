@@ -1,7 +1,7 @@
 use pretty_assertions::assert_eq;
 
 use super::*;
-use crate::testing::{checks, cleanup, settings};
+use crate::testing::{Step, checks, cleanup, scripted, settings};
 
 const STATUS: &str = "SigBlk:\t0000000000000000\nSigIgn:\t0000000000384004\n\
                       SigCgt:\t000000004b813efb\n";
@@ -139,4 +139,41 @@ fn the_hook_is_the_script_of_the_python_harness() {
         "read -r l < /zfsbootmenu/zbmtest-fzf-sig 2>/dev/null; echo \"${l}\"; \
          grep -E '^Sig(Blk|Ign|Cgt)' /proc/$$/status"
     );
+}
+
+#[test]
+fn the_shell_is_typed_to_only_once_the_remote_menu_ended() {
+    let settings = settings("runtime-signals-remote");
+    let test = Test::new(&settings, "runtime-rust-signals").unwrap();
+    // The menu's terminal keys drop what they read and did not use: a line
+    // typed before the shell's prompt is lost.
+    let script = vec![
+        Step::Hear("clear; zfsbootmenu"),
+        Step::Say("\x1b[H\x1b[2JBOOT ENVIRONMENTS\r\n"),
+        Step::Keys("!"),
+        Step::Keys("\r"),
+        Step::Quiet(500),
+        Step::Say("\x1b[H\x1b[2Jzbm# "),
+        Step::Hear("grep -c 'a remote menu attached' /zfsbootmenu/journal.jsonl; echo RC=$?"),
+        Step::Say("1\r\nRC=0\r\nzbm# "),
+        Step::Hear(
+            "grep -c 'the menu is confined: no new privileges, seccomp' \
+             /zfsbootmenu/journal.jsonl; echo RC=$?",
+        ),
+        Step::Say("1\r\nRC=0\r\nzbm# "),
+        Step::Hear("dmesg | grep -c 'type=1326'; echo RC=$?"),
+        Step::Say("0\r\nRC=0\r\nzbm# "),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+
+    remote_menu(&mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let checks = checks(&test);
+    assert_eq!(checks.len(), 2, "{checks:?}");
+    assert!(
+        checks.iter().all(|check| check.starts_with("ok")),
+        "{checks:?}"
+    );
+    cleanup(&settings);
 }

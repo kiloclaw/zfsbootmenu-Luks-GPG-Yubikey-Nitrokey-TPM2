@@ -32,6 +32,9 @@ pub const SHELL_PROMPTS: [&str; 6] = [
     r"RC=(\d+)\r*\n",
 ];
 
+/// The prompt of the recovery shell once [`Vm::shell_ready`] set it.
+pub const PROMPT: &str = "zbm# ";
+
 /// How to run a command in the recovery shell.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Sh {
@@ -354,10 +357,10 @@ impl<'t> Vm<'t> {
     /// When the shell does not appear.
     pub fn shell_ready(&mut self) -> Result<()> {
         // A shell prepared before shows its own prompt.
-        self.expect(&["zfsbootmenu", "zbm# "], 600)?;
+        self.expect(&["zfsbootmenu", PROMPT], 600)?;
         thread::sleep(Duration::from_secs(3));
         self.sendline(&format!(
-            "stty -echo cols {SHELL_COLUMNS}; export PS1='zbm# ' PS2=''"
+            "stty -echo cols {SHELL_COLUMNS}; export PS1='{PROMPT}' PS2=''"
         ))?;
         // The terminal stays that wide after the shell: a menu opened from
         // it, or after it, draws in 250 columns.
@@ -541,7 +544,7 @@ pub fn shell_output(before: &str) -> String {
     let lines: Vec<&str> = before
         .split('\n')
         .filter(|line| !line.trim().is_empty() && line.trim() != "zbm#")
-        .map(|line| line.strip_prefix("zbm# ").unwrap_or(line))
+        .map(|line| line.strip_prefix(PROMPT).unwrap_or(line))
         .collect();
     lines.join("\n")
 }

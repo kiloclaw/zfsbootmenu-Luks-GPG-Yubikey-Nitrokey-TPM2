@@ -23,6 +23,9 @@ pub enum Step {
     Keys(&'static str),
     /// The guest is busy for this many milliseconds.
     Pause(u64),
+    /// The guest waits this many milliseconds, in which nothing must be
+    /// typed: the harness is to wait for what the guest prints next.
+    Quiet(u64),
 }
 
 /// A guest playing a script on the other end of a console.
@@ -52,6 +55,11 @@ impl Guest {
                         }
                     }
                     Step::Pause(ms) => thread::sleep(Duration::from_millis(ms)),
+                    Step::Quiet(ms) => {
+                        if let Some(typed) = typed_within(&mut reader, ms) {
+                            mismatches.push(format!("typed {typed:?} while it was to wait"));
+                        }
+                    }
                     Step::Keys(expected) => {
                         let mut keys = vec![0; expected.len()];
                         reader.read_exact(&mut keys).unwrap();
@@ -71,6 +79,24 @@ impl Guest {
     pub fn finish(self) -> Vec<String> {
         self.thread.join().unwrap()
     }
+}
+
+/// What is typed on `reader` within `ms` milliseconds, if anything.
+fn typed_within(reader: &mut BufReader<UnixStream>, ms: u64) -> Option<String> {
+    if !reader.buffer().is_empty() {
+        return Some(String::from_utf8_lossy(reader.buffer()).into_owned());
+    }
+    reader
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(ms.max(1))))
+        .unwrap();
+    let mut bytes = [0; 256];
+    let typed = match reader.read(&mut bytes) {
+        Ok(count @ 1..) => Some(String::from_utf8_lossy(bytes.get(..count)?).into_owned()),
+        _ => None,
+    };
+    reader.get_ref().set_read_timeout(None).unwrap();
+    typed
 }
 
 /// A machine that is a console with `script` played on its other end.

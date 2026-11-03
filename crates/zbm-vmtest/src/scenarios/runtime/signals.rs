@@ -254,49 +254,18 @@ const REFUSED: &str = "dmesg | grep -c 'type=1326'";
 /// How many times the session served a menu, in its journal.
 const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.jsonl";
 
-/// What the recovery shell starts in the background before `zfsbootmenu`:
-/// 45 seconds later, once the remote menu ended, each thread of every
-/// process but the kernel's: its state, group, session, terminal, the
-/// terminal's foreground group (`stat`), where it waits (`wchan`) and the
-/// call it is in with its arguments (`syscall`); then every descriptor open
-/// on a terminal, the serial terminal's modes, and the shell's own
-/// descriptors (`fdinfo`). For the serial log, in case the shell no longer
-/// answers. Files are read with `cat`, never with `<`: brush gives up the
-/// whole command line when a redirection fails, as one does for a thread or
-/// a descriptor gone since the glob listed it.
-const PROCESS_PROBE: &str = "(sleep 45; for t in /proc/[0-9]*/task/[0-9]*; do \
-    s=$(cat \"$t/stat\" 2>/dev/null); [ -n \"$s\" ] || continue; set -- $s; \
-    [ \"$4\" = 2 ] && continue; [ \"$1\" = 2 ] && continue; \
-    w=$(cat \"$t/wchan\" 2>/dev/null); c=$(cat \"$t/syscall\" 2>/dev/null); \
-    echo \"ZBMTEST-PS $1 $2 $3 ppid=$4 pgrp=$5 sid=$6 tty=$7 tpgid=$8 | $w | $c\"; done; \
-    for d in /proc/[0-9]*/fd/*; do l=$(readlink \"$d\" 2>/dev/null); \
-    case \"$l\" in /dev/tty*|/dev/console|/dev/pts/*) echo \"ZBMTEST-FD $d $l\";; esac; done; \
-    stty -a -F /dev/ttyS0 2>&1 | while read -r l; do echo \"ZBMTEST-STTY $l\"; done; \
-    for i in /proc/$$/fdinfo/*; do cat \"$i\" 2>/dev/null | while read -r l; do \
-    echo \"ZBMTEST-FDINFO ${i##*/} $l\"; done; done) &";
-
-/// The shell's own descriptors before `zfsbootmenu`, as the probe prints
-/// them after: their flags, and the descriptors each epoll set of its
-/// terminal library waits on (`tfd:`). Read with `cat`, as the probe does.
-const SHELL_DESCRIPTORS: &str = "for i in /proc/$$/fdinfo/*; do cat \"$i\" 2>/dev/null | \
-    while read -r l; do echo \"${i##*/} $l\"; done; done";
-
-/// The serial terminal's modes, as the shell's programs get them, before
-/// `zfsbootmenu`.
-const TERMINAL_MODES: &str = "stty -a -F /dev/ttyS0";
-
 /// Runs `zfsbootmenu` from the recovery shell: the session serves it the
 /// menu (ROADMAP.md, PM10), which shows on the shell's terminal, and its
 /// recovery shell ends it, back to this one.
 fn remote_menu(vm: &mut Vm<'_>) -> Result<()> {
     vm.test()
         .step("recovery shell -> zfsbootmenu: the session serves the menu");
-    vm.sh_show(TERMINAL_MODES)?;
-    vm.sh_show(SHELL_DESCRIPTORS)?;
-    vm.sendline(PROCESS_PROBE)?;
     vm.sendline("clear; zfsbootmenu")?;
     vm.expect1(crate::boot::prompt::NEW_MENU, 120)?;
     crate::boot::ask_menu_for_shell(vm)?;
+    // The shell's prompt, once the menu ended: a line typed before goes to
+    // the menu, whose terminal keys drop what it read and did not use.
+    vm.expect1(crate::vm::PROMPT, 120)?;
     let (_, served) = vm.sh(SERVED)?;
     let served = served.trim().parse::<u32>().unwrap_or(0);
     vm.test().check(
