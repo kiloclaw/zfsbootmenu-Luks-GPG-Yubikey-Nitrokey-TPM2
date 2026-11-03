@@ -255,7 +255,7 @@ impl Unlocker<'_> {
         let device = volume.device;
         let elsewhere = || self.is_device_open(device);
         let request = SecretRequest {
-            volume,
+            subject: volume.into(),
             kind: SecretKind::Passphrase,
             attempt: u32::try_from(attempt).unwrap_or(u32::MAX),
             tries: (tries > 0).then(|| u32::try_from(tries).unwrap_or(u32::MAX)),

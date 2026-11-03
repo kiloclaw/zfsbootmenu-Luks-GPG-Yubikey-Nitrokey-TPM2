@@ -12,7 +12,7 @@ use zbm_platform::interaction::{Answer, Awaited, PromptRequest, SecretKind, Told
 use super::VERSION;
 use super::values::{
     awaited, event, flag, inner, number, optional, owned, prompt, read_awaited, read_event,
-    read_prompt, read_secret_kind, secret_kind, told_name,
+    read_prompt, read_secret_kind, read_told, secret_kind, told_name,
 };
 use crate::model::{Action, Event};
 use crate::wire::{message, text};
@@ -428,9 +428,7 @@ fn read_wait_ask(object: &Map<String, Value>) -> Option<WaitAsk> {
 
 /// The notice in `object`.
 fn read_notice(object: &Map<String, Value>) -> Option<Notice> {
-    let told = [Told::Working, Told::Touch, Told::Refused, Told::Heading]
-        .into_iter()
-        .find(|told| text(object, "told") == Some(told_name(*told)))?;
+    let told = read_told(text(object, "told")?)?;
     Some(Notice {
         told,
         text: owned(object, "text")?,

@@ -188,7 +188,7 @@ impl Unlocker<'_> {
             return None;
         }
         let request = SecretRequest {
-            volume,
+            subject: volume.into(),
             kind: SecretKind::CardPin { serial, left },
             attempt,
             tries: Some(GPG_TRIES),
@@ -213,7 +213,7 @@ impl Unlocker<'_> {
             SecretKind::KeyFilePassphrase(file.to_owned())
         };
         let request = SecretRequest {
-            volume,
+            subject: volume.into(),
             kind,
             attempt,
             tries: Some(GPG_TRIES),

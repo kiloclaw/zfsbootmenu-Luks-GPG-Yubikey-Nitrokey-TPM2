@@ -7,7 +7,7 @@ use zbm_platform::System;
 use zbm_platform::console::{Screen, Timed};
 use zbm_platform::interaction::{
     Asked, Awaited, Interaction, PromptRequest, Resume, ResumeRequest, SecretKind, SecretRequest,
-    Subject, Tell, Told, Wait, WaitRequest,
+    SecretSubject, Subject, Tell, Told, Wait, WaitRequest,
 };
 
 use super::{Answer, TimedPrompt, colorize, retry_delay};
@@ -15,7 +15,8 @@ use super::{Answer, TimedPrompt, colorize, retry_delay};
 /// The plain console, the [`Interaction`] of a terminal without the menu:
 /// timed prompts as [`TimedPrompt`]s, secrets read with echo off, devices
 /// waited for with a countdown any key stops, messages in colour, and the
-/// resume question as the legacy runtime asked it.
+/// questions of booting (a ZFS key, the resume question, a failed boot) as
+/// the legacy runtime asked them.
 pub struct ConsoleInteraction<'a> {
     system: System<'a>,
     colors: bool,
@@ -75,12 +76,35 @@ impl<'a> ConsoleInteraction<'a> {
         secret.into()
     }
 
-    /// The passphrase prompt of a volume: its description, a note when the
-    /// last passphrase was wrong, then the passphrase, read while noticing
-    /// an unlock performed elsewhere (`zluks` over SSH).
-    fn passphrase(&self, request: &SecretRequest<'_>) -> Asked {
+    /// The key of the ZFS encryption root `root`, of `kind`, as `zfs
+    /// load-key` asks for it on a terminal: on a clear screen at the first
+    /// attempt, and after `zfs`'s own message about a wrong key at the next.
+    fn zfs_key(&self, root: &str, kind: &SecretKind, attempt: u32) -> Asked {
+        if attempt <= 1 {
+            let console = self.system.console;
+            console.screen(Screen::Clear);
+            console.screen(Screen::MoveTo { row: 0, column: 0 });
+        }
+        let what = match kind {
+            SecretKind::HexKey => "hex key",
+            SecretKind::RawKey => "raw key",
+            SecretKind::Passphrase
+            | SecretKind::Tpm2Pin
+            | SecretKind::Fido2Pin
+            | SecretKind::YubiKeyPassphrase(_)
+            | SecretKind::KeyFilePassphrase(_)
+            | SecretKind::SecretKeyPassphrase(_)
+            | SecretKind::CardPin { .. } => "passphrase",
+        };
+        self.read_secret(&format!("Enter {what} for '{root}':"))
+    }
+
+    /// The passphrase prompt of the volume on `device`: its description, a
+    /// note when the last passphrase was wrong, then the passphrase, read
+    /// while noticing an unlock performed elsewhere (`zluks` over SSH).
+    fn passphrase(&self, request: &SecretRequest<'_>, device: &str) -> Asked {
         let console = self.system.console;
-        let description = request.description.unwrap_or(request.volume.device);
+        let description = request.description.unwrap_or(device);
         console.set_echo(false);
         self.system.console.screen(Screen::ShowCursor);
         self.say("\n");
@@ -166,11 +190,12 @@ Proceed {no} ?
 
 /// The heading and the prompt of a secret of `kind`, for the volume on
 /// `device`; `None` for the volume's passphrase, which has a prompt of its
-/// own ([`ConsoleInteraction::passphrase`]).
+/// own ([`ConsoleInteraction::passphrase`]), and for the keys of encryption
+/// roots, which no volume asks for.
 fn secret_prompt(kind: &SecretKind, device: &str) -> Option<(Option<String>, String)> {
     const OTHER: &str = "leave empty to use another method";
     Some(match kind {
-        SecretKind::Passphrase => return None,
+        SecretKind::Passphrase | SecretKind::HexKey | SecretKind::RawKey => return None,
         SecretKind::Tpm2Pin => (
             Some(format!("Unlock {device} with the TPM")),
             format!("TPM2 PIN ({OTHER}): "),
@@ -199,26 +224,36 @@ fn secret_prompt(kind: &SecretKind, device: &str) -> Option<(Option<String>, Str
 
 impl Interaction for ConsoleInteraction<'_> {
     /// The timed prompt; a skipped device or a retry leaves the screen clear
-    /// with the cursor on, as the legacy unlock loop leaves it.
+    /// with the cursor on, as the legacy unlock loop leaves it. A failed
+    /// boot's says what failed and counts down to the menu, as the legacy
+    /// `kexec_kernel` does.
     fn ask(&self, request: &PromptRequest) -> Answer {
         let mut prompt = TimedPrompt::new();
         if let Some(delay) = request.delay {
             prompt = prompt.delay(retry_delay(delay));
         }
-        let answer = prompt
-            .message(colorize("red", &request.message))
-            .on_return(&request.on_return)
-            .on_escape(&request.on_escape)
-            .prompt(|seconds| {
-                format!(
-                    "Retrying in {} seconds",
-                    colorize("yellow", &format!("{seconds:02}"))
-                )
-            })
-            .run(&self.system);
+        let prompt = prompt.message(colorize("red", &request.message));
+        let answer = match &request.subject {
+            Subject::LoadFailed { kernel, initramfs } => prompt
+                .message(colorize("orange", kernel))
+                .message(colorize("orange", initramfs))
+                .run(&self.system),
+            Subject::KexecFailed { .. } => prompt.run(&self.system),
+            Subject::Retry { .. } | Subject::Missing(_) => prompt
+                .on_return(&request.on_return)
+                .on_escape(&request.on_escape)
+                .prompt(|seconds| {
+                    format!(
+                        "Retrying in {} seconds",
+                        colorize("yellow", &format!("{seconds:02}"))
+                    )
+                })
+                .run(&self.system),
+        };
         let clear = match request.subject {
             Subject::Retry { .. } => true,
             Subject::Missing(_) => answer == Answer::Escape,
+            Subject::LoadFailed { .. } | Subject::KexecFailed { .. } => false,
         };
         if clear {
             self.system.console.screen(Screen::ShowCursor);
@@ -228,9 +263,14 @@ impl Interaction for ConsoleInteraction<'_> {
     }
 
     fn secret(&self, request: &SecretRequest<'_>) -> Asked {
-        let device = request.volume.device;
+        let device = match request.subject {
+            SecretSubject::EncryptionRoot(root) => {
+                return self.zfs_key(root, &request.kind, request.attempt);
+            }
+            SecretSubject::Volume(volume) => volume.device,
+        };
         let Some((heading, prompt)) = secret_prompt(&request.kind, device) else {
-            return self.passphrase(request);
+            return self.passphrase(request, device);
         };
         if let Some(heading) = heading {
             self.heading(&heading, device);
@@ -280,7 +320,25 @@ impl Interaction for ConsoleInteraction<'_> {
             Told::Touch => self.say(&self.paint("yellow", &line)),
             Told::Refused => self.say(&self.paint("red", &line)),
             Told::Heading => self.heading(tell.text, tell.highlight.unwrap_or_default()),
+            Told::Booting => {
+                let line = match tell.highlight.filter(|kernel| !kernel.is_empty()) {
+                    Some(kernel) => tell.text.replacen(kernel, &self.paint("yellow", kernel), 1),
+                    None => tell.text.to_owned(),
+                };
+                self.say(&format!("\n{line}\n\n"));
+            }
         }
+    }
+
+    /// `Booting KERNEL for ENVIRONMENT ...` between blank lines, the kernel
+    /// in yellow and the environment in cyan, as the legacy `kexec_kernel`
+    /// says it.
+    fn booting(&self, kernel: &str, environment: &str) {
+        self.say(&format!(
+            "\nBooting {} for {} ...\n\n",
+            self.paint("yellow", kernel),
+            self.paint("cyan", environment)
+        ));
     }
 
     /// The warning on a clear screen, then the line typed after `> `:

@@ -184,7 +184,7 @@ impl Unlocker<'_> {
             return None;
         }
         let request = SecretRequest {
-            volume,
+            subject: volume.into(),
             kind: SecretKind::YubiKeyPassphrase(yubikey.slot.to_string()),
             attempt: u32::try_from(attempt).unwrap_or(u32::MAX),
             tries: (tries > 0).then(|| u32::try_from(tries).unwrap_or(u32::MAX)),

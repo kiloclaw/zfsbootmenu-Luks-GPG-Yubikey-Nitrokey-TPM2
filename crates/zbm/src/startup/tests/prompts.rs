@@ -3,7 +3,8 @@ use std::cell::Cell;
 use zbm_app::model::{Notice, Volume, VolumeState};
 use zbm_platform::Clock;
 use zbm_platform::interaction::{
-    Asked, Awaited, SecretKind, SecretRequest, Tell, Told, VolumeRef, WaitRequest,
+    Asked, Awaited, Resume, ResumeRequest, SecretKind, SecretRequest, SecretSubject, Tell, Told,
+    VolumeRef, WaitRequest,
 };
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject, Wait};
 use zbm_platform::secret::Secret;
@@ -21,7 +22,7 @@ const VOLUME: VolumeRef<'static> = VolumeRef {
 /// A request for `kind`, attempt `attempt` of 3.
 fn request(kind: SecretKind, attempt: u32) -> SecretRequest<'static> {
     SecretRequest {
-        volume: VOLUME,
+        subject: VOLUME.into(),
         kind,
         attempt,
         tries: Some(3),
@@ -208,7 +209,7 @@ fn what_failed_is_said_by_the_next_dialog_and_what_takes_a_while_meanwhile() {
         requested(Method::Tpm2Pin, Some(2), Some(wrong))
     );
 
-    for told in [Told::Working, Told::Touch, Told::Heading] {
+    for told in [Told::Working, Told::Touch, Told::Heading, Told::Booting] {
         let text = "Unlocking /dev/sda2 ...";
         front.notify(Tell::new(told, text));
         assert_eq!(seen.sent().last(), Some(&Event::Progress(text.into())));
@@ -312,4 +313,50 @@ fn a_program_that_asks_on_the_console_gets_it_and_the_whole_system() {
     Interaction::lease_console(&front, &mut |system| given = system.is_some());
     assert!(given);
     assert_eq!(seen.suspended(), 1);
+}
+
+#[test]
+fn what_booting_asks_the_plain_console_asks_while_the_view_steps_aside() {
+    let fake = FakeSystem::new();
+    let (front, seen) = front(&fake);
+    fake.console.secret(b"zfs key").line("NORESUME").keys(b"\r");
+
+    let root = SecretRequest {
+        subject: SecretSubject::EncryptionRoot("zroot/ROOT"),
+        kind: SecretKind::Passphrase,
+        attempt: 1,
+        tries: Some(3),
+        opened_elsewhere: None,
+        description: None,
+    };
+    assert_eq!(secret(front.secret(&root)), b"zfs key");
+    assert_eq!(seen.suspended(), 1);
+    assert_eq!(
+        front.resume(&ResumeRequest { pool: "zroot" }),
+        Resume::Noresume
+    );
+    assert_eq!(seen.suspended(), 2);
+    let failed = PromptRequest {
+        subject: Subject::KexecFailed {
+            kernel: "/boot/vmlinuz".into(),
+        },
+        delay: zbm_types::RetryDelay::new(10),
+        message: "kexec run of /boot/vmlinuz failed!".into(),
+        on_return: String::new(),
+        on_escape: String::new(),
+    };
+    assert_eq!(front.ask(&failed), Answer::Continue);
+    assert_eq!(seen.suspended(), 3);
+    // The view asked nothing itself, and listed no volume.
+    assert_eq!(seen.questions(), 0);
+    assert!(seen.sent().is_empty(), "{:?}", seen.sent());
+    let shown = fake.console.output_text();
+    assert!(
+        shown.starts_with("Enter passphrase for 'zroot/ROOT':\n"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("kexec run of /boot/vmlinuz failed!"),
+        "{shown}"
+    );
 }

@@ -223,10 +223,11 @@ fn give_secret(
 ) -> Result<(), String> {
     let elsewhere = || is_so(connection, Query::OpenedElsewhere);
     let request = SecretRequest {
-        volume: VolumeRef {
+        subject: VolumeRef {
             name: &ask.name,
             device: &ask.device,
-        },
+        }
+        .into(),
         kind: ask.kind.clone(),
         attempt: ask.attempt,
         tries: ask.tries,

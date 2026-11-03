@@ -190,7 +190,7 @@ impl Unlocker<'_> {
         }
         for attempt in 1..=FIDO2_TRIES {
             let request = SecretRequest {
-                volume: target.volume(),
+                subject: target.volume().into(),
                 kind: SecretKind::Fido2Pin,
                 attempt,
                 tries: Some(FIDO2_TRIES),

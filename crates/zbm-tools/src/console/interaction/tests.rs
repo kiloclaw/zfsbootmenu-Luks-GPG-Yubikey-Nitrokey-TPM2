@@ -20,7 +20,7 @@ fn console(fake: &FakeSystem) -> ConsoleInteraction<'_> {
 /// A request for a secret of `kind`, attempt `attempt`.
 fn secret(kind: SecretKind, attempt: u32) -> SecretRequest<'static> {
     SecretRequest {
-        volume: VOLUME,
+        subject: VOLUME.into(),
         kind,
         attempt,
         tries: None,
@@ -240,4 +240,130 @@ fn the_resume_question_clears_warns_and_reads_the_answer_typed() {
     fake.console.push(ConsoleInput::End);
     let request = ResumeRequest { pool: "tank" };
     assert_eq!(console(&fake).resume(&request), Resume::Refuse);
+}
+
+/// A request for the key of the encryption root `root`, attempt `attempt`.
+fn zfs_key(root: &str, kind: SecretKind, attempt: u32) -> SecretRequest<'_> {
+    SecretRequest {
+        subject: SecretSubject::EncryptionRoot(root),
+        kind,
+        attempt,
+        tries: Some(3),
+        opened_elsewhere: None,
+        description: None,
+    }
+}
+
+#[test]
+fn a_zfs_key_is_asked_as_zfs_asks_it_on_a_clear_screen() {
+    let fake = FakeSystem::new();
+    fake.console.secret(b"wrong").secret(b"right");
+    let console = console(&fake);
+
+    let first = console.secret(&zfs_key("zroot/ROOT", SecretKind::Passphrase, 1));
+    assert_eq!(
+        fake.console.screens()[..2],
+        [Screen::Clear, Screen::MoveTo { row: 0, column: 0 }]
+    );
+    let cleared = fake.console.screen_count(Screen::Clear);
+    let second = console.secret(&zfs_key("zroot/ROOT", SecretKind::Passphrase, 2));
+
+    assert_eq!(first.secret().unwrap().expose(), b"wrong");
+    assert_eq!(second.secret().unwrap().expose(), b"right");
+    // The second attempt follows zfs's message on the same screen.
+    assert_eq!(fake.console.screen_count(Screen::Clear), cleared);
+    assert_eq!(
+        fake.console.output_text(),
+        "Enter passphrase for 'zroot/ROOT':\nEnter passphrase for 'zroot/ROOT':\n"
+    );
+    assert_eq!(fake.console.echo_changes(), [false, true, false, true]);
+
+    let fake = FakeSystem::new();
+    fake.console.push(ConsoleInput::End);
+    let ended = console_of(&fake).secret(&zfs_key("tank", SecretKind::HexKey, 1));
+    assert!(matches!(ended, Asked::Ended));
+    assert_eq!(fake.console.output_text(), "Enter hex key for 'tank':\n");
+}
+
+/// The plain console of `fake`, in colour.
+fn console_of(fake: &FakeSystem) -> ConsoleInteraction<'_> {
+    ConsoleInteraction::new(fake.system())
+}
+
+#[test]
+fn a_boot_is_said_in_the_legacy_colours() {
+    let fake = FakeSystem::new();
+    console_of(&fake).booting("/boot/vmlinuz-6.1", "zroot/ROOT/void");
+    assert_eq!(
+        fake.console.output_text(),
+        "\nBooting \x1b[1;33m/boot/vmlinuz-6.1\x1b[0m for \x1b[0;36mzroot/ROOT/void\x1b[0m ...\n\n"
+    );
+
+    // Told as a message, the kernel is highlighted.
+    let fake = FakeSystem::new();
+    console_of(&fake).notify(Tell {
+        told: Told::Booting,
+        text: "Booting /boot/vmlinuz-6.1 for zroot/ROOT/void ...",
+        highlight: Some("/boot/vmlinuz-6.1"),
+    });
+    assert_eq!(
+        fake.console.output_text(),
+        "\nBooting \x1b[1;33m/boot/vmlinuz-6.1\x1b[0m for zroot/ROOT/void ...\n\n"
+    );
+}
+
+/// What `prompt` shows on a fresh console: its text and screen changes.
+fn shown(run: impl FnOnce(&FakeSystem)) -> (String, Vec<Screen>) {
+    let fake = FakeSystem::new();
+    fake.console.keys(b"\r");
+    run(&fake);
+    (fake.console.output_text(), fake.console.screens())
+}
+
+#[test]
+fn a_failed_boot_shows_the_legacy_prompts() {
+    let kexec = PromptRequest {
+        subject: Subject::KexecFailed {
+            kernel: "/boot/vmlinuz-6.1".to_owned(),
+        },
+        delay: zbm_types::RetryDelay::new(10),
+        message: "kexec run of /boot/vmlinuz-6.1 failed!".to_owned(),
+        on_return: String::new(),
+        on_escape: String::new(),
+    };
+    let asked = shown(|fake| {
+        assert_eq!(console_of(fake).ask(&kexec), Answer::Continue);
+    });
+    let legacy = shown(|fake| {
+        let _ = TimedPrompt::new()
+            .delay(10)
+            .message(colorize("red", "kexec run of /boot/vmlinuz-6.1 failed!"))
+            .run(&fake.system());
+    });
+    assert_eq!(asked, legacy);
+    assert!(!asked.1.contains(&Screen::ShowCursor), "{:?}", asked.1);
+
+    let load = PromptRequest {
+        subject: Subject::LoadFailed {
+            kernel: "/mnt/boot/vmlinuz".to_owned(),
+            initramfs: "/mnt/boot/initramfs.img".to_owned(),
+        },
+        message: "Unable to load kernel or initramfs into memory".to_owned(),
+        ..kexec
+    };
+    let asked = shown(|fake| {
+        assert_eq!(console_of(fake).ask(&load), Answer::Continue);
+    });
+    let legacy = shown(|fake| {
+        let _ = TimedPrompt::new()
+            .delay(10)
+            .message(colorize(
+                "red",
+                "Unable to load kernel or initramfs into memory",
+            ))
+            .message(colorize("orange", "/mnt/boot/vmlinuz"))
+            .message(colorize("orange", "/mnt/boot/initramfs.img"))
+            .run(&fake.system());
+    });
+    assert_eq!(asked, legacy);
 }

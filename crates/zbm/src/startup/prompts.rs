@@ -1,14 +1,17 @@
 //! What unlocking asks, answered with the start-up view's dialogs: a
 //! secret in the unlock dialog, a device waited for in it with the time
-//! left, and the timed prompts as questions.
+//! left, and the timed prompts as questions. What booting asks (a ZFS key,
+//! the resume question, a failed boot) has no dialog yet (ADR 0015): the
+//! view steps aside, and the plain console asks it.
 
 use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Notice, Question, Volume, VolumeState};
-use zbm_app::prompt::retry_delay;
+use zbm_app::prompt::{ConsoleInteraction, retry_delay};
 use zbm_platform::Clock;
 use zbm_platform::interaction::{
-    Asked, Awaited, SecretKind, SecretRequest, Tell, Told, VolumeRef, WaitRequest,
+    Asked, Awaited, Resume, ResumeRequest, SecretKind, SecretRequest, SecretSubject, Tell, Told,
+    VolumeRef, WaitRequest,
 };
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject, Wait};
 use zbm_platform::secret::Secret;
@@ -23,7 +26,8 @@ const WRONG_PASSPHRASE: &str = "No key available with this passphrase.";
 /// The method of the unlock dialog that asks for `kind`.
 fn secret_method(kind: &SecretKind) -> Method {
     match kind {
-        SecretKind::Passphrase => Method::Passphrase,
+        // A volume asks for no ZFS key.
+        SecretKind::Passphrase | SecretKind::HexKey | SecretKind::RawKey => Method::Passphrase,
         SecretKind::Tpm2Pin => Method::Tpm2Pin,
         SecretKind::Fido2Pin => Method::Fido2Pin,
         SecretKind::YubiKeyPassphrase(_) => Method::YubiKeyPassphrase,
@@ -87,6 +91,14 @@ impl MenuFront<'_> {
             .then(|| Notice::Wrong(WRONG_PASSPHRASE.to_owned()))
     }
 
+    /// What `ask` gets from the plain console, while the view steps aside;
+    /// `refused` if it did not run.
+    fn plainly<T>(&self, refused: T, ask: impl FnOnce(&ConsoleInteraction<'_>) -> T) -> T {
+        let mut answer = None;
+        self.hand_over(|| answer = Some(ask(&ConsoleInteraction::new(self.system))));
+        answer.unwrap_or(refused)
+    }
+
     /// Lists `volume`, asked for with `method`, among the view's volumes,
     /// so that its dialog names its device.
     fn list_volume(&self, volume: VolumeRef<'_>, method: Method) {
@@ -123,6 +135,9 @@ impl Interaction for MenuFront<'_> {
             Subject::Missing(device) => Question::MissingVolume {
                 device: device.clone(),
             },
+            Subject::LoadFailed { .. } | Subject::KexecFailed { .. } => {
+                return self.plainly(Answer::Escape, |console| console.ask(request));
+            }
         };
         let delay = request.delay.map_or(DEFAULT_DELAY, retry_delay);
         self.timed(question, delay)
@@ -132,11 +147,17 @@ impl Interaction for MenuFront<'_> {
     /// another method was chosen; nothing when another program opened the
     /// volume meanwhile, or the view is gone.
     fn secret(&self, request: &SecretRequest<'_>) -> Asked {
+        let volume = match request.subject {
+            SecretSubject::Volume(volume) => volume,
+            SecretSubject::EncryptionRoot(_) => {
+                return self.plainly(Asked::Ended, |console| console.secret(request));
+            }
+        };
         let method = secret_method(&request.kind);
         let notice = self.notice(method, request.attempt);
-        self.list_volume(request.volume, method);
+        self.list_volume(volume, method);
         let event = Event::UnlockRequested {
-            volume: request.volume.name.to_owned(),
+            volume: volume.name.to_owned(),
             method,
             tries_left: request.tries_left(),
             notice,
@@ -212,12 +233,17 @@ impl Interaction for MenuFront<'_> {
         self.hand_over(|| run(Some(runner)));
     }
 
+    /// The resume question, on the plain console.
+    fn resume(&self, request: &ResumeRequest<'_>) -> Resume {
+        self.plainly(Resume::Refuse, |console| console.resume(request))
+    }
+
     /// What goes wrong is said by the next dialog; what takes a while
     /// shows until the next event.
     fn notify(&self, tell: Tell<'_>) {
         match tell.told {
             Told::Refused => super::lock(&self.refused).push(tell.text.to_owned()),
-            Told::Working | Told::Touch | Told::Heading => {
+            Told::Working | Told::Touch | Told::Heading | Told::Booting => {
                 self.show(Event::Progress(tell.text.to_owned()));
             }
         }

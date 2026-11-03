@@ -332,7 +332,7 @@ impl Unlocker<'_> {
             return Err(TokenFailure::TooManyTries);
         }
         let request = SecretRequest {
-            volume: target.volume(),
+            subject: target.volume().into(),
             kind: SecretKind::Tpm2Pin,
             attempt: *asked,
             tries: Some(TRIES),

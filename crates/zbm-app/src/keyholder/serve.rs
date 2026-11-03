@@ -118,10 +118,15 @@ impl Interaction for Client<'_> {
         }
     }
 
+    /// The secret of a LUKS volume, which the keyholder unlocks; it has
+    /// none of an encryption root to ask for.
     fn secret(&self, request: &SecretRequest<'_>) -> Asked {
+        let Some(volume) = request.subject.volume() else {
+            return Asked::Ended;
+        };
         let ask = SecretAsk {
-            name: request.volume.name.to_owned(),
-            device: request.volume.device.to_owned(),
+            name: volume.name.to_owned(),
+            device: volume.device.to_owned(),
             kind: request.kind.clone(),
             attempt: request.attempt,
             tries: request.tries,

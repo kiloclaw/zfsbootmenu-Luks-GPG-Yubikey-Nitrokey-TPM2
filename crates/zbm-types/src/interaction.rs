@@ -5,11 +5,16 @@
 
 use crate::RetryDelay;
 
-/// A secret a volume asks for.
+/// A secret a volume or a ZFS encryption root asks for.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SecretKind {
-    /// The volume's passphrase; empty skips the volume.
+    /// The volume's passphrase, where empty skips the volume; or the
+    /// passphrase of an encryption root (`keyformat=passphrase`).
     Passphrase,
+    /// The hexadecimal key of an encryption root (`keyformat=hex`).
+    HexKey,
+    /// The raw key of an encryption root (`keyformat=raw`), 32 bytes.
+    RawKey,
     /// The PIN of its TPM2 token.
     Tpm2Pin,
     /// The PIN of a FIDO2 security key.
@@ -57,7 +62,7 @@ pub enum Awaited {
     },
 }
 
-/// What unlocking says along the way.
+/// What unlocking and booting say along the way.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Told {
     /// It is working, which may take a while: `Unlocking /dev/sda2 ...`.
@@ -69,9 +74,13 @@ pub enum Told {
     /// What comes next is about this: `Unlock /dev/sda2 with a FIDO2
     /// security key`.
     Heading,
+    /// A kernel boots: `Booting /boot/vmlinuz-6.1 for zroot/ROOT/void
+    /// ...`, with the kernel highlighted.
+    Booting,
 }
 
-/// What a timed prompt of the LUKS code is about.
+/// What a timed prompt is about: a volume of the LUKS code, or a boot that
+/// failed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Subject {
     /// A round of passphrases did not open a volume: RETURN tries again,
@@ -85,10 +94,37 @@ pub enum Subject {
     /// A device of the configuration is missing: RETURN looks again,
     /// ESCAPE skips it.
     Missing(String),
+    /// The kernel and initramfs could not be loaded into memory; the menu
+    /// comes back when the prompt ends.
+    LoadFailed {
+        /// The kernel's path, below the mounted boot environment.
+        kernel: String,
+        /// The initramfs's path, below the mounted boot environment.
+        initramfs: String,
+    },
+    /// `kexec` returned: the kernel did not boot; the menu comes back when
+    /// the prompt ends.
+    KexecFailed {
+        /// The kernel's path in its boot environment.
+        kernel: String,
+    },
 }
 
-/// A timed prompt of the LUKS code: a message, what RETURN and ESCAPE do,
-/// and the countdown "Retrying in NN seconds".
+impl Subject {
+    /// Whether the prompt is about a boot that failed: it has no RETURN
+    /// and ESCAPE lines, and counts down as "Press RETURN to continue".
+    pub fn is_failed_boot(&self) -> bool {
+        matches!(
+            self,
+            Subject::LoadFailed { .. } | Subject::KexecFailed { .. }
+        )
+    }
+}
+
+/// A timed prompt: a message, what RETURN and ESCAPE do, and the
+/// countdown, "Retrying in NN seconds" for the LUKS code's. A failed boot's
+/// prompt ([`Subject::is_failed_boot`]) has neither RETURN nor ESCAPE text:
+/// both are empty.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PromptRequest {
     /// What it is about, for a front end that shows it otherwise.
@@ -110,6 +146,19 @@ impl PromptRequest {
         let mut arguments = Vec::new();
         if let Some(delay) = &self.delay {
             arguments.extend(["-d".to_owned(), delay.to_string()]);
+        }
+        match &self.subject {
+            Subject::LoadFailed { kernel, initramfs } => {
+                arguments.extend(["-m".to_owned(), self.message.clone()]);
+                arguments.extend(["-m".to_owned(), kernel.clone()]);
+                arguments.extend(["-m".to_owned(), initramfs.clone()]);
+                return arguments;
+            }
+            Subject::KexecFailed { .. } => {
+                arguments.extend(["-m".to_owned(), self.message.clone()]);
+                return arguments;
+            }
+            Subject::Retry { .. } | Subject::Missing(_) => {}
         }
         arguments.extend([
             "-m".to_owned(),
@@ -149,4 +198,60 @@ pub enum Wait {
     Skipped,
     /// The time ran out, or there was no time to wait.
     TimedOut,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn request(subject: Subject, message: &str) -> PromptRequest {
+        PromptRequest {
+            subject,
+            delay: RetryDelay::new(10),
+            message: message.to_owned(),
+            on_return: String::new(),
+            on_escape: String::new(),
+        }
+    }
+
+    #[test]
+    fn a_failed_boot_prompts_with_its_messages_alone() {
+        let load = request(
+            Subject::LoadFailed {
+                kernel: "/mnt/boot/vmlinuz".to_owned(),
+                initramfs: "/mnt/boot/initramfs.img".to_owned(),
+            },
+            "Unable to load kernel or initramfs into memory",
+        );
+        assert!(load.subject.is_failed_boot());
+        assert_eq!(
+            load.arguments(),
+            [
+                "-d",
+                "10",
+                "-m",
+                "Unable to load kernel or initramfs into memory",
+                "-m",
+                "/mnt/boot/vmlinuz",
+                "-m",
+                "/mnt/boot/initramfs.img"
+            ]
+        );
+        let kexec = request(
+            Subject::KexecFailed {
+                kernel: "/boot/vmlinuz".to_owned(),
+            },
+            "kexec run of /boot/vmlinuz failed!",
+        );
+        assert_eq!(
+            kexec.arguments(),
+            ["-d", "10", "-m", "kexec run of /boot/vmlinuz failed!"]
+        );
+        let retry = request(Subject::Missing("LABEL=keys".to_owned()), "missing");
+        assert!(!retry.subject.is_failed_boot());
+        assert_eq!(
+            retry.arguments().last().map(String::as_str),
+            Some("Retrying in %0.2d seconds")
+        );
+    }
 }

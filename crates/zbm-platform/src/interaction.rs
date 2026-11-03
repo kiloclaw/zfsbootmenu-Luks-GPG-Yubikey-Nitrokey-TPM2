@@ -21,10 +21,35 @@ pub struct VolumeRef<'r> {
     pub device: &'r str,
 }
 
+/// What a secret is asked for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SecretSubject<'r> {
+    /// A LUKS volume.
+    Volume(VolumeRef<'r>),
+    /// A ZFS encryption root, whose key `zfs load-key` reads.
+    EncryptionRoot(&'r str),
+}
+
+impl<'r> SecretSubject<'r> {
+    /// The LUKS volume asked about, if it is one.
+    pub fn volume(&self) -> Option<VolumeRef<'r>> {
+        match self {
+            SecretSubject::Volume(volume) => Some(*volume),
+            SecretSubject::EncryptionRoot(_) => None,
+        }
+    }
+}
+
+impl<'r> From<VolumeRef<'r>> for SecretSubject<'r> {
+    fn from(volume: VolumeRef<'r>) -> SecretSubject<'r> {
+        SecretSubject::Volume(volume)
+    }
+}
+
 /// A request for a secret.
 pub struct SecretRequest<'r> {
-    /// The volume.
-    pub volume: VolumeRef<'r>,
+    /// What it is for: a LUKS volume or a ZFS encryption root.
+    pub subject: SecretSubject<'r>,
     /// What is asked.
     pub kind: SecretKind,
     /// The attempt, from 1: a later one follows a secret that was wrong.
@@ -37,6 +62,11 @@ pub struct SecretRequest<'r> {
     /// The volume described for the person, as the passphrase prompt names
     /// it: its device, with its label and size when they are known.
     pub description: Option<&'r str>,
+}
+
+/// The text of [`Told::Booting`]: `Booting KERNEL for ENVIRONMENT ...`.
+pub fn booting_text(kernel: &str, environment: &str) -> String {
+    format!("Booting {kernel} for {environment} ...")
 }
 
 impl SecretRequest<'_> {
@@ -140,6 +170,17 @@ pub trait Interaction: Send + Sync {
     /// Says something along the way.
     fn notify(&self, tell: Tell<'_>);
 
+    /// Says that `kernel` of the boot environment `environment` boots:
+    /// a [`Told::Booting`] message by default, with the kernel
+    /// highlighted.
+    fn booting(&self, kernel: &str, environment: &str) {
+        self.notify(Tell {
+            told: Told::Booting,
+            text: &booting_text(kernel, environment),
+            highlight: Some(kernel),
+        });
+    }
+
     /// Asks the resume question. A front end that cannot ask it refuses,
     /// and the pool stays read-only.
     fn resume(&self, request: &ResumeRequest<'_>) -> Resume {
@@ -190,10 +231,10 @@ mod tests {
     #[test]
     fn the_tries_left_count_this_attempt_and_only_a_passphrase_skips() {
         let request = |attempt, tries| SecretRequest {
-            volume: VolumeRef {
+            subject: SecretSubject::Volume(VolumeRef {
                 name: "root",
                 device: "/dev/sda2",
-            },
+            }),
             kind: SecretKind::Tpm2Pin,
             attempt,
             tries,
@@ -211,6 +252,52 @@ mod tests {
         assert!(matches!(Asked::from(None), Asked::Ended));
     }
 
+    /// Records what it is told.
+    #[derive(Default)]
+    struct Told_(std::sync::Mutex<Vec<(Told, String, Option<String>)>>);
+
+    impl Interaction for Told_ {
+        fn ask(&self, _: &PromptRequest) -> Answer {
+            Answer::Escape
+        }
+
+        fn secret(&self, _: &SecretRequest<'_>) -> Asked {
+            Asked::Ended
+        }
+
+        fn wait(&self, _: &WaitRequest<'_>) -> Wait {
+            Wait::TimedOut
+        }
+
+        fn notify(&self, tell: Tell<'_>) {
+            self.0.lock().unwrap().push((
+                tell.told,
+                tell.text.to_owned(),
+                tell.highlight.map(str::to_owned),
+            ));
+        }
+    }
+
+    #[test]
+    fn a_boot_is_told_and_a_root_is_no_volume() {
+        let told = Told_::default();
+        told.booting("/boot/vmlinuz-6.1", "zroot/ROOT/void");
+        assert_eq!(
+            *told.0.lock().unwrap(),
+            [(
+                Told::Booting,
+                "Booting /boot/vmlinuz-6.1 for zroot/ROOT/void ...".to_owned(),
+                Some("/boot/vmlinuz-6.1".to_owned())
+            )]
+        );
+        let volume = VolumeRef {
+            name: "root",
+            device: "/dev/sda2",
+        };
+        assert_eq!(SecretSubject::from(volume).volume(), Some(volume));
+        assert_eq!(SecretSubject::EncryptionRoot("zroot").volume(), None);
+    }
+
     #[test]
     fn no_one_answers_nothing_refuses_and_lends_no_console() {
         let volume = VolumeRef {
@@ -226,7 +313,7 @@ mod tests {
         };
         assert_eq!(NoInteraction.ask(&request), Answer::Escape);
         let secret = SecretRequest {
-            volume,
+            subject: volume.into(),
             kind: SecretKind::Fido2Pin,
             attempt: 1,
             tries: None,

@@ -60,6 +60,8 @@ pub(super) fn inner<'o>(
 pub(super) fn secret_kind(kind: &SecretKind) -> Value {
     match kind {
         SecretKind::Passphrase => json!("passphrase"),
+        SecretKind::HexKey => json!("hex key"),
+        SecretKind::RawKey => json!("raw key"),
         SecretKind::Tpm2Pin => json!("tpm2 pin"),
         SecretKind::Fido2Pin => json!("fido2 pin"),
         SecretKind::YubiKeyPassphrase(slot) => json!({"yubikey passphrase": slot}),
@@ -76,6 +78,8 @@ pub(super) fn read_secret_kind(value: &Value) -> Option<SecretKind> {
     if let Some(name) = value.as_str() {
         return match name {
             "passphrase" => Some(SecretKind::Passphrase),
+            "hex key" => Some(SecretKind::HexKey),
+            "raw key" => Some(SecretKind::RawKey),
             "tpm2 pin" => Some(SecretKind::Tpm2Pin),
             "fido2 pin" => Some(SecretKind::Fido2Pin),
             _ => None,
@@ -133,6 +137,19 @@ pub(super) fn told_name(told: Told) -> &'static str {
         Told::Touch => "touch",
         Told::Refused => "refused",
         Told::Heading => "heading",
+        Told::Booting => "booting",
+    }
+}
+
+/// The kind named `name`.
+pub(super) fn read_told(name: &str) -> Option<Told> {
+    match name {
+        "working" => Some(Told::Working),
+        "touch" => Some(Told::Touch),
+        "refused" => Some(Told::Refused),
+        "heading" => Some(Told::Heading),
+        "booting" => Some(Told::Booting),
+        _ => None,
     }
 }
 
@@ -141,6 +158,10 @@ pub(super) fn prompt(request: &PromptRequest) -> Value {
     let subject = match &request.subject {
         Subject::Retry { name, device } => json!({"retry": {"name": name, "device": device}}),
         Subject::Missing(spec) => json!({"missing": spec}),
+        Subject::LoadFailed { kernel, initramfs } => {
+            json!({"load failed": {"kernel": kernel, "initramfs": initramfs}})
+        }
+        Subject::KexecFailed { kernel } => json!({"kexec failed": {"kernel": kernel}}),
     };
     json!({
         "subject": subject,
@@ -158,6 +179,15 @@ pub(super) fn read_prompt(object: &Map<String, Value>) -> Option<PromptRequest> 
         Subject::Retry {
             name: owned(retry, "name")?,
             device: owned(retry, "device")?,
+        }
+    } else if let Some(load) = inner(subject, "load failed") {
+        Subject::LoadFailed {
+            kernel: owned(load, "kernel")?,
+            initramfs: owned(load, "initramfs")?,
+        }
+    } else if let Some(kexec) = inner(subject, "kexec failed") {
+        Subject::KexecFailed {
+            kernel: owned(kexec, "kernel")?,
         }
     } else {
         Subject::Missing(owned(subject, "missing")?)

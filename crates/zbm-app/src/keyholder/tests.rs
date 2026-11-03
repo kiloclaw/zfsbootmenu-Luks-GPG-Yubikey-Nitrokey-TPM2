@@ -2,7 +2,7 @@ use std::sync::{Mutex, PoisonError};
 
 use pretty_assertions::assert_eq;
 use zbm_platform::interaction::{
-    Answer, Asked, Awaited, PromptRequest, SecretKind, Subject, Told, Wait,
+    Answer, Asked, Awaited, PromptRequest, SecretKind, SecretSubject, Subject, Told, Wait,
 };
 use zbm_platform::{Runner, Secret};
 use zbm_testkit::FakeRunner;
@@ -121,6 +121,8 @@ fn requests() -> Vec<FromKeyholder> {
     from.extend(
         [
             SecretKind::Passphrase,
+            SecretKind::HexKey,
+            SecretKind::RawKey,
             SecretKind::Tpm2Pin,
             SecretKind::Fido2Pin,
             SecretKind::YubiKeyPassphrase("2".to_owned()),
@@ -168,6 +170,25 @@ fn every_message_of_the_keyholder_reads_back_as_it_was_sent() {
             on_return: "look again".to_owned(),
             on_escape: "skip".to_owned(),
         }),
+        FromKeyholder::Ask(PromptRequest {
+            subject: Subject::LoadFailed {
+                kernel: "/mnt/boot/vmlinuz".to_owned(),
+                initramfs: "/mnt/boot/initramfs.img".to_owned(),
+            },
+            delay: RetryDelay::new(10),
+            message: "Unable to load kernel or initramfs into memory".to_owned(),
+            on_return: String::new(),
+            on_escape: String::new(),
+        }),
+        FromKeyholder::Ask(PromptRequest {
+            subject: Subject::KexecFailed {
+                kernel: "/boot/vmlinuz".to_owned(),
+            },
+            delay: RetryDelay::new(10),
+            message: "kexec run of /boot/vmlinuz failed!".to_owned(),
+            on_return: String::new(),
+            on_escape: String::new(),
+        }),
         FromKeyholder::Lease,
         FromKeyholder::Returned,
         FromKeyholder::Answered(true),
@@ -189,7 +210,14 @@ fn every_message_of_the_keyholder_reads_back_as_it_was_sent() {
     ];
     from.extend(requests());
     from.extend(
-        [Told::Working, Told::Touch, Told::Refused, Told::Heading].map(|told| {
+        [
+            Told::Working,
+            Told::Touch,
+            Told::Refused,
+            Told::Heading,
+            Told::Booting,
+        ]
+        .map(|told| {
             FromKeyholder::Notify(Notice {
                 told,
                 text: "Unlocking /dev/sda2".to_owned(),
@@ -299,7 +327,8 @@ impl Interaction for Person {
         let elsewhere = request.opened_elsewhere.map(|opened| opened());
         self.saw(format!(
             "secret {} {:?} elsewhere {elsewhere:?}",
-            request.volume.name, request.kind
+            request.subject.volume().map_or("", |volume| volume.name),
+            request.kind
         ));
         match request.attempt {
             1 => Asked::Secret(Secret::copy_from(b"correct horse")),
@@ -344,10 +373,11 @@ fn ask_everything(interaction: &dyn Interaction, console: &FakeRunner) -> Vec<St
     let opened = || true;
     for attempt in 1..=4 {
         let request = SecretRequest {
-            volume: VolumeRef {
+            subject: VolumeRef {
                 name: "root",
                 device: "/dev/sda2",
-            },
+            }
+            .into(),
             kind: SecretKind::Passphrase,
             attempt,
             tries: None,
@@ -361,6 +391,16 @@ fn ask_everything(interaction: &dyn Interaction, console: &FakeRunner) -> Vec<St
             other => format!("{other:?}"),
         });
     }
+    // The keyholder unlocks volumes: it asks for no ZFS key.
+    let root = SecretRequest {
+        subject: SecretSubject::EncryptionRoot("zroot/ROOT"),
+        kind: SecretKind::Passphrase,
+        attempt: 1,
+        tries: Some(3),
+        opened_elsewhere: None,
+        description: None,
+    };
+    got.push(format!("root {:?}", interaction.secret(&root)));
     let waited = interaction.wait(&WaitRequest {
         volume: VolumeRef {
             name: "root",
@@ -416,6 +456,7 @@ fn a_run_asks_the_client_and_ends_with_its_events() {
             "secret \"\"",
             "Elsewhere",
             "Ended",
+            "root Ended",
             "Skipped",
             "leased, the keyholder's terminal: true",
             "UnlockAll",
@@ -506,7 +547,11 @@ fn a_keyholder_asked_nothing_it_does_says_so_and_a_client_gone_gets_no_secret() 
     assert!(got[1..5].iter().all(|answer| answer == "Ended"), "{got:?}");
     assert_eq!(
         got[5..],
-        ["TimedOut", "leased, the keyholder's terminal: false"]
+        [
+            "root Ended",
+            "TimedOut",
+            "leased, the keyholder's terminal: false"
+        ]
     );
     assert!(result.is_err());
 }
@@ -575,5 +620,5 @@ fn a_client_out_of_turn_gets_no_secret_nor_answer() {
     );
 
     assert_eq!(got[..2], ["Escape", "Ended"]);
-    assert_eq!(got[5], "TimedOut");
+    assert_eq!(got[5..7], ["root Ended", "TimedOut"]);
 }
