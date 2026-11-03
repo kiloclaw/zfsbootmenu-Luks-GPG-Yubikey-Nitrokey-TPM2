@@ -167,7 +167,7 @@ Built on 3 November 2026, the day the decision was accepted (DM7a to DM7e), as d
 - **Point 8:** as decided.
 - **Checks:** unit tests of both crates on recording `Interaction`s, the plain console's output on a fake console
   compared with the legacy runtime's byte for byte, the parity tests of the locked boot and the resume
-  question. Every VM test but the `oldzfs` ones passed after DM7c, on rebuilt images
+  question. Every VM test but the `oldzfs` ones passed after DM7c and again after DM7e, on rebuilt images
   ([testing.rst](../../luks/testing.rst)).
 
 ## Answers of the maintainer

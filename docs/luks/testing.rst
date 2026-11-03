@@ -625,6 +625,10 @@ without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gi
 standard input; the boot line and the prompts of a failed boot through the front end's ``Interaction``), on images
 rebuilt for that run, in four lanes with KVM: 900 checks, each test with the count of the table.
 
+They passed again on 3 November 2026 after the rest of DM7 (``zbm-bootenv`` split out of ``zbm-boot``, the root
+argument through ``boot_root``, the narrow public API of both crates), on images rebuilt for that run, in the same four
+lanes: 900 checks, each test with the count of the table.
+
 Problems found and fixed
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
