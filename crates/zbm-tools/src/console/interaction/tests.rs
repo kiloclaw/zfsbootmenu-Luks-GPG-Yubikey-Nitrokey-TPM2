@@ -310,6 +310,10 @@ fn a_boot_is_said_in_the_legacy_colours() {
         fake.console.output_text(),
         "\nBooting \x1b[1;33m/boot/vmlinuz-6.1\x1b[0m for zroot/ROOT/void ...\n\n"
     );
+    // Without a kernel to highlight, the line as it is.
+    let fake = FakeSystem::new();
+    console_of(&fake).notify(Tell::new(Told::Booting, "Booting for zroot ..."));
+    assert_eq!(fake.console.output_text(), "\nBooting for zroot ...\n\n");
 }
 
 /// What `prompt` shows on a fresh console: its text and screen changes.

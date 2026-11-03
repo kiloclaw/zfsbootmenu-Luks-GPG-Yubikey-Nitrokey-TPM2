@@ -127,6 +127,8 @@ fn messages_of_another_version_or_none_of_the_protocol_are_refused() {
         finished(r#"{"changed":1}"#),
         finished(r#"{"unlock finished":{"volume":"v","outcome":5}}"#),
         r#"{"version":1,"message":"shout"}"#.to_owned(),
+        r#"{"version":1,"message":"notify","told":"shouting","text":"t","highlight":null}"#
+            .to_owned(),
         secret(r#""pin""#, "null"),
         secret(r#"{"x":"y"}"#, "null"),
         secret(r#""passphrase""#, "5"),
