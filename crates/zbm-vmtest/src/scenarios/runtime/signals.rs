@@ -260,25 +260,26 @@ const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.json
 /// terminal's foreground group (`stat`), where it waits (`wchan`) and the
 /// call it is in with its arguments (`syscall`); then every descriptor open
 /// on a terminal, the serial terminal's modes, and the shell's own
-/// descriptors (`fdinfo`). For the serial log, in
-/// case the shell no longer answers: whoever reads the terminal instead of
-/// the shell shows in a `read` of one of those descriptors.
+/// descriptors (`fdinfo`). For the serial log, in case the shell no longer
+/// answers. Files are read with `cat`, never with `<`: brush gives up the
+/// whole command line when a redirection fails, as one does for a thread or
+/// a descriptor gone since the glob listed it.
 const PROCESS_PROBE: &str = "(sleep 45; for t in /proc/[0-9]*/task/[0-9]*; do \
-    read -r s < \"$t/stat\" 2>/dev/null || continue; set -- $s; \
+    s=$(cat \"$t/stat\" 2>/dev/null); [ -n \"$s\" ] || continue; set -- $s; \
     [ \"$4\" = 2 ] && continue; [ \"$1\" = 2 ] && continue; \
-    read -r w < \"$t/wchan\" 2>/dev/null; read -r c < \"$t/syscall\" 2>/dev/null; \
+    w=$(cat \"$t/wchan\" 2>/dev/null); c=$(cat \"$t/syscall\" 2>/dev/null); \
     echo \"ZBMTEST-PS $1 $2 $3 ppid=$4 pgrp=$5 sid=$6 tty=$7 tpgid=$8 | $w | $c\"; done; \
     for d in /proc/[0-9]*/fd/*; do l=$(readlink \"$d\" 2>/dev/null); \
     case \"$l\" in /dev/tty*|/dev/console|/dev/pts/*) echo \"ZBMTEST-FD $d $l\";; esac; done; \
     stty -a -F /dev/ttyS0 2>&1 | while read -r l; do echo \"ZBMTEST-STTY $l\"; done; \
-    for i in /proc/$$/fdinfo/*; do while read -r l; do \
-    echo \"ZBMTEST-FDINFO ${i##*/} $l\"; done < \"$i\"; done) &";
+    for i in /proc/$$/fdinfo/*; do cat \"$i\" 2>/dev/null | while read -r l; do \
+    echo \"ZBMTEST-FDINFO ${i##*/} $l\"; done; done) &";
 
 /// The shell's own descriptors before `zfsbootmenu`, as the probe prints
 /// them after: their flags, and the descriptors each epoll set of its
-/// terminal library waits on (`tfd:`).
-const SHELL_DESCRIPTORS: &str = "for i in /proc/$$/fdinfo/*; do while read -r l; do \
-    echo \"${i##*/} $l\"; done < \"$i\"; done";
+/// terminal library waits on (`tfd:`). Read with `cat`, as the probe does.
+const SHELL_DESCRIPTORS: &str = "for i in /proc/$$/fdinfo/*; do cat \"$i\" 2>/dev/null | \
+    while read -r l; do echo \"${i##*/} $l\"; done; done";
 
 /// The serial terminal's modes, as the shell's programs get them, before
 /// `zfsbootmenu`.
