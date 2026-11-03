@@ -12,8 +12,8 @@
 use std::path::Path;
 
 use libfuzzer_sys::fuzz_target;
-use zbm_boot::commandline::{os_release, root_prefix};
-use zbm_boot::kernels::{discover, select};
+use zbm_bootenv::commandline::{os_release, root_prefix};
+use zbm_bootenv::kernels::{discover, select};
 use zbm_testkit::fakes::FakeFiles;
 use zbm_types::KernelSelector;
 

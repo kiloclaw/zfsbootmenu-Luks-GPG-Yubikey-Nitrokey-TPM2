@@ -19,8 +19,8 @@ use crate::zfs::zfs_value;
 ///
 /// # Errors
 ///
-/// [`BootEnvError::Mount`] when it cannot be mounted, [`BootEnvError::NoKernel`]
-/// when no kernel can be selected.
+/// [`BootEnvError::Mount`] when it cannot be mounted,
+/// [`BootEnvError::NoKernel`] when no kernel can be selected.
 pub fn find_kernels(
     context: &Context<'_>,
     state: &State<'_>,
