@@ -234,7 +234,7 @@ fn a_prediction_gives_what_a_measured_boot_extends() {
         args: &args,
         copies: None,
     };
-    let _ = measure(&fake.system(), &state, &load);
+    let _ = measure(&fake.context(), &state, &load);
     let measured = fake.files.text("/zfsbootmenu/tpm-measure.json").unwrap();
     fake.files.file(LOG, &measured);
 

@@ -86,7 +86,7 @@ fn the_files_and_the_command_line_go_into_the_tpm_and_the_copies_hold_the_log() 
     let fake = machine();
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load)).unwrap();
+    let copies = with_load(|load| measure(&fake.context(), &state, load)).unwrap();
 
     assert_eq!(extended(&fake), ["9", "9", "8", "9"]);
     let log = fake.files.text("/zfsbootmenu/tpm-measure.json").unwrap();
@@ -125,7 +125,7 @@ fn the_files_and_the_command_line_go_into_the_tpm_and_the_copies_hold_the_log() 
     assert_eq!(initramfs, [b"INITRD".as_slice(), &archive].concat());
     assert!(copies.kernel.starts_with("/zfsbootmenu/measured"));
 
-    copies.remove(&fake.system());
+    copies.remove(&fake.context());
     assert!(!fake.files.paths().contains(&copies.kernel));
     assert_eq!(fake.files.contents(&copies.kernel), None);
     assert_eq!(fake.files.contents(&copies.initramfs), None);
@@ -142,7 +142,7 @@ fn without_a_tpm_nothing_is_measured() {
     let _log = log(&fake);
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load));
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
 
     assert_eq!(copies, None);
     assert!(fake.runner.lines().is_empty());
@@ -154,7 +154,7 @@ fn the_tpm_device_without_its_resource_manager_serves_too() {
     let fake = machine_with(Some("/dev/tpm0"), BANKS);
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load));
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
 
     assert!(copies.is_some());
     let calls = fake.runner.calls();
@@ -169,7 +169,7 @@ fn a_tpm_with_no_active_bank_measures_nothing() {
     let _log = log(&fake);
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load));
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
 
     assert_eq!(copies, None);
     assert!(extended(&fake).is_empty());
@@ -197,7 +197,7 @@ fn an_extension_the_tpm_refuses_is_left_out_of_the_log() {
     });
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load));
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
 
     // The boot goes on, with the copies.
     assert!(copies.is_some());
@@ -222,7 +222,7 @@ fn files_that_cannot_be_read_leave_the_separator_alone() {
     );
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load));
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
 
     assert_eq!(copies, None);
     assert_eq!(extended(&fake), ["9"]);
@@ -236,7 +236,7 @@ fn a_second_boot_continues_the_log() {
     let state = State::new(&fake.files, "/zfsbootmenu");
 
     for _ in 0..2 {
-        let _ = with_load(|load| measure(&fake.system(), &state, load));
+        let _ = with_load(|load| measure(&fake.context(), &state, load));
     }
 
     // The PCRs' start is read once, before the first extension.
@@ -258,7 +258,7 @@ fn copies_that_cannot_be_written_load_the_boot_environment_s_files() {
     );
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load));
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
 
     assert_eq!(copies, None);
     assert_eq!(extended(&fake).len(), 4);
@@ -278,7 +278,7 @@ fn pcrs_that_cannot_be_read_leave_the_log_without_a_start() {
     fake.runner.respond_program("tpm2_pcrread", 1, "");
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    let copies = with_load(|load| measure(&fake.system(), &state, load));
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
 
     assert!(copies.is_some());
     let log = fake.files.text("/zfsbootmenu/tpm-measure.json").unwrap();
@@ -297,10 +297,10 @@ fn events_are_extended_after_the_start_and_continue_the_log() {
     let hook = Event::hook("early-setup.d/10-hello", b"echo hello\n");
 
     assert_eq!(
-        extend_events(&fake.system(), &state, &[hook]),
+        extend_events(&fake.context(), &state, &[hook]),
         Extended::Extended
     );
-    let _ = with_load(|load| measure(&fake.system(), &state, load));
+    let _ = with_load(|load| measure(&fake.context(), &state, load));
 
     let log = fake.files.text("/zfsbootmenu/tpm-measure.json").unwrap();
     let kinds: Vec<&str> = parse_log(&log)
@@ -331,5 +331,5 @@ fn events_are_extended_after_the_start_and_continue_the_log() {
     );
     let none = machine_with(None, BANKS);
     let state = State::new(&none.files, "/zfsbootmenu");
-    assert_eq!(extend_events(&none.system(), &state, &[]), Extended::NoTpm);
+    assert_eq!(extend_events(&none.context(), &state, &[]), Extended::NoTpm);
 }

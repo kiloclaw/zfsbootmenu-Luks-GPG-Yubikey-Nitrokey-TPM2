@@ -16,12 +16,8 @@ use crate::workspace::Workspace;
 pub const LAYER: &str = "domain";
 
 /// Domain crates that still reach the console, and the item of ROADMAP.md
-/// that ends it.
-pub const UNTIL: &[(&str, &str)] = &[(
-    "zbm-boot",
-    "DM7: its prompts (the resume question, the boot message, key \
-     loading) move to the front ends",
-)];
+/// that ends it: none since DM7 (ADR 0015).
+pub const UNTIL: &[(&str, &str)] = &[];
 
 /// Every place where a domain crate names a console port, one line each.
 ///

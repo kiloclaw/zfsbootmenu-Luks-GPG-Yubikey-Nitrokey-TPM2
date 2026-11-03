@@ -16,8 +16,8 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
-use crate::System;
 use crate::exec::{Command, Input, Runner, Stream};
+use crate::{Files, System};
 
 use zbm_trace::kmsg::Message;
 
@@ -197,8 +197,8 @@ fn unescape(text: &str) -> String {
 /// # Errors
 ///
 /// When `/dev/kmsg` cannot be read.
-pub fn read_records(system: &System<'_>) -> std::io::Result<Vec<Record>> {
-    let raw = system.files.read_available(Path::new(KMSG), KMSG_LIMIT)?;
+pub fn read_records(files: &dyn Files) -> std::io::Result<Vec<Record>> {
+    let raw = files.read_available(Path::new(KMSG), KMSG_LIMIT)?;
     Ok(records(&raw))
 }
 
@@ -218,17 +218,17 @@ pub fn format_records(records: &[Record]) -> String {
 }
 
 /// The kernel log as `dmesg` prints it, with its timestamps; empty when it
-/// cannot be read. `dmesg` reads it when `/dev/kmsg` cannot be.
-pub fn kernel_log(system: &System<'_>) -> String {
-    if let Ok(records) = read_records(system) {
+/// cannot be read. `dmesg`, which `runner` runs, reads it when `/dev/kmsg`
+/// cannot be.
+pub fn kernel_log(files: &dyn Files, runner: &dyn Runner) -> String {
+    if let Ok(records) = read_records(files) {
         return format_records(&records);
     }
     let command = Command::new("dmesg")
         .stdin(Input::Null)
         .stdout(Stream::Capture)
         .stderr(Stream::Null);
-    system
-        .runner
+    runner
         .run(&command)
         .map(|output| output.stdout_text())
         .unwrap_or_default()
@@ -261,7 +261,7 @@ pub fn read_logs(system: &System<'_>, levels: &str) -> Result<String, Message> {
         return Err(Message::error("levels is undefined"));
     }
     if let Some(wanted) = level_numbers(levels)
-        && let Ok(records) = read_records(system)
+        && let Ok(records) = read_records(system.files)
     {
         let mut text = String::new();
         for record in records

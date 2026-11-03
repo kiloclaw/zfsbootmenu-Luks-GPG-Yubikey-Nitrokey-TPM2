@@ -10,10 +10,12 @@ use zbm_types::Untrusted;
 
 use zbm_boot::boot::{self as kexec, BootSettings};
 use zbm_boot::kernels::Kernel;
-use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
+use zbm_boot::keys::{self, BootPath, KeyLoad};
 use zbm_boot::recovery::Recovery;
-use zbm_platform::System;
+use zbm_platform::console::Screen;
+use zbm_platform::{Context, System};
 use zbm_state::State;
+use zbm_tools::console::ConsoleInteraction;
 use zbm_types::{DatasetName, FilesystemName};
 
 use crate::model::{self, Event, Outcome};
@@ -57,7 +59,12 @@ pub fn kernel_version(path: &str) -> String {
         .to_owned()
 }
 
-impl Boot<'_, '_> {
+impl<'a> Boot<'_, 'a> {
+    /// The ports of the machine, its console left to the front end.
+    fn context(&self) -> Context<'a> {
+        Context::new(*self.system)
+    }
+
     /// The kernels of `fs`, found by mounting it read-only, newest first as
     /// the menu shows them, with the one that boots marked when
     /// `org.zfsbootmenu:kernel` names it; none when it cannot be mounted.
@@ -65,7 +72,7 @@ impl Boot<'_, '_> {
     /// the newest, boots: the first here.
     pub fn kernels(&self, environment: &DatasetName) -> Vec<model::Kernel> {
         let fs = FilesystemName::from(environment.clone());
-        if kexec::find_kernels(self.system, self.state, &fs).is_err() {
+        if kexec::find_kernels(&self.context(), self.state, &fs).is_err() {
             return Vec::new();
         }
         let list = self
@@ -73,8 +80,9 @@ impl Boot<'_, '_> {
             .files
             .read_to_string(&self.state.kernels(environment.as_str()))
             .unwrap_or_default();
-        let named = kexec::kernel_property(self.system, &fs).is_some();
-        let chosen = kexec::select_kernel(self.system, self.state, &fs);
+        let context = self.context();
+        let named = kexec::kernel_property(&context, &fs).is_some();
+        let chosen = kexec::select_kernel(&context, self.state, &fs);
         list.lines()
             .rev()
             .map(Kernel::parse)
@@ -105,16 +113,17 @@ impl Boot<'_, '_> {
             } else {
                 BootPath::Menu
             },
-            clear: Clear::Yes,
         };
-        if let Err(error) = keys::load_key(self.system, self.state, &how, environment) {
+        let context = self.context();
+        let interaction = ConsoleInteraction::new(*self.system);
+        if let Err(error) = keys::load_key(&context, &interaction, self.state, &how, environment) {
             return failed(
                 format!("unable to load key for {fs}"),
                 vec![error.to_string()],
             );
         }
         let filesystem = FilesystemName::from(environment.clone());
-        if let Err(error) = kexec::find_kernels(self.system, self.state, &filesystem) {
+        if let Err(error) = kexec::find_kernels(&context, self.state, &filesystem) {
             return failed(format!("unable to boot {fs}"), vec![error.to_string()]);
         }
         let Some(selected) = self.selected(&filesystem, kernel) else {
@@ -129,7 +138,18 @@ impl Boot<'_, '_> {
             command_line: command_line.map(str::to_owned),
             ..self.settings.clone()
         };
-        kexec::kexec_kernel(self.system, self.state, &settings, &selected, recovery);
+        // The plain console boots on a clear screen, as the legacy menu's
+        // boot does once the key is loaded.
+        self.system.console.screen(Screen::ShowCursor);
+        self.system.console.screen(Screen::Clear);
+        kexec::kexec_kernel(
+            &context,
+            &interaction,
+            self.state,
+            &settings,
+            &selected,
+            recovery,
+        );
         failed(
             format!("unable to boot {fs}"),
             vec!["the kernel could not be executed".to_owned()],
@@ -140,7 +160,7 @@ impl Boot<'_, '_> {
     /// its kernel list selects.
     fn selected(&self, fs: &FilesystemName, version: Option<&str>) -> Option<Kernel> {
         let Some(version) = version else {
-            return kexec::select_kernel(self.system, self.state, fs);
+            return kexec::select_kernel(&self.context(), self.state, fs);
         };
         let list = self
             .system
@@ -182,7 +202,7 @@ fn request_firmware_setup(system: &System<'_>) -> Result<(), String> {
     {
         return Err("the firmware cannot open its setup at the next boot".to_owned());
     }
-    kexec::mount_efivarfs(system, "rw");
+    kexec::mount_efivarfs(&Context::new(*system), "rw");
     let mut current = files
         .read(Path::new(OS_INDICATIONS))
         .map_err(|_| "the firmware has no OsIndications variable".to_owned())?;

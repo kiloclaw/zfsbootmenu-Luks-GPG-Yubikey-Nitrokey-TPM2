@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_platform::{Files, System};
+use zbm_platform::{Context, Files};
 
 /// The graphics drivers of the image, separated by spaces, below the root.
 pub const DRIVERS: &str = "etc/zfsbootmenu/graphics-drivers";
@@ -150,17 +150,17 @@ pub fn is_connected(files: &dyn Files, root: &Path, card: &str) -> bool {
 }
 
 /// Waits until each GPU of `chosen` has a DRM card, at most ten seconds.
-pub fn wait_for_cards(system: &System<'_>, root: &Path, chosen: &[Gpu]) {
-    let deadline = system.clock.now() + WAIT;
+pub fn wait_for_cards(context: &Context<'_>, root: &Path, chosen: &[Gpu]) {
+    let deadline = context.clock().now() + WAIT;
     loop {
         let missing: Vec<&Gpu> = chosen
             .iter()
-            .filter(|gpu| card_name(system.files, root, &gpu.address).is_none())
+            .filter(|gpu| card_name(context.files(), root, &gpu.address).is_none())
             .collect();
         if missing.is_empty() {
             break;
         }
-        if system.clock.now() >= deadline {
+        if context.clock().now() >= deadline {
             for gpu in missing {
                 zbm_trace::warn!(
                     "graphics: no display device for {gpu} after {wait} s";
@@ -169,11 +169,11 @@ pub fn wait_for_cards(system: &System<'_>, root: &Path, chosen: &[Gpu]) {
             }
             break;
         }
-        system.clock.sleep(POLL);
+        context.clock().sleep(POLL);
     }
     for gpu in chosen {
-        if let Some(card) = card_name(system.files, root, &gpu.address) {
-            let connected = if is_connected(system.files, root, &card) {
+        if let Some(card) = card_name(context.files(), root, &gpu.address) {
+            let connected = if is_connected(context.files(), root, &card) {
                 "a display connected"
             } else {
                 "no display connected"

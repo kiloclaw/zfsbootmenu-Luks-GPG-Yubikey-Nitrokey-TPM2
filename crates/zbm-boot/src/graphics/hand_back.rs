@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use zbm_platform::{Files, System};
+use zbm_platform::{Context, Files};
 use zbm_tools::{Shown, udev};
 
 use super::{Gpu, PCI, display_controllers, drivers_of, image_drivers, wait_for_cards};
@@ -20,8 +20,8 @@ const PROBE: &str = "sys/bus/pci/drivers_probe";
 /// drive: unbinds it from its driver and resets it where it can be reset.
 /// Returns the GPUs unbound. Does nothing in an image without graphics
 /// drivers; what goes wrong is logged, and the boot goes on.
-pub fn hand_back(system: &System<'_>, root: &Path) -> Vec<Gpu> {
-    let files = system.files;
+pub fn hand_back(context: &Context<'_>, root: &Path) -> Vec<Gpu> {
+    let files = context.files();
     let drivers = image_drivers(files, root);
     if drivers.is_empty() {
         return Vec::new();
@@ -82,13 +82,13 @@ fn reset(files: &dyn Files, root: &Path, gpu: &Gpu, driver: &str) {
 
 /// After a failed `kexec`: has the PCI bus find the drivers of `gpus`
 /// again, and waits for their displays, for the console to take one.
-pub fn take_back(system: &System<'_>, root: &Path, gpus: &[Gpu]) {
+pub fn take_back(context: &Context<'_>, root: &Path, gpus: &[Gpu]) {
     if gpus.is_empty() {
         return;
     }
     for gpu in gpus {
-        if let Err(error) = system
-            .files
+        if let Err(error) = context
+            .files()
             .write(&root.join(PROBE), gpu.address.as_bytes())
         {
             zbm_trace::warn!(
@@ -97,6 +97,6 @@ pub fn take_back(system: &System<'_>, root: &Path, gpus: &[Gpu]) {
             );
         }
     }
-    wait_for_cards(system, root, gpus);
-    udev::settle(system.runner, Shown::Hidden);
+    wait_for_cards(context, root, gpus);
+    udev::settle(context.runner(), Shown::Hidden);
 }

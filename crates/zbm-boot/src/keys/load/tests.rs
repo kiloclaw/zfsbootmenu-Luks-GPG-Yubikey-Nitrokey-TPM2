@@ -6,8 +6,10 @@ use zbm_testkit::Shared;
 
 use zbm_platform::KernelLog;
 use zbm_platform::exec::{Output, Status};
+use zbm_platform::interaction::NoInteraction;
 use zbm_state::State;
 use zbm_testkit::fakes::FakeSystem;
+use zbm_tools::console::ConsoleInteraction;
 
 use super::*;
 use crate::testing::name;
@@ -84,6 +86,10 @@ impl Machine {
         property("org.zfsbootmenu:keysource", BE, keysource);
         runner.respond("zfs list -o name -H tank/keys", 0, "tank/keys\n");
         fake.files.dir("/zfsbootmenu");
+        // What the person types when asked, three times at most.
+        for _ in 0..KEY_TRIES {
+            fake.console.secret(b"zfskey12");
+        }
         Machine { fake, keys }
     }
 
@@ -94,22 +100,34 @@ impl Machine {
         self
     }
 
-    fn load(&self, path: BootPath, clear: Clear) -> Result<(), BootError> {
-        self.load_fs(BE, path, clear)
+    fn load(&self, path: BootPath) -> Result<(), BootError> {
+        self.load_fs(BE, path)
     }
 
-    fn load_fs(&self, fs: &str, path: BootPath, clear: Clear) -> Result<(), BootError> {
+    /// Loads the key of `fs`, asking on the machine's plain console.
+    fn load_fs(&self, fs: &str, path: BootPath) -> Result<(), BootError> {
         // Copying a key from a key source holds it as a secret a moment.
         let _secrets = crate::testing::holding_a_secret();
-        let system = self.fake.system();
+        let context = self.fake.context();
+        let interaction = ConsoleInteraction::new(self.fake.system());
         let state = State::new(&self.fake.files, "/zfsbootmenu");
         let _log = KernelLog::new(&self.fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
         let how = KeyLoad {
             hooks: Path::new(HOOKS),
             path,
-            clear,
         };
-        load_key(&system, &state, &how, &name(fs))
+        load_key(&context, &interaction, &state, &how, &name(fs))
+    }
+
+    /// How many times `zfs load-key -L prompt` ran for `root`.
+    fn typed_loads(&self, root: &str) -> usize {
+        let line = format!("zfs load-key -L prompt {root}");
+        self.fake
+            .runner
+            .lines()
+            .iter()
+            .filter(|ran| **ran == line)
+            .count()
     }
 
     fn ran(&self, line: &str) -> bool {
@@ -146,7 +164,7 @@ fn not_loaded(root: &str) -> Result<(), BootError> {
 fn an_unlocked_root_and_an_unencrypted_filesystem_need_nothing() {
     let machine = Machine::new("prompt", "passphrase", "-");
     machine.keys.borrow_mut().unlocked.push("tank/ROOT".into());
-    assert_eq!(machine.load(BootPath::Countdown, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Countdown), Ok(()));
     assert!(!machine.ran_program("zfs load-key"));
 
     let plain = FakeSystem::new();
@@ -157,25 +175,78 @@ fn an_unlocked_root_and_an_unencrypted_filesystem_need_nothing() {
     let how = KeyLoad {
         hooks: Path::new(HOOKS),
         path: BootPath::Countdown,
-        clear: Clear::No,
     };
-    assert_eq!(load_key(&plain.system(), &state, &how, &name(BE)), Ok(()));
+    let loaded = load_key(&plain.context(), &NoInteraction, &state, &how, &name(BE));
+    assert_eq!(loaded, Ok(()));
 }
 
 #[test]
-fn a_prompt_location_asks_for_the_passphrase() {
+fn a_prompt_location_asks_for_the_passphrase_three_times_at_most() {
     let machine = Machine::new("prompt", "passphrase", "-");
     machine.loads("prompt", "tank/ROOT");
-    assert_eq!(machine.load(BootPath::Countdown, Clear::Yes), Ok(()));
+    assert_eq!(machine.load(BootPath::Countdown), Ok(()));
     assert!(machine.cleared());
-    assert!(machine.ran("zfs load-key -L prompt tank/ROOT"));
+    assert_eq!(machine.typed_loads("tank/ROOT"), 1);
+    // What was typed went to zfs on its standard input.
+    let calls = machine.fake.runner.calls();
+    let load = calls
+        .iter()
+        .find(|call| call.display().starts_with("zfs load-key"));
+    assert!(
+        matches!(
+            load.map(zbm_platform::exec::Command::get_stdin),
+            Some(zbm_platform::exec::Input::Secret(key)) if key.expose() == b"zfskey12"
+        ),
+        "{calls:?}"
+    );
+    assert_eq!(
+        machine.fake.console.output_text(),
+        "Enter passphrase for 'tank/ROOT':\n"
+    );
 
     let wrong = Machine::new("prompt", "passphrase", "-");
-    assert_eq!(
-        wrong.load(BootPath::Countdown, Clear::No),
-        not_loaded("tank/ROOT")
+    assert_eq!(wrong.load(BootPath::Countdown), not_loaded("tank/ROOT"));
+    assert_eq!(wrong.typed_loads("tank/ROOT"), 3);
+    let clear = zbm_platform::console::Screen::Clear;
+    assert_eq!(wrong.fake.console.screen_count(clear), 1);
+
+    // Nothing typed: nothing tried.
+    let ended = Machine::new("prompt", "passphrase", "-");
+    let state = State::new(&ended.fake.files, "/zfsbootmenu");
+    let how = KeyLoad {
+        hooks: Path::new(HOOKS),
+        path: BootPath::Countdown,
+    };
+    let asked = load_key(
+        &ended.fake.context(),
+        &NoInteraction,
+        &state,
+        &how,
+        &name(BE),
     );
-    assert!(!wrong.cleared());
+    assert_eq!(asked, not_loaded("tank/ROOT"));
+    assert_eq!(ended.typed_loads("tank/ROOT"), 0);
+}
+
+#[test]
+fn a_hex_key_is_asked_for_as_one_and_a_raw_key_never() {
+    let hex = Machine::new("prompt", "hex", "-");
+    hex.loads("prompt", "tank/ROOT");
+    assert_eq!(hex.load(BootPath::Countdown), Ok(()));
+    assert_eq!(
+        hex.fake.console.output_text(),
+        "Enter hex key for 'tank/ROOT':\n"
+    );
+
+    let raw = Machine::new("prompt", "raw", "-");
+    assert_eq!(raw.load(BootPath::Countdown), not_loaded("tank/ROOT"));
+    assert_eq!(raw.typed_loads("tank/ROOT"), 0);
+    assert!(raw.fake.console.output_text().is_empty());
+    assert!(
+        raw.fake
+            .kmsg()
+            .contains("a raw key for tank/ROOT cannot be typed")
+    );
 }
 
 #[test]
@@ -197,7 +268,7 @@ fn load_key_hooks_come_first_and_may_unlock_the_root() {
             Ok(Output::new(Status::exited(0), ""))
         })
     });
-    assert_eq!(machine.load(BootPath::Countdown, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Countdown), Ok(()));
     assert!(machine.ran(hook));
     assert!(!machine.ran_program("zfs load-key"));
     assert!(machine.fake.kmsg().contains("unlocked by user hooks"));
@@ -209,7 +280,7 @@ fn a_hook_that_leaves_the_root_locked_falls_back_to_the_prompt() {
     let hook = "/libexec/hooks/load-key.d/10-key";
     machine.fake.files.file_with_mode(hook, "", 0o755);
     machine.loads("prompt", "tank/ROOT");
-    assert_eq!(machine.load(BootPath::Countdown, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Countdown), Ok(()));
     assert!(machine.ran(hook));
     assert!(machine.ran("zfs load-key -L prompt tank/ROOT"));
 }
@@ -219,7 +290,7 @@ fn a_key_file_in_the_image_is_loaded() {
     let machine = Machine::new("file:///etc/zfs/tank.key", "raw", "-");
     machine.fake.files.file("/etc/zfs/tank.key", "key");
     machine.loads("file:///etc/zfs/tank.key", "tank/ROOT");
-    assert_eq!(machine.load(BootPath::Countdown, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Countdown), Ok(()));
     assert!(!machine.ran_program("zfs load-key -L prompt"));
 }
 
@@ -229,16 +300,13 @@ fn without_a_key_file_only_a_passphrase_is_asked_for() {
     let passphrase = Machine::new("file:///etc/zfs/tank.key", "passphrase", "-");
     passphrase.fake.files.file("/etc/zfs/tank.key", "wrong");
     passphrase.loads("prompt", "tank/ROOT");
-    assert_eq!(passphrase.load(BootPath::Countdown, Clear::Yes), Ok(()));
+    assert_eq!(passphrase.load(BootPath::Countdown), Ok(()));
     assert!(passphrase.ran("zfs load-key -L file:///etc/zfs/tank.key tank/ROOT"));
     assert!(passphrase.cleared());
 
     // A raw key without its file cannot be loaded.
     let raw = Machine::new("file:///etc/zfs/tank.key", "raw", "-");
-    assert_eq!(
-        raw.load(BootPath::Countdown, Clear::No),
-        not_loaded("tank/ROOT")
-    );
+    assert_eq!(raw.load(BootPath::Countdown), not_loaded("tank/ROOT"));
     assert!(!raw.ran_program("zfs load-key"));
     assert!(
         raw.fake
@@ -262,7 +330,7 @@ fn a_boot_chosen_in_the_menu_copies_the_key_from_its_key_source() {
     let mnt = machine.source_mount();
     machine.fake.files.file(mnt.join("tank.key"), "secret");
 
-    assert_eq!(machine.load(BootPath::Menu, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Menu), Ok(()));
     assert_eq!(machine.fake.files.text(cached).as_deref(), Some("secret"));
     let mode = zbm_platform::Files::metadata(&machine.fake.files, std::path::Path::new(cached))
         .unwrap()
@@ -287,7 +355,7 @@ fn a_boot_chosen_in_the_menu_copies_the_key_from_its_key_source() {
 fn the_countdown_does_not_try_key_sources() {
     let machine = Machine::new("file:///etc/zfs/keys/tank.key", "passphrase", "tank/keys");
     machine.loads("prompt", "tank/ROOT");
-    assert_eq!(machine.load(BootPath::Countdown, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Countdown), Ok(()));
     assert!(!machine.ran_program("mount"));
     assert!(!machine.ran("zfs load-key -L prompt tank/keys"));
 }
@@ -314,7 +382,7 @@ fn a_key_source_whose_key_is_in_itself_is_tried_once() {
         "tank/ROOT",
     );
 
-    assert_eq!(machine.load(BootPath::Menu, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Menu), Ok(()));
     let kmsg = machine.fake.kmsg();
     let repeat = "will not repeat cache attempt for tank/keys:etc/zfs/keys/keys.key";
     assert!(kmsg.contains(repeat));
@@ -323,10 +391,13 @@ fn a_key_source_whose_key_is_in_itself_is_tried_once() {
 
 #[test]
 fn a_key_source_that_fails_leaves_the_passphrase_prompt() {
-    // Its key does not load.
+    // Its key does not load, three times; then the root's is asked for.
     let locked = Machine::new("file:///etc/zfs/keys/tank.key", "passphrase", "tank/keys");
+    locked.fake.console.secret(b"zfskey12");
     locked.loads("prompt", "tank/ROOT");
-    assert_eq!(locked.load(BootPath::Menu, Clear::No), Ok(()));
+    assert_eq!(locked.load(BootPath::Menu), Ok(()));
+    assert_eq!(locked.typed_loads("tank/keys"), 3);
+    assert_eq!(locked.typed_loads("tank/ROOT"), 1);
     assert!(
         locked
             .fake
@@ -346,7 +417,7 @@ fn a_key_source_that_fails_leaves_the_passphrase_prompt() {
         .fake
         .files
         .symlink(mnt.join("etc/zfs/keys/tank.key"), "/etc/secret");
-    assert_eq!(missing.load(BootPath::Menu, Clear::No), Ok(()));
+    assert_eq!(missing.load(BootPath::Menu), Ok(()));
     assert!(
         missing
             .fake
@@ -377,16 +448,12 @@ fn a_key_source_that_unlocks_the_root_itself_is_enough() {
             Ok(Output::new(Status::exited(0), ""))
         })
     });
-    assert_eq!(machine.load(BootPath::Menu, Clear::No), Ok(()));
+    assert_eq!(machine.load(BootPath::Menu), Ok(()));
     assert!(
         machine
             .fake
             .kmsg()
             .contains("cache attempt has unlocked tank/ROOT")
     );
-    assert!(
-        machine
-            .load_fs("tank/keys", BootPath::Menu, Clear::No)
-            .is_ok()
-    );
+    assert!(machine.load_fs("tank/keys", BootPath::Menu).is_ok());
 }

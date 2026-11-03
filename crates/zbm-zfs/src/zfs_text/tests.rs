@@ -56,21 +56,25 @@ fn dataset_commands_are_those_of_the_legacy_runtime() {
 }
 
 #[test]
-fn keys_are_loaded_on_the_console() {
+fn keys_are_loaded_from_a_file_or_from_what_was_typed() {
     let runner = FakeRunner::new();
     runner.respond("zfs load-key -L prompt tank/ROOT", 1, "");
     let zfs = ZfsText::new(&runner);
     let root = dataset("tank/ROOT");
 
-    assert!(!zfs.load_key(&root, "prompt").unwrap());
+    let typed = zbm_platform::secret::Secret::copy_from(b"zfskey12");
+    assert!(!zfs.load_typed_key(&root, typed.duplicate()).unwrap());
     assert!(zfs.load_key(&root, "file:///etc/zfs/k").unwrap());
     let calls = runner.calls();
+    assert_eq!(calls[0].display(), "zfs load-key -L prompt tank/ROOT");
+    assert_eq!(calls[0].get_stdin(), &Input::secret(typed));
+    assert_eq!(calls[0].get_stdout(), Stream::Inherit);
+    assert_eq!(calls[0].get_stderr(), Stream::Inherit);
     assert_eq!(
         calls[1].display(),
         "zfs load-key -L file:///etc/zfs/k tank/ROOT"
     );
-    assert!(matches!(calls[0].get_stdin(), Input::Inherit));
-    assert_eq!(calls[0].get_stdout(), Stream::Inherit);
+    assert!(matches!(calls[1].get_stdin(), Input::Null));
 }
 
 #[test]

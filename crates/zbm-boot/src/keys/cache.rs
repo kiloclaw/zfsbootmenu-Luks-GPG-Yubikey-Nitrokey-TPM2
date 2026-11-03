@@ -5,7 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::{Files, Secret, System};
+use zbm_platform::interaction::Interaction;
+use zbm_platform::{Context, Files, Secret};
 use zbm_state::State;
 use zbm_types::{DatasetName, FilesystemName};
 use zbm_zfs::{Stderr, ZfsText};
@@ -49,7 +50,8 @@ fn is_below(path: &Path, dir: &Path) -> bool {
 /// running for the source, as when the key source's own key comes from it,
 /// is not repeated.
 pub(super) fn cache_key(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     how: &KeyLoad<'_>,
     fs: &DatasetName,
@@ -61,12 +63,12 @@ pub(super) fn cache_key(
     if keyfile == keylocation || keyfile.is_empty() {
         return;
     }
-    let Some(source) = keysource(system.runner, fs) else {
+    let Some(source) = keysource(context.runner(), fs) else {
         zbm_trace::debug!("no key source found for {fs}"; %fs);
         return;
     };
     let keycache = state.key_cache(source.as_str());
-    if system.files.create_dir_all(&keycache).is_err() {
+    if context.files().create_dir_all(&keycache).is_err() {
         return;
     }
     // Held while caching: by this process when the key source's own key comes
@@ -86,30 +88,37 @@ pub(super) fn cache_key(
         }
     };
     zbm_trace::debug!("attempting to cache {source}:{keyfile}"; %source, %keyfile);
-    copy_from_source(system, state, how, &source, keyfile, &keycache);
+    copy_from_source(
+        context,
+        interaction,
+        state,
+        how,
+        &source,
+        (keyfile, &keycache),
+    );
 }
 
 /// Loads the key of `source`, mounts it, copies `keyfile` from it into
 /// `keycache` and unmounts it.
 fn copy_from_source(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     how: &KeyLoad<'_>,
     source: &DatasetName,
-    keyfile: &str,
-    keycache: &Path,
+    (keyfile, keycache): (&str, &Path),
 ) {
-    if load_key(system, state, how, source).is_err() {
+    if load_key(context, interaction, state, how, source).is_err() {
         zbm_trace::warn!("failed to load key for {source}"; %source);
         return;
     }
     let filesystem = FilesystemName::from(source.clone());
-    let Some(mounted) = mount_zfs(system, state, &filesystem, Noise::Shown) else {
+    let Some(mounted) = mount_zfs(context, state, &filesystem, Noise::Shown) else {
         zbm_trace::error!("failed to mount {source}"; %source);
         return;
     };
-    if let Some(keypath) = key_in_source(system, source, keyfile, mounted.path()) {
-        copy_key(system.files, &keypath, keyfile, keycache);
+    if let Some(keypath) = key_in_source(context, source, keyfile, mounted.path()) {
+        copy_key(context.files(), &keypath, keyfile, keycache);
     }
 }
 
@@ -146,28 +155,28 @@ fn relative_key(source: &str, keyfile: &str, ksmount: &str) -> String {
 /// The key file in `source`, mounted at `mnt`: at its path relative to the
 /// mount point of `source`, or else at its absolute path below `mnt`.
 fn key_in_source(
-    system: &System<'_>,
+    context: &Context<'_>,
     source: &DatasetName,
     keyfile: &str,
     mnt: &Path,
 ) -> Option<PathBuf> {
-    let ksmount = ZfsText::new(system.runner).value(source, "mountpoint", Stderr::Hidden);
+    let ksmount = ZfsText::new(context.runner()).value(source, "mountpoint", Stderr::Hidden);
     let source = source.as_str();
     let relative = ksmount.map_or_else(String::new, |m| relative_key(source, keyfile, &m));
-    let keypath = if !relative.is_empty() && system.files.exists(&below(mnt, &relative)) {
+    let keypath = if !relative.is_empty() && context.files().exists(&below(mnt, &relative)) {
         zbm_trace::debug!(
             "caching key from mount-relative path {source}:{relative}";
             %source, %relative
         );
         Some(below(mnt, &relative))
-    } else if system.files.exists(&below(mnt, keyfile)) {
+    } else if context.files().exists(&below(mnt, keyfile)) {
         zbm_trace::debug!("caching key from absolute path {source}:{keyfile}"; %source, %keyfile);
         Some(below(mnt, keyfile))
     } else {
         zbm_trace::debug!("no key found at {source}:{keyfile}"; %source, %keyfile);
         None
     };
-    let Some(keypath) = keypath.and_then(|path| system.files.canonicalize(&path).ok()) else {
+    let Some(keypath) = keypath.and_then(|path| context.files().canonicalize(&path).ok()) else {
         zbm_trace::debug!(
             "failed to canonicalize key location {source}:{keyfile}";
             %source, %keyfile

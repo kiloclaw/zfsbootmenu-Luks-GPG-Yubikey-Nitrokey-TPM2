@@ -200,18 +200,17 @@ impl<'a> ZfsCommand<'a> {
     }
 
     /// Loads the key of the encryption root `root` from `location` (`zfs
-    /// load-key -L <location> <root>`) on the console: for `prompt`, `zfs`
-    /// asks for the passphrase on the terminal itself, so the passphrase
-    /// never passes through this program. Returns whether the key is loaded.
+    /// load-key -L <location> <root>`), reading `stdin`, its messages on the
+    /// console. Returns whether the key is loaded.
     ///
     /// # Errors
     ///
     /// The error that kept `zfs` from starting.
-    pub(crate) fn load_key(&self, root: &str, location: &str) -> io::Result<bool> {
+    pub(crate) fn load_key(&self, root: &str, location: &str, stdin: Input) -> io::Result<bool> {
         let command = self
             .command()
             .args(["load-key", "-L", location, root])
-            .stdin(Input::Inherit)
+            .stdin(stdin)
             .stdout(Stream::Inherit)
             .stderr(Stream::Inherit);
         Ok(self.runner.run(&command)?.status.is_success())

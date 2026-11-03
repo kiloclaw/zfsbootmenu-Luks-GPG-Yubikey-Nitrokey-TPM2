@@ -193,7 +193,10 @@ fn the_log_comes_from_kmsg_and_from_dmesg_without_it() {
         .files
         .fail("/dev/kmsg", std::io::ErrorKind::PermissionDenied);
     unreadable.runner.respond("dmesg", 0, "[ 1.0] from dmesg\n");
-    assert_eq!(kernel_log(&unreadable.system()), "[ 1.0] from dmesg\n");
+    assert_eq!(
+        kernel_log(&unreadable.files, &unreadable.runner),
+        "[ 1.0] from dmesg\n"
+    );
     // Written by ZFSBootMenu, read back as the kernel's records.
     let fake = zbm_testkit::fakes::FakeSystem::new();
     fake.files
@@ -204,7 +207,7 @@ fn the_log_comes_from_kmsg_and_from_dmesg_without_it() {
         "ZFSBootMenu: written\n"
     );
     fake.files.file("/dev/kmsg", KMSG);
-    let log = kernel_log(&fake.system());
+    let log = kernel_log(&fake.files, &fake.runner);
     assert!(
         log.starts_with("[    0.921824] ZFSBootMenu: setting"),
         "{log}"

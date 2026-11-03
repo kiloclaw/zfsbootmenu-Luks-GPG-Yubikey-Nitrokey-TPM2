@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use zbm_config::spec::properties::KERNEL;
-use zbm_platform::System;
+use zbm_platform::Context;
 use zbm_state::State;
 use zbm_types::{FilesystemName, KernelSelector};
 
@@ -22,45 +22,45 @@ use crate::kernels::{self, Kernel};
 /// [`BootError::Mount`] when it cannot be mounted, [`BootError::NoKernel`]
 /// when no kernel can be selected.
 pub fn find_kernels(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     filesystem: &FilesystemName,
 ) -> Result<(), BootError> {
     zbm_trace::debug!("fs set to {filesystem}"; %filesystem);
     let fs = &filesystem.to_string();
-    let Some(mounted) = mount_zfs(system, state, filesystem, Noise::Hidden) else {
+    let Some(mounted) = mount_zfs(context, state, filesystem, Noise::Hidden) else {
         zbm_trace::error!("unable to mount {fs}"; %fs);
         return Err(BootError::Mount { fs: fs.to_owned() });
     };
     let records = state.kernels(fs);
-    let _ = system.files.write(&records, b"");
+    let _ = context.files().write(&records, b"");
 
-    clear_kcl_cache(system, state, fs);
-    let list = kernel_list(system, state, fs, mounted.path());
-    let _ = system.files.write(&records, &list);
+    clear_kcl_cache(context, state, fs);
+    let list = kernel_list(context, state, fs, mounted.path());
+    let _ = context.files().write(&records, &list);
     drop(mounted);
 
-    if !list.is_empty() && select_kernel(system, state, filesystem).is_some() {
+    if !list.is_empty() && select_kernel(context, state, filesystem).is_some() {
         return Ok(());
     }
     zbm_trace::error!("failed to find kernels on {fs}"; %fs);
-    let _ = system.files.remove_file(&records);
+    let _ = context.files().remove_file(&records);
     Err(BootError::NoKernel { fs: fs.to_owned() })
 }
 
 /// Starts the command line cache of `fs` afresh: creates its directory and
 /// removes the command line files in it.
-fn clear_kcl_cache(system: &System<'_>, state: &State<'_>, fs: &str) {
+fn clear_kcl_cache(context: &Context<'_>, state: &State<'_>, fs: &str) {
     be_location(state, fs);
     if let Some(cache) = state.kcl_cache(fs, ".")
         && let Some(dir) = cache.parent()
     {
-        let _ = system.files.create_dir_all(dir);
-        for name in system.files.read_dir(dir).unwrap_or_default() {
+        let _ = context.files().create_dir_all(dir);
+        for name in context.files().read_dir(dir).unwrap_or_default() {
             if name.as_encoded_bytes().ends_with(b".kcl")
                 && !name.as_encoded_bytes().starts_with(b".")
             {
-                let _ = system.files.remove_file(&dir.join(name));
+                let _ = context.files().remove_file(&dir.join(name));
             }
         }
     }
@@ -69,15 +69,15 @@ fn clear_kcl_cache(system: &System<'_>, state: &State<'_>, fs: &str) {
 /// The kernel list of `fs` mounted at `mnt`: a line for each kernel that has
 /// an initramfs. Copies the command line file of each kernel that has one into
 /// the command line cache.
-fn kernel_list(system: &System<'_>, state: &State<'_>, fs: &str, mnt: &Path) -> Vec<u8> {
+fn kernel_list(context: &Context<'_>, state: &State<'_>, fs: &str, mnt: &Path) -> Vec<u8> {
     let mnt_text = mnt.to_string_lossy();
     let mut list = Vec::new();
-    for path in kernels::kernel_files(system.files, mnt) {
+    for path in kernels::kernel_files(context.files(), mnt) {
         let kpath = in_environment(&path, &mnt_text);
-        if let Some(kernel) = paired_kernel(system, fs, &mnt_text, &path, &kpath) {
+        if let Some(kernel) = paired_kernel(context, fs, &mnt_text, &path, &kpath) {
             list.extend_from_slice(kernel.line().as_bytes());
         }
-        cache_kernel_kcl(system, state, fs, &mnt_text, &kpath);
+        cache_kernel_kcl(context, state, fs, &mnt_text, &kpath);
     }
     list
 }
@@ -92,13 +92,13 @@ fn in_environment(path: &str, mnt: &str) -> String {
 /// The kernel `kpath` of `fs`, found at `path` below `mnt`, with its
 /// initramfs, or `None` when it has none.
 fn paired_kernel(
-    system: &System<'_>,
+    context: &Context<'_>,
     fs: &str,
     mnt: &str,
     path: &str,
     kpath: &str,
 ) -> Option<Kernel> {
-    let Some(initramfs) = kernels::find_initramfs(system.files, Path::new(path)) else {
+    let Some(initramfs) = kernels::find_initramfs(context.files(), Path::new(path)) else {
         zbm_trace::debug!("kernel {mnt}{kpath} has no initramfs"; %mnt, %kpath);
         return None;
     };
@@ -116,32 +116,32 @@ fn paired_kernel(
 
 /// Copies the command line file of the kernel `kpath` of `fs`, mounted at
 /// `mnt`, into the command line cache, if the kernel has one.
-fn cache_kernel_kcl(system: &System<'_>, state: &State<'_>, fs: &str, mnt: &str, kpath: &str) {
+fn cache_kernel_kcl(context: &Context<'_>, state: &State<'_>, fs: &str, mnt: &str, kpath: &str) {
     let kcl = PathBuf::from(format!("{mnt}/{kpath}.kcl"));
-    if system.files.exists(&kcl) {
+    if context.files().exists(&kcl) {
         be_location(state, fs);
         if let Some(cache) = state.kcl_cache(fs, kpath) {
-            let _ = system.files.copy(&kcl, &cache);
+            let _ = context.files().copy(&kcl, &cache);
         }
     }
 }
 
 /// The value of `org.zfsbootmenu:kernel` on `fs`, when it is set.
-pub fn kernel_property(system: &System<'_>, fs: &FilesystemName) -> Option<String> {
-    zfs_value(system.runner, KERNEL.name, fs).filter(|value| !value.is_empty() && value != "-")
+pub fn kernel_property(context: &Context<'_>, fs: &FilesystemName) -> Option<String> {
+    zfs_value(context.runner(), KERNEL.name, fs).filter(|value| !value.is_empty() && value != "-")
 }
 
 /// The kernel to boot from the kernel list of `fs`: the last one, or the last
 /// one `org.zfsbootmenu:kernel` matches.
 pub fn select_kernel(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     filesystem: &FilesystemName,
 ) -> Option<Kernel> {
     zbm_trace::debug!("zfsbe set to {filesystem}"; %filesystem);
     let fs = &filesystem.to_string();
     let list = be_location(state, fs).join("kernels");
-    let text = system.files.read_to_string(&list).unwrap_or_default();
+    let text = context.files().read_to_string(&list).unwrap_or_default();
     if text.is_empty() {
         zbm_trace::error!("kernel list '{list}' missing or empty"; list = %list.display());
         return None;
@@ -155,7 +155,7 @@ pub fn select_kernel(
         .unwrap_or_default()
         .to_owned();
 
-    let property = zfs_value(system.runner, KERNEL.name, filesystem).unwrap_or_default();
+    let property = zfs_value(context.runner(), KERNEL.name, filesystem).unwrap_or_default();
     if property != "-" {
         zbm_trace::debug!("{name} set to {property}"; name = %KERNEL.name, %property);
         if let Ok(selector) = property.parse::<KernelSelector>() {

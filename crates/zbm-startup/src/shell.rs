@@ -10,9 +10,9 @@ use zbm_app::auth::{self, Authority};
 use zbm_boot::boot;
 use zbm_boot::error::BootError;
 use zbm_boot::recovery::Recovery;
-use zbm_platform::System;
 use zbm_platform::console::Screen;
 use zbm_platform::dmesg::read_logs;
+use zbm_platform::{Context, System};
 use zbm_state::State;
 use zbm_tools::console::colorize;
 use zbm_tools::mount::Mount;
@@ -144,7 +144,7 @@ impl Recovery for Shell<'_, '_> {
             self.state.clear_errors();
         }
         if system.command_exists("efibootmgr") {
-            boot::mount_efivarfs(system, "rw");
+            boot::mount_efivarfs(&Context::new(*system), "rw");
         }
 
         let _ = auth::recovery_shell(
@@ -167,7 +167,7 @@ impl Recovery for Shell<'_, '_> {
                 .unmount(Path::new(mountpoint), Shown::Console);
             zbm_trace::debug!("unmounting: {mountpoint}"; %mountpoint);
         }
-        boot::mount_efivarfs(system, "ro");
+        boot::mount_efivarfs(&Context::new(*system), "ro");
     }
 }
 

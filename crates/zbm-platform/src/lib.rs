@@ -252,6 +252,8 @@ pub struct Context<'a> {
     hid: &'a dyn HidDevices,
     /// Kernel modules.
     modules: &'a dyn ModuleLoader,
+    /// The next kernel: `kexec`, and the reboot.
+    kernel: &'a dyn KernelLoader,
 }
 
 impl<'a> Context<'a> {
@@ -266,6 +268,7 @@ impl<'a> Context<'a> {
             environment: system.environment,
             hid: system.hid,
             modules: system.modules,
+            kernel: system.kernel,
         }
     }
 
@@ -314,6 +317,11 @@ impl<'a> Context<'a> {
     /// Kernel modules.
     pub fn modules(&self) -> &'a dyn ModuleLoader {
         self.modules
+    }
+
+    /// The next kernel: `kexec`, and the reboot.
+    pub fn kernel(&self) -> &'a dyn KernelLoader {
+        self.kernel
     }
 
     /// Sends this thread's kernel log messages to this context's files, for

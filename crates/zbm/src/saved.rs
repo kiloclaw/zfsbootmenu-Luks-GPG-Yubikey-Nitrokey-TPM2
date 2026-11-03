@@ -17,7 +17,7 @@ use zbm_types::Printable;
 use zbm_boot::saved_logs::{self, Destination};
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::spec::cmdline::SAVE_LOGS;
-use zbm_platform::{Files, NoConsole, RealSystem, System};
+use zbm_platform::{Context, Files, NoConsole, RealSystem, System};
 
 use crate::{Io, USAGE};
 
@@ -36,7 +36,7 @@ pub fn destination(files: &dyn Files, base: &Path) -> Option<Destination> {
 pub fn run_in(system: &System<'_>, base: &Path, args: &[&str], io: &mut Io) -> i32 {
     let destination = destination(system.files, base).unwrap_or(Destination::Esp);
     match args {
-        ["saved"] => match saved_logs::list(system, &destination) {
+        ["saved"] => match saved_logs::list(&Context::new(*system), &destination) {
             Ok((device, boots)) => {
                 let _ = writeln!(io.stdout, "saved logs on {device}:");
                 for boot in boots {
@@ -63,7 +63,7 @@ pub fn run_in(system: &System<'_>, base: &Path, args: &[&str], io: &mut Io) -> i
             }
             0
         }
-        ["save"] => match saved_logs::save(system, base, &destination) {
+        ["save"] => match saved_logs::save(&Context::new(*system), base, &destination) {
             Ok(saved) => {
                 let _ = writeln!(io.stdout, "saved {} on {}", saved.directory, saved.device);
                 0
@@ -87,13 +87,15 @@ pub fn run(base: &Path, args: &[&str], io: &mut Io) -> i32 {
 /// command line in `base` asks for it; returns what to tell the user.
 pub fn after_crash_in(system: &System<'_>, base: &Path) -> Option<String> {
     let destination = destination(system.files, base)?;
-    Some(match saved_logs::save(system, base, &destination) {
-        Ok(saved) => format!("logs saved in {} on {}", saved.directory, saved.device),
-        Err(error) => format!(
-            "unable to save the logs: {}",
-            zbm_types::code::report(&error)
-        ),
-    })
+    Some(
+        match saved_logs::save(&Context::new(*system), base, &destination) {
+            Ok(saved) => format!("logs saved in {} on {}", saved.directory, saved.device),
+            Err(error) => format!(
+                "unable to save the logs: {}",
+                zbm_types::code::report(&error)
+            ),
+        },
+    )
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 //! The root prefix of a boot, from a property a foreign pool may set.
 
 use super::*;
+use zbm_tools::console::ConsoleInteraction;
 
 #[test]
 fn a_root_prefix_cannot_add_kernel_arguments() {
@@ -25,7 +26,9 @@ fn a_root_prefix_cannot_add_kernel_arguments() {
             hooks: hooks.to_path_buf(),
             ..BootSettings::default()
         };
-        kexec_kernel(system, state, &settings, &selected, shells);
+        let interaction = ConsoleInteraction::new(*system);
+        let context = Context::new(*system);
+        kexec_kernel(&context, &interaction, state, &settings, &selected, shells);
         String::new()
     });
     let load = outcome

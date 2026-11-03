@@ -22,7 +22,7 @@ use std::time::UNIX_EPOCH;
 use zbm_crypt::tpm2::Tpm2;
 use zbm_crypt::{Cryptsetup, LuksVolumes as _};
 use zbm_platform::dmesg::kernel_log;
-use zbm_platform::{Files, System};
+use zbm_platform::{Context, Files, System};
 use zbm_tools::devices::Devices;
 use zbm_types::KernelCommandLine;
 use zbm_zfs::ZfsText;
@@ -150,7 +150,7 @@ fn memory(system: &System<'_>, text: &mut String) {
         .files
         .read_to_string(Path::new("/proc/cmdline"))
         .unwrap_or_default();
-    let line = match zeroes_freed_memory(&kernel_log(system), &cmdline) {
+    let line = match zeroes_freed_memory(&kernel_log(system.files, system.runner), &cmdline) {
         Some(true) => "freed memory is zeroed (init_on_free)",
         Some(false) => "freed memory is not zeroed: add init_on_free=1 to the command line",
         None => "unknown whether freed memory is zeroed",
@@ -226,7 +226,10 @@ pub fn write(system: &System<'_>, base: &Path, parent: &Path) -> Result<PathBuf,
             "report.txt".to_owned(),
             summary(system, base, seconds).into_bytes(),
         ),
-        ("kernel.log".to_owned(), kernel_log(system).into_bytes()),
+        (
+            "kernel.log".to_owned(),
+            kernel_log(system.files, system.runner).into_bytes(),
+        ),
     ];
     let mut copied = crash_reports(system.files, base);
     copied.push("journal.jsonl".to_owned());
@@ -269,7 +272,7 @@ pub fn write_on(
     base: &Path,
     destination: &saved_logs::Destination,
 ) -> Result<(String, String), SaveError> {
-    saved_logs::on_partition(system, destination, |device, root| {
+    saved_logs::on_partition(&Context::new(*system), destination, |device, root| {
         let dir = write(system, base, &root.join(DIRECTORY))?;
         let name = dir
             .file_name()

@@ -3,16 +3,16 @@
 //! mounts and pools.
 
 use std::path::{Path, PathBuf};
-use zbm_platform::console::Screen;
 use zbm_types::code::{Coded as _, chain};
 
 use zbm_config::spec::properties::{DEVICETREE, ROOTPREFIX};
-use zbm_platform::System;
+use zbm_platform::Context;
+use zbm_platform::interaction::{Interaction, PromptRequest, Subject};
 use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
 use zbm_types::{
-    DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine, Printable,
+    DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine, Printable, RetryDelay,
 };
 use zbm_zfs::ZfsText;
 
@@ -23,10 +23,10 @@ use crate::commandline::{self, KexecLoad};
 use crate::graphics;
 use crate::hooks;
 use crate::kernels::Kernel;
-use crate::keys::{self, BootPath, Clear, KeyLoad};
+use crate::keys::{self, BootPath, KeyLoad};
 use crate::recovery::Recovery;
 use crate::saved_logs::{self, Destination, Saved};
-use zbm_tools::console::{TimedPrompt, colorize};
+use zbm_platform::color::colorize;
 
 /// What booting needs besides the kernel.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,43 +63,47 @@ impl Default for BootSettings {
 
 /// The root prefix of `fs` mounted at `mnt`, with a debug message naming
 /// where it came from.
-fn find_root_prefix(system: &System<'_>, fs: &FilesystemName, mnt: &Path) -> String {
+fn find_root_prefix(context: &Context<'_>, fs: &FilesystemName, mnt: &Path) -> String {
     zbm_trace::debug!("zfsbe_fs set to {fs}"; %fs);
     zbm_trace::debug!("zfsbe_mnt set to {mnt}"; mnt = %mnt.display());
-    let property = zfs_value(system.runner, ROOTPREFIX.name, fs);
-    commandline::root_prefix(system.files, property.as_deref(), mnt)
+    let property = zfs_value(context.runner(), ROOTPREFIX.name, fs);
+    commandline::root_prefix(context.files(), property.as_deref(), mnt)
 }
 
-/// Loads the key of `fs` if it is locked, with key sources and after
-/// clearing the screen. The countdown has loaded it already, so this loads
-/// it for a boot chosen in the menu; a failure shows when mounting.
-fn load_key(system: &System<'_>, state: &State<'_>, settings: &BootSettings, fs: &DatasetName) {
+/// Loads the key of `fs` if it is locked, with key sources, asking
+/// `interaction`. The caller has loaded it already, so this loads it for a
+/// boot chosen in the menu; a failure shows when mounting.
+fn load_key(
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
+    state: &State<'_>,
+    settings: &BootSettings,
+    fs: &DatasetName,
+) {
     let how = KeyLoad {
         hooks: &settings.hooks,
         path: BootPath::Menu,
-        clear: Clear::Yes,
     };
-    let _ = keys::load_key(system, state, &how, fs);
+    let _ = keys::load_key(context, interaction, state, &how, fs);
 }
 
-/// Loads the key of `fs` and mounts it, clearing the screen in between; the
-/// filesystem and its mount point, or `None` when it cannot be mounted. A
-/// kernel list line whose dataset is no name fails to mount.
+/// Loads the key of `fs` and mounts it; the filesystem and its mount point,
+/// or `None` when it cannot be mounted. A kernel list line whose dataset is
+/// no name fails to mount.
 fn load_and_mount(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     settings: &BootSettings,
     fs: &str,
 ) -> Option<(FilesystemName, PathBuf)> {
     let filesystem = fs.parse::<FilesystemName>().ok();
     if let Some(filesystem) = &filesystem {
-        load_key(system, state, settings, filesystem.dataset());
+        load_key(context, interaction, state, settings, filesystem.dataset());
     }
-    system.console.screen(Screen::ShowCursor);
-    system.console.screen(Screen::Clear);
     let filesystem = filesystem?;
     // Mounted until the teardown, or the recursive unmount of a failure.
-    let mnt = mount_zfs(system, state, &filesystem, Noise::Shown)?.leave();
+    let mnt = mount_zfs(context, state, &filesystem, Noise::Shown)?.leave();
     Some((filesystem, mnt))
 }
 
@@ -107,9 +111,11 @@ fn load_and_mount(
 /// with its command line, unmounts it, exports the pools imported read-write,
 /// runs the `teardown.d` hooks, has the console on the display hand the
 /// display back, and executes the kernel. Returns only if that fails, after
-/// telling the user.
+/// telling the user through `interaction`, which also asks for a key. The
+/// screen is the caller's: the plain console clears it before a boot.
 pub fn kexec_kernel(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     settings: &BootSettings,
     selected: &Kernel,
@@ -123,27 +129,27 @@ pub fn kexec_kernel(
         kernel,
         initramfs,
     } = selected;
-    let Some((filesystem, mnt)) = load_and_mount(system, state, settings, fs) else {
+    let Some((filesystem, mnt)) = load_and_mount(context, interaction, state, settings, fs) else {
         recovery.emergency_shell(&format!("unable to mount {}", colorize("cyan", fs)));
         return;
     };
     let mnt_text = mnt.to_string_lossy().into_owned();
     let hook_env = hook_env(settings, selected);
-    run_boot_sel_hooks(system, settings, &hook_env, &mnt_text);
+    run_boot_sel_hooks(context, settings, &hook_env, &mnt_text);
 
-    let cli_args = command_line(system, state, settings, fs, kernel);
-    let root_prefix = find_root_prefix(system, &filesystem, &mnt);
+    let cli_args = command_line(context, state, settings, fs, kernel);
+    let root_prefix = find_root_prefix(context, &filesystem, &mnt);
     let Some(root) = commandline::root_argument(&root_prefix, fs) else {
         zbm_trace::error!(
             root_prefix,
             fs,
             "the root argument is not one kernel argument"
         );
-        let _ = recursive_umount(system, &mnt);
+        let _ = recursive_umount(context, &mnt);
         recovery.emergency_shell(&format!("unable to boot {}", colorize("cyan", fs)));
         return;
     };
-    let dtb = find_devicetree(system, &filesystem, kernel, &mnt);
+    let dtb = find_devicetree(context, &filesystem, kernel, &mnt);
     let load = KexecLoad {
         mnt: &mnt_text,
         kernel,
@@ -153,17 +159,17 @@ pub fn kexec_kernel(
         args: &cli_args,
         copies: None,
     };
-    let Some(output) = load_measured(system, state, &load, &mnt) else {
+    let Some(output) = load_measured(context, interaction, state, &load, &mnt) else {
         return;
     };
     log_loaded(&load, &output);
 
     // The logs are saved before the teardown hooks, which may take away
     // the partition they go to (`90-xhci-unbind` and an ESP on USB).
-    let saved = save_logs(system, state, settings.save_logs.as_ref());
-    tear_down(system, settings, &hook_env, &mnt);
-    hand_over(system, state);
-    execute(system, state, (fs, kernel), saved.as_ref());
+    let saved = save_logs(context, state, settings.save_logs.as_ref());
+    tear_down(context, settings, &hook_env, &mnt);
+    hand_over(context, state);
+    execute(context, interaction, state, (fs, kernel), saved.as_ref());
 }
 
 /// Whether `selected` names anything to boot, as the legacy code checks;
@@ -204,7 +210,7 @@ fn hook_env<'a>(settings: &'a BootSettings, selected: &'a Kernel) -> Vec<(&'a st
 /// Runs the `boot-sel.d` hooks with `hook_env` and the mount point `mnt` of
 /// the selected boot environment.
 fn run_boot_sel_hooks(
-    system: &System<'_>,
+    context: &Context<'_>,
     settings: &BootSettings,
     hook_env: &[(&str, &str)],
     mnt: &str,
@@ -212,7 +218,7 @@ fn run_boot_sel_hooks(
     let mut boot_sel_env = hook_env.to_vec();
     boot_sel_env.push(("ZBM_SELECTED_MOUNTPOINT", mnt));
     hooks::run_stage(
-        system,
+        context,
         &settings.hooks,
         HookStage::BootSel,
         false,
@@ -223,17 +229,17 @@ fn run_boot_sel_hooks(
 /// The command line of `fs` booted with `kernel`, or the one typed for this
 /// boot, after logging the messages of its assembly.
 fn command_line(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     settings: &BootSettings,
     fs: &str,
     kernel: &str,
 ) -> KernelCommandLine {
     let mut messages = Vec::new();
-    let zfs = ZfsText::new(system.runner);
+    let zfs = ZfsText::new(context.runner());
     let cli_args = match &settings.command_line {
         Some(line) => commandline::edited_cmdline(
-            system.files,
+            context.files(),
             &zfs,
             state,
             (fs, line),
@@ -241,7 +247,7 @@ fn command_line(
             &mut messages,
         ),
         None => commandline::be_cmdline(
-            system.files,
+            context.files(),
             &zfs,
             state,
             fs,
@@ -260,17 +266,17 @@ fn command_line(
 /// `kernel` in the boot environment mounted at `mnt`, if the property is set
 /// and the file exists.
 fn find_devicetree(
-    system: &System<'_>,
+    context: &Context<'_>,
     fs: &FilesystemName,
     kernel: &str,
     mnt: &Path,
 ) -> Option<PathBuf> {
-    let dtb_property = zfs_value(system.runner, DEVICETREE.name, fs);
+    let dtb_property = zfs_value(context.runner(), DEVICETREE.name, fs);
     match dtb_property.as_deref() {
         Some(property) if !property.is_empty() && property != "-" => {
             zbm_trace::debug!("devicetree property set to '{property}'"; %property);
             let candidate = commandline::devicetree_candidate(property, kernel, mnt)?;
-            if system.files.is_file(&candidate) {
+            if context.files().is_file(&candidate) {
                 zbm_trace::debug!(
                     "devicetree file exists: '{candidate}'";
                     candidate = %candidate.display()
@@ -296,35 +302,41 @@ fn find_devicetree(
 /// when nothing was measured, as [`load_kernel`] does; the copies go once
 /// they are loaded, or failed to load.
 fn load_measured(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     load: &KexecLoad<'_>,
     mnt: &Path,
 ) -> Option<String> {
-    let copies = measured::measure(system, state, load);
+    let copies = measured::measure(context, state, load);
     let measured = KexecLoad {
         copies: copies.as_ref(),
         ..*load
     };
-    let loaded = load_kernel(system, &measured, mnt);
+    let loaded = load_kernel(context, interaction, &measured, mnt);
     if let Some(copies) = &copies {
-        copies.remove(system);
+        copies.remove(context);
     }
     loaded
 }
 
 /// Loads the kernel and initramfs of `load` into memory, with a second try
 /// when the first fails, and returns what `kexec` printed. When both tries
-/// fail, unmounts the boot environment mounted at `mnt`, tells the user and
-/// returns `None`.
-fn load_kernel(system: &System<'_>, load: &KexecLoad<'_>, mnt: &Path) -> Option<String> {
+/// fail, unmounts the boot environment mounted at `mnt`, tells the user
+/// through `interaction` and returns `None`.
+fn load_kernel(
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
+    load: &KexecLoad<'_>,
+    mnt: &Path,
+) -> Option<String> {
     let mut output = String::new();
     // Lockdown or Secure Boot: the kernel checks what it boots, and loads
     // nothing it refuses (ROADMAP.md, SE10).
-    super::mounts::mount_securityfs(system);
-    let checked = kexec::checked_boot(system.files);
+    super::mounts::mount_securityfs(context);
+    let checked = kexec::checked_boot(context.files());
     for _ in 0..2 {
-        let (ok, text) = substituted(load.run(system.kernel, system.runner, checked));
+        let (ok, text) = substituted(load.run(context.kernel(), context.runner(), checked));
         if ok {
             return Some(text);
         }
@@ -341,22 +353,14 @@ fn load_kernel(system: &System<'_>, load: &KexecLoad<'_>, mnt: &Path) -> Option<
         %mnt_text, %kernel, %initramfs
     );
     zbm_trace::error!("{output}"; %output);
-    let _ = recursive_umount(system, mnt);
-    TimedPrompt::new()
-        .delay(10)
-        .message(colorize(
-            "red",
-            "Unable to load kernel or initramfs into memory",
-        ))
-        .message(colorize(
-            "orange",
-            &Printable(&format!("{mnt_text}{kernel}")).to_string(),
-        ))
-        .message(colorize(
-            "orange",
-            &Printable(&format!("{mnt_text}{initramfs}")).to_string(),
-        ))
-        .run(system);
+    let _ = recursive_umount(context, mnt);
+    let _ = interaction.ask(&failed_boot(
+        Subject::LoadFailed {
+            kernel: Printable(&format!("{mnt_text}{kernel}")).to_string(),
+            initramfs: Printable(&format!("{mnt_text}{initramfs}")).to_string(),
+        },
+        "Unable to load kernel or initramfs into memory".to_owned(),
+    ));
     None
 }
 
@@ -385,11 +389,16 @@ fn log_loaded(load: &KexecLoad<'_>, output: &str) {
 /// Prepares the machine for the loaded kernel: unmounts the boot environment
 /// mounted at `mnt`, exports the pools imported read-write and runs the
 /// `teardown.d` hooks with `hook_env`.
-fn tear_down(system: &System<'_>, settings: &BootSettings, hook_env: &[(&str, &str)], mnt: &Path) {
-    umount(system, mnt);
-    export_writable_pools(system.runner);
+fn tear_down(
+    context: &Context<'_>,
+    settings: &BootSettings,
+    hook_env: &[(&str, &str)],
+    mnt: &Path,
+) {
+    umount(context, mnt);
+    export_writable_pools(context.runner());
     hooks::run_stage(
-        system,
+        context,
         &settings.hooks,
         HookStage::Teardown,
         false,
@@ -401,11 +410,11 @@ fn tear_down(system: &System<'_>, settings: &BootSettings, hook_env: &[(&str, &s
 /// is loaded and before the teardown hooks, which may unbind the device the
 /// partition is on; a failure is logged and the boot goes on.
 pub fn save_logs(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     destination: Option<&Destination>,
 ) -> Option<Saved> {
-    match saved_logs::save(system, state.base(), destination?) {
+    match saved_logs::save(context, state.base(), destination?) {
         Ok(saved) => {
             zbm_trace::info!(
                 "saved the logs on {device} in {directory}";
@@ -427,11 +436,11 @@ pub fn save_logs(
 /// this boot, if any, so that they keep how the GPUs were handed back, which
 /// comes after them and which the next kernel would not see. A failure is
 /// logged.
-fn keep_hand_back(system: &System<'_>, state: &State<'_>, saved: Option<&Saved>) {
+fn keep_hand_back(context: &Context<'_>, state: &State<'_>, saved: Option<&Saved>) {
     let Some(saved) = saved else {
         return;
     };
-    if let Err(error) = saved_logs::update_logs(system, state.base(), saved) {
+    if let Err(error) = saved_logs::update_logs(context, state.base(), saved) {
         zbm_trace::warn!(
             "unable to add the GPUs' hand-back to the saved logs: {error}";
             error = %chain(&error), error_code = %error.code()
@@ -442,17 +451,17 @@ fn keep_hand_back(system: &System<'_>, state: &State<'_>, saved: Option<&Saved>)
 /// Has the console on the display, if one runs, hand the display, the
 /// keyboards and the virtual terminal back, so that the booted kernel takes
 /// them over as it would from the kernel console.
-fn hand_over(system: &System<'_>, state: &State<'_>) {
+fn hand_over(context: &Context<'_>, state: &State<'_>) {
     if state.console_pid().is_some() {
-        let _ = programs::release_console(system.runner);
+        let _ = programs::release_console(context.runner());
     }
 }
 
 /// Has the console that handed the display over take it again when
 /// `kexec` failed, to show the error and the menu after it.
-fn take_back(system: &System<'_>, state: &State<'_>) {
+fn take_back(context: &Context<'_>, state: &State<'_>) {
     if state.released_console_pid().is_some() {
-        let _ = programs::reattach_console(system.runner);
+        let _ = programs::reattach_console(context.runner());
     }
 }
 
@@ -465,9 +474,9 @@ const DROP_CACHES: &str = "/proc/sys/vm/drop_caches";
 /// key files read from key devices, so that the kernel frees those pages,
 /// and zeroes them with `init_on_free=1`; and warns when this process still
 /// holds secrets.
-pub fn wipe_before_kexec(system: &System<'_>, state: &State<'_>) {
-    crate::keys::clear_key_caches(system.files, state);
-    if let Err(error) = system.files.write(Path::new(DROP_CACHES), b"3\n") {
+pub fn wipe_before_kexec(context: &Context<'_>, state: &State<'_>) {
+    crate::keys::clear_key_caches(context.files(), state);
+    if let Err(error) = context.files().write(Path::new(DROP_CACHES), b"3\n") {
         zbm_trace::debug!("unable to drop the page cache: {error}"; %error);
     }
     let live = zbm_platform::secret::live_secrets();
@@ -476,41 +485,46 @@ pub fn wipe_before_kexec(system: &System<'_>, state: &State<'_>) {
     }
 }
 
-/// Tells the user which kernel (`kernel` of `fs`) boots and executes it,
-/// after handing the GPUs back, and keeping how in the logs `saved` for
-/// this boot. Returns only if that fails, after telling the user.
+/// Tells the user, through `interaction`, which kernel (`kernel` of `fs`)
+/// boots and executes it, after handing the GPUs back, and keeping how in
+/// the logs `saved` for this boot. Returns only if that fails, after
+/// telling the user.
 fn execute(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     (fs, kernel): (&str, &str),
     saved: Option<&Saved>,
 ) {
-    wipe_before_kexec(system, state);
-    let booting = format!(
-        "\nBooting {} for {} ...\n\n",
-        colorize("yellow", &Printable(kernel).to_string()),
-        colorize("cyan", &Printable(fs).to_string())
-    );
-    let _ = system.console.write(booting.as_bytes());
+    wipe_before_kexec(context, state);
+    let kernel = Printable(kernel).to_string();
+    interaction.booting(&kernel, &Printable(fs).to_string());
     // The GPUs last, as a display shows nothing once its GPU is handed back
-    let gpus = graphics::hand_back(system, Path::new("/"));
+    let gpus = graphics::hand_back(context, Path::new("/"));
     if !gpus.is_empty() {
-        keep_hand_back(system, state, saved);
+        keep_hand_back(context, state, saved);
     }
 
-    let (_, output) = substituted(kexec::execute(system.kernel, system.runner));
+    let (_, output) = substituted(kexec::execute(context.kernel(), context.runner()));
     // Only a failed kexec returns.
-    graphics::take_back(system, Path::new("/"), &gpus);
-    take_back(system, state);
+    graphics::take_back(context, Path::new("/"), &gpus);
+    take_back(context, state);
     zbm_trace::error!("kexec -e -i failed!");
     zbm_trace::error!("{output}"; %output);
-    TimedPrompt::new()
-        .delay(10)
-        .message(colorize(
-            "red",
-            &format!("kexec run of {} failed!", Printable(kernel)),
-        ))
-        .run(system);
+    let message = format!("kexec run of {kernel} failed!");
+    let _ = interaction.ask(&failed_boot(Subject::KexecFailed { kernel }, message));
+}
+
+/// The prompt of a boot that failed, about `subject`, with `message`: ten
+/// seconds, then the menu again.
+fn failed_boot(subject: Subject, message: String) -> PromptRequest {
+    PromptRequest {
+        subject,
+        delay: RetryDelay::new(10),
+        message,
+        on_return: String::new(),
+        on_escape: String::new(),
+    }
 }
 
 #[cfg(test)]

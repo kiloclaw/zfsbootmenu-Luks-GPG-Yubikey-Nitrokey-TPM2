@@ -22,7 +22,7 @@ use crate::support::{self, Facts};
 use zbm_boot::boot::{self, BootSettings};
 use zbm_boot::hooks;
 use zbm_boot::kernels::Kernel;
-use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
+use zbm_boot::keys::{self, BootPath, KeyLoad};
 use zbm_boot::recovery::Recovery;
 use zbm_boot::saved_logs::Destination;
 use zbm_config::args::{Args, ZbmArgs};
@@ -33,7 +33,7 @@ use zbm_platform::console::Screen;
 use zbm_platform::{Context, Installed, System};
 use zbm_pool::Build;
 use zbm_state::State;
-use zbm_tools::console::{Answer, TimedPrompt, colorize};
+use zbm_tools::console::{Answer, ConsoleInteraction, TimedPrompt, colorize};
 use zbm_tools::programs;
 use zbm_types::{DatasetName, FilesystemName, PoolRequirement};
 use zbm_zfs::{Stderr, ZfsText};
@@ -166,7 +166,7 @@ impl<'a> Startup<'a> {
         stages: Option<(&System<'_>, &mut dyn Front)>,
     ) -> Option<DatasetName> {
         let _ = self.state.create();
-        boot::mount_efivarfs(&self.system, "ro");
+        boot::mount_efivarfs(&Context::new(self.system), "ro");
 
         let bootfs = match stages {
             Some((system, front)) => {
@@ -319,9 +319,10 @@ impl<'a> Startup<'a> {
         let how = KeyLoad {
             hooks: &self.hooks,
             path: BootPath::Countdown,
-            clear: Clear::No,
         };
-        if keys::load_key(system, &self.state, &how, bootfs).is_err() {
+        let context = Context::new(*system);
+        let interaction = ConsoleInteraction::new(*system);
+        if keys::load_key(&context, &interaction, &self.state, &how, bootfs).is_err() {
             let message = format!(
                 "unable to load key for {}",
                 colorize("cyan", bootfs.as_str())
@@ -330,8 +331,9 @@ impl<'a> Startup<'a> {
             return;
         }
         let filesystem = FilesystemName::from(bootfs.clone());
-        if boot::find_kernels(system, &self.state, &filesystem).is_ok() && !self.state.is_active() {
-            let selected = boot::select_kernel(system, &self.state, &filesystem)
+        if boot::find_kernels(&context, &self.state, &filesystem).is_ok() && !self.state.is_active()
+        {
+            let selected = boot::select_kernel(&context, &self.state, &filesystem)
                 .unwrap_or_else(|| Kernel::parse(""));
             // 50-import-pools exported BOOTFS in the legacy program.
             let settings = BootSettings {
@@ -343,7 +345,18 @@ impl<'a> Startup<'a> {
                 import_policy: self.options.import_policy,
             };
             let shell = self.shell();
-            boot::kexec_kernel(system, &self.state, &settings, &selected, &shell);
+            // The boot runs on a clear screen, as the legacy one does once
+            // the key is loaded.
+            system.console.screen(Screen::ShowCursor);
+            system.console.screen(Screen::Clear);
+            boot::kexec_kernel(
+                &context,
+                &interaction,
+                &self.state,
+                &settings,
+                &selected,
+                &shell,
+            );
         }
     }
 

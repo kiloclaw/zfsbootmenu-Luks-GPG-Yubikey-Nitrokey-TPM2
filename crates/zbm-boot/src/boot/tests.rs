@@ -4,8 +4,12 @@
 use super::*;
 use std::path::{Path, PathBuf};
 use zbm_platform::exec::{Command, Stream};
-use zbm_platform::{Installed, KernelLog, Runner, System};
+use zbm_platform::interaction::{
+    Asked, Interaction, PromptRequest, SecretRequest, Tell, Wait, WaitRequest,
+};
+use zbm_platform::{Context, Installed, KernelLog, Runner, System};
 use zbm_state::State;
+use zbm_tools::console::ConsoleInteraction;
 
 use serde::{Deserialize, Serialize};
 use zbm_platform::exec::{Output, Status, SystemRunner};
@@ -330,10 +334,11 @@ fn kernels_are_found_as_the_legacy_function_finds_them() {
         });
         let rust = machine.rust(|system, state, _, _| {
             let fs = name(FS);
-            if find_kernels(system, state, &fs).is_err() {
+            let context = Context::new(*system);
+            if find_kernels(&context, state, &fs).is_err() {
                 return String::new();
             }
-            select_kernel(system, state, &fs)
+            select_kernel(&context, state, &fs)
                 .map(|kernel| kernel.line())
                 .unwrap_or_default()
         });
@@ -374,6 +379,40 @@ fn boot_machine() -> Machine {
     }
 }
 
+/// The plain console, where the person types one key when asked, once:
+/// `zfs` tried a key typed on its terminal once in the legacy boot, as its
+/// test answers nothing more.
+struct OneKey<'a> {
+    console: ConsoleInteraction<'a>,
+    typed: std::sync::atomic::AtomicBool,
+}
+
+impl Interaction for OneKey<'_> {
+    fn ask(&self, request: &PromptRequest) -> zbm_types::Answer {
+        self.console.ask(request)
+    }
+
+    fn secret(&self, _: &SecretRequest<'_>) -> Asked {
+        if self.typed.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            Asked::Ended
+        } else {
+            Asked::Secret(zbm_platform::Secret::copy_from(b"zfskey12"))
+        }
+    }
+
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
+        self.console.wait(request)
+    }
+
+    fn notify(&self, tell: Tell<'_>) {
+        self.console.notify(tell);
+    }
+
+    fn booting(&self, kernel: &str, environment: &str) {
+        self.console.booting(kernel, environment);
+    }
+}
+
 fn boot(machine: &Machine, parity: &mut Parity) {
     let _secrets = crate::testing::booting();
     let selected = Kernel {
@@ -396,14 +435,26 @@ fn boot(machine: &Machine, parity: &mut Parity) {
             command_line: None,
             import_policy: zbm_types::ImportPolicy::default(),
         };
-        kexec_kernel(system, state, &settings, &selected, shells);
+        let interaction = OneKey {
+            console: ConsoleInteraction::new(*system),
+            typed: std::sync::atomic::AtomicBool::new(false),
+        };
+        let context = Context::new(*system);
+        kexec_kernel(&context, &interaction, state, &settings, &selected, shells);
         String::new()
     });
     // Measured boot is the Rust boot's alone (ROADMAP.md SE10)
     let log = rust
         .log
         .replace("DEBUG: no TPM: the boot is not measured\n", "");
-    assert_eq!(Outcome { log, ..rust }, legacy);
+    // The Rust boot reads the key's format to ask for the right kind of
+    // key; `zfs` read it itself on its terminal.
+    let calls = rust.calls.replacen(
+        "zfs get -H -o value keyformat tank/ROOT\nzfs load-key -L prompt",
+        "zfs load-key -L prompt",
+        1,
+    );
+    assert_eq!(Outcome { log, calls, ..rust }, legacy);
 }
 
 #[test]
@@ -460,7 +511,7 @@ fn recursive_unmounts_go_deepest_first() {
             .then(|| Some(SystemRunner.run(command)))
             .flatten()
     });
-    let ok = recursive_umount(&fake.system(), Path::new("/mnt/be"));
+    let ok = recursive_umount(&fake.context(), Path::new("/mnt/be"));
     assert!(ok.is_err());
     let umounts: Vec<String> = fake
         .runner
@@ -486,12 +537,12 @@ fn recursive_unmounts_go_deepest_first() {
 fn efivarfs_is_mounted_or_remounted() {
     let fake = FakeSystem::new();
     let _log_fake = fake_log(&fake);
-    mount_efivarfs(&fake.system(), "ro");
+    mount_efivarfs(&fake.context(), "ro");
     assert!(fake.runner.lines().is_empty());
     assert!(fake.kmsg().contains("efivarfs unsupported"));
 
     fake.files.dir("/sys/firmware/efi/efivars");
-    mount_efivarfs(&fake.system(), "ro");
+    mount_efivarfs(&fake.context(), "ro");
     assert_eq!(
         fake.runner.lines(),
         ["mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o ro"]
@@ -504,7 +555,7 @@ fn efivarfs_is_mounted_or_remounted() {
         "/proc/self/mounts",
         "proc /proc proc rw 0 0\nefivarfs /sys/firmware/efi/efivars efivarfs ro 0 0\n",
     );
-    mount_efivarfs(&fake2.system(), "rw");
+    mount_efivarfs(&fake2.context(), "rw");
     assert_eq!(
         fake2.runner.lines(),
         ["mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o remount,rw"]
@@ -579,7 +630,7 @@ fn failed_exports_and_missing_kernels_are_errors() {
     assert_eq!(encryption_root(system.runner, &name("tank/ROOT")), None);
     assert_eq!(locked_root(system.runner, &name("tank/ROOT")), None);
     assert_eq!(
-        select_kernel(&system, &state, &name("tank/ROOT/none")),
+        select_kernel(&Context::new(system), &state, &name("tank/ROOT/none")),
         None
     );
     assert!(fake.kmsg().contains("missing or empty"));

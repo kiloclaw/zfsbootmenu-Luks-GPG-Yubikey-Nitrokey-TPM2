@@ -13,9 +13,9 @@ use zbm_boot::boot::BootSettings;
 use zbm_boot::hooks;
 use zbm_boot::recovery::Recovery;
 use zbm_platform::Signal;
-use zbm_platform::System;
 use zbm_platform::console::Screen;
 use zbm_platform::process::deepest_child;
+use zbm_platform::{Context, System};
 use zbm_tools::console::{Answer, TimedPrompt, colorize};
 use zbm_types::HookStage;
 
@@ -106,7 +106,13 @@ impl Startup<'_> {
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
-        hooks::run_stage(system, &self.hooks, HookStage::Setup, false, &pairs);
+        hooks::run_stage(
+            &Context::new(*system),
+            &self.hooks,
+            HookStage::Setup,
+            false,
+            &pairs,
+        );
         // Clear the screen before a possible passphrase prompt.
         system.console.screen(Screen::Clear);
 

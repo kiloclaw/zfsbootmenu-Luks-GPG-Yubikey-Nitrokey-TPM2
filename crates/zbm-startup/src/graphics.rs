@@ -21,7 +21,7 @@ use zbm_boot::graphics::{
 };
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::spec::cmdline::{GPU, GPU_UNTESTED};
-use zbm_platform::{Files, System};
+use zbm_platform::{Context, Files, System};
 use zbm_tools::modules::Modules;
 use zbm_tools::{Shown, udev};
 
@@ -160,7 +160,7 @@ pub fn load(system: &System<'_>, root: &Path, value: Option<&str>, untested: boo
         return;
     }
     load_drivers(system, &drivers, &taken);
-    wait_for_cards(system, root, &taken);
+    wait_for_cards(&Context::new(*system), root, &taken);
     udev::settle(system.runner, Shown::Hidden);
 }
 

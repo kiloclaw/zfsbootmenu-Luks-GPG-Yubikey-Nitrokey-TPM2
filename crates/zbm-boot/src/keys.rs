@@ -28,7 +28,7 @@ mod cache;
 mod load;
 
 pub use cache::clear_key_caches;
-pub use load::{Clear, KeyLoad, load_key};
+pub use load::{KEY_TRIES, KeyLoad, load_key};
 
 /// How the boot was chosen, which decides whether key sources are tried.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

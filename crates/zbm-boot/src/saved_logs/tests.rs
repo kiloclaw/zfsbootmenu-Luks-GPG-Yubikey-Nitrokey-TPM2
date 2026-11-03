@@ -59,23 +59,26 @@ fn the_partition_is_named_found_or_the_only_esp() {
         "/dev/sdb1\n",
     );
     let system = fake.system();
-    let named = |spec: &str| device(&system, &Destination::Device(spec.to_owned()));
+    let named = |spec: &str| device(&Context::new(system), &Destination::Device(spec.to_owned()));
 
     assert_eq!(named("/dev/nvme0n1p1").unwrap(), "/dev/nvme0n1p1");
     assert_eq!(named("LABEL=EFI").unwrap(), "/dev/sdb1");
     assert!(matches!(named("LABEL=none"), Err(SaveError::NoDevice(tag)) if tag == "LABEL=none"));
     assert!(matches!(named("nonsense"), Err(SaveError::NoDevice(tag)) if tag == "nonsense"));
-    assert_eq!(device(&system, &Destination::Esp).unwrap(), "/dev/vda1");
+    assert_eq!(
+        device(&Context::new(system), &Destination::Esp).unwrap(),
+        "/dev/vda1"
+    );
 
     let none = FakeSystem::new();
     assert!(matches!(
-        device(&none.system(), &Destination::Esp),
+        device(&none.context(), &Destination::Esp),
         Err(SaveError::NoEsp)
     ));
     let two = FakeSystem::new();
     let both = format!("{ONE_ESP}/dev/vdb1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b\n");
     two.runner.respond("lsblk -rnpo NAME,PARTTYPE", 0, &both);
-    let error = device(&two.system(), &Destination::Esp).unwrap_err();
+    let error = device(&two.context(), &Destination::Esp).unwrap_err();
     assert!(
         matches!(&error, SaveError::Ambiguous(all) if all == "/dev/vda1, /dev/vdb1"),
         "{error:?}"
@@ -107,7 +110,7 @@ fn the_boot_loader_names_the_esp_it_loaded_from() {
         .dir("/sys/firmware/efi")
         .file(LOADER_DEVICE, variable);
 
-    let found = device(&fake.system(), &Destination::Esp);
+    let found = device(&fake.context(), &Destination::Esp);
 
     assert_eq!(found.unwrap(), "/dev/vdb1");
     let lines = fake.runner.lines();
@@ -128,7 +131,12 @@ fn a_save_writes_the_logs_and_keeps_the_newest_boots() {
     fake.files.file(logs.join("README"), "not a boot\n");
     let system = fake.system();
 
-    let saved = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap();
+    let saved = save(
+        &Context::new(system),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+    )
+    .unwrap();
 
     assert_eq!(saved.device, "/dev/vda1");
     assert_eq!(saved.directory, "EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z");
@@ -166,12 +174,17 @@ fn a_save_writes_the_logs_and_keeps_the_newest_boots() {
         "{lines:?}"
     );
 
-    let again = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap();
+    let again = save(
+        &Context::new(system),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+    )
+    .unwrap();
     assert_eq!(
         again.directory,
         "EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z.2"
     );
-    let (device, boots) = list(&system, &Destination::Esp).unwrap();
+    let (device, boots) = list(&Context::new(system), &Destination::Esp).unwrap();
     assert_eq!(device, "/dev/vda1");
     let names: Vec<&str> = boots.iter().map(|boot| boot.name.as_str()).collect();
     assert_eq!(
@@ -199,12 +212,17 @@ fn a_partition_that_does_not_mount_is_said_so() {
     );
     let system = fake.system();
 
-    let error = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap_err();
+    let error = save(
+        &Context::new(system),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+    )
+    .unwrap_err();
 
     assert!(matches!(&error, SaveError::Mount(device) if device == "/dev/vda1"));
     assert_eq!(error.to_string(), "unable to mount /dev/vda1");
     assert!(!fake.files.exists(Path::new(MOUNT_POINT)));
-    assert!(list(&system, &Destination::Esp).is_err());
+    assert!(list(&Context::new(system), &Destination::Esp).is_err());
 }
 
 #[test]
@@ -216,7 +234,12 @@ fn a_file_that_cannot_be_written_is_named() {
         std::io::ErrorKind::PermissionDenied,
     );
 
-    let error = save(&fake.system(), Path::new("/zfsbootmenu"), &Destination::Esp).unwrap_err();
+    let error = save(
+        &fake.context(),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+    )
+    .unwrap_err();
 
     assert!(
         matches!(&error, SaveError::Write { path, .. } if path.ends_with("kernel.log")),
@@ -241,7 +264,12 @@ fn the_boot_just_saved_stays_with_the_clock_behind() {
     }
     let system = fake.system();
 
-    let saved = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap();
+    let saved = save(
+        &Context::new(system),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+    )
+    .unwrap();
 
     assert!(
         fake.files
@@ -264,7 +292,12 @@ fn a_boot_not_saved_whole_is_removed_and_old_ones_pruned() {
         .fail(dir.join("kernel.log"), std::io::ErrorKind::StorageFull);
     let system = fake.system();
 
-    let error = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap_err();
+    let error = save(
+        &Context::new(system),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+    )
+    .unwrap_err();
 
     assert!(error.to_string().contains("kernel.log"), "{error}");
     assert!(!fake.files.exists(&dir.join("journal.jsonl")));
@@ -277,7 +310,12 @@ fn a_boot_not_saved_whole_is_removed_and_old_ones_pruned() {
 fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
     let fake = machine();
     let system = fake.system();
-    let saved = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap();
+    let saved = save(
+        &Context::new(system),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+    )
+    .unwrap();
     let dir = Path::new(MOUNT_POINT).join(&saved.directory);
     // What was logged since the save is not in the saved copies.
     fake.files.file(dir.join("kernel.log"), "stale\n").file(
@@ -285,7 +323,7 @@ fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
         "{\"message\":\"boot\"}\n{\"message\":\"graphics: handed back\"}\n",
     );
 
-    update_logs(&system, Path::new("/zfsbootmenu"), &saved).unwrap();
+    update_logs(&Context::new(system), Path::new("/zfsbootmenu"), &saved).unwrap();
 
     assert_eq!(
         fake.files.text(dir.join("kernel.log")).as_deref(),
@@ -301,7 +339,7 @@ fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
         directory: format!("{DIRECTORY}/2020-01-01T00-00-00Z"),
         ..saved.clone()
     };
-    let error = update_logs(&system, Path::new("/zfsbootmenu"), &gone).unwrap_err();
+    let error = update_logs(&Context::new(system), Path::new("/zfsbootmenu"), &gone).unwrap_err();
     assert!(
         zbm_types::code::chain(&error).contains("the saved boot is gone"),
         "{error}"
@@ -313,7 +351,7 @@ fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
         "",
     );
     assert!(matches!(
-        update_logs(&system, Path::new("/zfsbootmenu"), &saved),
+        update_logs(&Context::new(system), Path::new("/zfsbootmenu"), &saved),
         Err(SaveError::Mount(device)) if device == "/dev/vda1"
     ));
 }

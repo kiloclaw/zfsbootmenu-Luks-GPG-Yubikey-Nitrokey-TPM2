@@ -22,7 +22,7 @@ pub use zbm_crypt::measure::{
     unsealed_at,
 };
 use zbm_crypt::tpm2::Tpm2;
-use zbm_platform::{Files, System};
+use zbm_platform::{Context, Files};
 use zbm_state::State;
 
 use crate::commandline::KexecLoad;
@@ -49,22 +49,22 @@ pub struct Copies {
 
 impl Copies {
     /// Removes the copies, once the kernel has loaded them or failed to.
-    pub fn remove(&self, system: &System<'_>) {
-        let _ = system.files.remove_file(&self.kernel);
-        let _ = system.files.remove_file(&self.initramfs);
+    pub fn remove(&self, context: &Context<'_>) {
+        let _ = context.files().remove_file(&self.kernel);
+        let _ = context.files().remove_file(&self.initramfs);
     }
 }
 
 /// Whether the machine has a TPM that measured boot would extend.
-pub fn has_tpm(system: &System<'_>) -> bool {
-    tpm_device(system).is_some()
+pub fn has_tpm(context: &Context<'_>) -> bool {
+    tpm_device(context).is_some()
 }
 
 /// The TPM of the machine, the resource manager's device first.
-fn tpm_device(system: &System<'_>) -> Option<&'static str> {
+fn tpm_device(context: &Context<'_>) -> Option<&'static str> {
     DEVICES
         .into_iter()
-        .find(|device| system.files.exists(Path::new(device)))
+        .find(|device| context.files().exists(Path::new(device)))
 }
 
 /// What became of events for the TPM.
@@ -84,12 +84,12 @@ pub enum Extended {
 /// `state`, which starts with what PCRs 8 and 9 held when it is new: the
 /// one way into the TPM of measured boot, for the hook root's hooks
 /// (ADR 0009) and the boot's files.
-pub fn extend_events(system: &System<'_>, state: &State<'_>, events: &[Event]) -> Extended {
-    let Some(device) = tpm_device(system) else {
+pub fn extend_events(context: &Context<'_>, state: &State<'_>, events: &[Event]) -> Extended {
+    let Some(device) = tpm_device(context) else {
         return Extended::NoTpm;
     };
     let tcti = format!("device:{device}");
-    let tpm = Tpm2::new(system.runner, &tcti);
+    let tpm = Tpm2::new(context.runner(), &tcti);
     let banks = tpm.active_banks().filter(|banks| !banks.is_empty());
     let Some(banks) = banks else {
         zbm_trace::warn!(
@@ -99,11 +99,11 @@ pub fn extend_events(system: &System<'_>, state: &State<'_>, events: &[Event]) -
         return Extended::NoBanks;
     };
     let log = state.base().join(LOG);
-    if !system.files.exists(&log) {
-        record_start(system, &tpm, &banks, &log);
+    if !context.files().exists(&log) {
+        record_start(context, &tpm, &banks, &log);
     }
     for event in events {
-        extend(system, &tpm, (event, &banks), &log);
+        extend(context, &tpm, (event, &banks), &log);
     }
     Extended::Extended
 }
@@ -112,12 +112,12 @@ pub fn extend_events(system: &System<'_>, state: &State<'_>, events: &[Event]) -
 /// it in the event log of `state`; the copies the kernel loads instead of
 /// the boot environment's files, or `None` when nothing was measured, as
 /// without a TPM.
-pub fn measure(system: &System<'_>, state: &State<'_>, load: &KexecLoad<'_>) -> Option<Copies> {
-    if tpm_device(system).is_none() {
+pub fn measure(context: &Context<'_>, state: &State<'_>, load: &KexecLoad<'_>) -> Option<Copies> {
+    if tpm_device(context).is_none() {
         zbm_trace::debug!("no TPM: the boot is not measured");
         return None;
     }
-    let files = read_files(system, load);
+    let files = read_files(context, load);
     let mut events = Vec::new();
     if let Some((kernel, initramfs)) = &files {
         events.push(kernel.0.clone());
@@ -127,12 +127,12 @@ pub fn measure(system: &System<'_>, state: &State<'_>, load: &KexecLoad<'_>) -> 
     // What ZFSBootMenu unsealed, it unsealed: the separator, even when the
     // files could not be measured.
     events.push(Event::unsealed());
-    if extend_events(system, state, &events) != Extended::Extended {
+    if extend_events(context, state, &events) != Extended::Extended {
         return None;
     }
     let (kernel, initramfs) = files?;
     write_copies(
-        system,
+        context,
         state,
         &state.base().join(LOG),
         (kernel.1, initramfs.1),
@@ -150,9 +150,9 @@ fn measured_file(files: &dyn Files, mnt: &str, inside: &str) -> io::Result<(Dige
 }
 
 /// The kernel and the initramfs of `load`, read once, and their events.
-fn read_files(system: &System<'_>, load: &KexecLoad<'_>) -> Option<(File, File)> {
+fn read_files(context: &Context<'_>, load: &KexecLoad<'_>) -> Option<(File, File)> {
     let read = |inside: &str, measured: fn(String) -> Measured| match measured_file(
-        system.files,
+        context.files(),
         load.mnt,
         inside,
     ) {
@@ -205,19 +205,19 @@ pub fn predicted(
 /// Starts the event log `log` with what PCRs 8 and 9 hold in `banks`
 /// before the first extension, which may be more than zeros: firmware and
 /// the kernel's EFI stub may have extended PCR 9.
-fn record_start(system: &System<'_>, tpm: &Tpm2<'_>, banks: &[Bank], log: &Path) {
+fn record_start(context: &Context<'_>, tpm: &Tpm2<'_>, banks: &[Bank], log: &Path) {
     let Some(values) = tpm.read_pcrs(&[COMMAND_LINE_PCR, FILES_PCR], banks) else {
         zbm_trace::warn!("the PCRs could not be read: the log replays from zeros");
         return;
     };
     for (pcr, digests) in values {
-        append(system, (&Event::start(pcr, digests), banks), log);
+        append(context, (&Event::start(pcr, digests), banks), log);
     }
 }
 
 /// Extends the PCR of `event` in `banks`, and appends its record to the
 /// event log `log` when the TPM took it.
-fn extend(system: &System<'_>, tpm: &Tpm2<'_>, (event, banks): (&Event, &[Bank]), log: &Path) {
+fn extend(context: &Context<'_>, tpm: &Tpm2<'_>, (event, banks): (&Event, &[Bank]), log: &Path) {
     let pcr = event.pcr();
     if let Err(error) = tpm.extend(pcr, &event.digests, banks) {
         zbm_trace::warn!(
@@ -226,19 +226,19 @@ fn extend(system: &System<'_>, tpm: &Tpm2<'_>, (event, banks): (&Event, &[Bank])
         );
         return;
     }
-    append(system, (event, banks), log);
+    append(context, (event, banks), log);
 }
 
 /// Appends the record of `event`, with its digests in `banks`, to the
 /// event log `log`.
-fn append(system: &System<'_>, (event, banks): (&Event, &[Bank]), log: &Path) {
-    let recorded = system
-        .files
+fn append(context: &Context<'_>, (event, banks): (&Event, &[Bank]), log: &Path) {
+    let recorded = context
+        .files()
         .read_to_string(log)
         .map_or(0, |text| text.matches('\u{1e}').count());
     let recnum = u64::try_from(recorded).unwrap_or(u64::MAX);
     let record = measure::record(recnum, event, banks);
-    if let Err(error) = system.files.append(log, record.as_bytes()) {
+    if let Err(error) = context.files().append(log, record.as_bytes()) {
         zbm_trace::warn!("unable to write the TPM event log: {error}"; %error);
     }
 }
@@ -246,7 +246,7 @@ fn append(system: &System<'_>, (event, banks): (&Event, &[Bank]), log: &Path) {
 /// Writes the copies of the kernel and the initramfs in `state`, the
 /// event log `log` appended to the initramfs's.
 fn write_copies(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     log: &Path,
     (kernel, mut initramfs): (Vec<u8>, Vec<u8>),
@@ -256,13 +256,13 @@ fn write_copies(
         kernel: dir.join("kernel"),
         initramfs: dir.join("initramfs"),
     };
-    let text = system.files.read(log).unwrap_or_default();
+    let text = context.files().read(log).unwrap_or_default();
     initramfs.extend_from_slice(&measure::cpio(measure::LOG_PATH, &text));
-    let written = system
-        .files
+    let written = context
+        .files()
         .create_dir_all(&dir)
-        .and_then(|()| system.files.write(&copies.kernel, &kernel))
-        .and_then(|()| system.files.write(&copies.initramfs, &initramfs));
+        .and_then(|()| context.files().write(&copies.kernel, &kernel))
+        .and_then(|()| context.files().write(&copies.initramfs, &initramfs));
     match written {
         Ok(()) => Some(copies),
         Err(error) => {
@@ -270,7 +270,7 @@ fn write_copies(
                 "unable to write the measured copies: {error}; the boot environment's files load";
                 %error
             );
-            copies.remove(system);
+            copies.remove(context);
             None
         }
     }

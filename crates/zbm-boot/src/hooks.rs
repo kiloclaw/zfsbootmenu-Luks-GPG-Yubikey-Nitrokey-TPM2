@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::System;
+use zbm_platform::Context;
 use zbm_platform::files::{FileKind, Files};
 use zbm_tools::programs;
 use zbm_types::HookStage;
@@ -41,26 +41,26 @@ pub fn executable_hooks(files: &dyn Files, root: &Path, stage: HookStage) -> Vec
 /// With `once`, each hook then loses its permissions and gets the suffix
 /// `.completed`. Returns how many hooks ran; a missing directory runs none.
 pub fn run_stage(
-    system: &System<'_>,
+    context: &Context<'_>,
     root: &Path,
     stage: HookStage,
     once: bool,
     env: &[(&str, &str)],
 ) -> usize {
-    if !system.files.is_dir(&root.join(stage.as_str())) {
+    if !context.files().is_dir(&root.join(stage.as_str())) {
         zbm_trace::debug!("no hook directory for {stage}"; %stage);
         return 0;
     }
-    let hooks = executable_hooks(system.files, root, stage);
+    let hooks = executable_hooks(context.files(), root, stage);
     for hook in &hooks {
         zbm_trace::info!("processing {hook}"; hook = %hook.display());
-        programs::run_hook(system.runner, hook, env);
+        programs::run_hook(context.runner(), hook, env);
         if once {
             zbm_trace::info!("Disabling hook after execution: {hook}"; hook = %hook.display());
-            let _ = system.files.set_mode(hook, 0);
+            let _ = context.files().set_mode(hook, 0);
             let mut completed = hook.clone().into_os_string();
             completed.push(".completed");
-            let _ = system.files.rename(hook, Path::new(&completed));
+            let _ = context.files().rename(hook, Path::new(&completed));
         }
     }
     hooks.len()
@@ -91,7 +91,7 @@ mod tests {
             .file_with_mode("/libexec/hooks/boot-sel.d/30-off", "", 0o644);
         let env = [("ZBM_SELECTED_BE", "tank/ROOT/void")];
         let ran = run_stage(
-            &fake.system(),
+            &fake.context(),
             Path::new(HOOKS),
             HookStage::BootSel,
             false,
@@ -122,7 +122,7 @@ mod tests {
         // Without a directory, or without executable hooks, none runs.
         assert_eq!(
             run_stage(
-                &fake.system(),
+                &fake.context(),
                 Path::new(HOOKS),
                 HookStage::LoadKey,
                 false,
@@ -134,7 +134,7 @@ mod tests {
         fake.files.dir("/libexec/hooks/setup.d");
         assert_eq!(
             run_stage(
-                &fake.system(),
+                &fake.context(),
                 Path::new(HOOKS),
                 HookStage::Setup,
                 false,
@@ -153,7 +153,7 @@ mod tests {
             .file_with_mode("/libexec/hooks/early-setup.d/20-b", "", 0o700);
         let run = || {
             run_stage(
-                &fake.system(),
+                &fake.context(),
                 Path::new(HOOKS),
                 HookStage::EarlySetup,
                 true,
@@ -203,7 +203,7 @@ mod tests {
         let env = [("BOOTFS", "tank/ROOT/void")];
         assert!(
             run_stage(
-                &fake.system(),
+                &fake.context(),
                 Path::new(HOOKS),
                 HookStage::Setup,
                 false,

@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use zbm_boot::boot::{self as kexec, BootSettings, Noise};
-use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
+use zbm_boot::keys::{self, BootPath, KeyLoad};
 use zbm_platform::{Context, System};
 use zbm_pool::writable::set_rw_pool;
 use zbm_state::State;
@@ -76,26 +76,34 @@ impl Needs for OnMachine<'_, '_> {
         let how = KeyLoad {
             hooks: &self.settings.hooks,
             path: BootPath::Menu,
-            clear: Clear::Yes,
         };
-        keys::load_key(self.system, self.state, &how, dataset).map_err(|error| causes(&error))
+        let context = Context::new(*self.system);
+        let interaction = ConsoleInteraction::new(*self.system);
+        keys::load_key(&context, &interaction, self.state, &how, dataset)
+            .map_err(|error| causes(&error))
     }
 
     fn has_kernels(&mut self, snapshot: &SnapshotName) -> bool {
         let snapshot = FilesystemName::from(snapshot.clone());
-        kexec::find_kernels(self.system, self.state, &snapshot).is_ok()
+        kexec::find_kernels(&Context::new(*self.system), self.state, &snapshot).is_ok()
     }
 
     fn mount(&mut self, filesystem: &DatasetName) -> Result<String, Vec<String>> {
         let filesystem = FilesystemName::from(filesystem.clone());
         // Mounted until `unmount`, which unmounts what is below it too.
-        kexec::mount_zfs(self.system, self.state, &filesystem, Noise::Hidden)
-            .map(|mounted| mounted.leave().to_string_lossy().into_owned())
-            .ok_or_else(|| vec![format!("{filesystem} could not be mounted")])
+        kexec::mount_zfs(
+            &Context::new(*self.system),
+            self.state,
+            &filesystem,
+            Noise::Hidden,
+        )
+        .map(|mounted| mounted.leave().to_string_lossy().into_owned())
+        .ok_or_else(|| vec![format!("{filesystem} could not be mounted")])
     }
 
     fn unmount(&mut self, mounted: &str) {
-        if let Err(error) = kexec::recursive_umount(self.system, Path::new(mounted)) {
+        let context = Context::new(*self.system);
+        if let Err(error) = kexec::recursive_umount(&context, Path::new(mounted)) {
             tracing::warn!(%error, "unmounting the boot environment");
         }
     }

@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::{Files, System};
+use zbm_platform::{Context, Files};
 use zbm_state::State;
 use zbm_tools::Shown;
 use zbm_tools::mount::{Mount, Mounted};
@@ -47,26 +47,26 @@ impl Noise {
 /// environment is not mounted; one whose `mountpoint` is not `legacy`, and
 /// that is not a snapshot, is mounted with `zfsutil`.
 pub fn mount_zfs<'a>(
-    system: &System<'a>,
+    context: &'a Context<'_>,
     state: &State<'_>,
     fs: &FilesystemName,
     noise: Noise,
 ) -> Option<Mounted<'a>> {
-    if locked_root(system.runner, fs.dataset()).is_some() {
+    if locked_root(context.runner(), fs.dataset()).is_some() {
         zbm_trace::error!("{fs} is locked, unable to mount filesystem"; %fs);
         zbm_trace::debug!("{fs} is locked, returning"; %fs);
         return None;
     }
     let name = fs.to_string();
     let mnt = be_location(state, &name).join("mnt");
-    let _ = system.files.create_dir_all(&mnt);
+    let _ = context.files().create_dir_all(&mnt);
     let rwo = "ro";
 
     let errors = match noise {
         Noise::Shown => Stderr::Console,
         Noise::Hidden => Stderr::Hidden,
     };
-    let mountpoint = ZfsText::new(system.runner).value(fs, "mountpoint", errors);
+    let mountpoint = ZfsText::new(context.runner()).value(fs, "mountpoint", errors);
     let legacy = mountpoint.as_deref() == Some("legacy");
     let mnt_text = mnt.to_string_lossy();
     let zfsutil = !legacy && !fs.is_snapshot();
@@ -76,15 +76,16 @@ pub fn mount_zfs<'a>(
     } else {
         zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})"; %fs, %mnt_text, %rwo);
     }
-    let mounted = Mount::new(system.runner, system.files).zfs(&name, &mnt, zfsutil, noise.shown());
+    let mounted =
+        Mount::new(context.runner(), context.files()).zfs(&name, &mnt, zfsutil, noise.shown());
     let code = mounted.as_ref().err().copied().unwrap_or(0);
     zbm_trace::debug!("mount return code: {code}"; %code);
     mounted.ok()
 }
 
 /// Unmounts `path`, saying why it could not on the console.
-pub(super) fn umount(system: &System<'_>, path: &Path) {
-    let _ = Mount::new(system.runner, system.files).unmount(path, Shown::Console);
+pub(super) fn umount(context: &Context<'_>, path: &Path) {
+    let _ = Mount::new(context.runner(), context.files()).unmount(path, Shown::Console);
 }
 
 /// Unmounts `mountpoint` and everything below it with `umount -R`; when that
@@ -93,14 +94,14 @@ pub(super) fn umount(system: &System<'_>, path: &Path) {
 /// # Errors
 ///
 /// [`BootError::Unmount`] with the mount points that stay mounted.
-pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), BootError> {
-    let mount = Mount::new(system.runner, system.files);
+pub fn recursive_umount(context: &Context<'_>, mountpoint: &Path) -> Result<(), BootError> {
+    let mount = Mount::new(context.runner(), context.files());
     if mount.unmount_recursive(mountpoint) {
         return Ok(());
     }
     let below = mountpoint.to_string_lossy();
-    let table = system
-        .files
+    let table = context
+        .files()
         .read_to_string(Path::new("/proc/self/mounts"))
         .unwrap_or_default();
     let mut mounts: Vec<(usize, String)> = table
@@ -126,8 +127,8 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
 }
 
 /// Whether the machine booted with UEFI: `/sys/firmware/efi` exists.
-fn is_efi_system(system: &System<'_>) -> bool {
-    system.files.is_dir(Path::new("/sys/firmware/efi"))
+fn is_efi_system(context: &Context<'_>) -> bool {
+    context.files().is_dir(Path::new("/sys/firmware/efi"))
 }
 
 /// Whether something is mounted on `path`, as the kernel's table of this
@@ -144,27 +145,27 @@ pub fn is_mount_point(files: &dyn Files, path: &str) -> bool {
 /// whether it is locked down (ROADMAP.md, SE10), unless it is there: the
 /// Rust runtime is process 1, and no init mounted it before. Does nothing
 /// on a kernel without it.
-pub fn mount_securityfs(system: &System<'_>) {
+pub fn mount_securityfs(context: &Context<'_>) {
     let location = "/sys/kernel/security";
-    if is_mount_point(system.files, location) || !system.files.is_dir(Path::new(location)) {
+    if is_mount_point(context.files(), location) || !context.files().is_dir(Path::new(location)) {
         return;
     }
     zbm_trace::debug!("mounting '{location}'"; %location);
-    if let Err(code) = Mount::new(system.runner, system.files).securityfs(location) {
+    if let Err(code) = Mount::new(context.runner(), context.files()).securityfs(location) {
         zbm_trace::debug!("securityfs did not mount ({code})"; %code);
     }
 }
 
 /// Mounts or remounts `efivarfs` read-only (`ro`) or read-write (`rw`) on
 /// `/sys/firmware/efi/efivars`. Does nothing without UEFI.
-pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
+pub fn mount_efivarfs(context: &Context<'_>, mode: &str) {
     let location = "/sys/firmware/efi/efivars";
-    if !is_efi_system(system) {
+    if !is_efi_system(context) {
         zbm_trace::debug!("efivarfs unsupported");
         return;
     }
-    let mount = Mount::new(system.runner, system.files);
-    let mounted = is_mount_point(system.files, location);
+    let mount = Mount::new(context.runner(), context.files());
+    let mounted = is_mount_point(context.files(), location);
     let options = if mounted {
         zbm_trace::debug!("remounting '{location}' '{mode}'"; %location, %mode);
         format!("remount,{mode}")

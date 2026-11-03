@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use zbm_platform::dmesg::kernel_log;
-use zbm_platform::{Files, System};
+use zbm_platform::{Context, Files};
 use zbm_tools::devices::Devices;
 use zbm_tools::mount::Mount;
 
@@ -110,7 +110,7 @@ zbm_types::error_codes! {
         "The partition zbm.save_logs names was not found. Check its PARTUUID or label.",
     Mount = 624 => "the partition for the logs could not be mounted":
         "The partition zbm.save_logs names could not be mounted as FAT. Check that it is the EFI \
-         system partition and that the image has the vfat driver.",
+         context partition and that the image has the vfat driver.",
     Write = 625 => "the logs could not be written":
         "A file could not be written on the partition for the logs; it may be full or read-only.",
 }
@@ -160,8 +160,8 @@ pub fn stamp(seconds: u64) -> String {
 /// # Errors
 ///
 /// When it does not exist, or there is no single ESP to take.
-pub fn device(system: &System<'_>, destination: &Destination) -> Result<String, SaveError> {
-    let devices = Devices::new(system.runner, system.files);
+pub fn device(context: &Context<'_>, destination: &Destination) -> Result<String, SaveError> {
+    let devices = Devices::new(context.runner(), context.files());
     match destination {
         Destination::Device(path) if path.starts_with('/') => Ok(path.clone()),
         Destination::Device(tag) => {
@@ -176,7 +176,7 @@ pub fn device(system: &System<'_>, destination: &Destination) -> Result<String, 
             }
         }
         Destination::Esp => {
-            if let Some(uuid) = loader_partuuid(system) {
+            if let Some(uuid) = loader_partuuid(context) {
                 let found = devices.find("PARTUUID", &uuid);
                 if !found.is_empty() {
                     return Ok(found);
@@ -194,15 +194,15 @@ pub fn device(system: &System<'_>, destination: &Destination) -> Result<String, 
 /// The partition UUID that `LoaderDevicePartUUID` holds: four bytes of
 /// attributes, then the UUID in UTF-16. `efivarfs` is mounted read-only
 /// first when it is not mounted.
-fn loader_partuuid(system: &System<'_>) -> Option<String> {
+fn loader_partuuid(context: &Context<'_>) -> Option<String> {
     let efivars = "/sys/firmware/efi/efivars";
-    if !system.files.is_dir(Path::new("/sys/firmware/efi")) {
+    if !context.files().is_dir(Path::new("/sys/firmware/efi")) {
         return None;
     }
-    if !crate::boot::is_mount_point(system.files, efivars) {
-        let _ = Mount::new(system.runner, system.files).efivarfs(efivars, "ro");
+    if !crate::boot::is_mount_point(context.files(), efivars) {
+        let _ = Mount::new(context.runner(), context.files()).efivarfs(efivars, "ro");
     }
-    let bytes = system.files.read(Path::new(LOADER_DEVICE)).ok()?;
+    let bytes = context.files().read(Path::new(LOADER_DEVICE)).ok()?;
     let units: Vec<u16> = bytes
         .get(4..)?
         .chunks_exact(2)
@@ -216,19 +216,19 @@ fn loader_partuuid(system: &System<'_>) -> Option<String> {
 /// Runs `work` with `device` mounted at [`MOUNT_POINT`], and unmounts it
 /// after.
 fn with_mounted<T>(
-    system: &System<'_>,
+    context: &Context<'_>,
     device: &str,
     work: impl FnOnce(&Path) -> Result<T, SaveError>,
 ) -> Result<T, SaveError> {
     let point = Path::new(MOUNT_POINT);
-    let _ = system.files.create_dir_all(point);
-    let Ok(mounted) = Mount::new(system.runner, system.files).fat(device, point) else {
-        let _ = system.files.remove_dir(point);
+    let _ = context.files().create_dir_all(point);
+    let Ok(mounted) = Mount::new(context.runner(), context.files()).fat(device, point) else {
+        let _ = context.files().remove_dir(point);
         return Err(SaveError::Mount(device.to_owned()));
     };
     let result = work(mounted.path());
     let _ = mounted.quietly().unmount();
-    let _ = system.files.remove_dir(point);
+    let _ = context.files().remove_dir(point);
     result
 }
 
@@ -239,12 +239,12 @@ fn with_mounted<T>(
 ///
 /// When the partition cannot be found or mounted, or `work` fails.
 pub fn on_partition<T>(
-    system: &System<'_>,
+    context: &Context<'_>,
     destination: &Destination,
     work: impl FnOnce(&str, &Path) -> Result<T, SaveError>,
 ) -> Result<T, SaveError> {
-    let device = device(system, destination)?;
-    with_mounted(system, &device, |root| work(&device, root))
+    let device = device(context, destination)?;
+    with_mounted(context, &device, |root| work(&device, root))
 }
 
 /// Writes `contents` to `path`, or says which file could not be written.
@@ -319,38 +319,38 @@ fn state_files(files: &dyn Files, base: &Path) -> Vec<String> {
 ///
 /// When the partition cannot be found or mounted, or a file not written.
 pub fn save(
-    system: &System<'_>,
+    context: &Context<'_>,
     base: &Path,
     destination: &Destination,
 ) -> Result<Saved, SaveError> {
-    let device = device(system, destination)?;
-    let seconds = system
-        .clock
+    let device = device(context, destination)?;
+    let seconds = context
+        .clock()
         .wall()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |time| time.as_secs());
-    with_mounted(system, &device, |root| {
+    with_mounted(context, &device, |root| {
         let logs = root.join(DIRECTORY);
         let mut name = stamp(seconds);
-        let taken = boots(system.files, &logs);
+        let taken = boots(context.files(), &logs);
         let mut count = 1;
         while taken.contains(&name) {
             count += 1;
             name = format!("{}.{count}", stamp(seconds));
         }
         let dir: PathBuf = logs.join(&name);
-        system
-            .files
+        context
+            .files()
             .create_dir_all(&dir)
             .map_err(|source| SaveError::write(&dir, source))?;
-        let written = write_boot(system, base, &dir);
+        let written = write_boot(context, base, &dir);
         // A boot not saved whole is removed, and the old ones are pruned
         // all the same: a full partition is the likely cause.
         if written.is_err() {
-            remove_boot(system.files, &dir);
+            remove_boot(context.files(), &dir);
         }
         prune(
-            system.files,
+            context.files(),
             &logs,
             written.is_ok().then_some(name.as_str()),
         );
@@ -365,18 +365,18 @@ pub fn save(
 
 /// Writes the journal and the crash reports of `base` and the kernel log
 /// into `dir`; returns the names written.
-fn write_boot(system: &System<'_>, base: &Path, dir: &Path) -> Result<Vec<String>, SaveError> {
+fn write_boot(context: &Context<'_>, base: &Path, dir: &Path) -> Result<Vec<String>, SaveError> {
     let mut written = Vec::new();
-    for file in state_files(system.files, base) {
-        if let Ok(contents) = system.files.read(&base.join(&file)) {
-            write(system.files, &dir.join(&file), &contents)?;
+    for file in state_files(context.files(), base) {
+        if let Ok(contents) = context.files().read(&base.join(&file)) {
+            write(context.files(), &dir.join(&file), &contents)?;
             written.push(file);
         }
     }
     write(
-        system.files,
+        context.files(),
         &dir.join(KERNEL_LOG),
-        kernel_log(system).as_bytes(),
+        kernel_log(context.files(), context.runner()).as_bytes(),
     )?;
     written.push(KERNEL_LOG.to_owned());
     Ok(written)
@@ -392,20 +392,20 @@ fn write_boot(system: &System<'_>, base: &Path, dir: &Path) -> Result<Vec<String
 ///
 /// When the partition cannot be mounted, as when a teardown hook took its
 /// device away, or the saved boot is gone.
-pub fn update_logs(system: &System<'_>, base: &Path, saved: &Saved) -> Result<(), SaveError> {
-    with_mounted(system, &saved.device, |root| {
+pub fn update_logs(context: &Context<'_>, base: &Path, saved: &Saved) -> Result<(), SaveError> {
+    with_mounted(context, &saved.device, |root| {
         let dir = root.join(&saved.directory);
-        if !system.files.is_dir(&dir) {
+        if !context.files().is_dir(&dir) {
             let gone = std::io::Error::new(std::io::ErrorKind::NotFound, "the saved boot is gone");
             return Err(SaveError::write(&dir, gone));
         }
-        if let Ok(journal) = system.files.read(&base.join(JOURNAL)) {
-            write(system.files, &dir.join(JOURNAL), &journal)?;
+        if let Ok(journal) = context.files().read(&base.join(JOURNAL)) {
+            write(context.files(), &dir.join(JOURNAL), &journal)?;
         }
         write(
-            system.files,
+            context.files(),
             &dir.join(KERNEL_LOG),
-            kernel_log(system).as_bytes(),
+            kernel_log(context.files(), context.runner()).as_bytes(),
         )
     })
 }
@@ -416,24 +416,27 @@ pub fn update_logs(system: &System<'_>, base: &Path, saved: &Saved) -> Result<()
 ///
 /// When the partition cannot be found or mounted.
 pub fn list(
-    system: &System<'_>,
+    context: &Context<'_>,
     destination: &Destination,
 ) -> Result<(String, Vec<SavedBoot>), SaveError> {
-    let device = device(system, destination)?;
-    with_mounted(system, &device, |root| {
+    let device = device(context, destination)?;
+    with_mounted(context, &device, |root| {
         let logs = root.join(DIRECTORY);
-        let saved = boots(system.files, &logs)
+        let saved = boots(context.files(), &logs)
             .into_iter()
             .map(|name| {
                 let dir = logs.join(&name);
-                let mut files: Vec<(String, u64)> = system
-                    .files
+                let mut files: Vec<(String, u64)> = context
+                    .files()
                     .read_dir(&dir)
                     .unwrap_or_default()
                     .into_iter()
                     .filter_map(|file| file.into_string().ok())
                     .map(|file| {
-                        let size = system.files.metadata(&dir.join(&file)).map_or(0, |m| m.len);
+                        let size = context
+                            .files()
+                            .metadata(&dir.join(&file))
+                            .map_or(0, |m| m.len);
                         (file, size)
                     })
                     .collect();

@@ -3,8 +3,8 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::System;
-use zbm_platform::console::Screen;
+use zbm_platform::Context;
+use zbm_platform::interaction::{Interaction, SecretKind, SecretRequest, SecretSubject};
 use zbm_state::State;
 use zbm_types::{DatasetName, HookStage};
 use zbm_zfs::ZfsText;
@@ -14,17 +14,11 @@ use crate::boot::{locked_root, zfs_value};
 use crate::error::BootError;
 use crate::hooks;
 
-/// Whether the screen is cleared before a passphrase is asked for.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Clear {
-    /// Clear it, as the boot of a chosen kernel does.
-    Yes,
-    /// Leave it, as the countdown's boot does after clearing it itself.
-    No,
-}
+/// How many times a key typed for an encryption root is tried, as `zfs
+/// load-key` tries one typed on its terminal.
+pub const KEY_TRIES: u32 = 3;
 
-/// How a key is loaded: where the hooks are, how the boot was chosen, and
-/// whether the screen is cleared.
+/// How a key is loaded: where the hooks are, and how the boot was chosen.
 #[derive(Clone, Copy, Debug)]
 pub struct KeyLoad<'p> {
     /// Where the hook directories are.
@@ -32,8 +26,6 @@ pub struct KeyLoad<'p> {
     /// How the boot was chosen: only a boot chosen in the menu tries key
     /// sources (`NO_CACHE=1` on the countdown).
     pub path: BootPath,
-    /// Whether the screen is cleared before a passphrase prompt.
-    pub clear: Clear,
 }
 
 /// Where the key file of a locked root is, if anywhere.
@@ -52,26 +44,49 @@ fn not_loaded(root: &DatasetName) -> BootError {
     }
 }
 
-/// Asks for the passphrase of `root` on the console, after clearing the
-/// screen when `clear` says so.
-fn prompt(system: &System<'_>, root: &DatasetName, clear: Clear) -> Result<(), BootError> {
-    if clear == Clear::Yes {
-        system.console.screen(Screen::Clear);
-        system.console.screen(Screen::MoveTo { row: 0, column: 0 });
-    }
+/// Asks `interaction` for the key of `root`, whose `keyformat` is
+/// `keyformat`, and loads what was typed, [`KEY_TRIES`] times at most. A
+/// raw key is never typed: `zfs load-key` reads one from a file only.
+fn prompt(
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
+    root: &DatasetName,
+    keyformat: &str,
+) -> Result<(), BootError> {
+    let kind = match keyformat {
+        "hex" => SecretKind::HexKey,
+        "raw" => {
+            zbm_trace::error!("a raw key for {root} cannot be typed"; %root);
+            return Err(not_loaded(root));
+        }
+        _ => SecretKind::Passphrase,
+    };
     zbm_trace::debug!("prompting for passphrase for {root}"; %root);
-    let loaded = ZfsText::new(system.runner).load_key(root, "prompt");
-    if loaded.unwrap_or(false) {
-        Ok(())
-    } else {
-        Err(not_loaded(root))
+    let zfs = ZfsText::new(context.runner());
+    for attempt in 1..=KEY_TRIES {
+        let request = SecretRequest {
+            subject: SecretSubject::EncryptionRoot(root.as_str()),
+            kind: kind.clone(),
+            attempt,
+            tries: Some(KEY_TRIES),
+            opened_elsewhere: None,
+            description: None,
+        };
+        // Nothing more can be typed.
+        let Some(key) = interaction.secret(&request).secret() else {
+            break;
+        };
+        if zfs.load_typed_key(root, key).unwrap_or(false) {
+            return Ok(());
+        }
     }
+    Err(not_loaded(root))
 }
 
 /// Runs the `load-key.d` hooks for `fs`, whose encryption root `root` is
 /// locked; true when one ran and the root is unlocked now.
 fn is_unlocked_by_hooks(
-    system: &System<'_>,
+    context: &Context<'_>,
     hooks_root: &Path,
     fs: &DatasetName,
     root: &DatasetName,
@@ -80,8 +95,8 @@ fn is_unlocked_by_hooks(
         ("ZBM_LOCKED_FS", fs.as_str()),
         ("ZBM_ENCRYPTION_ROOT", root.as_str()),
     ];
-    if hooks::run_stage(system, hooks_root, HookStage::LoadKey, false, &env) > 0
-        && locked_root(system.runner, fs).is_none()
+    if hooks::run_stage(context, hooks_root, HookStage::LoadKey, false, &env) > 0
+        && locked_root(context.runner(), fs).is_none()
     {
         zbm_trace::debug!("fs {fs} unlocked by user hooks"; %fs);
         return true;
@@ -92,7 +107,8 @@ fn is_unlocked_by_hooks(
 /// The key file for `fs` at `keylocation`: in the image or, on a boot
 /// chosen in the menu, copied from the key source of `fs`.
 fn key_path(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     how: &KeyLoad<'_>,
     fs: &DatasetName,
@@ -101,16 +117,16 @@ fn key_path(
 ) -> KeyPath {
     let key = stripped(keylocation);
     let in_image = PathBuf::from(format!("/{key}"));
-    if system.files.exists(&in_image) {
+    if context.files().exists(&in_image) {
         return KeyPath::File(in_image);
     }
-    let source = keysource(system.runner, fs).filter(|_| how.path == BootPath::Menu);
+    let source = keysource(context.runner(), fs).filter(|_| how.path == BootPath::Menu);
     let Some(source) = source else {
         return KeyPath::Missing;
     };
     // It may be cached already, so whether this copies it does not matter.
-    cache::cache_key(system, state, how, fs, keylocation);
-    if locked_root(system.runner, fs).is_none() {
+    cache::cache_key(context, interaction, state, how, fs, keylocation);
+    if locked_root(context.runner(), fs).is_none() {
         zbm_trace::debug!("cache attempt has unlocked {root}"; %root);
         return KeyPath::Unlocked;
     }
@@ -118,7 +134,7 @@ fn key_path(
         "{}/{key}",
         state.key_cache(source.as_str()).display()
     ));
-    if !system.files.exists(&cached) {
+    if !context.files().exists(&cached) {
         return KeyPath::Missing;
     }
     zbm_trace::debug!("cached key path for {fs} is {cached}"; %fs, cached = %cached.display());
@@ -128,14 +144,14 @@ fn key_path(
 /// Loads the key of `root`, the encryption root of `fs`, from `keypath`
 /// if it is still locked; true when that unlocked it.
 fn is_loaded_from(
-    system: &System<'_>,
+    context: &Context<'_>,
     fs: &DatasetName,
     root: &DatasetName,
     keypath: &Path,
 ) -> bool {
     let location = format!("file://{}", keypath.display());
-    let loaded = locked_root(system.runner, fs).is_some()
-        && ZfsText::new(system.runner)
+    let loaded = locked_root(context.runner(), fs).is_some()
+        && ZfsText::new(context.runner())
             .load_key(root, &location)
             .unwrap_or(false);
     if loaded {
@@ -157,31 +173,33 @@ fn is_loaded_from(
 ///
 /// [`BootError::KeyNotLoaded`] when the root is still locked.
 pub fn load_key(
-    system: &System<'_>,
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
     state: &State<'_>,
     how: &KeyLoad<'_>,
     fs: &DatasetName,
 ) -> Result<(), BootError> {
     zbm_trace::debug!("fs set to {fs}"; %fs);
-    let Some(root) = locked_root(system.runner, fs) else {
+    let Some(root) = locked_root(context.runner(), fs) else {
         return Ok(());
     };
-    if is_unlocked_by_hooks(system, how.hooks, fs, &root) {
+    if is_unlocked_by_hooks(context, how.hooks, fs, &root) {
         return Ok(());
     }
-    let keylocation = zfs_value(system.runner, "keylocation", &root).unwrap_or_else(|| {
+    let keylocation = zfs_value(context.runner(), "keylocation", &root).unwrap_or_else(|| {
         zbm_trace::debug!("failed to read keylocation on {root}"; %root);
         "prompt".to_owned()
     });
+    let keyformat = || zfs_value(context.runner(), "keyformat", &root).unwrap_or_default();
     if keylocation == "prompt" {
-        return prompt(system, &root, how.clear);
+        return prompt(context, interaction, &root, &keyformat());
     }
-    match key_path(system, state, how, fs, &root, &keylocation) {
+    match key_path(context, interaction, state, how, fs, &root, &keylocation) {
         KeyPath::Unlocked => return Ok(()),
-        KeyPath::File(keypath) if is_loaded_from(system, fs, &root, &keypath) => return Ok(()),
+        KeyPath::File(keypath) if is_loaded_from(context, fs, &root, &keypath) => return Ok(()),
         KeyPath::File(_) | KeyPath::Missing => {}
     }
-    let keyformat = zfs_value(system.runner, "keyformat", &root).unwrap_or_default();
+    let keyformat = keyformat();
     if keyformat != "passphrase" {
         zbm_trace::debug!(
             "unable to load key with format {keyformat} for {root}";
@@ -189,7 +207,7 @@ pub fn load_key(
         );
         return Err(not_loaded(&root));
     }
-    prompt(system, &root, how.clear)
+    prompt(context, interaction, &root, &keyformat)
 }
 
 #[cfg(test)]

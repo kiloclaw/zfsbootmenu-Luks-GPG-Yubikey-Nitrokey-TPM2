@@ -12,9 +12,9 @@ use std::path::Path;
 use zbm_app::auth;
 use zbm_boot::boot::measured::{self, Event, Extended};
 use zbm_boot::hooks::{HOOKS, run_stage};
-use zbm_platform::System;
 use zbm_platform::console::Screen;
 use zbm_platform::files::Files;
+use zbm_platform::{Context, System};
 use zbm_state::State;
 use zbm_tools::mount::Mount;
 use zbm_tools::programs;
@@ -61,7 +61,7 @@ fn measure_hooks(system: &System<'_>, state: &State<'_>, copied: &[(String, std:
     if copied.is_empty() {
         return;
     }
-    if !measured::has_tpm(system) {
+    if !measured::has_tpm(&Context::new(*system)) {
         zbm_trace::debug!("no TPM: the hook root is not measured");
         return;
     }
@@ -78,7 +78,7 @@ fn measure_hooks(system: &System<'_>, state: &State<'_>, copied: &[(String, std:
             }
         }
     }
-    if measured::extend_events(system, state, &events) == Extended::Extended {
+    if measured::extend_events(&Context::new(*system), state, &events) == Extended::Extended {
         let count = events.len();
         zbm_trace::info!("measured {count} hooks of the hook root into PCR 9"; %count);
     }
@@ -260,7 +260,7 @@ pub fn prepare_early_stage(
 /// Secure Boot being on: then whoever changes ZFSBootMenu's own command
 /// line, as with `rdinit=/bin/sh`, gets past the lock of the menu.
 fn warn_unless_checked(system: &System<'_>) {
-    zbm_boot::boot::mount_securityfs(system);
+    zbm_boot::boot::mount_securityfs(&Context::new(*system));
     if zbm_tools::kexec::checked_boot(system.files).is_none() {
         zbm_trace::warn!(
             "the menu is locked, but neither lockdown nor Secure Boot is on: \
@@ -272,7 +272,13 @@ fn warn_unless_checked(system: &System<'_>) {
 /// Runs the `early-setup.d` hooks below `root` once, on a cleared screen.
 pub fn run_early_stage(system: &System<'_>, root: &Path) {
     system.console.screen(Screen::Clear);
-    run_stage(system, root, HookStage::EarlySetup, true, &[]);
+    run_stage(
+        &Context::new(*system),
+        root,
+        HookStage::EarlySetup,
+        true,
+        &[],
+    );
 }
 
 #[cfg(test)]

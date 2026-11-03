@@ -86,7 +86,7 @@ fn before_kexec_the_gpus_of_the_drivers_are_unbound_and_reset() {
     // The network card's driver is not a graphics driver.
     bound(&fake, "0000:04:00.0", "e1000e");
 
-    let gpus = hand_back(&fake.system(), Path::new(ROOT));
+    let gpus = hand_back(&fake.context(), Path::new(ROOT));
 
     assert_eq!(
         gpus.iter()
@@ -131,7 +131,7 @@ fn a_gpu_without_a_reset_or_that_stays_bound_is_said_so() {
         std::io::ErrorKind::PermissionDenied,
     );
 
-    let gpus = hand_back(&fake.system(), Path::new(ROOT));
+    let gpus = hand_back(&fake.context(), Path::new(ROOT));
 
     assert_eq!(gpus.len(), 1);
     assert_eq!(gpus[0].address, "0000:00:02.0");
@@ -152,8 +152,8 @@ fn without_graphics_drivers_nothing_is_handed_back_or_taken() {
     device(&fake, "0000:00:02.0", "0x030000", "0x8086", "0x4680");
     bound(&fake, "0000:00:02.0", "i915");
 
-    assert!(hand_back(&fake.system(), Path::new(ROOT)).is_empty());
-    take_back(&fake.system(), Path::new(ROOT), &[]);
+    assert!(hand_back(&fake.context(), Path::new(ROOT)).is_empty());
+    take_back(&fake.context(), Path::new(ROOT), &[]);
 
     assert!(
         !fake
@@ -175,7 +175,7 @@ fn after_a_failed_kexec_the_drivers_take_the_gpus_again() {
         device: 0x7590,
     };
 
-    take_back(&fake.system(), Path::new(ROOT), &[gpu]);
+    take_back(&fake.context(), Path::new(ROOT), &[gpu]);
 
     assert_eq!(
         fake.files.text("/sys/bus/pci/drivers_probe").as_deref(),

@@ -9,7 +9,8 @@ use std::io;
 
 use zbm_config::parent::CommandLineSource;
 use zbm_config::spec::properties::COMMANDLINE;
-use zbm_platform::exec::{Output, Runner};
+use zbm_platform::exec::{Input, Output, Runner};
+use zbm_platform::secret::Secret;
 use zbm_types::{DatasetName, FilesystemName, PoolName, SnapshotName};
 
 use crate::import::Import;
@@ -130,14 +131,28 @@ impl<'a> ZfsText<'a> {
     }
 
     /// Loads the key of the encryption root `root` from `location` (`zfs
-    /// load-key -L`) on the console, where `zfs` asks for a passphrase
-    /// itself; whether the key is loaded.
+    /// load-key -L`), its messages on the console; whether the key is
+    /// loaded.
     ///
     /// # Errors
     ///
     /// The error that kept `zfs` from starting.
     pub fn load_key(&self, root: &DatasetName, location: &str) -> io::Result<bool> {
-        self.zfs.load_key(root.as_str(), location)
+        self.zfs.load_key(root.as_str(), location, Input::Null)
+    }
+
+    /// Loads the key of the encryption root `root` from `key`, typed by the
+    /// person (`zfs load-key -L prompt` reading its standard input, where it
+    /// asks nothing and tries once), its messages on the console; whether
+    /// the key is loaded. The key goes to `zfs` from where it is kept,
+    /// without copies.
+    ///
+    /// # Errors
+    ///
+    /// The error that kept `zfs` from starting.
+    pub fn load_typed_key(&self, root: &DatasetName, key: Secret) -> io::Result<bool> {
+        self.zfs
+            .load_key(root.as_str(), "prompt", Input::secret(key))
     }
 
     /// The value of the pool property `property` of `pool` (`zpool get -H
