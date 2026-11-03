@@ -28,7 +28,7 @@ dependencies that exist.
 | front ends | `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm` | The menus, the console on the display, the shell and the multi-call binary, whose applets start the programs |
 | orchestration | `zbm-startup`, `zbm-host` | Start-up; the host tools: image generation, the plan of an image, kernel command lines |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
-| domain | `zbm-luks`, `zbm-pool`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
+| domain | `zbm-luks`, `zbm-pool`, `zbm-bootenv`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-config` | State files, and the configuration: the table of options, the kernel command line, /etc/zfsbootmenu.conf and crypttab files |
 | platform | `zbm-platform`, `zbm-display` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context; the display and keyboard without a terminal |
@@ -40,7 +40,8 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 
 - `zbm` → `zbm-tui`
 - `zbm` → `zbm-console`
-- `zbm-boot` → `zbm-pool`
+- `zbm-bootenv` → `zbm-pool`
+- `zbm-boot` → `zbm-bootenv`
 
 `zbm-tui` and `zbm-console` use no crate of the layers adapters, domain, orchestration: they reach the system only through `zbm-app`.
 
@@ -52,6 +53,7 @@ Third-party crates:
 - `zbm`: `ratatui`, `serde_json`, `tracing`
 - `zbm-app`: `serde`, `serde_json`, `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
+- `zbm-bootenv`: `thiserror`, `tracing`
 - `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`

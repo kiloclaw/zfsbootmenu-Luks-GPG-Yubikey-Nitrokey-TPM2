@@ -12,7 +12,8 @@ use zbm_zfs::ZfsText;
 use super::{BootPath, cache, keysource, stripped};
 use crate::error::BootEnvError;
 use crate::hooks;
-use crate::{locked_root, zfs_value};
+use crate::locked_root;
+use crate::zfs::zfs_value;
 
 /// How many times a key typed for an encryption root is tried, as `zfs
 /// load-key` tries one typed on its terminal.

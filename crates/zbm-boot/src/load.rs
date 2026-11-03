@@ -88,14 +88,12 @@ impl KexecLoad<'_> {
 mod tests {
     use std::path::PathBuf;
 
-    use zbm_bootenv::commandline::root_argument;
-
     use super::*;
 
     #[test]
     fn kexec_commands() {
         let dtb = PathBuf::from("/mnt/boot/dtbs/x.dtb");
-        let root = root_argument("root=zfs:", "tank/ROOT/void").unwrap();
+        let root = KernelArg::new("root", Some("zfs:tank/ROOT/void")).unwrap();
         let load = KexecLoad {
             mnt: "/zfsbootmenu/environments/tank/ROOT/void/mnt",
             kernel: "/boot/vmlinuz-6.12.9_1",

@@ -6,7 +6,11 @@ use zbm_types::DatasetName;
 use zbm_zfs::{Stderr, ZfsName, ZfsText};
 
 /// The value of `property` of `name`, quietly; `None` when `zfs` fails.
-pub fn zfs_value(runner: &dyn Runner, property: &str, name: &impl ZfsName) -> Option<String> {
+pub(crate) fn zfs_value(
+    runner: &dyn Runner,
+    property: &str,
+    name: &impl ZfsName,
+) -> Option<String> {
     ZfsText::new(runner).value(name, property, Stderr::Hidden)
 }
 

@@ -2104,7 +2104,7 @@ dependencies = [
  "libfuzzer-sys",
  "ratatui",
  "zbm-app",
- "zbm-boot",
+ "zbm-bootenv",
  "zbm-config",
  "zbm-console",
  "zbm-crypt",

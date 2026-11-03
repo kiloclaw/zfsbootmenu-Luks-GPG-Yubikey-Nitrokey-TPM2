@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use zbm_types::code::{Coded as _, chain};
 
-use zbm_config::spec::properties::{DEVICETREE, ROOTPREFIX};
+use zbm_config::spec::properties::DEVICETREE;
 use zbm_platform::Context;
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject};
 use zbm_state::State;
@@ -14,11 +14,11 @@ use zbm_trace::Level;
 use zbm_types::{
     DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine, Printable, RetryDelay,
 };
-use zbm_zfs::ZfsText;
+use zbm_zfs::{Stderr, ZfsText};
 
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
-use zbm_bootenv::{Noise, commandline, hooks, mount_zfs, recursive_umount, umount, zfs_value};
+use zbm_bootenv::{Noise, commandline, hooks, mount_zfs, recursive_umount, umount};
 
 use super::measured;
 use super::zfs::{export_writable_pools, substituted};
@@ -59,15 +59,6 @@ impl Default for BootSettings {
             import_policy: ImportPolicy::default(),
         }
     }
-}
-
-/// The root prefix of `fs` mounted at `mnt`, with a debug message naming
-/// where it came from.
-fn find_root_prefix(context: &Context<'_>, fs: &FilesystemName, mnt: &Path) -> String {
-    zbm_trace::debug!("zfsbe_fs set to {fs}"; %fs);
-    zbm_trace::debug!("zfsbe_mnt set to {mnt}"; mnt = %mnt.display());
-    let property = zfs_value(context.runner(), ROOTPREFIX.name, fs);
-    commandline::root_prefix(context.files(), property.as_deref(), mnt)
 }
 
 /// Loads the key of `fs` if it is locked, with key sources, asking
@@ -138,16 +129,18 @@ pub fn kexec_kernel(
     run_boot_sel_hooks(context, settings, &hook_env, &mnt_text);
 
     let cli_args = command_line(context, state, settings, fs, kernel);
-    let root_prefix = find_root_prefix(context, &filesystem, &mnt);
-    let Some(root) = commandline::root_argument(&root_prefix, fs) else {
-        zbm_trace::error!(
-            root_prefix,
-            fs,
-            "the root argument is not one kernel argument"
-        );
-        let _ = recursive_umount(context, &mnt);
-        recovery.emergency_shell(&format!("unable to boot {}", colorize("cyan", fs)));
-        return;
+    let root = match commandline::boot_root(context, &filesystem, &mnt) {
+        Ok(root) => root,
+        Err(root_prefix) => {
+            zbm_trace::error!(
+                root_prefix,
+                fs,
+                "the root argument is not one kernel argument"
+            );
+            let _ = recursive_umount(context, &mnt);
+            recovery.emergency_shell(&format!("unable to boot {}", colorize("cyan", fs)));
+            return;
+        }
     };
     let dtb = find_devicetree(context, &filesystem, kernel, &mnt);
     let load = KexecLoad {
@@ -271,7 +264,7 @@ fn find_devicetree(
     kernel: &str,
     mnt: &Path,
 ) -> Option<PathBuf> {
-    let dtb_property = zfs_value(context.runner(), DEVICETREE.name, fs);
+    let dtb_property = ZfsText::new(context.runner()).value(fs, DEVICETREE.name, Stderr::Hidden);
     match dtb_property.as_deref() {
         Some(property) if !property.is_empty() && property != "-" => {
             zbm_trace::debug!("devicetree property set to '{property}'"; %property);

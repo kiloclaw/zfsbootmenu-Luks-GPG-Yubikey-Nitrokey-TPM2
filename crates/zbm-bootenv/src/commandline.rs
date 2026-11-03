@@ -8,10 +8,14 @@
 use std::path::{Component, Path, PathBuf};
 
 use zbm_config::parent::{CommandLineSource, read_kcl_contents, read_kcl_prop};
+use zbm_config::spec::properties::ROOTPREFIX;
+use zbm_platform::Context;
 use zbm_platform::files::Files;
 use zbm_state::State;
 use zbm_trace::Message;
-use zbm_types::{KernelArg, KernelCommandLine};
+use zbm_types::{FilesystemName, KernelArg, KernelCommandLine};
+
+use crate::zfs::zfs_value;
 
 pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID, apparent_hostid as spl_hostid};
 
@@ -356,7 +360,7 @@ pub(crate) fn is_root_prefix(prefix: &str) -> bool {
 /// space is quoted, so the argument stays one. `None` when the two do not
 /// make one argument with a value: the prefix has no `=`, no name before
 /// it, or a quote.
-pub fn root_argument(prefix: &str, fs: &str) -> Option<KernelArg> {
+pub(crate) fn root_argument(prefix: &str, fs: &str) -> Option<KernelArg> {
     let (name, value) = prefix.split_once('=')?;
     KernelArg::new(name, Some(&format!("{value}{fs}"))).ok()
 }
@@ -443,6 +447,26 @@ pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<
 /// The spaces between the root argument and the rest of the command line: the
 /// legacy script continues the quoted argument on an indented line.
 pub const SEPARATOR: &str = "           ";
+
+/// The root argument of `fs` mounted at `mnt`: its root prefix, from its
+/// `org.zfsbootmenu:rootprefix` property or its `os-release`, followed by
+/// its name, such as `root=zfs:zroot/ROOT/void`. The prefix, when it does
+/// not make one kernel argument.
+///
+/// # Errors
+///
+/// The root prefix, when the argument it makes is not one kernel argument.
+pub fn boot_root(
+    context: &Context<'_>,
+    fs: &FilesystemName,
+    mnt: &Path,
+) -> Result<KernelArg, String> {
+    zbm_trace::debug!("zfsbe_fs set to {fs}"; %fs);
+    zbm_trace::debug!("zfsbe_mnt set to {mnt}"; mnt = %mnt.display());
+    let property = zfs_value(context.runner(), ROOTPREFIX.name, fs);
+    let prefix = root_prefix(context.files(), property.as_deref(), mnt);
+    root_argument(&prefix, &fs.to_string()).ok_or(prefix)
+}
 
 #[cfg(test)]
 mod devicetree_tests;
