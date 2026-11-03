@@ -99,7 +99,7 @@ what the boot extends.
 ## Where the work stands
 
 Implemented, with the rest of SE10 (see Context): `zbm_crypt::measure` (the digests, the log, the replay, the cpio),
-`zbm_crypt::tpm2` (`active_banks`, `read_pcrs`, `extend`), `zbm_boot::boot::measured` (the measurement before
+`zbm_crypt::tpm2` (`active_banks`, `read_pcrs`, `extend`), `zbm_boot::measured` (the measurement before
 `kexec`, the copies), `zbm measure`, and the host packages' `zfsbootmenu-measured` for dracut and mkinitcpio. The log
 went to `/.extra` and the boot environment's initramfs rather than straight to `/run/log`, which the booted system
 cannot see (point 3); the starts were added for UEFI machines.

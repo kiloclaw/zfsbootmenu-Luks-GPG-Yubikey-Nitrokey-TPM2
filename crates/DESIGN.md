@@ -631,7 +631,7 @@ Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and d
   unsealed keys are only ever in the keyholder, which ends with the run. When no keyholder can be started, the
   client unlocks itself and logs why, as before (decision 11).
 - **Before `kexec`,** which leaves memory as it is, the start-up program drops the clean page cache (key files read
-  from key devices) and warns if it still holds a secret (`zbm_boot::boot::wipe_before_kexec`). With `init_on_free=1`
+  from key devices) and warns if it still holds a secret (`wipe_before_kexec` in `zbm-boot`). With `init_on_free=1`
   on its command line, the kernel zeroes every page it frees, so what ended processes and closed pipes left behind is
   gone too; `zbm report` says whether it does. The VM tests `secrets-passphrase` and `secrets-keyfile` search every
   process's memory, command line and environment, and every file in memory, just before `kexec`.

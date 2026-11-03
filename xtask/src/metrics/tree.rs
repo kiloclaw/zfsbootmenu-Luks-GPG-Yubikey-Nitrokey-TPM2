@@ -22,6 +22,9 @@ pub struct ScannedFile {
     /// Whether other crates may reach the file's module: the library's root,
     /// or a `pub` module of one they may reach.
     pub public: bool,
+    /// Whether the file belongs to the library, whose exported macros other
+    /// crates may reach wherever they are.
+    pub library: bool,
     /// What it holds.
     pub scan: FileScan,
 }
@@ -36,6 +39,8 @@ struct Pending {
     test_code: bool,
     /// Whether other crates may reach the file's module.
     public: bool,
+    /// Whether the file belongs to the library.
+    library: bool,
 }
 
 /// Scans every source file of `package`.
@@ -58,6 +63,7 @@ pub fn scan_package(package: &Package, legacy_names: &HashSet<String>) -> Result
             path: target.src.clone(),
             test_code: target.kind == TargetKind::Test,
             public: target.kind == TargetKind::Lib,
+            library: target.kind == TargetKind::Lib,
         })
         .collect();
     let mut seen = HashSet::new();
@@ -83,12 +89,14 @@ pub fn scan_package(package: &Package, legacy_names: &HashSet<String>) -> Result
                 children,
                 test_code: decl.test_code,
                 public: pending.public && decl.public,
+                library: pending.library,
             });
         }
         files.push(ScannedFile {
             path: pending.path,
             test_code: pending.test_code,
             public: pending.public,
+            library: pending.library,
             scan,
         });
     }

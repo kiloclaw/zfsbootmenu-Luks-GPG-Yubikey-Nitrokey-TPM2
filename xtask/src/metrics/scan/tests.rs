@@ -115,12 +115,33 @@ pub fn e() {}
 pub fn f() {
     pub fn inner() {}
 }
+zbm_types::error_codes! { Error, CODES; }
+println!();
 ";
 
     let file = scan(source);
 
-    // a, S, y, w, the glob, C and f.
-    assert_eq!(file.public_items, 7);
+    // a, S, y, w, the glob, C, f and CODES.
+    assert_eq!(file.public_items, 8);
+}
+
+#[test]
+fn exported_macros_count_wherever_they_are() {
+    let source = "mod private {
+    #[macro_export]
+    macro_rules! exported { () => {}; }
+    macro_rules! local { () => {}; }
+}
+#[cfg(test)]
+mod tests {
+    #[macro_export]
+    macro_rules! only_in_tests { () => {}; }
+}
+";
+
+    let file = scan(source);
+
+    assert_eq!((file.public_items, file.exported_macros), (0, 1));
 }
 
 #[test]

@@ -62,6 +62,8 @@ pub struct FileScan {
     /// if the file is: outside private inline modules, each name a `pub use`
     /// exports counted once; modules and methods are not counted.
     pub public_items: usize,
+    /// `#[macro_export]` macros outside tests, public wherever they are.
+    pub exported_macros: usize,
     /// Doc comment lines, outside tests, that name a legacy function.
     pub legacy_docs: usize,
     /// Uses of [`SHELL_HELPERS`] outside tests.
@@ -331,8 +333,11 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
     }
 
     fn visit_item(&mut self, item: &'ast syn::Item) {
-        if self.public && !self.test_code && !is_cfg_test(item_attrs(item)) {
-            self.scan.public_items += public_names(item);
+        if !self.test_code && !is_cfg_test(item_attrs(item)) {
+            if self.public {
+                self.scan.public_items += public_names(item);
+            }
+            self.scan.exported_macros += usize::from(is_exported_macro(item));
         }
         visit::visit_item(self, item);
     }
@@ -585,7 +590,7 @@ use facts::{doc_text, has_format_message, is_zfs_command, mentions_string};
 
 mod public;
 
-use public::{is_public, item_attrs, public_names};
+use public::{is_exported_macro, is_public, item_attrs, public_names};
 
 #[cfg(test)]
 mod tests;

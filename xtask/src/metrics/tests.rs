@@ -26,6 +26,7 @@ fn file(lines: usize, functions: Vec<FnScan>) -> ScannedFile {
         path: PathBuf::from("src/lib.rs"),
         test_code: false,
         public: true,
+        library: true,
         scan: FileScan {
             lines,
             functions,

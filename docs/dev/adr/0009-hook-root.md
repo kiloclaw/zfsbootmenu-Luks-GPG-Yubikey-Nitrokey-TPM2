@@ -71,7 +71,7 @@ the passphrase with a hook root whose hook differs. Unit tests check the events,
 
 ## Where the work stands
 
-Implemented: `zbm_crypt::measure` (the event `hook`, `unsealed_at`), `zbm_boot::boot::measured::extend_events`, the one
+Implemented: `zbm_crypt::measure` (the event `hook`, `unsealed_at`), `zbm_boot::measured::extend_events`, the one
 way into the TPM for the hook root and the boot's files, the measurement in `40-early-hooks`
 (`zbm_startup::stages::hooks`), `zbm measure unseal`, and `zbm measure predict` building on the start and the hooks.
 Two refinements of the proposal: a hook's digest is that of its name (`<stage>/<name>`), a NUL and its contents, so a

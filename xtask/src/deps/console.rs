@@ -72,6 +72,7 @@ mod tests {
             path: PathBuf::from("src/lib.rs"),
             test_code,
             public: true,
+            library: true,
             scan: scan_file(&file, source.lines().count(), test_code, &HashSet::new()),
         }
     }

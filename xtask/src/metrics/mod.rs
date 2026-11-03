@@ -210,6 +210,9 @@ pub fn count(files: &[ScannedFile]) -> Counts {
         if file.public && !file.test_code {
             counts.public_items += file.scan.public_items;
         }
+        if file.library && !file.test_code {
+            counts.public_items += file.scan.exported_macros;
+        }
         for function in &file.scan.functions {
             if function.role.is_test() {
                 counts.tests += 1;
