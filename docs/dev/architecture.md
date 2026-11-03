@@ -135,8 +135,9 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `Operator` port, and the read-write import before a change, with the resume question. `zbm-bootenv` holds what a
   boot environment is: its datasets, mounting it, its kernels, its command line, its keys and hooks; it reaches
   `zbm-pool` for the host ID alone. `zbm-boot` boots one: the sequence to `kexec`, measured boot, the teardown, the
-  GPUs, the saved logs and the recovery contract (`Recovery`) the start-up stages use (ADR 0015). `zbm-kcl` handles
-  the kernel command lines stored on boot environments.
+  GPUs, the saved logs and the recovery contract (`Recovery`) the start-up stages use (ADR 0015). The modules of
+  both are private but for a few namespaces (`keys`, `kernels`, `measured` and the like), and each `lib.rs` names what
+  other crates use. `zbm-kcl` handles the kernel command lines stored on boot environments.
 - **application**: `zbm-app` is what front ends talk to, through the `Application` trait: they read the
   `model::Snapshot` of the machine (`snapshot`), apply a `model::Action` (`apply`, quietly or on the console:
   `Through`), and get `model::Event`s back, the last of them the outcome. `App` implements it on a `Context` and the

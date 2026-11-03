@@ -245,6 +245,12 @@ with `unable to load key for <boot environment>`. The countdown's boot does not 
 (`org.zfsbootmenu:keysource`), as in the legacy runtime; the code that does, for boots chosen in the menu, is in
 place for the menu.
 
+ZFSBootMenu now reads a ZFS passphrase or hex key itself, with `zfs`'s own prompt (`Enter passphrase for 'ROOT':`)
+and three tries, and gives it to `zfs load-key` on its standard input; before, `zfs` read it from the terminal. The
+typed key is held in locked memory and wiped once `zfs` has it. A key with `keyformat=raw` and `keylocation=prompt`
+still fails without a prompt, as `zfs` reads raw keys from files only. At the countdown, what the `load-key.d` hooks
+print stays above the prompt, as in the legacy runtime.
+
 ### The new menu in Rust images
 
 Images with the Rust runtime (`zfsbootmenu_runtime=rust`) start the new menu at the end of start-up, where the legacy
@@ -695,6 +701,21 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   programs; after a third end in a row the programs stay on the kernel console, as before. Before, one end was enough.
 - Process 1 waits for its children, the console's terminal and the orphans that come to it in one loop, instead of
   waiting for one program at a time; nothing changes in what it starts and when.
+
+### The boot code without the console (phase 3)
+
+- `zbm-boot` is split (ROADMAP.md DM7, ADR 0015): `zbm-bootenv` holds what a boot environment is (its datasets,
+  mounting it, its kernels, command line, keys and hooks), and `zbm-boot` boots one, without depending on `zbm-pool`.
+  The import stage's console prompts and the graphics policy moved to `zbm-startup`, the code of `zbm report` to
+  `zbm-app`, and the read-write import before a change, with its hibernation question, to `zbm-pool`.
+- No domain crate draws on the console or reads the keyboard any more, so `cargo xtask check-deps` has no exception
+  left: a ZFS key, the hibernation question, the `Booting ... for ...` line and the messages after a failed boot are
+  requests the front end answers. The plain console shows them as before, which tests check byte for byte; the menu
+  still steps aside for them.
+- Error codes keep their numbers: 602 to 605 are explained under `zbm-bootenv` and 606 to 608 under `zbm-pool`. A
+  failed export before the read-write import has a code of its own, 304.
+- The two crates show other crates only what they use: 49 and 34 public items, from 58 and 45.
+  `cargo xtask metrics` counts each crate's public items, a number that may only fall.
 
 ### The parity-only parts removed
 
