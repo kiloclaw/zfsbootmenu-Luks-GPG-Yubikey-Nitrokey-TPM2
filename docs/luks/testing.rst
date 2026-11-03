@@ -620,6 +620,11 @@ Test                              Passed  Failed  Duration
 Total                             920     0
 ================================  ======  ======  ========
 
+Every test of the table but the ``oldzfs`` ones passed again on 3 November 2026, after DM7c of ADR 0015 (``zbm-boot``
+without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to ``zfs load-key`` on its
+standard input; the boot line and the prompts of a failed boot through the front end's ``Interaction``), on images
+rebuilt for that run, in four lanes with KVM: 900 checks, each test with the count of the table.
+
 Problems found and fixed
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
