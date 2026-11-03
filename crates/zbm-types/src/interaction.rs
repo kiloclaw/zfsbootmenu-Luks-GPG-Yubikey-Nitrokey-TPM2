@@ -11,10 +11,9 @@ pub enum SecretKind {
     /// The volume's passphrase, where empty skips the volume; or the
     /// passphrase of an encryption root (`keyformat=passphrase`).
     Passphrase,
-    /// The hexadecimal key of an encryption root (`keyformat=hex`).
+    /// The hexadecimal key of an encryption root (`keyformat=hex`). A raw
+    /// key is never asked for: `zfs load-key` reads one from a file only.
     HexKey,
-    /// The raw key of an encryption root (`keyformat=raw`), 32 bytes.
-    RawKey,
     /// The PIN of its TPM2 token.
     Tpm2Pin,
     /// The PIN of a FIDO2 security key.

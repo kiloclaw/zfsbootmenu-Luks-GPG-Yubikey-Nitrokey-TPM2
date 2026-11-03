@@ -27,7 +27,7 @@ const WRONG_PASSPHRASE: &str = "No key available with this passphrase.";
 fn secret_method(kind: &SecretKind) -> Method {
     match kind {
         // A volume asks for no ZFS key.
-        SecretKind::Passphrase | SecretKind::HexKey | SecretKind::RawKey => Method::Passphrase,
+        SecretKind::Passphrase | SecretKind::HexKey => Method::Passphrase,
         SecretKind::Tpm2Pin => Method::Tpm2Pin,
         SecretKind::Fido2Pin => Method::Fido2Pin,
         SecretKind::YubiKeyPassphrase(_) => Method::YubiKeyPassphrase,

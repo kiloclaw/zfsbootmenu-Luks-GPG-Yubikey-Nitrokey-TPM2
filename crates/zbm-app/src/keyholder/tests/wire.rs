@@ -30,7 +30,6 @@ fn requests() -> Vec<FromKeyholder> {
         [
             SecretKind::Passphrase,
             SecretKind::HexKey,
-            SecretKind::RawKey,
             SecretKind::Tpm2Pin,
             SecretKind::Fido2Pin,
             SecretKind::YubiKeyPassphrase("2".to_owned()),

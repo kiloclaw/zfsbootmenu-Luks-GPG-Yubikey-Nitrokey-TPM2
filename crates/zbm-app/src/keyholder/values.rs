@@ -61,7 +61,6 @@ pub(super) fn secret_kind(kind: &SecretKind) -> Value {
     match kind {
         SecretKind::Passphrase => json!("passphrase"),
         SecretKind::HexKey => json!("hex key"),
-        SecretKind::RawKey => json!("raw key"),
         SecretKind::Tpm2Pin => json!("tpm2 pin"),
         SecretKind::Fido2Pin => json!("fido2 pin"),
         SecretKind::YubiKeyPassphrase(slot) => json!({"yubikey passphrase": slot}),
@@ -79,7 +78,6 @@ pub(super) fn read_secret_kind(value: &Value) -> Option<SecretKind> {
         return match name {
             "passphrase" => Some(SecretKind::Passphrase),
             "hex key" => Some(SecretKind::HexKey),
-            "raw key" => Some(SecretKind::RawKey),
             "tpm2 pin" => Some(SecretKind::Tpm2Pin),
             "fido2 pin" => Some(SecretKind::Fido2Pin),
             _ => None,

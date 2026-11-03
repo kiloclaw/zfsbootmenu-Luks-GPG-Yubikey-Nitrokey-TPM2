@@ -87,7 +87,6 @@ impl<'a> ConsoleInteraction<'a> {
         }
         let what = match kind {
             SecretKind::HexKey => "hex key",
-            SecretKind::RawKey => "raw key",
             SecretKind::Passphrase
             | SecretKind::Tpm2Pin
             | SecretKind::Fido2Pin
@@ -195,7 +194,7 @@ Proceed {no} ?
 fn secret_prompt(kind: &SecretKind, device: &str) -> Option<(Option<String>, String)> {
     const OTHER: &str = "leave empty to use another method";
     Some(match kind {
-        SecretKind::Passphrase | SecretKind::HexKey | SecretKind::RawKey => return None,
+        SecretKind::Passphrase | SecretKind::HexKey => return None,
         SecretKind::Tpm2Pin => (
             Some(format!("Unlock {device} with the TPM")),
             format!("TPM2 PIN ({OTHER}): "),
