@@ -152,7 +152,9 @@ fn the_countdown_s_hooks_get_the_configuration_and_bootfs() {
     let fake = machine();
     fake.files
         .file_with_mode("/libexec/hooks/boot-sel.d/10-sel", "#!/bin/sh\n", 0o755)
-        .file_with_mode("/libexec/hooks/teardown.d/10-down", "#!/bin/sh\n", 0o755);
+        .file_with_mode("/libexec/hooks/teardown.d/10-down", "#!/bin/sh\n", 0o755)
+        .file_with_mode("/usr/bin/cryptsetup", "", 0o755);
+    fake.environment.set("PATH", "/usr/bin");
     let console = Modes {
         console: true,
         ..Modes::default()

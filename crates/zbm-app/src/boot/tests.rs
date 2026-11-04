@@ -180,6 +180,9 @@ fn the_hooks_get_the_default_as_it_is_now() {
     let state = State::new(&fake.files, "/zfsbootmenu");
     let mut settings = settings();
     settings.env = vec![("BOOTFS".to_owned(), "tank/ROOT/old".to_owned())].into();
+    // With cryptsetup, the LUKS close has something to do.
+    fake.environment.set("PATH", "/usr/bin");
+    fake.files.file_with_mode("/usr/bin/cryptsetup", "", 0o755);
     let boot = Boot {
         system: &system,
         state: &state,

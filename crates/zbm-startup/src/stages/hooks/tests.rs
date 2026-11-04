@@ -105,6 +105,16 @@ fn skipped_hooks_match_the_legacy_loop() {
         let rust_log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
         assert_eq!(without_dir(&rust_log, &dir), legacy_log, "{skip}");
     }
+
+    // Unlike the legacy loop, a name without `.sh` skips the `.sh` hook, as
+    // it skips a built-in step.
+    let dir = skip_root();
+    skip_hooks(&zbm_platform::files::RealFiles, dir.path(), "20-b");
+    let modes = skip_modes(&dir);
+    assert!(
+        modes.contains(&("early-setup.d/20-b.sh".to_owned(), 0)),
+        "{modes:?}"
+    );
 }
 
 #[test]
@@ -151,7 +161,9 @@ fn imports_the_stage_directories_of_a_hook_root() {
         .file(format!("{mnt}/zbm/early-setup.d/.hidden"), "")
         .dir(format!("{mnt}/zbm/early-setup.d/sub"))
         .file(format!("{mnt}/zbm/teardown.d/90-off"), "")
-        .file(format!("{mnt}/zbm/README"), "");
+        .file(format!("{mnt}/zbm/README"), "")
+        // The image's hook that the failed copy overwrites in part.
+        .file_with_mode("/libexec/hooks/teardown.d/90-off", "#!/bin/sh\n", 0o755);
     fake.runner.on(|command| {
         command
             .display()
@@ -178,6 +190,12 @@ fn imports_the_stage_directories_of_a_hook_root() {
     assert!(fake.kmsg().contains(&format!(
         "<4>ZFSBootMenu: failed to copy user hook {mnt}/zbm/teardown.d/90-off"
     )));
+    // What the failed copy left does not run.
+    let left = fake
+        .files
+        .metadata(Path::new("/libexec/hooks/teardown.d/90-off"))
+        .unwrap();
+    assert!(!left.is_executable());
 
     let fake = FakeSystem::new();
     let _log = log(&fake);

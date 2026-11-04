@@ -261,6 +261,10 @@ impl BootStep for LuksClose {
     }
 
     fn run(&self, context: &Context<'_>, _env: &HookEnv<'_>) -> Result<(), BootEnvError> {
+        // Without cryptsetup, nothing was opened that needs closing.
+        if !context.command_exists("cryptsetup") {
+            return Ok(());
+        }
         let closed = programs::applet(context.runner(), "/bin/zluks", &["close"], &[])
             .map_err(|error| failed(self, error))?;
         if closed.status.is_success() {
@@ -306,13 +310,20 @@ impl BootStep for XhciUnbind {
             .filter(|name| files.read_link(&driver.join(name)).is_ok())
             .collect();
         devices.sort();
+        // Every controller is tried, as the hook's loop did: one that is
+        // left bound does not keep the others bound.
+        let mut stuck = Vec::new();
         for device in devices {
             tracing::info!(%device, "Tearing down a USB controller");
-            files
-                .write(&driver.join("unbind"), device.as_bytes())
-                .map_err(|error| failed(self, format!("{device}: {error}")))?;
+            if let Err(error) = files.write(&driver.join("unbind"), device.as_bytes()) {
+                stuck.push(format!("{device}: {error}"));
+            }
         }
-        Ok(())
+        if stuck.is_empty() {
+            Ok(())
+        } else {
+            Err(failed(self, stuck.join(", ")))
+        }
     }
 }
 

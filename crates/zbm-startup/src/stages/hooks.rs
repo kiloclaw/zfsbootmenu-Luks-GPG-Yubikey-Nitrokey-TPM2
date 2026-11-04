@@ -145,6 +145,12 @@ fn copy_stages(
                 copied.push((named, target.join(&name)));
             } else {
                 zbm_trace::warn!("failed to copy user hook {hook}"; hook = %file.display());
+                // What `cp` left of the copy, or the image's hook it
+                // overwrote, is not measured: it does not run.
+                let left = target.join(&name);
+                if system.files.exists(&left) {
+                    let _ = system.files.set_mode(&left, 0);
+                }
             }
         }
     }
@@ -163,7 +169,8 @@ fn visible_entries(files: &dyn Files, dir: &Path) -> Vec<std::ffi::OsString> {
 }
 
 /// `zbm.skip_hooks`: removes the permissions of every hook, in any stage
-/// directory below `root`, whose name is in the comma-separated `skip` list.
+/// directory below `root`, whose name is in the comma-separated `skip` list,
+/// with or without `.sh`, as the built-in steps are skipped (ADR 0017).
 pub fn skip_hooks(files: &dyn Files, root: &Path, skip: &str) {
     if skip.is_empty() {
         return;
@@ -176,7 +183,10 @@ pub fn skip_hooks(files: &dyn Files, root: &Path, skip: &str) {
     for name in skip.split(',').filter(|name| !name.is_empty()) {
         for stage in &stages {
             for hook in visible_entries(files, &root.join(stage)) {
-                if hook.as_encoded_bytes() != name.as_bytes() {
+                let hook_name = hook.as_encoded_bytes();
+                let named = hook_name == name.as_bytes()
+                    || hook_name.strip_suffix(b".sh") == Some(name.as_bytes());
+                if !named {
                     continue;
                 }
                 let hook = root.join(stage).join(hook);

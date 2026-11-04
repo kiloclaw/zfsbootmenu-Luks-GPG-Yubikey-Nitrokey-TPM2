@@ -195,9 +195,17 @@ fn dracut_s_console_set_up_runs_on_dracut_images_only() {
     assert!(file.runner.lines().is_empty());
 }
 
+/// A machine with `cryptsetup` on its `PATH`.
+fn with_cryptsetup() -> FakeSystem {
+    let fake = FakeSystem::new();
+    fake.environment.set("PATH", "/usr/bin");
+    fake.files.file_with_mode("/usr/bin/cryptsetup", "", 0o755);
+    fake
+}
+
 #[test]
 fn the_font_and_the_luks_close_run_their_applets() {
-    let fake = FakeSystem::new();
+    let fake = with_cryptsetup();
     assert_eq!(run(&fake, "30-console-autosize.sh", &[]), Ok(()));
     assert_eq!(run(&fake, "80-luks-close.sh", &[]), Ok(()));
     assert_eq!(
@@ -205,7 +213,7 @@ fn the_font_and_the_luks_close_run_their_applets() {
         ["/libexec/zbm console-autosize", "/bin/zluks close"]
     );
 
-    let open = FakeSystem::new();
+    let open = with_cryptsetup();
     open.runner.respond("/bin/zluks close", 1, "");
     let error = run(&open, "80-luks-close.sh", &[]).unwrap_err();
     assert_eq!(
@@ -218,6 +226,14 @@ fn the_font_and_the_luks_close_run_their_applets() {
             .then(|| Err(std::io::Error::from(std::io::ErrorKind::NotFound)))
     });
     assert!(run(&gone, "30-console-autosize.sh", &[]).is_err());
+    // Without cryptsetup, there is nothing to close.
+    assert_eq!(run(&gone, "80-luks-close.sh", &[]), Ok(()));
+    assert!(
+        gone.runner
+            .lines()
+            .iter()
+            .all(|line| !line.contains("zluks"))
+    );
 }
 
 #[test]
@@ -250,6 +266,19 @@ fn every_usb_controller_is_unbound() {
         unbound,
         [b"0000:00:14.0".to_vec(), b"0000:03:00.3".to_vec()]
     );
+    // A controller that stays bound does not keep the next one bound.
+    let stuck = FakeSystem::new();
+    stuck
+        .files
+        .symlink(format!("{driver}/0000:00:14.0"), "../0000:00:14.0")
+        .symlink(format!("{driver}/0000:03:00.3"), "../0000:03:00.3")
+        .fail(
+            format!("{driver}/unbind"),
+            std::io::ErrorKind::PermissionDenied,
+        );
+    let error = run(&stuck, "90-xhci-unbind.sh", &[]).unwrap_err();
+    assert!(error.to_string().contains("0000:00:14.0"), "{error}");
+    assert!(error.to_string().contains("0000:03:00.3"), "{error}");
     // Without the driver, there is nothing to unbind.
     assert_eq!(run(&FakeSystem::new(), "90-xhci-unbind.sh", &[]), Ok(()));
     assert!(is_pci_address("0000:00:14.0") && !is_pci_address("new_id"));
