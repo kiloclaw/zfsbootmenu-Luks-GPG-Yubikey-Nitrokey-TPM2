@@ -127,7 +127,9 @@ fn early_hooks_get_the_configuration_and_the_initialization() {
         hook.get_env(),
         [
             pair("ZBM_BUILDSTYLE", "dracut"),
-            pair("ZFSBOOTMENU_INITIALIZATION", "yes")
+            pair("ZFSBOOTMENU_INITIALIZATION", "yes"),
+            pair("ZBM_HOOK_API", "2"),
+            pair("ZBM_HOOK_CONTEXT", "/run/zbm/hooks/early-setup.d.json"),
         ]
     );
 }

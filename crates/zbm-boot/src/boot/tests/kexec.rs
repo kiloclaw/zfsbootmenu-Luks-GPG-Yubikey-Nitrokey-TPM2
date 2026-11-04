@@ -163,3 +163,66 @@ fn a_measured_boot_loads_the_copies_and_removes_them_after() {
         .unwrap_or_default();
     assert!(log.contains("zbm-unsealed"), "{log}");
 }
+
+/// ADR 0017, point 8: the context of `teardown.d` says what was loaded,
+/// and by what.
+#[test]
+fn the_teardown_hooks_learn_what_was_loaded_and_by_what() {
+    for (answer, by) in [
+        (Loads::Accepted, "kexec_file_load"),
+        // ENOEXEC: a kernel the call does not take, which the program loads.
+        (Loads::Refused(8), "kexec"),
+    ] {
+        let _secrets = crate::testing::booting();
+        let fake = FakeSystem::new();
+        let _log = fake_log(&fake);
+        fake.files.dir("/zfsbootmenu").file_with_mode(
+            "/libexec/hooks/teardown.d/10-look",
+            "#!/bin/sh\n",
+            0o755,
+        );
+        fake.kernel.answer(answer);
+        let files = fake.files.clone();
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let record = std::sync::Arc::clone(&seen);
+        fake.runner.on(move |command| {
+            if command.program() == "/libexec/hooks/teardown.d/10-look" {
+                *record.lock().unwrap() = files.text("/run/zbm/hooks/teardown.d.json");
+            }
+            None
+        });
+        fake.runner.respond_program("zpool", 0, "");
+        fake.runner.respond_program("zfs", 0, "-\n");
+        fake.runner.respond_program("mount", 0, "");
+        fake.runner.respond_program("umount", 0, "");
+        // The first rule that matches answers: the start fails, the load
+        // succeeds.
+        fake.runner
+            .respond("kexec -e -i", 1, "kexec: no kernel loaded\n");
+        fake.runner.respond_program("kexec", 0, "");
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
+
+        kexec_kernel(
+            &fake.context(),
+            &ConsoleInteraction::new(fake.system()),
+            &state,
+            &BootSettings::default(),
+            &selected,
+            &Shells::default(),
+        );
+
+        let text = seen.lock().unwrap().clone();
+        let text = text.unwrap_or_else(|| panic!("{by}: the hook ran: {:?}", fake.runner.lines()));
+        // The file is compact JSON, its fields in the order of their names.
+        for field in [
+            r#""stage":"teardown.d""#.to_owned(),
+            format!(r#""loaded_by":"{by}""#),
+            r#""kernel":"/boot/vmlinuz-6.1.10""#.to_owned(),
+            format!(r#""command_line":"root=zfs:{FS}"#),
+            r#""devicetree":null"#.to_owned(),
+        ] {
+            assert!(text.contains(&field), "{field} in {text}");
+        }
+    }
+}

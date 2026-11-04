@@ -81,8 +81,10 @@ fn run_hooks(context: &Context<'_>, root: &Path, stage: HookStage, once: bool) -
             selected: &selected,
             mountpoint: &mountpoint,
         },
+        // The legacy shell loaded the kernel: what it loaded is not known.
         HookStage::Teardown => StageEnv::Teardown {
             selected: &selected,
+            loaded: None,
         },
     };
     let env = HookEnv {

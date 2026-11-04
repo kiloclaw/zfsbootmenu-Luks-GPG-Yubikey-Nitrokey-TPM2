@@ -28,7 +28,10 @@ fn run(fake: &FakeSystem, name: &str, vars: &[(&str, &str)]) -> Result<(), BootE
         .find(|step| step.name() == name)
         .expect("a step of that name");
     let stage = match step.stage() {
-        HookStage::Teardown => StageEnv::Teardown { selected: &kernel },
+        HookStage::Teardown => StageEnv::Teardown {
+            selected: &kernel,
+            loaded: None,
+        },
         _ => StageEnv::EarlySetup,
     };
     let env = HookEnv {

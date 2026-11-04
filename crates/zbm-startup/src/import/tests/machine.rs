@@ -337,6 +337,8 @@ impl Scenario {
         let files = Redirect::new(&[
             (ETC_HOSTID, &dir.join("etc_hostid")),
             (SPL_HOSTID, &dir.join("spl_hostid")),
+            // The hooks' context files, which the legacy runtime has not.
+            ("/run/zbm", &dir.join("run-zbm")),
         ]);
         let system = System {
             files: &files,

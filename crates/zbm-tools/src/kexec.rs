@@ -49,17 +49,28 @@ impl fmt::Display for CheckedBoot {
     }
 }
 
+/// The kernel's lockdown mode, `integrity` or `confidentiality`, when it is
+/// on; securityfs must be mounted for it to be known.
+pub fn lockdown(files: &dyn Files) -> Option<String> {
+    let lockdown = files.read(Path::new(LOCKDOWN)).unwrap_or_default();
+    String::from_utf8_lossy(&lockdown)
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix('[')?.strip_suffix(']').map(str::to_owned))
+        .filter(|mode| mode != "none")
+}
+
+/// Whether the firmware booted with Secure Boot on.
+pub fn is_secure_boot(files: &dyn Files) -> bool {
+    let secure_boot = files.read(Path::new(SECURE_BOOT)).unwrap_or_default();
+    secure_boot.get(4) == Some(&1)
+}
+
 /// What requires the kernel to check what it boots, if anything.
 pub fn checked_boot(files: &dyn Files) -> Option<CheckedBoot> {
-    let lockdown = files.read(Path::new(LOCKDOWN)).unwrap_or_default();
-    let mode = String::from_utf8_lossy(&lockdown)
-        .split_whitespace()
-        .find_map(|word| word.strip_prefix('[')?.strip_suffix(']').map(str::to_owned));
-    if mode.is_some_and(|mode| mode != "none") {
+    if lockdown(files).is_some() {
         return Some(CheckedBoot::Lockdown);
     }
-    let secure_boot = files.read(Path::new(SECURE_BOOT)).unwrap_or_default();
-    (secure_boot.get(4) == Some(&1)).then_some(CheckedBoot::SecureBoot)
+    is_secure_boot(files).then_some(CheckedBoot::SecureBoot)
 }
 
 /// A load refused for `why`, as the program's failure.
@@ -272,8 +283,10 @@ mod tests {
         assert_eq!(checked_boot(&files), None);
         files.file(SECURE_BOOT, b"\x06\x00\x00\x00\x01".as_slice());
         assert_eq!(checked_boot(&files), Some(CheckedBoot::SecureBoot));
+        assert!(is_secure_boot(&files) && lockdown(&files).is_none());
         files.file(LOCKDOWN, "none [integrity] confidentiality\n");
         assert_eq!(checked_boot(&files), Some(CheckedBoot::Lockdown));
+        assert_eq!(lockdown(&files).as_deref(), Some("integrity"));
         assert_eq!(CheckedBoot::SecureBoot.to_string(), "Secure Boot");
 
         let runner = FakeRunner::new();

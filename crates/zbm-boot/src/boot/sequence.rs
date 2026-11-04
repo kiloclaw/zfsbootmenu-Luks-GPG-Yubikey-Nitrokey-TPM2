@@ -3,11 +3,13 @@
 //! mounts and pools.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use zbm_types::code::{Coded as _, chain};
 
 use zbm_config::spec::properties::DEVICETREE;
 use zbm_platform::Context;
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject};
+use zbm_platform::kernel::KernelLoader;
 use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
@@ -16,7 +18,7 @@ use zbm_types::{
 };
 use zbm_zfs::{Stderr, ZfsText};
 
-use zbm_bootenv::hooks::{self, BootSteps, HookEnv, StageEnv, Variables};
+use zbm_bootenv::hooks::{self, BootSteps, HookEnv, Loaded, StageEnv, Variables};
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_bootenv::{Noise, commandline, mount_zfs, recursive_umount, umount};
@@ -188,7 +190,7 @@ pub fn kexec_kernel(
         args: &cli_args,
         copies: None,
     };
-    let Some(output) = load_measured(context, interaction, state, &load, &mnt) else {
+    let Some((output, by)) = load_measured(context, interaction, state, &load, &mnt) else {
         return;
     };
     log_loaded(&load, &output);
@@ -196,7 +198,7 @@ pub fn kexec_kernel(
     // The logs are saved before the teardown hooks, which may take away
     // the partition they go to (`90-xhci-unbind` and an ESP on USB).
     let saved = save_logs(context, state, settings.save_logs.as_ref());
-    tear_down(context, settings, selected, &mnt);
+    tear_down(context, settings, (selected, &load, by), &mnt);
     hand_over(context, state);
     execute(context, interaction, state, (fs, kernel), saved.as_ref());
 }
@@ -320,7 +322,7 @@ fn load_measured(
     state: &State<'_>,
     load: &KexecLoad<'_>,
     mnt: &Path,
-) -> Option<String> {
+) -> Option<(String, &'static str)> {
     let copies = measured::measure(context, state, load);
     let measured = KexecLoad {
         copies: copies.as_ref(),
@@ -333,25 +335,56 @@ fn load_measured(
     loaded
 }
 
+/// The kernel's loader of a context, which remembers whether its call
+/// loaded a kernel, for the context of `teardown.d` to say how it was
+/// loaded.
+struct Remembering<'l> {
+    loader: &'l dyn KernelLoader,
+    loaded: AtomicBool,
+}
+
+impl KernelLoader for Remembering<'_> {
+    fn load(&self, kernel: &Path, initrd: &Path, command_line: &str) -> std::io::Result<()> {
+        let loaded = self.loader.load(kernel, initrd, command_line);
+        self.loaded.store(loaded.is_ok(), Ordering::Relaxed);
+        loaded
+    }
+
+    fn start(&self) -> std::io::Error {
+        self.loader.start()
+    }
+}
+
 /// Loads the kernel and initramfs of `load` into memory, with a second try
-/// when the first fails, and returns what `kexec` printed. When both tries
-/// fail, unmounts the boot environment mounted at `mnt`, tells the user
-/// through `interaction` and returns `None`.
+/// when the first fails, and returns what `kexec` printed and what loaded
+/// it, `kexec_file_load` or `kexec`. When both tries fail, unmounts the
+/// boot environment mounted at `mnt`, tells the user through `interaction`
+/// and returns `None`.
 fn load_kernel(
     context: &Context<'_>,
     interaction: &dyn Interaction,
     load: &KexecLoad<'_>,
     mnt: &Path,
-) -> Option<String> {
+) -> Option<(String, &'static str)> {
     let mut output = String::new();
     // Lockdown or Secure Boot: the kernel checks what it boots, and loads
     // nothing it refuses (ROADMAP.md, SE10).
     super::mounts::mount_securityfs(context);
     let checked = kexec::checked_boot(context.files());
+    let loader = Remembering {
+        loader: context.kernel(),
+        loaded: AtomicBool::new(false),
+    };
     for _ in 0..2 {
-        let (ok, text) = substituted(load.run(context.kernel(), context.runner(), checked));
+        loader.loaded.store(false, Ordering::Relaxed);
+        let (ok, text) = substituted(load.run(&loader, context.runner(), checked));
         if ok {
-            return Some(text);
+            let by = if loader.loaded.load(Ordering::Relaxed) {
+                "kexec_file_load"
+            } else {
+                "kexec"
+            };
+            return Some((text, by));
         }
         output = text;
     }
@@ -399,15 +432,29 @@ fn log_loaded(load: &KexecLoad<'_>, output: &str) {
     }
 }
 
-/// Prepares the machine for the loaded kernel: unmounts the boot environment
-/// mounted at `mnt`, exports the pools imported read-write and runs the
-/// `teardown.d` hooks for `selected`.
-fn tear_down(context: &Context<'_>, settings: &BootSettings, selected: &Kernel, mnt: &Path) {
+/// Prepares the machine for the kernel of `load`, which `by` loaded, for
+/// `selected`: unmounts the boot environment mounted at `mnt`, exports the
+/// pools imported read-write and runs the `teardown.d` hooks.
+fn tear_down(
+    context: &Context<'_>,
+    settings: &BootSettings,
+    (selected, load, by): (&Kernel, &KexecLoad<'_>, &str),
+    mnt: &Path,
+) {
     umount(context, mnt);
     export_writable_pools(context.runner());
+    let command_line = load.command_line();
+    let loaded = Loaded {
+        command_line: &command_line,
+        devicetree: load.dtb,
+        by,
+    };
     let env = HookEnv {
         variables: &settings.env,
-        stage: StageEnv::Teardown { selected },
+        stage: StageEnv::Teardown {
+            selected,
+            loaded: Some(loaded),
+        },
     };
     hooks::run_stage(context, &settings.hooks, &env, &settings.steps, false);
 }

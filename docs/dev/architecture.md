@@ -53,7 +53,7 @@ Third-party crates:
 - `zbm`: `ratatui`, `serde_json`, `tracing`
 - `zbm-app`: `serde`, `serde_json`, `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
-- `zbm-bootenv`: `thiserror`, `tracing`
+- `zbm-bootenv`: `serde_json`, `thiserror`, `tracing`
 - `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`

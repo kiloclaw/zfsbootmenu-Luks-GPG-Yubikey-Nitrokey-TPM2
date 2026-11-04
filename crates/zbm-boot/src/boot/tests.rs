@@ -241,6 +241,8 @@ impl Machine {
             ("/sys/kernel/security", &dir.join("no-securityfs")),
             ("/dev/tpmrm0", &dir.join("no-tpm")),
             ("/dev/tpm0", &dir.join("no-tpm")),
+            // The hooks' context files, which the legacy runtime has not.
+            ("/run/zbm", &dir.join("run-zbm")),
         ]);
         let system = System {
             files: &files,

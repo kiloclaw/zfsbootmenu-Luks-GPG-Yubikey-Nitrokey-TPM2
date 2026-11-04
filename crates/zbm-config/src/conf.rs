@@ -19,6 +19,10 @@ use std::fmt::Write as _;
 /// Where the configuration is.
 pub const PATH: &str = "/etc/zfsbootmenu.conf";
 
+/// The lock of the menu (ADR 0010): the Argon2id hash of its PIN, which
+/// `generate-zbm --lock-hash` writes; the menu is locked when it exists.
+pub const LOCK: &str = "/etc/zfsbootmenu/lock";
+
 /// The include guard the image build writes at the top of the file.
 const GUARD: &str = r#"[ -n "${_ETC_ZFSBOOTMENU_CONF}" ] && return"#;
 

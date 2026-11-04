@@ -49,7 +49,14 @@ fn runs_each_hook_with_the_stage_environment() {
         assert_eq!(call.get_stderr(), Stream::Inherit);
         assert_eq!(
             call.get_env(),
-            [("BOOTFS".into(), Some("tank/ROOT/void".into()))]
+            [
+                ("BOOTFS".into(), Some("tank/ROOT/void".into())),
+                ("ZBM_HOOK_API".into(), Some("2".into())),
+                (
+                    "ZBM_HOOK_CONTEXT".into(),
+                    Some("/run/zbm/hooks/setup.d.json".into())
+                ),
+            ]
         );
     }
     assert_eq!(
@@ -104,7 +111,12 @@ fn each_stage_has_its_variables_after_the_boot_ones() {
         ("ZBM_SELECTED_INITRAMFS", "/boot/initramfs-6.12.img"),
     ];
     let with = |extra: &[(&'static str, &'static str)]| {
-        boot.iter().chain(extra).copied().collect::<Vec<_>>()
+        let api = [("ZBM_HOOK_API", "2")];
+        boot.iter()
+            .chain(extra)
+            .chain(&api)
+            .copied()
+            .collect::<Vec<_>>()
     };
     assert_eq!(
         env(StageEnv::EarlySetup).vars(),
@@ -133,14 +145,21 @@ fn each_stage_has_its_variables_after_the_boot_ones() {
         with(&boot_sel)
     );
     assert_eq!(
-        env(StageEnv::Teardown { selected: &kernel }).vars(),
+        env(StageEnv::Teardown {
+            selected: &kernel,
+            loaded: None
+        })
+        .vars(),
         with(&selected)
     );
     for (stage, expected) in [
         (StageEnv::EarlySetup, HookStage::EarlySetup),
         (StageEnv::Setup, HookStage::Setup),
         (
-            StageEnv::Teardown { selected: &kernel },
+            StageEnv::Teardown {
+                selected: &kernel,
+                loaded: None,
+            },
             HookStage::Teardown,
         ),
     ] {
@@ -172,7 +191,8 @@ fn early_hooks_run_once() {
         .filter(|operation| {
             matches!(
                 operation,
-                FileOperation::SetMode(..) | FileOperation::Rename(..)
+                FileOperation::SetMode(path, _) | FileOperation::Rename(path, _)
+                    if path.starts_with(HOOKS)
             )
         })
         .collect();
@@ -286,7 +306,10 @@ fn steps_run_among_the_hooks_in_the_order_of_their_names() {
         replaced as &dyn BootStep,
     ]);
     let kernel = Kernel::new("tank/ROOT/void", "/boot/vmlinuz", "/boot/initramfs.img");
-    let env = bare(StageEnv::Teardown { selected: &kernel });
+    let env = bare(StageEnv::Teardown {
+        selected: &kernel,
+        loaded: None,
+    });
 
     let ran = run_stage(&fake.context(), Path::new(HOOKS), &env, &steps, false);
 
@@ -294,9 +317,9 @@ fn steps_run_among_the_hooks_in_the_order_of_their_names() {
     assert_eq!(
         fake.runner.lines(),
         [
-            "step 80-luks-close.sh 3",
+            "step 80-luks-close.sh 4",
             "/libexec/hooks/teardown.d/85-user.sh",
-            "step 90-xhci-unbind.sh 3",
+            "step 90-xhci-unbind.sh 4",
             "/libexec/hooks/teardown.d/95-mine.sh",
         ]
     );

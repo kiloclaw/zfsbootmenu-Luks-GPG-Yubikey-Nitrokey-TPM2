@@ -25,7 +25,7 @@ use crate::keyholder::Keyholders;
 use crate::model::{Event, Outcome};
 
 /// Where a locked image keeps the hash of its PIN.
-pub const LOCK_FILE: &str = "/etc/zfsbootmenu/lock";
+pub const LOCK_FILE: &str = zbm_config::conf::LOCK;
 
 /// How long a proof lasts once nothing was done with it.
 pub const IDLE: Duration = Duration::from_secs(300);

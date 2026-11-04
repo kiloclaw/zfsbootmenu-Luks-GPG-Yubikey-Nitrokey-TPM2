@@ -10,7 +10,9 @@
 //! Each stage's hooks get one environment, which [`HookEnv::vars`] builds
 //! from what the stage knows (ADR 0017, point 7): the variables of every
 //! hook of the boot ([`Variables`]: those of `/etc/zfsbootmenu.conf`, and
-//! `BOOTFS` once it is known), then the stage's own.
+//! `BOOTFS` once it is known), then the stage's own, and `ZBM_HOOK_API=2`
+//! with `ZBM_HOOK_CONTEXT`, the file that says what the stage knows
+//! (ADR 0017, point 8).
 
 use std::path::{Path, PathBuf};
 
@@ -22,6 +24,11 @@ use zbm_types::{DatasetName, HookStage};
 use crate::error::BootEnvError;
 use crate::kernels::Kernel;
 use zbm_types::code::Coded as _;
+
+mod context;
+
+use context::HOOK_API;
+pub use context::Loaded;
 
 /// Where the hook directories are in the image.
 pub const HOOKS: &str = "/libexec/hooks";
@@ -106,6 +113,9 @@ pub enum StageEnv<'a> {
     Teardown {
         /// The boot environment and the kernel chosen.
         selected: &'a Kernel,
+        /// What `kexec` loaded, when the process that runs the stage
+        /// loaded it.
+        loaded: Option<Loaded<'a>>,
     },
 }
 
@@ -138,7 +148,8 @@ impl<'a> HookEnv<'a> {
     /// `ZFSBOOTMENU_INITIALIZATION=yes` in `early-setup.d`, `ZBM_LOCKED_FS`
     /// and `ZBM_ENCRYPTION_ROOT` in `load-key.d`, and `ZBM_SELECTED_BE`,
     /// `ZBM_SELECTED_KERNEL` and `ZBM_SELECTED_INITRAMFS` in `boot-sel.d`,
-    /// with `ZBM_SELECTED_MOUNTPOINT`, and in `teardown.d`.
+    /// with `ZBM_SELECTED_MOUNTPOINT`, and in `teardown.d`; and in every
+    /// stage `ZBM_HOOK_API`, the version of the hook API.
     pub fn vars(&self) -> Vec<(&'a str, &'a str)> {
         let mut vars: Vec<(&str, &str)> = self.variables.iter().collect();
         let selected = |kernel: &'a Kernel| {
@@ -161,8 +172,11 @@ impl<'a> HookEnv<'a> {
                 vars.extend(selected(kernel));
                 vars.push(("ZBM_SELECTED_MOUNTPOINT", mountpoint));
             }
-            StageEnv::Teardown { selected: kernel } => vars.extend(selected(kernel)),
+            StageEnv::Teardown {
+                selected: kernel, ..
+            } => vars.extend(selected(kernel)),
         }
+        vars.push(("ZBM_HOOK_API", HOOK_API));
         vars
     }
 }
@@ -266,8 +280,10 @@ const START: usize = 256;
 /// does, with the standard streams of this process and its environment plus
 /// `env`'s variables, and `steps` of that stage among them, in the order of
 /// their names; a hook of a step's name runs in its place. With `once`, each
-/// hook then loses its permissions and gets the suffix `.completed`. Returns
-/// how many hooks and steps ran; a missing directory runs no hook.
+/// hook then loses its permissions and gets the suffix `.completed`. When a
+/// hook runs, the stage's context file is written first, named by
+/// `ZBM_HOOK_CONTEXT`, and removed after the stage. Returns how many hooks
+/// and steps ran; a missing directory runs no hook.
 pub fn run_stage(
     context: &Context<'_>,
     root: &Path,
@@ -292,7 +308,17 @@ pub fn run_stage(
         runs.push(Runs::Step(step));
     }
     runs.sort_by_key(Runs::name);
-    let vars = env.vars();
+    let mut vars = env.vars();
+    let has_hooks = runs.iter().any(|run| matches!(run, Runs::Hook(_)));
+    let written = if has_hooks {
+        context::write(context, env)
+    } else {
+        None
+    };
+    let written_text = written.as_ref().map(|path| path.to_string_lossy());
+    if let Some(path) = &written_text {
+        vars.push(("ZBM_HOOK_CONTEXT", path));
+    }
     for run in &runs {
         match run {
             Runs::Hook(hook) => run_hook(context, hook, &vars, once),
@@ -304,6 +330,9 @@ pub fn run_stage(
                 }
             }
         }
+    }
+    if let Some(path) = &written {
+        context::remove(context, path);
     }
     runs.len()
 }
