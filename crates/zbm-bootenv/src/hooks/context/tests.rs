@@ -252,7 +252,10 @@ fn a_stage_of_steps_alone_writes_no_file_and_a_file_not_written_is_logged() {
     );
     assert!(!fake.files.exists(Path::new(CONTEXTS)));
 
-    // /run cannot be written: the hooks run without the variable.
+    // /run cannot be written: the hooks get the variable empty, not one
+    // a stage they run in passed on.
+    fake.environment
+        .set("ZBM_HOOK_CONTEXT", "/run/zbm/hooks/boot-sel.d.json");
     fake.files
         .file_with_mode("/libexec/hooks/setup.d/10-a", "#!/bin/sh\n", 0o755)
         .fail(CONTEXTS, std::io::ErrorKind::PermissionDenied);
@@ -265,10 +268,11 @@ fn a_stage_of_steps_alone_writes_no_file_and_a_file_not_written_is_logged() {
     );
     let call = fake.runner.calls().pop().unwrap();
     assert!(
-        !call
-            .get_env()
-            .iter()
-            .any(|(name, _)| name == "ZBM_HOOK_CONTEXT")
+        call.get_env().iter().any(
+            |(name, value)| name == "ZBM_HOOK_CONTEXT" && value.as_deref() == Some("".as_ref())
+        ),
+        "{:?}",
+        call.get_env()
     );
     assert!(
         fake.kmsg()

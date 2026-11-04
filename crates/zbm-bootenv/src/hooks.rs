@@ -282,7 +282,8 @@ const START: usize = 256;
 /// their names; a hook of a step's name runs in its place. With `once`, each
 /// hook then loses its permissions and gets the suffix `.completed`. When a
 /// hook runs, the stage's context file is written first, named by
-/// `ZBM_HOOK_CONTEXT`, and removed after the stage. Returns how many hooks
+/// `ZBM_HOOK_CONTEXT` (empty when it could not be written), and removed
+/// after the stage. Returns how many hooks
 /// and steps ran; a missing directory runs no hook.
 pub fn run_stage(
     context: &Context<'_>,
@@ -315,9 +316,14 @@ pub fn run_stage(
     } else {
         None
     };
-    let written_text = written.as_ref().map(|path| path.to_string_lossy());
-    if let Some(path) = &written_text {
-        vars.push(("ZBM_HOOK_CONTEXT", path));
+    // Empty without a file, so that no hook sees one a stage it runs in
+    // passed on.
+    let written_text = written
+        .as_ref()
+        .map(|path| path.to_string_lossy())
+        .unwrap_or_default();
+    if has_hooks {
+        vars.push(("ZBM_HOOK_CONTEXT", &written_text));
     }
     for run in &runs {
         match run {

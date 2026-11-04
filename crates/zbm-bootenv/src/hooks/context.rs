@@ -131,7 +131,7 @@ pub(super) fn path_of(env: &HookEnv<'_>) -> PathBuf {
 
 /// Writes the context of `env`'s stage to its file, readable by everyone
 /// and writable by no one: its path, or `None` when it could not be
-/// written, which is logged.
+/// written, which is logged, and what was written removed.
 pub(super) fn write(context: &Context<'_>, env: &HookEnv<'_>) -> Option<PathBuf> {
     let files = context.files();
     let path = path_of(env);
@@ -148,6 +148,8 @@ pub(super) fn write(context: &Context<'_>, env: &HookEnv<'_>) -> Option<PathBuf>
     match written {
         Ok(()) => Some(path),
         Err(error) => {
+            // What a write that failed part way left is not the context.
+            let _ = files.remove_file(&path);
             let path = path.display();
             zbm_trace::warn!("unable to write the hook context {path}: {error}"; %path, %error);
             None

@@ -199,3 +199,24 @@ fn nothing_selected_is_an_error_and_boots_nothing() {
         fake.kmsg()
     );
 }
+
+#[test]
+fn the_remembering_loader_says_whether_its_call_loaded() {
+    use zbm_testkit::fakes::{FakeKernelLoader, Loads};
+
+    let kernel = FakeKernelLoader::default();
+    let loader = Remembering {
+        loader: &kernel,
+        loaded: AtomicBool::new(false),
+    };
+    let load = || loader.load(Path::new("/k"), Path::new("/i"), "quiet");
+    kernel.answer(Loads::Refused(8));
+    assert!(load().is_err());
+    assert!(!loader.loaded.load(Ordering::Relaxed));
+    kernel.answer(Loads::Accepted);
+    assert!(load().is_ok());
+    assert!(loader.loaded.load(Ordering::Relaxed));
+    // A start goes to the loader it wraps.
+    let _ = loader.start();
+    assert_eq!(kernel.starts(), 1);
+}
