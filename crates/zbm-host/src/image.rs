@@ -15,6 +15,7 @@ mod fonts;
 mod graphics;
 mod host;
 pub mod keymaps;
+pub mod library;
 mod libs;
 pub mod lists;
 mod luks;

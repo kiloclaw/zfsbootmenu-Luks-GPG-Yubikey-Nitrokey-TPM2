@@ -5,13 +5,16 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use super::{Entry, Fatal, Image};
+use super::{Entry, Fatal, Image, library};
 
 /// What the Rust runtime is instead of the legacy runtime's files: `zbm`
-/// is the start-up program, `zluks`, the menu and the hook stages' runner.
-const RUST_REPLACES: [&str; 5] = [
+/// is the start-up program, `zluks`, the menu, the hook stages' runner and
+/// the library functions' (`zfunc`); the library itself is generated
+/// ([`library`]).
+const RUST_REPLACES: [&str; 6] = [
     "libexec/zfsbootmenu-init",
     "libexec/zfsbootmenu-run-hooks",
+    "libexec/zfunc",
     "bin/zluks",
     "bin/zfsbootmenu",
     "bin/zbm",
@@ -92,7 +95,8 @@ pub fn core(image: &mut Image) {
     for dir in ["lib", "libexec", "bin"] {
         for name in image.host.names(&root.join(dir)) {
             let at = format!("{dir}/{name}");
-            if image.is_rust() && RUST_REPLACES.contains(&at.as_str()) {
+            let generated = dir == "lib" && library::FILES.contains(&name.as_str());
+            if image.is_rust() && (generated || RUST_REPLACES.contains(&at.as_str())) {
                 continue;
             }
             image.install(&root.join(&at), &Path::new("/").join(&at));
@@ -101,6 +105,8 @@ pub fn core(image: &mut Image) {
     if image.is_rust() {
         image.plan.link("/libexec/zbm", "/bin/zluks");
         image.plan.link("/libexec/zbm", "/bin/zfsbootmenu");
+        image.plan.link("/libexec/zbm", "/libexec/zfunc");
+        library(image);
         image.plan.write("/bin/zbm", 0o755, BIN_ZBM);
         image
             .plan
@@ -112,6 +118,38 @@ pub fn core(image: &mut Image) {
             &root.join("init.d").join(&name),
             &Path::new("/libexec/init.d").join(&name),
         );
+    }
+}
+
+/// The library of the hook contract in a Rust image (ADR 0017, point 11):
+/// the three files generated from the module root's, whose functions run
+/// in `zbm zfunc`, and the module root's below [`library::LEGACY`], for
+/// the functions it runs as the legacy runtime did. A file that cannot be
+/// read is installed as it is.
+fn library(image: &mut Image) {
+    let lib = image.module_root().join("lib");
+    let texts: Vec<(&str, Option<String>)> = library::FILES
+        .iter()
+        .filter(|file| image.host.is_file(&lib.join(file)))
+        .map(|file| (*file, image.host.read(&lib.join(file))))
+        .collect();
+    let all: Vec<&str> = texts
+        .iter()
+        .filter_map(|(_, text)| text.as_deref())
+        .collect();
+    for (file, text) in &texts {
+        let src = lib.join(file);
+        let dest = Path::new("/lib").join(file);
+        let Some(text) = text else {
+            image.plan.warn(format!(
+                "unable to read {}: it is installed as it is",
+                src.display()
+            ));
+            image.install(&src, &dest);
+            continue;
+        };
+        image.install(&src, &Path::new(library::LEGACY).join("lib").join(file));
+        image.plan.write(dest, 0o644, library::generate(text, &all));
     }
 }
 

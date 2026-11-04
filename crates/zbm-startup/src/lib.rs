@@ -35,6 +35,7 @@ pub mod stages;
 pub mod step;
 pub mod support;
 pub mod unattended;
+pub mod zfunc;
 
 #[cfg(test)]
 mod testing;

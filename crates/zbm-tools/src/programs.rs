@@ -159,6 +159,66 @@ pub fn run_quietly(runner: &dyn Runner, program: &str, args: &[&str]) {
     let _ = runner.run(&command);
 }
 
+/// Where Rust images keep the legacy files of the hook contract's library,
+/// for the functions `zbm zfunc` runs as the legacy runtime did (ADR 0017).
+pub const LEGACY_LIBRARY: &str = "/usr/share/zfsbootmenu/legacy";
+
+/// The Bash program that runs a function of the legacy library, as the
+/// legacy `/libexec/zfunc` did, from the legacy files that Rust images keep
+/// below `$1` (`/usr/share/zfsbootmenu/legacy`): the function, then its
+/// arguments, follow. The legacy files source each other there, not the
+/// generated library of `/lib`, whose functions would come back here.
+const LEGACY_FUNCTION: &str = r#"legacy="${1}"
+shift
+source() {
+  case "${1}" in
+    /lib/zfsbootmenu-core.sh|/lib/kmsg-log-lib.sh|/lib/zfsbootmenu-kcl.sh)
+      builtin source "${legacy}${1}" ;;
+    *) builtin source "$@" ;;
+  esac
+}
+for src in /lib/profiling-lib.sh /lib/kmsg-log-lib.sh \
+  /lib/zfsbootmenu-core.sh /lib/zfsbootmenu-ui.sh; do
+  if ! source "${src}" >/dev/null 2>&1; then
+    echo "<3>ZFSBootMenu: unable to source '${src}' in $0" > /dev/kmsg
+    exit 1
+  fi
+done
+unset src legacy
+func="${1}"
+shift
+zdebug "Calling ${func} with $*"
+"${func}" "$@"
+"#;
+
+/// Runs the legacy function `function` with `args`, on Bash, with the
+/// legacy files below `legacy`, this process's streams and environment,
+/// and `env` added (ADR 0017, point 10).
+///
+/// # Errors
+///
+/// The error that kept Bash from starting.
+pub fn legacy_function(
+    runner: &dyn Runner,
+    legacy: &Path,
+    function: &str,
+    args: &[String],
+    env: &[(&str, &str)],
+) -> io::Result<Output> {
+    let command = Command::new("bash")
+        .args(["-c", LEGACY_FUNCTION, "/libexec/zfunc"])
+        .arg(legacy)
+        .arg(function)
+        .args(args)
+        .stdin(Input::Inherit)
+        .stdout(Stream::Inherit)
+        .stderr(Stream::Inherit);
+    let command = env
+        .iter()
+        .fold(command, |command, (name, value)| command.env(name, value));
+    runner.run(&command)
+}
+
 /// Where the boot image installs `zbm`.
 pub const ZBM: &str = "/libexec/zbm";
 
@@ -285,6 +345,38 @@ mod tests {
         // runs as it is.
         assert_eq!(line(Some(b"#!/bin/sh -e\n"), None), "/hooks/h");
         assert_eq!(line(None, brush), "/hooks/h");
+    }
+
+    #[test]
+    fn a_legacy_function_runs_on_bash_from_the_legacy_files() {
+        let runner = FakeRunner::new();
+        runner.respond_program("bash", 4, "");
+        let args = ["tank".to_owned()];
+        let output = legacy_function(
+            &runner,
+            Path::new(LEGACY_LIBRARY),
+            "export_pool",
+            &args,
+            &[("loglevel", "7")],
+        )
+        .unwrap();
+        assert_eq!(output.status.code(), Some(4));
+        let calls = runner.calls();
+        let [call] = calls.as_slice() else {
+            panic!("one call: {calls:?}");
+        };
+        let args: Vec<String> = call
+            .get_args()
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(args[1], LEGACY_FUNCTION);
+        assert_eq!(
+            &args[2..],
+            ["/libexec/zfunc", LEGACY_LIBRARY, "export_pool", "tank"]
+        );
+        assert_eq!(call.get_env(), [("loglevel".into(), Some("7".into()))]);
+        assert_eq!(call.get_stdout(), Stream::Inherit);
     }
 
     #[test]

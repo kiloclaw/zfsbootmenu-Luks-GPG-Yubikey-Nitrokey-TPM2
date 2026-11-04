@@ -162,10 +162,7 @@ file	/etc/zfs/compatibility.d/grub2	/etc/zfs/compatibility.d/grub2	-
 file	/usr/share/zfsbootmenu/lib/echo-log-lib.sh	/lib/echo-log-lib.sh	-
 file	/usr/share/zfsbootmenu/lib/efi-firmware-lib.sh	/lib/efi-firmware-lib.sh	-
 file	/usr/share/zfsbootmenu/lib/fzf-defaults.sh	/lib/fzf-defaults.sh	-
-file	/usr/share/zfsbootmenu/lib/kmsg-log-lib.sh	/lib/kmsg-log-lib.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-completions.sh	/lib/zfsbootmenu-completions.sh	-
-file	/usr/share/zfsbootmenu/lib/zfsbootmenu-core.sh	/lib/zfsbootmenu-core.sh	-
-file	/usr/share/zfsbootmenu/lib/zfsbootmenu-kcl.sh	/lib/zfsbootmenu-kcl.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh	/lib/zfsbootmenu-luks-keys.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks.sh	/lib/zfsbootmenu-luks.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-ui.sh	/lib/zfsbootmenu-ui.sh	-
@@ -175,7 +172,6 @@ file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-edit-kcl	/libexec/zfsbootmenu-ed
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-help	/libexec/zfsbootmenu-help	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
-file	/usr/share/zfsbootmenu/libexec/zfunc	/libexec/zfunc	-
 file	/usr/share/zfsbootmenu/libexec/zpowermenu	/libexec/zpowermenu	-
 link	ztrace	/bin/debug
 link	reboot	/bin/firmware-setup
@@ -191,6 +187,846 @@ file	/usr/share/zfsbootmenu/bin/zsnapshots	/bin/zsnapshots	-
 file	/usr/share/zfsbootmenu/bin/ztrace	/bin/ztrace	-
 link	/libexec/zbm	/bin/zluks
 link	/libexec/zbm	/bin/zfsbootmenu
+link	/libexec/zbm	/libexec/zfunc
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-core.sh	/usr/share/zfsbootmenu/legacy/lib/zfsbootmenu-core.sh	-
+file	@/lib/zfsbootmenu-core.sh	/lib/zfsbootmenu-core.sh	0644
+    | #!/bin/bash
+    | # vim: softtabstop=2 shiftwidth=2 expandtab
+    | 
+    | # Include guard
+    | [ -n "${_ZFSBOOTMENU_CORE}" ] && return
+    | readonly _ZFSBOOTMENU_CORE=1
+    | 
+    | # shellcheck disable=1091
+    | if ! source /lib/zfsbootmenu-kcl.sh >/dev/null 2>&1; then
+    |   zerror "failed to load KCL manipulation functions"
+    |   exit 1
+    | fi
+    | 
+    | # arg1: text with color sequences
+    | # prints: text with color sequences removed
+    | # returns: nothing
+    | 
+    | # Generated: the functions of this library run in zbm (ADR 0017).
+    | _zbm_zfunc() {
+    |   (
+    |     export BASE BOOTFS CLEAR_SCREEN DRACUT_VERSION ENABLED FORCE_RELOAD HOME 2>/dev/null
+    |     export ID ID_LIKE INITRD_VERSION NO_CACHE PRETTY_NAME PROMOTE PROPERTY 2>/dev/null
+    |     export UNAME VALUE VERSION VERSION_ID ZBM_PRETTY_NAME ZBM_RELEASE_BUILD 2>/dev/null
+    |     export ZBM_VERSION _pool adds allow_rw arg args beloc cache candidates cf 2>/dev/null
+    |     export checkpoint cli_args color dataset decision def delay dev device 2>/dev/null
+    |     export dtb_file dtb_prop dtb_try efivar_location efivar_state encroot 2>/dev/null
+    |     export environment error_line ext f filesystem force_export fs grep_args 2>/dev/null
+    |     export hdir hfile hook hook_envs hook_fs hook_mount hook_path hook_root 2>/dev/null
+    |     export hostid hostid_re hsrc i id ifile import_args import_output 2>/dev/null
+    |     export import_policy importable infinite inherited initramfs ipath k karg 2>/dev/null
+    |     export kcl kcl_path kclfile kdir kern kern_kcl kernel kernel_list 2>/dev/null
+    |     export kernel_records kexec_args key keycache keydest keydir keyfile 2>/dev/null
+    |     export keyformat keylocation keypath keysource keysrc keystatus kkey kopt 2>/dev/null
+    |     export kpath ksmount kval kver lbl lc level levels levels_array line 2>/dev/null
+    |     export lines load_success loglevel mes message mnt mount_dev mount_path 2>/dev/null
+    |     export mountpoint mounts mp mp_re mutex opt opts osrel ostype output 2>/dev/null
+    |     export par_args parent parfs path pfx pool prefix prohibited prompt 2>/dev/null
+    |     export read_write readargs recv_args relkeyloc rem rems ret 2>/dev/null
+    |     export rewind_to_checkpoint roflag root_prefix rwo selected since single 2>/dev/null
+    |     export snap snapshot spec_kexec_args specific_kernel spl_hostid splmod 2>/dev/null
+    |     export state stype sup target target_parent trace val x y zbm_prefer_pool 2>/dev/null
+    |     export zbm_set_hostid zfsbe zfsbe_fs zfsbe_mnt 2>/dev/null
+    |     exec /libexec/zbm zfunc "$@"
+    |   )
+    | }
+    | 
+    | decolorize() {
+    |   shopt -s extglob
+    |   echo "${1//+(\\033\[[0-1];3[0-7]m|\\033\[0m|[[:cntrl:]]\[[0-1];3[0-7]m|[[:cntrl:]]\[0m)/}"
+    |   shopt -u extglob
+    | }
+    | 
+    | # arg1: color name
+    | # arg2...argN: text to color
+    | # prints: text with color escape codes
+    | # returns: nothing
+    | 
+    | colorize() {
+    |   local color
+    |   color="${1}"
+    |   shift
+    |   case "${color}" in
+    |     black)        echo -e -n '\033[0;30m' ;;
+    |     red)          echo -e -n '\033[0;31m' ;;
+    |     green)        echo -e -n '\033[0;32m' ;;
+    |     orange)       echo -e -n '\033[0;33m' ;;
+    |     blue)         echo -e -n '\033[0;34m' ;;
+    |     magenta)      echo -e -n '\033[0;35m' ;;
+    |     cyan)         echo -e -n '\033[0;36m' ;;
+    |     lightgray)    echo -e -n '\033[0;37m' ;;
+    |     darkgray)     echo -e -n '\033[1;30m' ;;
+    |     lightred)     echo -e -n '\033[1;31m' ;;
+    |     lightgreen)   echo -e -n '\033[1;32m' ;;
+    |     yellow)       echo -e -n '\033[1;33m' ;;
+    |     lightblue)    echo -e -n '\033[1;34m' ;;
+    |     lightmagenta) echo -e -n '\033[1;35m' ;;
+    |     lightcyan)    echo -e -n '\033[1;36m' ;;
+    |     white)        echo -e -n '\033[1;37m' ;;
+    |     *)            echo -e -n '\033[0m' ;;
+    |   esac
+    |   echo -e -n "$@"
+    |   echo -e -n '\033[0m'
+    | }
+    | 
+    | # arg1: text to center
+    | # prints: left-padded text
+    | # returns: nothing
+    | 
+    | center_string() {
+    |   printf "%*s" $(( ( ${#1} + COLUMNS ) / 2 )) "${1}"
+    | }
+    | 
+    | # arg1: hostid, as hex number without leading "0x"
+    | # prints: nothing
+    | # returns: 0 on successful write, 1 on error
+    | 
+    | write_hostid() {
+    |   _zbm_zfunc write_hostid "$@"
+    | }
+    | 
+    | # args: no arguments
+    | # prints: hostid used by the SPL kmod, as hex with 0x prefix
+    | # returns: 0 on successful read, 1 on failure
+    | 
+    | get_spl_hostid() {
+    |   _zbm_zfunc get_spl_hostid "$@"
+    | }
+    | 
+    | 
+    | # arg1: optional specific pool to inspect
+    | # prints: <imported pool>;<hostid>
+    | # returns: 0 on successful pool import, 1 on failure
+    | 
+    | match_hostid() {
+    |   _zbm_zfunc match_hostid "$@"
+    | }
+    | 
+    | # args: no arguments
+    | # prints: nothing
+    | # returns: nothing
+    | 
+    | log_unimportable() {
+    |   _zbm_zfunc log_unimportable "$@"
+    | }
+    | 
+    | # args: none
+    | # prints: nothing
+    | # returns: 0 if at least one pool is available
+    | 
+    | check_for_pools() {
+    |   _zbm_zfunc check_for_pools "$@"
+    | }
+    | 
+    | # arg1: device name
+    | # prints: mountpoint
+    | # returns: 0 on success
+    | 
+    | mount_block() {
+    |   _zbm_zfunc mount_block "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem name
+    | # prints: mountpoint
+    | # returns: 0 on success
+    | #
+    | # If the filesystem is locked, this method fails without attempting unlock
+    | 
+    | mount_zfs() {
+    |   _zbm_zfunc mount_zfs "$@"
+    | }
+    | 
+    | # arg1: bootfs kernel initramfs
+    | # prints: nothing
+    | # returns: 1 on error, otherwise does not return
+    | 
+    | kexec_kernel() {
+    |   _zbm_zfunc kexec_kernel "$@"
+    | }
+    | 
+    | # arg1: snapshot name
+    | # arg2: new BE name
+    | # prints: nothing
+    | # returns: 0 on success
+    | 
+    | duplicate_snapshot() {
+    |   _zbm_zfunc duplicate_snapshot "$@"
+    | }
+    | 
+    | # arg1: snapshot name
+    | # arg2: new BE name
+    | # arg3: prevents promotion if equal to "nopromote"; otherwise ignored
+    | # prints: nothing
+    | # returns: 0 on success
+    | 
+    | clone_snapshot() {
+    |   _zbm_zfunc clone_snapshot "$@"
+    | }
+    | 
+    | # arg1: filesystem name
+    | # arg2: snapshot name
+    | # prints: nothing
+    | # returns: 0 on success
+    | 
+    | create_snapshot() {
+    |   _zbm_zfunc create_snapshot "$@"
+    | }
+    | 
+    | # arg1: snapshot name
+    | # prints: nothing
+    | # returns: 0 on success
+    | 
+    | rollback_snapshot() {
+    |   _zbm_zfunc rollback_snapshot "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # arg2: default kernel path (omit to unset default)
+    | # prints: nothing
+    | # returns: 0 on success, 1 otherwise
+    | 
+    | set_default_kernel() {
+    |   _zbm_zfunc set_default_kernel "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: nothing
+    | # returns: nothing
+    | 
+    | set_default_env() {
+    |   _zbm_zfunc set_default_env "$@" || return
+    |   BOOTFS="${1}"
+    | }
+    | 
+    | # arg1: path of the kernel for which the initramfs is sought
+    | # prints: path of a matching initramfs
+    | # returns: 0 if initramfs was found, 1 otherwise
+    | 
+    | find_be_initramfs() {
+    |   _zbm_zfunc find_be_initramfs "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: nothing
+    | # returns: 0 if kernels were found, 1 otherwise
+    | 
+    | find_be_kernels() {
+    |   _zbm_zfunc find_be_kernels "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: fs kernel initramfs
+    | # returns: 0 if a kernel can be identified, 1 if not
+    | 
+    | select_kernel() {
+    |   _zbm_zfunc select_kernel "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # arg2: path for the mounted filesystem
+    | # prints: discovered prefix for root= command-line argument
+    | 
+    | find_root_prefix() {
+    |   _zbm_zfunc find_root_prefix "$@"
+    | }
+    | 
+    | # arg1: ZFS KCL cache to validate
+    | # returns: 0 if cache is valid, 1 otherwise
+    | 
+    | validate_cmdline_cache() {
+    |   _zbm_zfunc validate_cmdline_cache "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # arg2: optional path to kernel
+    | # prints: path to kernel-specific KCL cache
+    | # returns: 0 on success
+    | 
+    | kernel_kcl_cache() {
+    |   _zbm_zfunc kernel_kcl_cache "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # arg2: optional kernel to select
+    | # prints: kernel command line arguments
+    | # returns: nothing
+    | 
+    | load_be_cmdline() {
+    |   _zbm_zfunc load_be_cmdline "$@"
+    | }
+    | 
+    | # arg1: pool name, empty to import all
+    | # prints: nothing
+    | # returns: 0 on success, 1 on failure
+    | 
+    | # Accepted environment variables
+    | # import_policy=force: enable force importing of a pool
+    | # read_write=1: import read-write, defaults to read-only
+    | # rewind_to_checkpoint=1: enable --rewind-to-checkpoint
+    | 
+    | import_pool() {
+    |   _zbm_zfunc import_pool "$@"
+    |   ret=$?
+    |   [ "${ret}" -eq 0 ] || spl_hostid="$( _zbm_zfunc get_spl_hostid )"
+    |   return "${ret}"
+    | }
+    | 
+    | # arg1: pool name
+    | # prints: nothing
+    | # returns: 0 on success, 1 on failure
+    | 
+    | export_pool() {
+    |   _zbm_zfunc export_pool "$@"
+    |   ret=$?
+    |   return "${ret}"
+    | }
+    | 
+    | # arg1: pool name
+    | # prints: nothing
+    | # returns: 0 on success, 1 on failure
+    | 
+    | rewind_checkpoint() {
+    |   _zbm_zfunc rewind_checkpoint "$@"
+    | }
+    | 
+    | # prints: nothing
+    | # returns: 0 if suspend device found, 1 otherwise
+    | 
+    | has_resume_device() {
+    |   _zbm_zfunc has_resume_device "$@"
+    | }
+    | 
+    | # getopts arguments:
+    | # -d  prompt countdown/delay; negative values will wait forever
+    | # -p  prompt with countdown timer (use %0.Xd as a placeholder for time)
+    | # -m+ message to be printed above the prompt, usable multiple times
+    | # -r  message to be prefixed with [RETURN] (accept)
+    | # -e  message to be prefixed with [ESCAPE] (reject)
+    | #
+    | # -m, -r, -e are printed in the order they are passed to the function
+    | 
+    | timed_prompt() {
+    |   local status
+    |   _zbm_zfunc timed_prompt "$@"
+    |   status=$?
+    |   HEIGHT="$( tput lines 2>/dev/null )"
+    |   WIDTH="$( tput cols 2>/dev/null )"
+    |   return "${status}"
+    | }
+    | 
+    | # arg1: pool name
+    | # prints: warning message
+    | # returns: 0 on success, 1 on failure
+    | 
+    | resume_prompt() {
+    |   _zbm_zfunc resume_prompt "$@"
+    | }
+    | 
+    | # arg1: filesystem name
+    | # prints: nothing
+    | # returns: 0 when filesystem is snapshot, 1 otherwise
+    | 
+    | is_snapshot() {
+    |   local snapshot
+    | 
+    |   snapshot="${1}"
+    |   if [ -z "${snapshot}" ]; then
+    |     zerror "snapshot is undefined"
+    |     return 1
+    |   fi
+    | 
+    |   if [[ "${snapshot}" =~ @ ]]; then
+    |     return 0
+    |   else
+    |     return 1
+    |   fi
+    | }
+    | 
+    | # arg1: pool name
+    | # prints: nothing
+    | # returns: 0 when pool is writable, 1 otherwise
+    | 
+    | # arg1: pool name
+    | # prints: nothing
+    | # returns: 0 if the pool is listed in ${BASE}/degraded, which restricts it to
+    | #          read-only imports
+    | 
+    | is_degraded() {
+    |   _zbm_zfunc is_degraded "$@"
+    | }
+    | 
+    | is_writable() {
+    |   _zbm_zfunc is_writable "$@"
+    | }
+    | 
+    | # arg1: pool name
+    | # prints: nothing
+    | # returns: 0 on success, 1 on failure
+    | 
+    | set_rw_pool() {
+    |   _zbm_zfunc set_rw_pool "$@"
+    | }
+    | 
+    | # arg1: pool name
+    | # prints: nothing
+    | # returns: 0 on success, 1 on failure
+    | 
+    | set_ro_pool() {
+    |   _zbm_zfunc set_ro_pool "$@"
+    | }
+    | 
+    | 
+    | # arg1: ZFS filesystem or snapshot
+    | # prints: name of encryption root, if present
+    | # returns: 0 if system has an encryption root, 1 otherwise
+    | 
+    | be_has_encroot() {
+    |   _zbm_zfunc be_has_encroot "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: name of encryption root, iff filesystem is locked
+    | # returns: 0 if filesystem is locked, 1 otherwise
+    | 
+    | be_is_locked() {
+    |   _zbm_zfunc be_is_locked "$@"
+    | }
+    | 
+    | # arg1: BE key source
+    | # prints: value of org.zfsbootmenu:keysource for BE, iff it is a valid filesystem
+    | # returns: 0 iff the value is defined, not empty and is a valid filesystem
+    | 
+    | be_keysource() {
+    |   _zbm_zfunc be_keysource "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # arg2: key location
+    | # prints: nothing
+    | # returns: 0 iff a key was cached
+    | 
+    | cache_key() {
+    |   _zbm_zfunc cache_key "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: nothing
+    | # returns: 0 on success, 1 on failure
+    | #
+    | # NOTE: this function should *not* be called from a subshell
+    | 
+    | load_key() {
+    |   _zbm_zfunc load_key "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: The base path to this filesystem for use by ZFSBootMenu functions, with out a trailing /
+    | # returns: nothing
+    | 
+    | be_location() {
+    |   _zbm_zfunc be_location "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: nothing
+    | # returns: nothing
+    | 
+    | zfs_chroot() {
+    |   _zbm_zfunc zfs_chroot "$@"
+    | }
+    | 
+    | 
+    | # arg1: message
+    | # prints: nothing
+    | # returns: nothing
+    | 
+    | emergency_shell() {
+    |   _zbm_zfunc emergency_shell "$@"
+    | }
+    | 
+    | # prints: zpool list and zfs property list
+    | # returns: nothing
+    | 
+    | zreport() {
+    |   _zbm_zfunc zreport "$@"
+    | }
+    | 
+    | # arg1: hook root spec, as <device>//<path>
+    | # prints: nothing
+    | # returns: 0 iff device and path are valid
+    | 
+    | import_zbm_hooks() {
+    |   _zbm_zfunc import_zbm_hooks "$@"
+    | }
+    | 
+    | # arg1: directory path
+    | # prints: nothing
+    | # returns: 0 if the directory is a mountpoint, 1 if directory is not a mountpoint
+    | 
+    | is_mountpoint() {
+    |   _zbm_zfunc is_mountpoint "$@"
+    | }
+    | 
+    | # arg1: device or dataset name
+    | # prints: mountpoint if mounted 
+    | # returns: 0 if the device is mounted, 1 if not
+    | 
+    | is_mounted() {
+    |   mount_dev="${1}"
+    |   _zbm_zfunc is_mounted "$@"
+    | }
+    | 
+    | # args: none
+    | # prints: nothing
+    | # returns: 0 if EFI is detected, 1 if not
+    | 
+    | is_efi_system() {
+    |   _zbm_zfunc is_efi_system "$@"
+    | }
+    | 
+    | # arg1: 'ro' or 'rw' to mount or remount efivarfs in that desired mode
+    | # arg2: optional mountpoint
+    | # prints: nothing
+    | # returns: 0 on success, 1 on failure, 2 if unsupported
+    | 
+    | mount_efivarfs() {
+    |   _zbm_zfunc mount_efivarfs "$@"
+    | }
+    | 
+    | # arg1: zfs dataset name
+    | # returns: 0 if filesystem
+    | 
+    | is_zfs_filesystem() {
+    |   _zbm_zfunc is_zfs_filesystem "$@"
+    | }
+    | 
+    | # arg1: mount point
+    | # returns: 0 if everything was unmounted, 1 if not
+    | 
+    | recursive_umount() {
+    |   _zbm_zfunc recursive_umount "$@"
+    | }
+    | 
+file	/usr/share/zfsbootmenu/lib/kmsg-log-lib.sh	/usr/share/zfsbootmenu/legacy/lib/kmsg-log-lib.sh	-
+file	@/lib/kmsg-log-lib.sh	/lib/kmsg-log-lib.sh	0644
+    | #!/bin/bash
+    | # vim: softtabstop=2 shiftwidth=2 expandtab
+    | 
+    | if [ -n "${_ZFSBOOTMENU_KMSG_LOG_LIB}" ]; then
+    |   [ -z "${FORCE_RELOAD}" ] && return
+    | else
+    |   readonly _ZFSBOOTMENU_KMSG_LOG_LIB=1
+    | fi
+    | 
+    | : "${loglevel:=4}"
+    | 
+    | # arg1..argN: log line
+    | # prints: nothing
+    | # returns: 1 if loglevel isn't high enough
+    | 
+    | # Generated: the functions of this library run in zbm (ADR 0017).
+    | _zbm_zfunc() {
+    |   (
+    |     export BASE BOOTFS CLEAR_SCREEN DRACUT_VERSION ENABLED FORCE_RELOAD HOME 2>/dev/null
+    |     export ID ID_LIKE INITRD_VERSION NO_CACHE PRETTY_NAME PROMOTE PROPERTY 2>/dev/null
+    |     export UNAME VALUE VERSION VERSION_ID ZBM_PRETTY_NAME ZBM_RELEASE_BUILD 2>/dev/null
+    |     export ZBM_VERSION _pool adds allow_rw arg args beloc cache candidates cf 2>/dev/null
+    |     export checkpoint cli_args color dataset decision def delay dev device 2>/dev/null
+    |     export dtb_file dtb_prop dtb_try efivar_location efivar_state encroot 2>/dev/null
+    |     export environment error_line ext f filesystem force_export fs grep_args 2>/dev/null
+    |     export hdir hfile hook hook_envs hook_fs hook_mount hook_path hook_root 2>/dev/null
+    |     export hostid hostid_re hsrc i id ifile import_args import_output 2>/dev/null
+    |     export import_policy importable infinite inherited initramfs ipath k karg 2>/dev/null
+    |     export kcl kcl_path kclfile kdir kern kern_kcl kernel kernel_list 2>/dev/null
+    |     export kernel_records kexec_args key keycache keydest keydir keyfile 2>/dev/null
+    |     export keyformat keylocation keypath keysource keysrc keystatus kkey kopt 2>/dev/null
+    |     export kpath ksmount kval kver lbl lc level levels levels_array line 2>/dev/null
+    |     export lines load_success loglevel mes message mnt mount_dev mount_path 2>/dev/null
+    |     export mountpoint mounts mp mp_re mutex opt opts osrel ostype output 2>/dev/null
+    |     export par_args parent parfs path pfx pool prefix prohibited prompt 2>/dev/null
+    |     export read_write readargs recv_args relkeyloc rem rems ret 2>/dev/null
+    |     export rewind_to_checkpoint roflag root_prefix rwo selected since single 2>/dev/null
+    |     export snap snapshot spec_kexec_args specific_kernel spl_hostid splmod 2>/dev/null
+    |     export state stype sup target target_parent trace val x y zbm_prefer_pool 2>/dev/null
+    |     export zbm_set_hostid zfsbe zfsbe_fs zfsbe_mnt 2>/dev/null
+    |     exec /libexec/zbm zfunc "$@"
+    |   )
+    | }
+    | 
+    | zdebug() {
+    |   [ "${loglevel:-4}" -ge 7 ] || return 1
+    |   local prefix trace last lines line lc i
+    | 
+    |   # Remove everything but new lines from the string, count the length
+    |   lines="${1//[!$'\n']/}"
+    |   lines="${#lines}"
+    | 
+    |   while IFS=$'\n' read -r line ; do
+    |     if [ "${lc:=0}" -eq "${lines}" ] ; then
+    |       trace=
+    |       last=${#BASH_SOURCE[@]}
+    |       for (( i=1 ; i<last ; i++ )) ; do
+    |         trace="${FUNCNAME[$i]},${BASH_SOURCE[$i]},${BASH_LINENO[$i-1]}${trace:+;}${trace}"
+    |       done
+    |       prefix="<7>ZBM:[$$]|${trace}|"
+    |     else
+    |       prefix="<7>ZBM:[$$]||"
+    |     fi
+    |     lc=$(( lc + 1 ))
+    |     echo "${prefix}${line}" > /dev/kmsg
+    |   done <<<"${1}"
+    | }
+    | 
+    | if [ "${loglevel:-4}" -ge 7 ] ; then
+    |   # Trap errors and send them to the debug handler
+    |   traperror() {
+    |     zdebug "trapped error from: '${BASH_COMMAND}'"
+    |   }
+    | 
+    |   trap traperror ERR
+    |   set -o errtrace
+    | fi
+    | 
+    | # arg1: log line
+    | # prints: nothing
+    | # returns: 1 if loglevel isn't high enough
+    | 
+    | zinfo() {
+    |   [ "${loglevel:-4}" -ge 6 ] || return 1
+    |   echo "<6>ZFSBootMenu: $1" > /dev/kmsg
+    | }
+    | 
+    | # arg1: log line
+    | # prints: nothing
+    | # returns: 1 if loglevel isn't high enough
+    | 
+    | znotice() {
+    |   [ "${loglevel:-4}" -ge 5 ] || return 1
+    |   echo "<5>ZFSBootMenu: $1" > /dev/kmsg
+    | }
+    | 
+    | # arg1: log line
+    | # prints: nothing
+    | # returns: 1 if loglevel isn't high enough
+    | 
+    | zwarn() {
+    |   [ "${loglevel:-4}" -ge 4 ] || return 1
+    |   : > "${BASE}/have_warnings"
+    |   echo "<4>ZFSBootMenu: $1" > /dev/kmsg
+    | }
+    | 
+    | # arg1: log line
+    | # prints: nothing
+    | # returns: 1 if loglevel isn't high enough
+    | 
+    | zerror() {
+    |   [ "${loglevel:-4}" -ge 3 ] || return 1
+    |   : > "${BASE}/have_errors"
+    |   echo "<3>ZFSBootMenu: $1" > /dev/kmsg
+    | }
+    | 
+    | # arg1: comma-separated log levels to print
+    | # arg2: optional date that messages must be timestamped after
+    | # prints: all logs at that level
+    | # returns: nothing
+    | 
+    | print_kmsg_logs() {
+    |   _zbm_zfunc print_kmsg_logs "$@"
+    | }
+    | 
+file	/usr/share/zfsbootmenu/lib/zfsbootmenu-kcl.sh	/usr/share/zfsbootmenu/legacy/lib/zfsbootmenu-kcl.sh	-
+file	@/lib/zfsbootmenu-kcl.sh	/lib/zfsbootmenu-kcl.sh	0644
+    | #!/bin/bash
+    | # vim: softtabstop=2 shiftwidth=2 expandtab
+    | 
+    | # Include guard
+    | [ -n "${_ZFSBOOTMENU_KCL}" ] && return
+    | readonly _ZFSBOOTMENU_KCL=1
+    | 
+    | # args: none
+    | # prints: tokenization of KCL [read from stdin]: one argument per line
+    | 
+    | # Generated: the functions of this library run in zbm (ADR 0017).
+    | _zbm_zfunc() {
+    |   (
+    |     export BASE BOOTFS CLEAR_SCREEN DRACUT_VERSION ENABLED FORCE_RELOAD HOME 2>/dev/null
+    |     export ID ID_LIKE INITRD_VERSION NO_CACHE PRETTY_NAME PROMOTE PROPERTY 2>/dev/null
+    |     export UNAME VALUE VERSION VERSION_ID ZBM_PRETTY_NAME ZBM_RELEASE_BUILD 2>/dev/null
+    |     export ZBM_VERSION _pool adds allow_rw arg args beloc cache candidates cf 2>/dev/null
+    |     export checkpoint cli_args color dataset decision def delay dev device 2>/dev/null
+    |     export dtb_file dtb_prop dtb_try efivar_location efivar_state encroot 2>/dev/null
+    |     export environment error_line ext f filesystem force_export fs grep_args 2>/dev/null
+    |     export hdir hfile hook hook_envs hook_fs hook_mount hook_path hook_root 2>/dev/null
+    |     export hostid hostid_re hsrc i id ifile import_args import_output 2>/dev/null
+    |     export import_policy importable infinite inherited initramfs ipath k karg 2>/dev/null
+    |     export kcl kcl_path kclfile kdir kern kern_kcl kernel kernel_list 2>/dev/null
+    |     export kernel_records kexec_args key keycache keydest keydir keyfile 2>/dev/null
+    |     export keyformat keylocation keypath keysource keysrc keystatus kkey kopt 2>/dev/null
+    |     export kpath ksmount kval kver lbl lc level levels levels_array line 2>/dev/null
+    |     export lines load_success loglevel mes message mnt mount_dev mount_path 2>/dev/null
+    |     export mountpoint mounts mp mp_re mutex opt opts osrel ostype output 2>/dev/null
+    |     export par_args parent parfs path pfx pool prefix prohibited prompt 2>/dev/null
+    |     export read_write readargs recv_args relkeyloc rem rems ret 2>/dev/null
+    |     export rewind_to_checkpoint roflag root_prefix rwo selected since single 2>/dev/null
+    |     export snap snapshot spec_kexec_args specific_kernel spl_hostid splmod 2>/dev/null
+    |     export state stype sup target target_parent trace val x y zbm_prefer_pool 2>/dev/null
+    |     export zbm_set_hostid zfsbe zfsbe_fs zfsbe_mnt 2>/dev/null
+    |     exec /libexec/zbm zfunc "$@"
+    |   )
+    | }
+    | 
+    | kcl_tokenize() {
+    |   awk '
+    |     BEGIN {
+    |       strt = 1;
+    |       quot = 0;
+    |     }
+    | 
+    |     {
+    |       for (i=1; i <= NF; i++) {
+    |         # If an odd number of quotes are in this field, toggle quoting
+    |         if ( gsub(/"/, "\"", $(i)) % 2 == 1 ) {
+    |           quot = (quot + 1) % 2;
+    |         }
+    | 
+    |         # Print a space if this is not the start of a line
+    |         if (strt == 0) {
+    |           printf " ";
+    |         }
+    | 
+    |         printf "%s", $(i);
+    | 
+    |         if (quot == 0) {
+    |           strt = 1;
+    |           printf "\n";
+    |         } else {
+    |           strt = 0;
+    |         }
+    |       }
+    |     }
+    |   '
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # prints: value of org.zfsbootmenu:commandline, with %{parent} recursively expanded
+    | # returns: 0 on success
+    | 
+    | read_kcl_prop() {
+    |   _zbm_zfunc read_kcl_prop "$@"
+    | }
+    | 
+    | # arg1: ZFS filesystem
+    | # arg2: path to command-line file (need not exist)
+    | # prints: value of command line, with %{parent} expanded from ZFS property
+    | # returns: 0 on success
+    | 
+    | read_kcl_value() {
+    |   _zbm_zfunc read_kcl_value "$@"
+    | }
+    | 
+    | # arg1..argN: keys (and, optionally, associated value) to suppress from KCL
+    | # prints: tokenized KCL [read from stdin] with suppressed arguments removed
+    | 
+    | kcl_suppress() {
+    |   local arg rem sup
+    |   while read -r arg; do
+    |     # Check match against all exclusions
+    |     sup=0
+    |     for rem in "$@"; do
+    |       # Arguments match entirely or up to first equal
+    |       if [[ "${arg}" == "${rem}" || "${arg%%=*}" == "${rem}" ]]; then
+    |         sup=1
+    |         break
+    |       fi
+    |     done
+    | 
+    |     # Echo argument if it was not suppressed
+    |     [ "${sup}" -ne 1 ] && echo "${arg}"
+    |   done
+    | }
+    | 
+    | # args1..argN: keys (and values, as appropriate) to append to a tokenized KCL
+    | # prints: tokenized KCL [read from stdin] with appended arguments
+    | 
+    | kcl_append() {
+    |   local arg
+    | 
+    |   # Carry forward input KCL
+    |   cat
+    | 
+    |   # Append one line per non-trivial argument
+    |   for arg in "$@"; do
+    |     [ -n "${arg}" ] && echo "$arg"
+    |   done
+    | }
+    | 
+    | 
+    | # args: none
+    | # prints: space-separated concatenation of tokenized KCL [read from stdin]
+    | 
+    | kcl_assemble() {
+    |   awk '
+    |     BEGIN{ strt = 1; }
+    | 
+    |     {
+    |       if (strt == 0) {
+    |         printf " ";
+    |       }
+    | 
+    |       printf "%s", $0;
+    |       strt = 0;
+    |     }
+    |   '
+    | }
+    | 
+    | # args: none
+    | # prints: tokenized KCL from /etc/cmdline, /etc/cmdline.d/*.conf and /proc/cmdline
+    | 
+    | _build_zbm_kcl() {
+    |   _zbm_zfunc _build_zbm_kcl "$@"
+    | }
+    | 
+    | # args: none
+    | # prints: tokenized KCL, read from cache if possible or else built on demand
+    | 
+    | get_zbm_kcl() {
+    |   _zbm_zfunc get_zbm_kcl "$@"
+    | }
+    | 
+    | # args: none
+    | # prints: nothing
+    | # returns: nothing
+    | 
+    | make_cmdline_dir() {
+    |   _zbm_zfunc make_cmdline_dir "$@"
+    | }
+    | 
+    | # arg1..argN: argument to lookup (multiples are alternatives, ordered by precedence)
+    | # prints: value associated with the argument (with no value, 1 is printed)
+    | # returns: 0 if match is found, 1 otherwise
+    | 
+    | get_zbm_arg() {
+    |   _zbm_zfunc get_zbm_arg "$@"
+    | }
+    | 
+    | # arg1: default value (0 or 1)
+    | # arg2..argN: argument to extract (all after first are alternatives)
+    | # return: default if no match is found, 0 or 1 based on found value
+    | 
+    | get_zbm_bool() {
+    |   _zbm_zfunc get_zbm_bool "$@"
+    | }
+    | 
+    | # prints: ZBM kernel command line
+    | 
+    | zbmcmdline() {
+    |   _zbm_zfunc zbmcmdline "$@"
+    | }
 file	@/bin/zbm	/bin/zbm	0755
     | #!/bin/sh
     | case "${1:-}" in

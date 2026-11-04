@@ -32,6 +32,7 @@ pub mod secret_search;
 pub mod startup;
 pub mod supervisor;
 pub mod unlock;
+mod zfunc;
 
 /// The program's output streams.
 pub struct Io<'a> {
@@ -153,6 +154,12 @@ const RUN_HOOKS: Applet = Applet {
     run: run_hooks::run,
 };
 
+const ZFUNC: Applet = Applet {
+    name: "zfunc",
+    summary: "run a function of the hooks' shell library (/libexec/zfunc)",
+    run: zfunc::run,
+};
+
 const MENU: Applet = Applet {
     name: "zfsbootmenu",
     summary: "the menu: boot environments, booting and the recovery shell",
@@ -179,6 +186,7 @@ pub const APPLETS: &[Applet] = &[
     MEASURE,
     LOCK,
     RUN_HOOKS,
+    ZFUNC,
 ];
 
 /// The exit status for a command that does not exist, as a shell reports it.
@@ -383,6 +391,7 @@ mod tests {
             "measure",
             "lock",
             "run-hooks",
+            "zfunc",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);
