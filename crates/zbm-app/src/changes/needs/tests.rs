@@ -166,6 +166,56 @@ fn keys_mounts_and_kernels_on_the_console() {
     });
 }
 
+/// A new default is recorded in the state directory, and the key hooks of
+/// later changes get it as `BOOTFS`; a state that cannot be written is
+/// logged, and the change goes on.
+#[test]
+fn a_new_default_is_recorded_for_the_hooks() {
+    let fake = encrypted("unavailable");
+    fake.files
+        .file_with_mode("/libexec/hooks/load-key.d/10-key", "#!/bin/sh\n", 0o755);
+    fake.runner.respond(
+        "zfs get -H -o value keylocation tank/ROOT",
+        0,
+        "file:///k\n",
+    );
+    fake.runner
+        .respond("zfs get -H -o value keyformat tank/ROOT", 0, "raw\n");
+    with_needs(&fake, true, |needs| {
+        needs.record_default(&dataset("tank/ROOT/void"));
+        let _ = needs.load_key(&dataset("tank/ROOT/void"));
+    });
+    assert_eq!(
+        fake.files.text("/zfsbootmenu/bootfs").as_deref(),
+        Some("tank/ROOT/void\n")
+    );
+    let hook = fake
+        .runner
+        .calls()
+        .into_iter()
+        .find(|call| call.program() == "/libexec/hooks/load-key.d/10-key")
+        .expect("the key hook ran");
+    assert!(
+        hook.get_env()
+            .contains(&("BOOTFS".into(), Some("tank/ROOT/void".into()))),
+        "{:?}",
+        hook.get_env()
+    );
+
+    let unwritable = FakeSystem::new();
+    let system = unwritable.system();
+    let state = State::new(&unwritable.files, "/missing/zfsbootmenu");
+    let settings = BootSettings::default();
+    let mut needs = OnMachine {
+        system: &system,
+        state: &state,
+        settings: &settings,
+        asks: true,
+    };
+    needs.record_default(&dataset("tank/ROOT/void"));
+    assert_eq!(unwritable.files.text("/missing/zfsbootmenu/bootfs"), None);
+}
+
 #[test]
 fn planned_needs_are_steps_and_what_they_read_comes_from_the_machine() {
     let fake = encrypted("unavailable");
