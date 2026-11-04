@@ -11,13 +11,12 @@ use std::path::Path;
 use zbm_app::session;
 use zbm_boot::BootSettings;
 use zbm_boot::Recovery;
-use zbm_bootenv::hooks;
+use zbm_bootenv::hooks::{self, HookEnv, StageEnv};
 use zbm_platform::Signal;
 use zbm_platform::console::Screen;
 use zbm_platform::process::deepest_child;
 use zbm_platform::{Context, System};
 use zbm_tools::console::{Answer, TimedPrompt, colorize};
-use zbm_types::HookStage;
 
 use super::{Modes, Startup};
 
@@ -99,15 +98,15 @@ impl Startup<'_> {
         let mut env = self.conf_vars.clone();
         if let Some(bootfs) = self.state.bootfs() {
             zbm_trace::debug!("setting BOOTFS to {bootfs}"; %bootfs);
-            env.push(("BOOTFS".to_owned(), bootfs));
+            env.extend([("BOOTFS".to_owned(), bootfs)]);
         }
         system.console.screen(Screen::Clear);
-        let pairs: Vec<(&str, &str)> = env
-            .iter()
-            .map(|(name, value)| (name.as_str(), value.as_str()))
-            .collect();
         let context = Context::new(*system);
-        hooks::run_stage(&context, &self.hooks, HookStage::Setup, false, &pairs);
+        let setup = HookEnv {
+            variables: &env,
+            stage: StageEnv::Setup,
+        };
+        hooks::run_stage(&context, &self.hooks, &setup, false);
         // Clear the screen before a possible passphrase prompt.
         system.console.screen(Screen::Clear);
 

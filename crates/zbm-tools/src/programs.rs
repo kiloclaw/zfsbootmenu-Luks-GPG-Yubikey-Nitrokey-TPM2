@@ -7,12 +7,10 @@
 )]
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use zbm_platform::{Command, Input, Output, Runner, Signal, Stream, shell};
-
-/// The `errno` of a file the kernel cannot run.
-const ENOEXEC: i32 = 8;
+use zbm_platform::shell::{self, Interpreter};
+use zbm_platform::{Command, Input, Output, Runner, Signal, Stream};
 
 /// `command` with the console as its standard input, output and error.
 fn on_console(command: Command) -> Command {
@@ -23,48 +21,55 @@ fn on_console(command: Command) -> Command {
 }
 
 /// Runs the hook `hook` on the console with `env`, as Bash runs
-/// `"${_hook}"`: its exit status is ignored, and a script the kernel cannot
-/// run (no `#!` line) runs with `bash`. Where the runtime chose a shell
-/// ([`zbm_platform::shell`]), a hook written for the shell runs on it,
-/// whatever its `#!` line names.
-pub fn run_hook(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)]) {
-    let shell = hook_shell(shell::chosen(), hook);
-    run_hook_with(runner, hook, env, shell.as_deref());
+/// `"${_hook}"`: its exit status is ignored. It runs as the kernel would run
+/// it, told from `start`, its first bytes, or as it is when they could not
+/// be read (ADR 0017, point 6): a `#!` line naming `sh` or `bash` runs on
+/// the shell the runtime chose ([`zbm_platform::shell`]) with that line's
+/// argument, and a text without a `#!` line on that shell, or on Bash.
+pub fn run_hook(runner: &dyn Runner, hook: &Path, start: Option<&[u8]>, env: &[(&str, &str)]) {
+    let command = hook_command(hook, start, shell::chosen().as_deref());
+    let command = env
+        .iter()
+        .fold(command, |command, (key, value)| command.env(key, value));
+    let _ = runner.run(&on_console(command));
 }
 
-/// The `shell` chosen, if any, when `hook` is written for it.
-fn hook_shell(shell: Option<PathBuf>, hook: &Path) -> Option<PathBuf> {
-    shell.filter(|_| first_line(hook).is_some_and(|line| shell::is_shell_script(&line)))
-}
-
-/// Runs `hook` with `env`: on `shell` when given, else as the kernel runs it,
-/// with `bash` for a script without a `#!` line.
-fn run_hook_with(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)], shell: Option<&Path>) {
-    let with_env = |command: Command| {
-        on_console(
-            env.iter()
-                .fold(command, |command, (key, value)| command.env(key, value)),
-        )
+/// The command that runs `hook`, whose first bytes are `start`, where the
+/// runtime chose `shell`: brush keeps a `#!` line's options when it has them,
+/// and a line asking for another one runs on Bash.
+fn hook_command(hook: &Path, start: Option<&[u8]>, shell: Option<&Path>) -> Command {
+    let Some(start) = start else {
+        return Command::new(hook);
     };
-    if let Some(shell) = shell {
-        let _ = runner.run(&with_env(Command::new(shell).arg(hook)));
-        return;
-    }
-    if let Err(error) = runner.run(&with_env(Command::new(hook)))
-        && error.raw_os_error() == Some(ENOEXEC)
-    {
-        let _ = runner.run(&with_env(Command::new("bash").arg(hook)));
+    match (shell::interpreter(start), shell) {
+        (Interpreter::Shell(argument), Some(shell)) => {
+            let is_brush = shell.file_name().is_some_and(|name| name == "brush");
+            let program = match argument.as_deref() {
+                Some(argument) if is_brush && !brush_supports(argument) => {
+                    zbm_trace::info!(
+                        "{hook} asks for {argument}, which brush lacks, so bash runs it";
+                        hook = %hook.display(), argument
+                    );
+                    Path::new(shell::BASH)
+                }
+                _ => shell,
+            };
+            Command::new(program).args(argument).arg(hook)
+        }
+        (Interpreter::Shell(_) | Interpreter::Kernel, _) => Command::new(hook),
+        (Interpreter::Text, shell) => {
+            Command::new(shell.unwrap_or(Path::new(shell::BASH))).arg(hook)
+        }
     }
 }
 
-/// The first line of the file at `path`, from its first 256 bytes; `None`
-/// when it cannot be read.
-fn first_line(path: &Path) -> Option<String> {
-    use std::io::Read as _;
-    let mut start = [0_u8; 256];
-    let length = std::fs::File::open(path).ok()?.read(&mut start).ok()?;
-    let text = String::from_utf8_lossy(start.get(..length)?);
-    Some(text.lines().next().unwrap_or_default().to_owned())
+/// Whether brush, run as `brush ARGUMENT SCRIPT`, takes `argument`, the
+/// argument of a script's `#!` line: options of a script that brush has
+/// (`-e`, `-f`, `-n`, `-u`, `-v`, `-x`), alone or together (`-eu`).
+fn brush_supports(argument: &str) -> bool {
+    argument
+        .strip_prefix('-')
+        .is_some_and(|flags| !flags.is_empty() && flags.chars().all(|flag| "efnuvx".contains(flag)))
 }
 
 /// Runs a crypttab key script with its argument `key` and `env`
@@ -224,16 +229,68 @@ pub fn edit(runner: &dyn Runner, editor: &str, file: &Path) -> io::Result<Output
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+    use std::ffi::OsString;
     use zbm_platform::{Secret, Status};
     use zbm_testkit::FakeRunner;
 
+    /// The command line `hook_command` gives for a hook starting with
+    /// `start`, with brush chosen or no shell.
+    fn line(start: Option<&[u8]>, shell: Option<&str>) -> String {
+        let command = hook_command(Path::new("/hooks/h"), start, shell.map(Path::new));
+        std::iter::once(command.program())
+            .chain(command.get_args().iter().map(OsString::as_os_str))
+            .map(|word| word.to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     #[test]
-    fn hooks_without_an_interpreter_line_run_with_bash() {
+    fn hooks_run_as_the_kernel_would_run_them() {
+        let brush = Some("/usr/bin/brush");
+        // Fix 21: the options of a shell's `#!` line are kept.
+        assert_eq!(
+            line(Some(b"#!/bin/sh -e\n"), brush),
+            "/usr/bin/brush -e /hooks/h"
+        );
+        assert_eq!(
+            line(Some(b"#!/bin/bash\n"), brush),
+            "/usr/bin/brush /hooks/h"
+        );
+        // One brush lacks, as the kernel passes it: one argument, to Bash.
+        assert_eq!(
+            line(Some(b"#!/bin/bash -o pipefail\n"), brush),
+            "/bin/bash -o pipefail /hooks/h"
+        );
+        assert_eq!(
+            line(Some(b"#!/bin/bash -o pipefail\n"), Some("/bin/bash")),
+            "/bin/bash -o pipefail /hooks/h"
+        );
+        // Fix 22: an ELF hook, and other interpreters, run as they are.
+        assert_eq!(line(Some(b"\x7fELF\x02\x01"), brush), "/hooks/h");
+        assert_eq!(line(Some(b"#!/usr/bin/python3\n"), brush), "/hooks/h");
+        assert_eq!(line(Some(b"#!/usr/bin/env bash\n"), brush), "/hooks/h");
+        // A text without `#!` runs on the shell, never on `/bin/sh`.
+        assert_eq!(line(Some(b"echo hi\n"), brush), "/usr/bin/brush /hooks/h");
+        assert_eq!(line(Some(b"echo hi\n"), None), "/bin/bash /hooks/h");
+        // Without a chosen shell a `#!` line is the kernel's; unread, it
+        // runs as it is.
+        assert_eq!(line(Some(b"#!/bin/sh -e\n"), None), "/hooks/h");
+        assert_eq!(line(None, brush), "/hooks/h");
+    }
+
+    #[test]
+    fn brush_supports_the_options_of_a_script() {
+        for argument in ["-e", "-eu", "-x", "-efnuvx"] {
+            assert!(brush_supports(argument), "{argument}");
+        }
+        for argument in ["", "-", "-o pipefail", "-i", "e", "--posix", "-e -u"] {
+            assert!(!brush_supports(argument), "{argument}");
+        }
+    }
+
+    #[test]
+    fn a_hook_runs_on_the_console_with_its_environment() {
         let runner = FakeRunner::new();
-        runner.on(|command| {
-            (command.program() == "/hooks/plain")
-                .then(|| Err(io::Error::from_raw_os_error(ENOEXEC)))
-        });
         runner.on(|command| {
             (command.program() == "/hooks/missing")
                 .then(|| Err(io::Error::from(io::ErrorKind::NotFound)))
@@ -242,53 +299,19 @@ mod tests {
         run_hook(
             &runner,
             Path::new("/hooks/plain"),
+            Some(b"echo hi\n"),
             &[("ZBM_SELECTED_BE", "tank")],
         );
-        run_hook(&runner, Path::new("/hooks/missing"), &[]);
-        run_hook(&runner, Path::new("/hooks/good"), &[]);
+        run_hook(&runner, Path::new("/hooks/missing"), None, &[]);
 
-        assert_eq!(
-            runner.lines(),
-            [
-                "/hooks/plain",
-                "bash /hooks/plain",
-                "/hooks/missing",
-                "/hooks/good"
-            ]
-        );
+        assert_eq!(runner.lines(), ["/bin/bash /hooks/plain", "/hooks/missing"]);
         let calls = runner.calls();
         assert_eq!(
-            calls[1].get_env(),
+            calls[0].get_env(),
             [("ZBM_SELECTED_BE".into(), Some("tank".into()))]
         );
-        assert_eq!(calls[1].get_stdout(), Stream::Inherit);
-    }
-
-    #[test]
-    fn hooks_for_the_shell_run_on_the_shell_the_runtime_chose() {
-        let dir = zbm_testkit::TempDir::new("zbm-tools-hooks");
-        let bash = dir.write("bash-hook", "#!/bin/bash\necho hi\n");
-        let python = dir.write("python-hook", "#!/usr/bin/python3\nprint('hi')\n");
-        let runner = FakeRunner::new();
-        let brush = || Some(PathBuf::from("/usr/bin/brush"));
-
-        run_hook_with(&runner, &bash, &[], hook_shell(brush(), &bash).as_deref());
-        run_hook_with(
-            &runner,
-            &python,
-            &[],
-            hook_shell(brush(), &python).as_deref(),
-        );
-
-        assert_eq!(
-            runner.lines(),
-            [
-                format!("/usr/bin/brush {}", bash.display()),
-                python.display().to_string()
-            ]
-        );
-        assert_eq!(first_line(&dir.join("missing")), None);
-        // Without a chosen shell, as in these tests, hooks run as before.
+        assert_eq!(calls[0].get_stdout(), Stream::Inherit);
+        // Without a chosen shell, as in these tests.
         assert_eq!(shell::chosen(), None);
     }
 

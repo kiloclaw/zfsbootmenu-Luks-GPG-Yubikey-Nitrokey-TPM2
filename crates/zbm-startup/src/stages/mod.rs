@@ -9,7 +9,7 @@ pub mod modules;
 
 use std::path::Path;
 
-use zbm_bootenv::hooks::executable_hooks;
+use zbm_bootenv::hooks::{Variables, executable_hooks};
 use zbm_platform::System;
 use zbm_pool::ImportSettings;
 use zbm_types::{HookStage, RetryDelay, Stage};
@@ -75,6 +75,8 @@ impl Step for DeviceWait<'_> {
 pub struct EarlyHooks<'o> {
     /// The hook directories of the image.
     pub root: &'o Path,
+    /// The variables of `/etc/zfsbootmenu.conf`, which the hooks get.
+    pub variables: &'o Variables,
     /// `zbm.hookroot`, or empty.
     pub hook_root: &'o str,
     /// `zbm.skip_hooks`, if given.
@@ -99,7 +101,8 @@ impl Step for EarlyHooks<'_> {
             self.hook_root,
             self.skip.as_deref(),
         );
-        let mut run = |system: &System<'_>| hooks::run_early_stage(system, self.root);
+        let mut run =
+            |system: &System<'_>| hooks::run_early_stage(system, self.root, self.variables);
         if executable_hooks(system.files, self.root, HookStage::EarlySetup).is_empty() {
             run(system);
         } else {

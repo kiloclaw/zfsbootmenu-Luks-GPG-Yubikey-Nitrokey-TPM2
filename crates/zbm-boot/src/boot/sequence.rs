@@ -12,13 +12,14 @@ use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
 use zbm_types::{
-    DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine, Printable, RetryDelay,
+    DatasetName, FilesystemName, ImportPolicy, KernelCommandLine, Printable, RetryDelay,
 };
 use zbm_zfs::{Stderr, ZfsText};
 
+use zbm_bootenv::hooks::{self, HookEnv, StageEnv, Variables};
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
-use zbm_bootenv::{Noise, commandline, hooks, mount_zfs, recursive_umount, umount};
+use zbm_bootenv::{Noise, commandline, mount_zfs, recursive_umount, umount};
 
 use super::measured;
 use super::zfs::{export_writable_pools, substituted};
@@ -36,9 +37,9 @@ pub struct BootSettings {
     pub set_hostid: bool,
     /// Where the hook directories are.
     pub hooks: PathBuf,
-    /// Variables the start-up program exported after it started (`BOOTFS`),
-    /// which hooks get on top of its environment.
-    pub env: Vec<(String, String)>,
+    /// The variables every hook of the boot gets: those of
+    /// `/etc/zfsbootmenu.conf`, and `BOOTFS` (ADR 0017, point 7).
+    pub env: Variables,
     /// `zbm.save_logs`: where the logs of this boot are saved before the
     /// kernel starts, if anywhere (ROADMAP.md #9).
     pub save_logs: Option<Destination>,
@@ -86,7 +87,7 @@ impl Default for BootSettings {
         BootSettings {
             set_hostid: true,
             hooks: PathBuf::from(hooks::HOOKS),
-            env: Vec::new(),
+            env: Variables::default(),
             save_logs: None,
             command_line: None,
             import_policy: ImportPolicy::default(),
@@ -104,7 +105,7 @@ fn load_key(
     settings: &BootSettings,
     fs: &DatasetName,
 ) {
-    let how = KeyLoad::new(&settings.hooks, BootPath::Menu);
+    let how = KeyLoad::new(&settings.hooks, &settings.env, BootPath::Menu);
     let _ = keys::load_key(context, interaction, state, &how, fs);
 }
 
@@ -151,8 +152,7 @@ pub fn kexec_kernel(
         return;
     };
     let mnt_text = mnt.to_string_lossy().into_owned();
-    let hook_env = hook_env(settings, selected);
-    run_boot_sel_hooks(context, settings, &hook_env, &mnt_text);
+    run_boot_sel_hooks(context, settings, selected, &mnt_text);
 
     let cli_args = command_line(context, state, settings, fs, kernel);
     let root = match commandline::boot_root(context, &filesystem, &mnt) {
@@ -186,7 +186,7 @@ pub fn kexec_kernel(
     // The logs are saved before the teardown hooks, which may take away
     // the partition they go to (`90-xhci-unbind` and an ESP on USB).
     let saved = save_logs(context, state, settings.save_logs.as_ref());
-    tear_down(context, settings, &hook_env, &mnt);
+    tear_down(context, settings, selected, &mnt);
     hand_over(context, state);
     execute(context, interaction, state, (fs, kernel), saved.as_ref());
 }
@@ -211,39 +211,22 @@ fn names_a_kernel(selected: &Kernel) -> bool {
     true
 }
 
-/// The variables the hooks of the boot get: those of `settings`, then the
-/// boot environment, kernel and initramfs of `selected`.
-fn hook_env<'a>(settings: &'a BootSettings, selected: &'a Kernel) -> Vec<(&'a str, &'a str)> {
-    let mut hook_env: Vec<(&str, &str)> = settings
-        .env
-        .iter()
-        .map(|(key, value)| (key.as_str(), value.as_str()))
-        .collect();
-    hook_env.extend([
-        ("ZBM_SELECTED_BE", selected.dataset.as_str()),
-        ("ZBM_SELECTED_KERNEL", selected.kernel.as_str()),
-        ("ZBM_SELECTED_INITRAMFS", selected.initramfs.as_str()),
-    ]);
-    hook_env
-}
-
-/// Runs the `boot-sel.d` hooks with `hook_env` and the mount point `mnt` of
-/// the selected boot environment.
+/// Runs the `boot-sel.d` hooks for `selected`, whose boot environment is
+/// mounted at `mnt`.
 fn run_boot_sel_hooks(
     context: &Context<'_>,
     settings: &BootSettings,
-    hook_env: &[(&str, &str)],
+    selected: &Kernel,
     mnt: &str,
 ) {
-    let mut boot_sel_env = hook_env.to_vec();
-    boot_sel_env.push(("ZBM_SELECTED_MOUNTPOINT", mnt));
-    hooks::run_stage(
-        context,
-        &settings.hooks,
-        HookStage::BootSel,
-        false,
-        &boot_sel_env,
-    );
+    let env = HookEnv {
+        variables: &settings.env,
+        stage: StageEnv::BootSel {
+            selected,
+            mountpoint: mnt,
+        },
+    };
+    hooks::run_stage(context, &settings.hooks, &env, false);
 }
 
 /// The command line of `fs` booted with `kernel`, or the one typed for this
@@ -408,22 +391,15 @@ fn log_loaded(load: &KexecLoad<'_>, output: &str) {
 
 /// Prepares the machine for the loaded kernel: unmounts the boot environment
 /// mounted at `mnt`, exports the pools imported read-write and runs the
-/// `teardown.d` hooks with `hook_env`.
-fn tear_down(
-    context: &Context<'_>,
-    settings: &BootSettings,
-    hook_env: &[(&str, &str)],
-    mnt: &Path,
-) {
+/// `teardown.d` hooks for `selected`.
+fn tear_down(context: &Context<'_>, settings: &BootSettings, selected: &Kernel, mnt: &Path) {
     umount(context, mnt);
     export_writable_pools(context.runner());
-    hooks::run_stage(
-        context,
-        &settings.hooks,
-        HookStage::Teardown,
-        false,
-        hook_env,
-    );
+    let env = HookEnv {
+        variables: &settings.env,
+        stage: StageEnv::Teardown { selected },
+    };
+    hooks::run_stage(context, &settings.hooks, &env, false);
 }
 
 /// Saves the logs of this boot to `destination`, if given, once the kernel

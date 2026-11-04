@@ -74,7 +74,7 @@ impl Needs for OnMachine<'_, '_> {
                 Some(root) => Err(vec![format!("the key of {root} is not loaded")]),
             };
         }
-        let how = KeyLoad::new(&self.settings.hooks, BootPath::Menu);
+        let how = KeyLoad::new(&self.settings.hooks, &self.settings.env, BootPath::Menu);
         let context = Context::new(*self.system);
         let interaction = ConsoleInteraction::new(*self.system);
         keys::load_key(&context, &interaction, self.state, &how, dataset)

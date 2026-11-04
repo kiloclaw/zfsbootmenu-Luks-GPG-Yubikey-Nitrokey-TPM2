@@ -11,14 +11,13 @@ use std::path::Path;
 
 use zbm_app::auth;
 use zbm_boot::measured::{self, Event, Extended};
-use zbm_bootenv::hooks::{HOOKS, run_stage};
+use zbm_bootenv::hooks::{HOOKS, HookEnv, StageEnv, Variables, run_stage};
 use zbm_platform::console::Screen;
 use zbm_platform::files::Files;
 use zbm_platform::{Context, System};
 use zbm_state::State;
 use zbm_tools::mount::Mount;
 use zbm_tools::programs;
-use zbm_types::HookStage;
 
 use crate::error::StartupError;
 
@@ -218,7 +217,7 @@ pub fn early_stage_in(
     skip: Option<&str>,
 ) -> Result<(), StartupError> {
     let prepared = prepare_early_stage(system, state, root, hook_root, skip);
-    run_early_stage(system, root);
+    run_early_stage(system, root, &Variables::default());
     prepared
 }
 
@@ -269,16 +268,15 @@ fn warn_unless_checked(system: &System<'_>) {
     }
 }
 
-/// Runs the `early-setup.d` hooks below `root` once, on a cleared screen.
-pub fn run_early_stage(system: &System<'_>, root: &Path) {
+/// Runs the `early-setup.d` hooks below `root` once, on a cleared screen,
+/// with `variables`.
+pub fn run_early_stage(system: &System<'_>, root: &Path, variables: &Variables) {
     system.console.screen(Screen::Clear);
-    run_stage(
-        &Context::new(*system),
-        root,
-        HookStage::EarlySetup,
-        true,
-        &[],
-    );
+    let env = HookEnv {
+        variables,
+        stage: StageEnv::EarlySetup,
+    };
+    run_stage(&Context::new(*system), root, &env, true);
 }
 
 #[cfg(test)]
@@ -516,8 +514,8 @@ mod tests {
         let fake = FakeSystem::new();
         let _log = log(&fake);
         fake.files
-            .file_with_mode("/libexec/hooks/early-setup.d/10-a", "", 0o755)
-            .file_with_mode("/libexec/hooks/early-setup.d/20-b", "", 0o755);
+            .file_with_mode("/libexec/hooks/early-setup.d/10-a", "#!/bin/sh\n", 0o755)
+            .file_with_mode("/libexec/hooks/early-setup.d/20-b", "#!/bin/sh\n", 0o755);
         let state = State::new(&fake.files, "/zfsbootmenu");
         assert!(early_stage(&fake.system(), &state, "", Some("20-b")).is_ok());
         assert_eq!(fake.runner.lines(), ["/libexec/hooks/early-setup.d/10-a"]);
@@ -540,7 +538,7 @@ mod tests {
         let fake = FakeSystem::new();
         let _log = log(&fake);
         fake.files
-            .file_with_mode("/libexec/hooks/early-setup.d/10-a", "", 0o755);
+            .file_with_mode("/libexec/hooks/early-setup.d/10-a", "#!/bin/sh\n", 0o755);
         let state = State::new(&fake.files, "/zfsbootmenu");
         let error = early_stage(&fake.system(), &state, "no-path", None).unwrap_err();
         assert!(matches!(error, StartupError::HookRoot { .. }), "{error:?}");

@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 use zbm_platform::Context;
 use zbm_platform::interaction::{Interaction, SecretKind, SecretRequest, SecretSubject};
 use zbm_state::State;
-use zbm_types::{DatasetName, HookStage};
+use zbm_types::DatasetName;
 use zbm_zfs::ZfsText;
 
 use super::{BootPath, cache, keysource, stripped};
 use crate::error::BootEnvError;
-use crate::hooks;
+use crate::hooks::{self, HookEnv, StageEnv, Variables};
 use crate::locked_root;
 use crate::zfs::zfs_value;
 
@@ -19,21 +19,29 @@ use crate::zfs::zfs_value;
 /// load-key` tries one typed on its terminal.
 pub(crate) const KEY_TRIES: u32 = 3;
 
-/// How a key is loaded: where the hooks are, and how the boot was chosen.
+/// How a key is loaded: where the hooks are, what they get, and how the boot
+/// was chosen.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct KeyLoad<'p> {
     /// Where the hook directories are.
     pub hooks: &'p Path,
+    /// The variables of the boot, which the `load-key.d` hooks get.
+    pub variables: &'p Variables,
     /// How the boot was chosen: only a boot chosen in the menu tries key
     /// sources (`NO_CACHE=1` on the countdown).
     pub path: BootPath,
 }
 
 impl<'p> KeyLoad<'p> {
-    /// A key loaded with the hooks below `hooks`, for a boot chosen by `path`.
-    pub fn new(hooks: &'p Path, path: BootPath) -> KeyLoad<'p> {
-        KeyLoad { hooks, path }
+    /// A key loaded with the hooks below `hooks`, which get `variables`, for
+    /// a boot chosen by `path`.
+    pub fn new(hooks: &'p Path, variables: &'p Variables, path: BootPath) -> KeyLoad<'p> {
+        KeyLoad {
+            hooks,
+            variables,
+            path,
+        }
     }
 }
 
@@ -93,18 +101,21 @@ fn prompt(
 }
 
 /// Runs the `load-key.d` hooks for `fs`, whose encryption root `root` is
-/// locked; true when one ran and the root is unlocked now.
+/// locked, as `how` says; true when one ran and the root is unlocked now.
 fn is_unlocked_by_hooks(
     context: &Context<'_>,
-    hooks_root: &Path,
+    how: &KeyLoad<'_>,
     fs: &DatasetName,
     root: &DatasetName,
 ) -> bool {
-    let env = [
-        ("ZBM_LOCKED_FS", fs.as_str()),
-        ("ZBM_ENCRYPTION_ROOT", root.as_str()),
-    ];
-    if hooks::run_stage(context, hooks_root, HookStage::LoadKey, false, &env) > 0
+    let env = HookEnv {
+        variables: how.variables,
+        stage: StageEnv::LoadKey {
+            fs: fs.as_str(),
+            root: root.as_str(),
+        },
+    };
+    if hooks::run_stage(context, how.hooks, &env, false) > 0
         && locked_root(context.runner(), fs).is_none()
     {
         zbm_trace::debug!("fs {fs} unlocked by user hooks"; %fs);
@@ -192,7 +203,7 @@ pub fn load_key(
     let Some(root) = locked_root(context.runner(), fs) else {
         return Ok(());
     };
-    if is_unlocked_by_hooks(context, how.hooks, fs, &root) {
+    if is_unlocked_by_hooks(context, how, fs, &root) {
         return Ok(());
     }
     let keylocation = zfs_value(context.runner(), "keylocation", &root).unwrap_or_else(|| {

@@ -111,7 +111,7 @@ impl<'a> Boot<'_, 'a> {
         } else {
             BootPath::Menu
         };
-        let how = KeyLoad::new(&self.settings.hooks, path);
+        let how = KeyLoad::new(&self.settings.hooks, &self.settings.env, path);
         let context = self.context();
         let interaction = ConsoleInteraction::new(*self.system);
         if let Err(error) = keys::load_key(&context, &interaction, self.state, &how, environment) {

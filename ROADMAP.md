@@ -983,8 +983,8 @@ with the items that replace the code they are in:
 | 13 | A stale `console-released` record survives a dead console | `zbm-console`, supervisor | PM7: done, the record went with the signals |
 | 14 | The font keys race `zbm console font` | `zbm-console` | PM7: done, a request with its reply |
 | 16 | The full repaint for a bell | `zbm-console` | UI4: done, the border's cells only |
-| 21 | Options on a hook's `#!` line are dropped | `zbm-tools/src/programs.rs` | SB5 |
-| 22 | Compiled hooks are handed to the shell | `zbm-platform/src/shell.rs` | SB5 |
+| 21 | Options on a hook's `#!` line are dropped | `zbm-tools/src/programs.rs` | SB5a: done, the line's argument kept, Bash for one brush lacks |
+| 22 | Compiled hooks are handed to the shell | `zbm-platform/src/shell.rs` | SB5a: done, a hook told from its first bytes |
 | 23 | The initramfs of prefixes other than `vmlinuz` changed name without a warning; `contrib/syslinux-update.sh` | `generate-zbm` | DM10: done, a warning, and the script finds both names |
 | 24 | `zbm-kcl` rewrites the live EFI image in place | `zbm-kcl` | DM10: done, a new file renamed over it |
 | 25 | Versions such as `git-abc` are never pruned; firmware trimming under a symlinked build directory; `config.yaml` rewritten in place | `generate-zbm` | DM10: done (the firmware with SB8's `zbm image prune-firmware`) |

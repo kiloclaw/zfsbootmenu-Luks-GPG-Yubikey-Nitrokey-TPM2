@@ -23,6 +23,7 @@ use crate::error::BootError;
 use crate::recovery::Recovery;
 use crate::testing::{LINE_LOG_STUBS, Redirect, name, stub_lines};
 use zbm_bootenv::commandline::{ETC_HOSTID, SPL_HOSTID};
+use zbm_bootenv::hooks::Variables;
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::{encryption_root, find_kernels, locked_root, recursive_umount, select_kernel};
 
@@ -394,7 +395,7 @@ fn boot(machine: &Machine, parity: &mut Parity) {
         let settings = BootSettings {
             set_hostid: true,
             hooks: hooks.to_path_buf(),
-            env: Vec::new(),
+            env: Variables::default(),
             save_logs: None,
             command_line: None,
             import_policy: zbm_types::ImportPolicy::default(),
@@ -564,7 +565,7 @@ fn failed_exports_and_missing_kernels_are_errors() {
     );
     assert!(fake.kmsg().contains("missing or empty"));
     let defaults = BootSettings::default();
-    assert!(defaults.set_hostid && defaults.env.is_empty());
+    assert!(defaults.set_hostid && defaults.env == Variables::default());
 }
 
 mod kexec;

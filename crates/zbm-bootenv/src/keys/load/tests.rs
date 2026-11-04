@@ -112,10 +112,8 @@ impl Machine {
         let interaction = ConsoleInteraction::new(self.fake.system());
         let state = State::new(&self.fake.files, "/zfsbootmenu");
         let _log = KernelLog::new(&self.fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-        let how = KeyLoad {
-            hooks: Path::new(HOOKS),
-            path,
-        };
+        let variables = Variables::default();
+        let how = KeyLoad::new(Path::new(HOOKS), &variables, path);
         load_key(&context, &interaction, &state, &how, &name(fs))
     }
 
@@ -172,10 +170,8 @@ fn an_unlocked_root_and_an_unencrypted_filesystem_need_nothing() {
         .runner
         .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
     let state = State::new(&plain.files, "/zfsbootmenu");
-    let how = KeyLoad {
-        hooks: Path::new(HOOKS),
-        path: BootPath::Countdown,
-    };
+    let variables = Variables::default();
+    let how = KeyLoad::new(Path::new(HOOKS), &variables, BootPath::Countdown);
     let loaded = load_key(&plain.context(), &NoInteraction, &state, &how, &name(BE));
     assert_eq!(loaded, Ok(()));
 }
@@ -213,10 +209,8 @@ fn a_prompt_location_asks_for_the_passphrase_three_times_at_most() {
     // Nothing typed: nothing tried.
     let ended = Machine::new("prompt", "passphrase", "-");
     let state = State::new(&ended.fake.files, "/zfsbootmenu");
-    let how = KeyLoad {
-        hooks: Path::new(HOOKS),
-        path: BootPath::Countdown,
-    };
+    let variables = Variables::default();
+    let how = KeyLoad::new(Path::new(HOOKS), &variables, BootPath::Countdown);
     let asked = load_key(
         &ended.fake.context(),
         &NoInteraction,
@@ -253,7 +247,10 @@ fn a_hex_key_is_asked_for_as_one_and_a_raw_key_never() {
 fn load_key_hooks_come_first_and_may_unlock_the_root() {
     let machine = Machine::new("prompt", "passphrase", "-");
     let hook = "/libexec/hooks/load-key.d/10-key";
-    machine.fake.files.file_with_mode(hook, "", 0o755);
+    machine
+        .fake
+        .files
+        .file_with_mode(hook, "#!/bin/sh\n", 0o755);
     let keys = machine.keys.clone();
     machine.fake.runner.on(move |command| {
         (command.program() == hook).then(|| {
@@ -278,7 +275,10 @@ fn load_key_hooks_come_first_and_may_unlock_the_root() {
 fn a_hook_that_leaves_the_root_locked_falls_back_to_the_prompt() {
     let machine = Machine::new("prompt", "passphrase", "-");
     let hook = "/libexec/hooks/load-key.d/10-key";
-    machine.fake.files.file_with_mode(hook, "", 0o755);
+    machine
+        .fake
+        .files
+        .file_with_mode(hook, "#!/bin/sh\n", 0o755);
     machine.loads("prompt", "tank/ROOT");
     assert_eq!(machine.load(BootPath::Countdown), Ok(()));
     assert!(machine.ran(hook));

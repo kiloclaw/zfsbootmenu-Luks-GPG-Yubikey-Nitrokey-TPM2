@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
+use zbm_bootenv::hooks::Variables;
 use zbm_platform::KernelLog;
 use zbm_testkit::fakes::FakeSystem;
 
@@ -15,7 +16,7 @@ fn machine() -> FakeSystem {
     fake.files
         .dir("/zfsbootmenu")
         .dir("/hooks/early-setup.d")
-        .file_with_mode("/hooks/early-setup.d/10-hook", "", 0o755);
+        .file_with_mode("/hooks/early-setup.d/10-hook", "#!/bin/sh\n", 0o755);
     fake.runner.respond("zpool list -H -o name", 0, "tank\n");
     fake.runner
         .respond("zpool list -H -o name,health", 0, "tank\tONLINE\n");
@@ -28,6 +29,7 @@ fn the_stages_ask_the_front_end() {
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
     let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+    let none = Variables::default();
     let steps: Vec<Box<dyn Step>> = vec![
         Box::new(Modules),
         Box::new(DeviceWait {
@@ -36,6 +38,7 @@ fn the_stages_ask_the_front_end() {
         }),
         Box::new(EarlyHooks {
             root: Path::new("/hooks"),
+            variables: &none,
             hook_root: "",
             skip: None,
         }),
@@ -69,8 +72,10 @@ fn early_hooks_take_the_console_only_when_there_are_some() {
     fake.files.dir("/zfsbootmenu").dir("/hooks/early-setup.d");
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
+    let none = Variables::default();
     let steps: Vec<Box<dyn Step>> = vec![Box::new(EarlyHooks {
         root: Path::new("/hooks"),
+        variables: &none,
         hook_root: "",
         skip: None,
     })];
@@ -80,6 +85,45 @@ fn early_hooks_take_the_console_only_when_there_are_some() {
     run_steps(&steps, &mut context, Rerun::All);
 
     assert!(front.asked.is_empty(), "{:?}", front.asked);
+}
+
+/// ADR 0017, point 7: the early-setup hooks get the configuration's
+/// variables and `ZFSBOOTMENU_INITIALIZATION`, as the legacy runtime's did.
+#[test]
+fn early_hooks_get_the_configuration_and_the_initialization() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu").file_with_mode(
+        "/hooks/early-setup.d/10-hook",
+        "#!/bin/sh\n",
+        0o755,
+    );
+    let system = fake.system();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let variables = Variables::from(vec![("ZBM_BUILDSTYLE".to_owned(), "dracut".to_owned())]);
+    let steps: Vec<Box<dyn Step>> = vec![Box::new(EarlyHooks {
+        root: Path::new("/hooks"),
+        variables: &variables,
+        hook_root: "",
+        skip: None,
+    })];
+
+    let mut front = Recording::default();
+    let mut context = StepContext::new(&system, &state, &mut front);
+    run_steps(&steps, &mut context, Rerun::All);
+
+    let calls = fake.runner.calls();
+    let hook = calls
+        .iter()
+        .find(|call| call.program() == "/hooks/early-setup.d/10-hook")
+        .expect("the hook ran");
+    let pair = |name: &str, value: &str| (name.into(), Some(value.into()));
+    assert_eq!(
+        hook.get_env(),
+        [
+            pair("ZBM_BUILDSTYLE", "dracut"),
+            pair("ZFSBOOTMENU_INITIALIZATION", "yes")
+        ]
+    );
 }
 
 #[test]

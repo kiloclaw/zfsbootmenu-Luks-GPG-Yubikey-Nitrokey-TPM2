@@ -6,6 +6,11 @@
 //! out), skipping every entry for which `[ -x ]` is false. For the root user
 //! who runs it, `[ -x ]` is true for a file with any execute bit and for every
 //! directory.
+//!
+//! Each stage's hooks get one environment, which [`HookEnv::vars`] builds
+//! from what the stage knows (ADR 0017, point 7): the variables of every
+//! hook of the boot ([`Variables`]: those of `/etc/zfsbootmenu.conf`, and
+//! `BOOTFS` once it is known), then the stage's own.
 
 use std::path::{Path, PathBuf};
 
@@ -13,6 +18,8 @@ use zbm_platform::Context;
 use zbm_platform::files::{FileKind, Files};
 use zbm_tools::programs;
 use zbm_types::HookStage;
+
+use crate::kernels::Kernel;
 
 /// Where the hook directories are in the image.
 pub const HOOKS: &str = "/libexec/hooks";
@@ -36,25 +43,139 @@ pub fn executable_hooks(files: &dyn Files, root: &Path, stage: HookStage) -> Vec
         .collect()
 }
 
-/// Runs the hooks of `stage` below `root`, as `zfsbootmenu-run-hooks` does,
-/// with the standard streams of this process and its environment plus `env`.
-/// With `once`, each hook then loses its permissions and gets the suffix
-/// `.completed`. Returns how many hooks ran; a missing directory runs none.
-pub fn run_stage(
-    context: &Context<'_>,
-    root: &Path,
-    stage: HookStage,
-    once: bool,
-    env: &[(&str, &str)],
-) -> usize {
+/// The variables every hook of a boot gets, whichever process runs it: those
+/// of `/etc/zfsbootmenu.conf`, as the legacy runtime's hooks got them from
+/// the script that sourced it, and `BOOTFS` once it is known.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Variables(Vec<(String, String)>);
+
+impl From<Vec<(String, String)>> for Variables {
+    fn from(variables: Vec<(String, String)>) -> Variables {
+        Variables(variables)
+    }
+}
+
+impl Extend<(String, String)> for Variables {
+    fn extend<T: IntoIterator<Item = (String, String)>>(&mut self, variables: T) {
+        self.0.extend(variables);
+    }
+}
+
+impl Variables {
+    /// Each variable, as its name and its value.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.0
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+    }
+}
+
+/// A stage of hooks and what it knows of the boot.
+#[derive(Clone, Copy, Debug)]
+pub enum StageEnv<'a> {
+    /// `early-setup.d`, while start-up initializes.
+    EarlySetup,
+    /// `setup.d`, before the menu.
+    Setup,
+    /// `load-key.d`, for the locked `fs` whose encryption root is `root`.
+    LoadKey {
+        /// The locked filesystem.
+        fs: &'a str,
+        /// Its encryption root.
+        root: &'a str,
+    },
+    /// `boot-sel.d`, once `selected` is mounted at `mountpoint`.
+    BootSel {
+        /// The boot environment and the kernel chosen.
+        selected: &'a Kernel,
+        /// Where the boot environment is mounted.
+        mountpoint: &'a str,
+    },
+    /// `teardown.d`, before `selected` is executed.
+    Teardown {
+        /// The boot environment and the kernel chosen.
+        selected: &'a Kernel,
+    },
+}
+
+impl StageEnv<'_> {
+    /// The stage's hook directory.
+    pub fn stage(&self) -> HookStage {
+        match self {
+            StageEnv::EarlySetup => HookStage::EarlySetup,
+            StageEnv::Setup => HookStage::Setup,
+            StageEnv::LoadKey { .. } => HookStage::LoadKey,
+            StageEnv::BootSel { .. } => HookStage::BootSel,
+            StageEnv::Teardown { .. } => HookStage::Teardown,
+        }
+    }
+}
+
+/// The environment of a stage's hooks: the boot's [`Variables`] and what the
+/// stage knows.
+#[derive(Clone, Copy, Debug)]
+pub struct HookEnv<'a> {
+    /// The variables every hook gets.
+    pub variables: &'a Variables,
+    /// The stage, and what it knows.
+    pub stage: StageEnv<'a>,
+}
+
+impl<'a> HookEnv<'a> {
+    /// The variables the stage's hooks get beside the environment of this
+    /// process, as the legacy runtime gave them: the boot's, then
+    /// `ZFSBOOTMENU_INITIALIZATION=yes` in `early-setup.d`, `ZBM_LOCKED_FS`
+    /// and `ZBM_ENCRYPTION_ROOT` in `load-key.d`, and `ZBM_SELECTED_BE`,
+    /// `ZBM_SELECTED_KERNEL` and `ZBM_SELECTED_INITRAMFS` in `boot-sel.d`,
+    /// with `ZBM_SELECTED_MOUNTPOINT`, and in `teardown.d`.
+    pub fn vars(&self) -> Vec<(&'a str, &'a str)> {
+        let mut vars: Vec<(&str, &str)> = self.variables.iter().collect();
+        let selected = |kernel: &'a Kernel| {
+            [
+                ("ZBM_SELECTED_BE", kernel.dataset.as_str()),
+                ("ZBM_SELECTED_KERNEL", kernel.kernel.as_str()),
+                ("ZBM_SELECTED_INITRAMFS", kernel.initramfs.as_str()),
+            ]
+        };
+        match self.stage {
+            StageEnv::EarlySetup => vars.push(("ZFSBOOTMENU_INITIALIZATION", "yes")),
+            StageEnv::Setup => {}
+            StageEnv::LoadKey { fs, root } => {
+                vars.extend([("ZBM_LOCKED_FS", fs), ("ZBM_ENCRYPTION_ROOT", root)]);
+            }
+            StageEnv::BootSel {
+                selected: kernel,
+                mountpoint,
+            } => {
+                vars.extend(selected(kernel));
+                vars.push(("ZBM_SELECTED_MOUNTPOINT", mountpoint));
+            }
+            StageEnv::Teardown { selected: kernel } => vars.extend(selected(kernel)),
+        }
+        vars
+    }
+}
+
+/// How many bytes of a hook tell how it runs.
+const START: usize = 256;
+
+/// Runs the hooks of `env`'s stage below `root`, as `zfsbootmenu-run-hooks`
+/// does, with the standard streams of this process and its environment plus
+/// `env`'s variables. With `once`, each hook then loses its permissions and
+/// gets the suffix `.completed`. Returns how many hooks ran; a missing
+/// directory runs none.
+pub fn run_stage(context: &Context<'_>, root: &Path, env: &HookEnv<'_>, once: bool) -> usize {
+    let stage = env.stage.stage();
     if !context.files().is_dir(&root.join(stage.as_str())) {
         zbm_trace::debug!("no hook directory for {stage}"; %stage);
         return 0;
     }
+    let vars = env.vars();
     let hooks = executable_hooks(context.files(), root, stage);
     for hook in &hooks {
         zbm_trace::info!("processing {hook}"; hook = %hook.display());
-        programs::run_hook(context.runner(), hook, env);
+        let start = context.files().read_prefix(hook, START).ok();
+        programs::run_hook(context.runner(), hook, start.as_deref(), &vars);
         if once {
             zbm_trace::info!("Disabling hook after execution: {hook}"; hook = %hook.display());
             let _ = context.files().set_mode(hook, 0);
@@ -81,29 +202,34 @@ mod tests {
         KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
     }
 
+    /// The environment of a stage without the boot's variables.
+    fn bare(stage: StageEnv<'_>) -> HookEnv<'_> {
+        static NONE: Variables = Variables(Vec::new());
+        HookEnv {
+            variables: &NONE,
+            stage,
+        }
+    }
+
     #[test]
     fn runs_each_hook_with_the_stage_environment() {
         let fake = FakeSystem::new();
         let _log = log(&fake);
+        let script = "#!/bin/sh\n";
         fake.files
-            .file_with_mode("/libexec/hooks/boot-sel.d/20-b", "", 0o755)
-            .file_with_mode("/libexec/hooks/boot-sel.d/10-a", "", 0o755)
-            .file_with_mode("/libexec/hooks/boot-sel.d/30-off", "", 0o644);
-        let env = [("ZBM_SELECTED_BE", "tank/ROOT/void")];
-        let ran = run_stage(
-            &fake.context(),
-            Path::new(HOOKS),
-            HookStage::BootSel,
-            false,
-            &env,
-        );
+            .file_with_mode("/libexec/hooks/setup.d/20-b", script, 0o755)
+            .file_with_mode("/libexec/hooks/setup.d/10-a", script, 0o755)
+            .file_with_mode("/libexec/hooks/setup.d/30-off", script, 0o644);
+        let variables = Variables::from(vec![("BOOTFS".to_owned(), "tank/ROOT/void".to_owned())]);
+        let env = HookEnv {
+            variables: &variables,
+            stage: StageEnv::Setup,
+        };
+        let ran = run_stage(&fake.context(), Path::new(HOOKS), &env, false);
         assert!(ran > 0);
         assert_eq!(
             fake.runner.lines(),
-            [
-                "/libexec/hooks/boot-sel.d/10-a",
-                "/libexec/hooks/boot-sel.d/20-b"
-            ]
+            ["/libexec/hooks/setup.d/10-a", "/libexec/hooks/setup.d/20-b"]
         );
         for call in fake.runner.calls() {
             assert_eq!(call.get_stdin(), &Input::Inherit);
@@ -111,37 +237,102 @@ mod tests {
             assert_eq!(call.get_stderr(), Stream::Inherit);
             assert_eq!(
                 call.get_env(),
-                [("ZBM_SELECTED_BE".into(), Some("tank/ROOT/void".into()))]
+                [("BOOTFS".into(), Some("tank/ROOT/void".into()))]
             );
         }
         assert_eq!(
             stub_lines(&fake.kmsg()),
-            "INFO: processing /libexec/hooks/boot-sel.d/10-a\n\
-             INFO: processing /libexec/hooks/boot-sel.d/20-b\n"
+            "INFO: processing /libexec/hooks/setup.d/10-a\n\
+             INFO: processing /libexec/hooks/setup.d/20-b\n"
         );
         // Without a directory, or without executable hooks, none runs.
+        let locked = bare(StageEnv::LoadKey {
+            fs: "tank/ROOT/void",
+            root: "tank",
+        });
         assert_eq!(
-            run_stage(
-                &fake.context(),
-                Path::new(HOOKS),
-                HookStage::LoadKey,
-                false,
-                &[],
-            ),
+            run_stage(&fake.context(), Path::new(HOOKS), &locked, false),
             0
         );
         assert!(fake.kmsg().contains("no hook directory for load-key.d"));
-        fake.files.dir("/libexec/hooks/setup.d");
+        fake.files.dir("/libexec/hooks/early-setup.d");
         assert_eq!(
             run_stage(
                 &fake.context(),
                 Path::new(HOOKS),
-                HookStage::Setup,
-                false,
-                &[],
+                &bare(StageEnv::EarlySetup),
+                false
             ),
             0
         );
+    }
+
+    /// ADR 0017, point 7: each stage's variables, after the boot's, as the
+    /// legacy runtime gave them.
+    #[test]
+    fn each_stage_has_its_variables_after_the_boot_ones() {
+        let variables = Variables::from(vec![
+            ("ZBM_BUILDSTYLE".to_owned(), "dracut".to_owned()),
+            ("BOOTFS".to_owned(), "tank/ROOT/void".to_owned()),
+        ]);
+        let kernel = Kernel::new(
+            "tank/ROOT/void",
+            "/boot/vmlinuz-6.12",
+            "/boot/initramfs-6.12.img",
+        );
+        let env = |stage| HookEnv {
+            variables: &variables,
+            stage,
+        };
+        let boot = [("ZBM_BUILDSTYLE", "dracut"), ("BOOTFS", "tank/ROOT/void")];
+        let selected = [
+            ("ZBM_SELECTED_BE", "tank/ROOT/void"),
+            ("ZBM_SELECTED_KERNEL", "/boot/vmlinuz-6.12"),
+            ("ZBM_SELECTED_INITRAMFS", "/boot/initramfs-6.12.img"),
+        ];
+        let with = |extra: &[(&'static str, &'static str)]| {
+            boot.iter().chain(extra).copied().collect::<Vec<_>>()
+        };
+        assert_eq!(
+            env(StageEnv::EarlySetup).vars(),
+            with(&[("ZFSBOOTMENU_INITIALIZATION", "yes")])
+        );
+        assert_eq!(env(StageEnv::Setup).vars(), with(&[]));
+        assert_eq!(
+            env(StageEnv::LoadKey {
+                fs: "tank/ROOT/void",
+                root: "tank"
+            })
+            .vars(),
+            with(&[
+                ("ZBM_LOCKED_FS", "tank/ROOT/void"),
+                ("ZBM_ENCRYPTION_ROOT", "tank")
+            ])
+        );
+        let mut boot_sel = selected.to_vec();
+        boot_sel.push(("ZBM_SELECTED_MOUNTPOINT", "/mnt"));
+        assert_eq!(
+            env(StageEnv::BootSel {
+                selected: &kernel,
+                mountpoint: "/mnt"
+            })
+            .vars(),
+            with(&boot_sel)
+        );
+        assert_eq!(
+            env(StageEnv::Teardown { selected: &kernel }).vars(),
+            with(&selected)
+        );
+        for (stage, expected) in [
+            (StageEnv::EarlySetup, HookStage::EarlySetup),
+            (StageEnv::Setup, HookStage::Setup),
+            (
+                StageEnv::Teardown { selected: &kernel },
+                HookStage::Teardown,
+            ),
+        ] {
+            assert_eq!(stage.stage(), expected);
+        }
     }
 
     #[test]
@@ -155,9 +346,8 @@ mod tests {
             run_stage(
                 &fake.context(),
                 Path::new(HOOKS),
-                HookStage::EarlySetup,
+                &bare(StageEnv::EarlySetup),
                 true,
-                &[],
             )
         };
         assert!(run() > 0);
@@ -190,34 +380,31 @@ mod tests {
         assert_eq!(fake.runner.lines().len(), 2);
     }
 
+    /// A hook is told by its first bytes, read through the files port: a text
+    /// without `#!` runs on the shell, here Bash, as no shell was chosen, and
+    /// an ELF hook as it is (fixes 21 and 22).
     #[test]
-    fn scripts_without_an_interpreter_line_run_with_bash() {
+    fn a_hook_runs_as_its_first_bytes_say() {
         let fake = FakeSystem::new();
         let _log = log(&fake);
         fake.files
-            .file_with_mode("/libexec/hooks/setup.d/10-plain", "", 0o755);
-        fake.runner.on(|command| {
-            (command.program() == "/libexec/hooks/setup.d/10-plain")
-                .then(|| Err(std::io::Error::from_raw_os_error(8)))
-        });
-        let env = [("BOOTFS", "tank/ROOT/void")];
+            .file_with_mode("/libexec/hooks/setup.d/10-plain", "echo hi\n", 0o755)
+            .file_with_mode("/libexec/hooks/setup.d/20-elf", "\x7fELF\x02", 0o755);
         assert!(
             run_stage(
                 &fake.context(),
                 Path::new(HOOKS),
-                HookStage::Setup,
-                false,
-                &env,
+                &bare(StageEnv::Setup),
+                false
             ) > 0
         );
         assert_eq!(
             fake.runner.lines(),
             [
-                "/libexec/hooks/setup.d/10-plain",
-                "bash /libexec/hooks/setup.d/10-plain"
+                "/bin/bash /libexec/hooks/setup.d/10-plain",
+                "/libexec/hooks/setup.d/20-elf"
             ]
         );
-        assert_eq!(fake.runner.calls()[1].get_env().len(), 1);
     }
 
     /// A hook root with executable hooks in several stages.

@@ -22,7 +22,7 @@ use crate::support::{self, Facts};
 use zbm_boot::BootSettings;
 use zbm_boot::Recovery;
 use zbm_boot::saved_logs::Destination;
-use zbm_bootenv::hooks;
+use zbm_bootenv::hooks::{self, Variables};
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_config::args::{Args, ZbmArgs};
@@ -87,7 +87,7 @@ pub struct Startup<'a> {
     /// The variables of `/etc/zfsbootmenu.conf`, which the menu's hooks get
     /// even when it was not started from a shell that sourced the file
     /// (`ssh host zfsbootmenu`).
-    conf_vars: Vec<(String, String)>,
+    conf_vars: Variables,
 }
 
 impl<'a> Startup<'a> {
@@ -115,7 +115,7 @@ impl<'a> Startup<'a> {
                 Build::Release
             },
             hooks: PathBuf::from(hooks::HOOKS),
-            conf_vars: conf.vars().to_vec(),
+            conf_vars: conf.vars().to_vec().into(),
         }
     }
 
@@ -148,7 +148,7 @@ impl<'a> Startup<'a> {
     }
 
     /// How to boot, from the options, with `env` for the hooks.
-    fn boot_settings(&self, env: Vec<(String, String)>) -> BootSettings {
+    fn boot_settings(&self, env: Variables) -> BootSettings {
         let mut settings = BootSettings::default()
             .set_hostid(self.options.set_hostid)
             .hooks(self.hooks.clone())
@@ -247,6 +247,7 @@ impl<'a> Startup<'a> {
             }),
             Box::new(stages::EarlyHooks {
                 root: &self.hooks,
+                variables: &self.conf_vars,
                 hook_root: &self.options.hook_root,
                 skip,
             }),
@@ -326,8 +327,11 @@ impl<'a> Startup<'a> {
         let system = &self.system;
         // Clear the screen before a possible passphrase prompt.
         system.console.screen(Screen::Clear);
+        // 50-import-pools exported BOOTFS in the legacy program.
+        let mut env = self.conf_vars.clone();
+        env.extend([("BOOTFS".to_owned(), bootfs.to_string())]);
         // `NO_CACHE=1 load_key`: the countdown tries no key sources.
-        let how = KeyLoad::new(&self.hooks, BootPath::Countdown);
+        let how = KeyLoad::new(&self.hooks, &env, BootPath::Countdown);
         let context = Context::new(*system);
         // The screen was cleared before the hooks, whose words stay.
         let interaction = ConsoleInteraction::new(*system).clears_for_keys(false);
@@ -345,8 +349,7 @@ impl<'a> Startup<'a> {
         {
             let selected = zbm_bootenv::select_kernel(&context, &self.state, &filesystem)
                 .unwrap_or_else(|| Kernel::parse(""));
-            // 50-import-pools exported BOOTFS in the legacy program.
-            let settings = self.boot_settings(vec![("BOOTFS".to_owned(), bootfs.to_string())]);
+            let settings = self.boot_settings(env.clone());
             let shell = self.shell();
             // The boot runs on a clear screen, as the legacy one does once
             // the key is loaded.

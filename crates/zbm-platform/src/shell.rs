@@ -46,32 +46,45 @@ pub fn chosen() -> Option<PathBuf> {
     from_env(crate::env::ProcessEnvironment.var_os(ENV).as_deref())
 }
 
-/// Whether `program` is one of the shells: brush or GNU Bash, by name.
-pub fn is_shell(program: &Path) -> bool {
-    program
-        .file_name()
-        .is_some_and(|name| name == "bash" || name == "brush")
+/// How a hook or script runs, told from its first bytes before it starts
+/// (ADR 0017, point 6): the C library's `execvp`, which runs a file the
+/// kernel refuses on `/bin/sh`, would hide that it was refused.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Interpreter {
+    /// A `#!` line naming `sh` or `bash` directly, with what follows the
+    /// interpreter as the kernel passes it: one argument, if any.
+    Shell(Option<String>),
+    /// Another `#!` line, `env` included, or an ELF file: the kernel runs
+    /// it as it is.
+    Kernel,
+    /// Neither: a text for the shell, as Bash ran it in the legacy runtime.
+    Text,
 }
 
-/// Whether the script whose first line is `first_line` is written for
-/// the shell: it names Bash or `sh` after `#!` (through `env` or not), or
-/// names no interpreter at all. A script for another interpreter, such as
-/// `#!/usr/bin/python3`, is not.
-pub fn is_shell_script(first_line: &str) -> bool {
-    let Some(interpreter) = first_line.strip_prefix("#!") else {
-        return true;
-    };
-    let mut words = interpreter.split_whitespace();
-    let mut program = words.next().unwrap_or_default();
-    if Path::new(program).file_name() == Some(OsStr::new("env")) {
-        program = words
-            .find(|word| !word.starts_with('-'))
-            .unwrap_or_default();
+/// How the file whose first bytes are `start` runs. The `#!` line is read
+/// as Linux reads it: the interpreter up to the first blank, and the rest of
+/// the line, without its outer blanks, as one argument.
+pub fn interpreter(start: &[u8]) -> Interpreter {
+    if start.starts_with(b"\x7fELF") {
+        return Interpreter::Kernel;
     }
-    matches!(
-        Path::new(program).file_name().and_then(OsStr::to_str),
-        Some("bash" | "sh")
-    )
+    let Some(line) = start.strip_prefix(b"#!") else {
+        return Interpreter::Text;
+    };
+    let line = line.split(|&byte| byte == b'\n').next().unwrap_or_default();
+    let line = String::from_utf8_lossy(line);
+    let line = line.trim_matches([' ', '\t']);
+    let (program, argument) = line
+        .split_once([' ', '\t'])
+        .map_or((line, ""), |(program, rest)| {
+            (program, rest.trim_matches([' ', '\t']))
+        });
+    match Path::new(program).file_name().and_then(OsStr::to_str) {
+        Some("sh" | "bash") => {
+            Interpreter::Shell((!argument.is_empty()).then(|| argument.to_owned()))
+        }
+        _ => Interpreter::Kernel,
+    }
 }
 
 /// Quotes `text` as one shell word, in single quotes, with each `'` written as
@@ -208,28 +221,25 @@ mod tests {
         );
         assert_eq!(from_env(Some(OsStr::new("brush"))), None);
         assert_eq!(from_env(None), None);
-        assert!(is_shell(Path::new("/usr/bin/brush")) && is_shell(Path::new("bash")));
-        assert!(!is_shell(Path::new("/bin/zsh")));
     }
 
     #[test]
-    fn shell_scripts_are_told_by_their_first_line() {
-        for script in [
-            "#!/bin/bash",
-            "#!/bin/sh -e",
-            "#! /usr/bin/env bash",
-            "echo hi",
-            "",
+    fn a_file_is_told_by_its_first_bytes_as_the_kernel_reads_them() {
+        let shell = |argument: Option<&str>| Interpreter::Shell(argument.map(str::to_owned));
+        for (start, expected) in [
+            (&b"#!/bin/bash\necho hi\n"[..], shell(None)),
+            (b"#!/bin/sh -e\n", shell(Some("-e"))),
+            (b"#! /bin/sh  -eu \t\nset -x\n", shell(Some("-eu"))),
+            (b"#!/usr/bin/bash -o pipefail\n", shell(Some("-o pipefail"))),
+            (b"#!/usr/bin/env bash\n", Interpreter::Kernel),
+            (b"#!/usr/bin/python3\nprint()\n", Interpreter::Kernel),
+            (b"#!/bin/zsh", Interpreter::Kernel),
+            (b"#!", Interpreter::Kernel),
+            (b"\x7fELF\x02\x01\x01\0", Interpreter::Kernel),
+            (b"echo hi\n", Interpreter::Text),
+            (b"", Interpreter::Text),
         ] {
-            assert!(is_shell_script(script), "{script:?}");
-        }
-        for other in [
-            "#!/usr/bin/python3",
-            "#!/usr/bin/env -S perl -w",
-            "#!/bin/zsh",
-            "#!",
-        ] {
-            assert!(!is_shell_script(other), "{other:?}");
+            assert_eq!(interpreter(start), expected, "{start:?}");
         }
     }
 

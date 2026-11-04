@@ -25,7 +25,11 @@ struct Recorded {
 
 impl Menu for Recorded {
     fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery) {
-        self.shown.push(settings.env.clone());
+        let env = settings.env.iter();
+        self.shown.push(
+            env.map(|(name, value)| (name.to_owned(), value.to_owned()))
+                .collect(),
+        );
         recovery.emergency_shell("");
     }
 }
@@ -112,7 +116,7 @@ fn shells(fake: &FakeSystem) -> usize {
 fn the_menu_runs_after_the_setup_hooks_with_the_lock_held() {
     let fake = started();
     fake.files
-        .file_with_mode("/libexec/hooks/setup.d/10-setup", "", 0o755);
+        .file_with_mode("/libexec/hooks/setup.d/10-setup", "#!/bin/sh\n", 0o755);
     let startup = Startup::new(fake.system(), &conf());
     let mut menu = Recorded::default();
     assert_eq!(startup.menu(&mut menu), 0);
