@@ -200,6 +200,8 @@ fn the_hooks_get_the_default_as_it_is_now() {
         .cloned()
         .collect();
     assert_eq!(bootfs, [("BOOTFS".into(), Some("tank/ROOT/new".into()))]);
+    // The built-in steps of the teardown run: the boot carries the table.
+    assert!(lines(&fake).iter().any(|line| line == "/bin/zluks close"));
 }
 
 #[test]

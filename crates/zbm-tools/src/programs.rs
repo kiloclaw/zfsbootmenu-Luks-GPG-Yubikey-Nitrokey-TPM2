@@ -148,6 +148,17 @@ pub fn applet(
     runner.run(&on_console(command))
 }
 
+/// Runs `program` with `args` and no streams, its failures ignored, as
+/// the legacy hooks ran theirs with `>/dev/null 2>&1 || true`.
+pub fn run_quietly(runner: &dyn Runner, program: &str, args: &[&str]) {
+    let command = Command::new(program)
+        .args(args.iter().copied())
+        .stdin(Input::Null)
+        .stdout(Stream::Null)
+        .stderr(Stream::Null);
+    let _ = runner.run(&command);
+}
+
 /// Where the boot image installs `zbm`.
 pub const ZBM: &str = "/libexec/zbm";
 
@@ -274,6 +285,23 @@ mod tests {
         // runs as it is.
         assert_eq!(line(Some(b"#!/bin/sh -e\n"), None), "/hooks/h");
         assert_eq!(line(None, brush), "/hooks/h");
+    }
+
+    #[test]
+    fn a_quiet_run_has_no_streams_and_ignores_failures() {
+        let runner = FakeRunner::new();
+        runner.respond("brltty -q", 1, "");
+        run_quietly(&runner, "brltty", &["-q"]);
+        let calls = runner.calls();
+        let [call] = calls.as_slice() else {
+            panic!("one call: {calls:?}");
+        };
+        assert_eq!(call.display(), "brltty -q");
+        assert!(matches!(call.get_stdin(), Input::Null));
+        assert_eq!(
+            (call.get_stdout(), call.get_stderr()),
+            (Stream::Null, Stream::Null)
+        );
     }
 
     #[test]

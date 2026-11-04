@@ -396,6 +396,7 @@ fn boot(machine: &Machine, parity: &mut Parity) {
             set_hostid: true,
             hooks: hooks.to_path_buf(),
             env: Variables::default(),
+            steps: zbm_bootenv::hooks::BootSteps::default(),
             save_logs: None,
             command_line: None,
             import_policy: zbm_types::ImportPolicy::default(),

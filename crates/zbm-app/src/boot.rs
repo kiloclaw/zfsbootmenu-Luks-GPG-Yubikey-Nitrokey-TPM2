@@ -111,12 +111,7 @@ impl<'a> Boot<'_, 'a> {
         } else {
             BootPath::Menu
         };
-        // The hooks see the default boot environment as it is now, which the
-        // menu may have changed since it started.
-        let mut settings = self.settings.clone();
-        if let Some(bootfs) = self.state.bootfs().and_then(|name| name.parse().ok()) {
-            settings.env = settings.env.with_bootfs(&bootfs);
-        }
+        let mut settings = self.settings_now();
         let how = KeyLoad::new(&settings.hooks, &settings.env, path);
         let context = self.context();
         let interaction = ConsoleInteraction::new(*self.system);
@@ -155,6 +150,19 @@ impl<'a> Boot<'_, 'a> {
             format!("unable to boot {fs}"),
             vec!["the kernel could not be executed".to_owned()],
         )
+    }
+
+    /// The settings of a boot now: the hooks see the default boot
+    /// environment as it is now, which the menu may have changed since it
+    /// started, and the built-in steps but those `zbm.skip_hooks` left out at
+    /// start-up (ADR 0017).
+    fn settings_now(&self) -> BootSettings {
+        let mut settings = self.settings.clone();
+        if let Some(bootfs) = self.state.bootfs().and_then(|name| name.parse().ok()) {
+            settings.env = settings.env.with_bootfs(&bootfs);
+        }
+        settings.steps = crate::steps::built_in(self.state);
+        settings
     }
 
     /// The kernel of `fs` to boot: the one of version `version`, or the one

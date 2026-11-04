@@ -31,6 +31,14 @@ pub enum BootEnvError {
         /// The mount points that stay mounted.
         mounts: Vec<String>,
     },
+    /// A built-in boot step did not do what it does (ADR 0017).
+    #[error("the boot step {step} failed: {why}")]
+    Step {
+        /// The step, by its hook's name.
+        step: String,
+        /// What went wrong.
+        why: String,
+    },
 }
 
 // The codes kept the numbers they had in zbm-boot (ADR 0015).
@@ -48,6 +56,11 @@ zbm_types::error_codes! {
     Unmount = 605 => "a mount point could not be unmounted":
         "A file system stayed mounted, which can keep its pool from being exported before the \
          boot.",
+    Step = 611 => "a built-in boot step failed":
+        "One of the built-in steps that replace the image's hooks (the screen readers, the \
+         console's set-up and font, the LUKS close, the USB unbind) did not do what it does. \
+         The stage went on, as it does when a hook fails. zbm.skip_hooks names a step to \
+         leave out.",
 }
 
 #[cfg(test)]

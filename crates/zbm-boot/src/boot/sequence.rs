@@ -16,7 +16,7 @@ use zbm_types::{
 };
 use zbm_zfs::{Stderr, ZfsText};
 
-use zbm_bootenv::hooks::{self, HookEnv, StageEnv, Variables};
+use zbm_bootenv::hooks::{self, BootSteps, HookEnv, StageEnv, Variables};
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_bootenv::{Noise, commandline, mount_zfs, recursive_umount, umount};
@@ -40,6 +40,9 @@ pub struct BootSettings {
     /// The variables every hook of the boot gets: those of
     /// `/etc/zfsbootmenu.conf`, and `BOOTFS` (ADR 0017, point 7).
     pub env: Variables,
+    /// The built-in steps of the boot's hook stages, the LUKS close and the
+    /// USB unbind among them (ADR 0017, points 1 and 2).
+    pub steps: BootSteps,
     /// `zbm.save_logs`: where the logs of this boot are saved before the
     /// kernel starts, if anywhere (ROADMAP.md #9).
     pub save_logs: Option<Destination>,
@@ -72,6 +75,12 @@ impl BootSettings {
         BootSettings { save_logs, ..self }
     }
 
+    /// These settings with the built-in steps `steps`.
+    #[must_use]
+    pub fn steps(self, steps: BootSteps) -> BootSettings {
+        BootSettings { steps, ..self }
+    }
+
     /// These settings with the import policy `import_policy`.
     #[must_use]
     pub fn import_policy(self, import_policy: ImportPolicy) -> BootSettings {
@@ -88,6 +97,7 @@ impl Default for BootSettings {
             set_hostid: true,
             hooks: PathBuf::from(hooks::HOOKS),
             env: Variables::default(),
+            steps: BootSteps::default(),
             save_logs: None,
             command_line: None,
             import_policy: ImportPolicy::default(),
@@ -226,7 +236,7 @@ fn run_boot_sel_hooks(
             mountpoint: mnt,
         },
     };
-    hooks::run_stage(context, &settings.hooks, &env, false);
+    hooks::run_stage(context, &settings.hooks, &env, &settings.steps, false);
 }
 
 /// The command line of `fs` booted with `kernel`, or the one typed for this
@@ -399,7 +409,7 @@ fn tear_down(context: &Context<'_>, settings: &BootSettings, selected: &Kernel, 
         variables: &settings.env,
         stage: StageEnv::Teardown { selected },
     };
-    hooks::run_stage(context, &settings.hooks, &env, false);
+    hooks::run_stage(context, &settings.hooks, &env, &settings.steps, false);
 }
 
 /// Saves the logs of this boot to `destination`, if given, once the kernel

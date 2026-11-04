@@ -153,7 +153,8 @@ impl<'a> Startup<'a> {
             .set_hostid(self.options.set_hostid)
             .hooks(self.hooks.clone())
             .save_logs(self.save_logs())
-            .import_policy(self.options.import_policy);
+            .import_policy(self.options.import_policy)
+            .steps(zbm_app::steps::built_in(&self.state));
         settings.env = env;
         settings
     }

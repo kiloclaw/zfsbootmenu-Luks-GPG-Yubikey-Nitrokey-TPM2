@@ -375,3 +375,22 @@ fn a_person_s_unlock_is_seen_among_the_silent_ones() {
     state.record_unlocked("home", true).unwrap();
     assert!(state.has_attended_unlock());
 }
+
+#[test]
+fn the_boot_steps_records() {
+    let files = FakeFiles::new();
+    files.dir(BASE);
+    let state = State::new(&files, BASE);
+    assert!(state.step_records().is_empty());
+    state.add_step_record("skipped 90-xhci-unbind.sh").unwrap();
+    state.add_step_record("ran 10-generic-efi-init.sh").unwrap();
+    assert_eq!(
+        state.step_records(),
+        ["skipped 90-xhci-unbind.sh", "ran 10-generic-efi-init.sh"]
+    );
+    assert!(
+        State::new(&files, "/missing/base")
+            .add_step_record("x")
+            .is_err()
+    );
+}

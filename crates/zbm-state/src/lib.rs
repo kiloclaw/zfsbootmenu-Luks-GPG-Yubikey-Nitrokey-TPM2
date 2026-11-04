@@ -257,6 +257,28 @@ impl<'a> State<'a> {
         self.replace("bootfs", format!("{dataset}\n").as_bytes())
     }
 
+    /// The records of the built-in boot steps (`steps`, ADR 0017), one per
+    /// line: `skipped NAME` for a step `zbm.skip_hooks` left out, `ran NAME`
+    /// for an early-setup step that ran. The stages' records are apart, so
+    /// that `ZFSBOOTMENU_FORCE_INIT` runs no early step again, as it runs no
+    /// renamed hook again.
+    pub fn step_records(&self) -> Vec<String> {
+        let text = self
+            .files
+            .read_to_string(&self.path("steps"))
+            .unwrap_or_default();
+        text.lines().map(str::to_owned).collect()
+    }
+
+    /// Adds `record` to the records of the boot steps.
+    ///
+    /// # Errors
+    ///
+    /// When the file cannot be written.
+    pub fn add_step_record(&self, record: &str) -> Result<()> {
+        self.append("steps", format!("{record}\n").as_bytes())
+    }
+
     /// The pools restricted from read-write imports (`degraded`), in the order
     /// they were recorded.
     pub fn degraded_pools(&self) -> Vec<String> {

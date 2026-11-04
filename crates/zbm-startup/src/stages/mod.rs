@@ -89,9 +89,9 @@ impl Step for EarlyHooks<'_> {
     }
 
     /// The hooks run with the console, which a front end that draws on it
-    /// hands over only when there are hooks to run.
+    /// hands over only when there are hooks or built-in steps to run.
     fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
-        let system = context.system;
+        let (system, state) = (context.system, context.state);
         // The image's own hooks run even when those of `zbm.hookroot`
         // could not be imported; the stage then fails after them.
         let prepared = hooks::prepare_early_stage(
@@ -102,8 +102,14 @@ impl Step for EarlyHooks<'_> {
             self.skip.as_deref(),
         );
         let mut run =
-            |system: &System<'_>| hooks::run_early_stage(system, self.root, self.variables);
-        if executable_hooks(system.files, self.root, HookStage::EarlySetup).is_empty() {
+            |system: &System<'_>| hooks::run_early_stage(system, state, self.root, self.variables);
+        // The built-in steps of the stage take the console too: its font,
+        // its escape sequences.
+        let has_steps = zbm_app::steps::built_in(state)
+            .iter()
+            .any(|step| step.stage() == HookStage::EarlySetup);
+        if !has_steps && executable_hooks(system.files, self.root, HookStage::EarlySetup).is_empty()
+        {
             run(system);
         } else {
             context.front.with_console(system, &mut run);

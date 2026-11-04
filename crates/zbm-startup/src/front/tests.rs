@@ -80,10 +80,16 @@ fn early_hooks_take_the_console_only_when_there_are_some() {
         skip: None,
     })];
 
+    // The built-in steps of the stage take the console the first time.
     let mut front = Recording::default();
     let mut context = StepContext::new(&system, &state, &mut front);
     run_steps(&steps, &mut context, Rerun::All);
+    assert!(!front.asked.is_empty());
 
+    // They ran: without hooks, nothing takes it again.
+    let mut front = Recording::default();
+    let mut context = StepContext::new(&system, &state, &mut front);
+    run_steps(&steps, &mut context, Rerun::All);
     assert!(front.asked.is_empty(), "{:?}", front.asked);
 }
 

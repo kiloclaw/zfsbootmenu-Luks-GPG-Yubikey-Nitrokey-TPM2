@@ -11,7 +11,7 @@ use zbm_zfs::ZfsText;
 
 use super::{BootPath, cache, keysource, stripped};
 use crate::error::BootEnvError;
-use crate::hooks::{self, HookEnv, StageEnv, Variables};
+use crate::hooks::{self, BootSteps, HookEnv, StageEnv, Variables};
 use crate::locked_root;
 use crate::zfs::zfs_value;
 
@@ -115,7 +115,8 @@ fn is_unlocked_by_hooks(
             root: root.as_str(),
         },
     };
-    if hooks::run_stage(context, how.hooks, &env, false) > 0
+    // No built-in step runs in load-key.d.
+    if hooks::run_stage(context, how.hooks, &env, &BootSteps::default(), false) > 0
         && locked_root(context.runner(), fs).is_none()
     {
         zbm_trace::debug!("fs {fs} unlocked by user hooks"; %fs);

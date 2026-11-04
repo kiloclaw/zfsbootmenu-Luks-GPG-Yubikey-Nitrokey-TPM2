@@ -177,6 +177,8 @@ fn the_countdown_s_hooks_get_the_configuration_and_bootfs() {
         assert!(has("BASE", "/zfsbootmenu"), "{hook}: {env:?}");
         assert!(has("ZBM_SELECTED_BE", "tank/ROOT/void"), "{hook}: {env:?}");
     }
+    // The countdown's boot carries the built-in steps: the LUKS close runs.
+    assert!(has(&fake, "/bin/zluks close"));
 }
 
 #[test]

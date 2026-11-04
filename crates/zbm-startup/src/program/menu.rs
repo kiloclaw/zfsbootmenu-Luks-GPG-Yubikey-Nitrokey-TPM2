@@ -106,7 +106,8 @@ impl Startup<'_> {
             variables: &env,
             stage: StageEnv::Setup,
         };
-        hooks::run_stage(&context, &self.hooks, &setup, false);
+        let steps = zbm_app::steps::built_in(&self.state);
+        hooks::run_stage(&context, &self.hooks, &setup, &steps, false);
         // Clear the screen before a possible passphrase prompt.
         system.console.screen(Screen::Clear);
 

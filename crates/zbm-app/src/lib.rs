@@ -31,6 +31,7 @@ pub mod remote;
 pub mod report;
 pub mod service;
 pub mod session;
+pub mod steps;
 mod volumes;
 pub mod wire;
 
