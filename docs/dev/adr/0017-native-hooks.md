@@ -1,6 +1,6 @@
 # ADR 0017: Built-in hooks as boot steps, the hook API version 2, and the generated `zfunc` library
 
-- **Status:** proposed, 3 November 2026
+- **Status:** accepted, 4 November 2026 (proposed on 3 November)
 - **Decides:** item SB5 of [ROADMAP.md](../../../ROADMAP.md), with fixes 21 and 22 of the review of 27 October 2026,
   and which of SB5 and SB6 owns the compatibility library that `crates/DESIGN.md` gives to "package F"
 - **Governs:** `zbm-bootenv`'s `hooks` module, the stages that run hooks (`zbm-startup`'s `40-early-hooks`, the
@@ -220,3 +220,19 @@ library files become a generated shell library over a `zbm zfunc` applet.**
    and the legacy function otherwise until SB7, and the text and log functions stay shell. The alternative leaves the
    library to SB6, so SB5 is the steps, hook execution and the API alone.
 8. **`/libexec/zfunc`.** Proposed: a link to the applet. The alternative drops it with the legacy payload in SB7.
+
+## Answers of the maintainer
+
+Accepted as proposed, on 4 November 2026:
+
+1. **Which built-ins become steps:** all six, the screen readers' and dracut's console init included.
+2. **Names:** the file names, `.sh` included, and the names without `.sh` accepted.
+3. **Skipping and replacing the LUKS close:** allowed as today, but `zbm.skip_hooks` refused in a locked image and
+   under lockdown or Secure Boot, and a hook root's replacement refused under lockdown or Secure Boot, each with a
+   warning.
+4. **Running a hook:** as the kernel would, decided from the first bytes, with Bash for an option brush lacks.
+5. **The environment:** the legacy runtime's per stage, without the `fzf` variables.
+6. **The context file:** `/run/zbm/hooks/<stage>.json` for the stage's length, read-only, no secrets, to every hook.
+7. **The library:** SB5 owns the three files of the hook contract; `zbm zfunc` runs Rust where it exists and the
+   legacy function otherwise until SB7; the text and log functions stay shell.
+8. **`/libexec/zfunc`:** a link to the applet.

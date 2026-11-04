@@ -24,6 +24,6 @@ stays, marked so.
 | [0014](0014-efi-image.md) | The EFI image written by `zbm-host`, without `objcopy`: the stub's headers kept, the sections laid out as now, `zbm-kcl` free to grow `.cmdline` (CD12) | Accepted, 1 November 2026 |
 | [0015](0015-bootenv.md) | `zbm-bootenv` split out of `zbm-boot`, and `zbm-boot` without the console: prompts through `Interaction`, start-up's, the menu's and the report's code to their owners (DM7) | Accepted, 3 November 2026 |
 | [0016](0016-menu-workspace-built.md) | The rest of the menu built as the workspace: every action offered performed by the machine, one import, destroy, the boot history, review pages from the plan, the classic menu behind `zbm.menu=classic` for a release (UI10; changes ADR 0007's decision 1) | Accepted, 3 November 2026 |
-| [0017](0017-native-hooks.md) | Built-in hooks as boot steps named as their files, hooks run as the kernel would run them, one environment per stage with `ZBM_HOOK_API=2` and a JSON context, the hook library generated over `zbm zfunc` (SB5, fixes 21 and 22) | Proposed, 3 November 2026 |
+| [0017](0017-native-hooks.md) | Built-in hooks as boot steps named as their files, hooks run as the kernel would run them, one environment per stage with `ZBM_HOOK_API=2` and a JSON context, the hook library generated over `zbm zfunc` (SB5, fixes 21 and 22) | Accepted, 4 November 2026 |
 
 A new record takes the next number, the same headings, and a line in this table.
