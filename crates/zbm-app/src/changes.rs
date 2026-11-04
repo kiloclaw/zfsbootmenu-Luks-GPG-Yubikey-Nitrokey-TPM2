@@ -114,6 +114,7 @@ impl Changes<'_, '_> {
         self.zfs
             .set_pool_property(&pool, "bootfs", environment.as_str())
             .map_err(|error| Failure::zfs(format!("unable to {what}"), &error))?;
+        self.needs.record_default(environment);
         Ok(done(format!("{environment} is the default of {pool}")))
     }
 

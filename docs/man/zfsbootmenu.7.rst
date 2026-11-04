@@ -389,8 +389,11 @@ These options are set on the kernel command line when booting the initramfs or U
   In images built with the Rust runtime, the hooks, the recovery shell, the shell of SSH sessions and
   the runtime's own scripts run on *brush*, a Bash-compatible shell written in Rust, which completes
   commands, suggests them from the history and keeps no history file. A hook whose first line names
-  *bash* or *sh*, or that names nothing, runs on it; a hook in another language runs as before. On a
-  serial console, the recovery shell uses brush's basic line editor, which asks the terminal nothing.
+  *bash* or *sh* directly runs on it, with the option that line gives (*#!/bin/sh -e*), and so does a
+  hook without a *#!* line; a hook whose line asks for an option brush does not have, or names
+  another interpreter (*#!/usr/bin/env bash* among them), and a compiled hook run as the kernel runs
+  them. On a serial console, the recovery shell uses brush's basic line editor, which asks the
+  terminal nothing.
   With **zbm.shell=bash**, all of them run on GNU Bash, as in images with the legacy runtime: for a
   hook that brush runs differently. GNU Bash stays in the image as */bin/sh* and */bin/bash* either
   way, and starts when brush cannot.

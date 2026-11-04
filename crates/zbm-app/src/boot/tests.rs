@@ -165,6 +165,43 @@ fn a_typed_command_line_boots_once_without_root_and_with_noresume() {
     ));
 }
 
+/// The hooks of a boot chosen in the menu get the default boot environment
+/// as the state directory has it now, as the legacy menu's `set_default_env`
+/// changed `BOOTFS`, not as the menu started with it.
+#[test]
+fn the_hooks_get_the_default_as_it_is_now() {
+    let fake = machine();
+    fake.files
+        .file_with_mode("/libexec/hooks/boot-sel.d/10-sel", "#!/bin/sh\n", 0o755);
+    State::new(&fake.files, "/zfsbootmenu")
+        .set_bootfs("tank/ROOT/new")
+        .unwrap();
+    let system = fake.system();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let mut settings = settings();
+    settings.env = vec![("BOOTFS".to_owned(), "tank/ROOT/old".to_owned())].into();
+    let boot = Boot {
+        system: &system,
+        state: &state,
+        settings: &settings,
+    };
+    let _ = boot.boot(&be(), Some("6.1.10"), None, false, &Shells::default());
+
+    let call = fake
+        .runner
+        .calls()
+        .into_iter()
+        .find(|call| call.program() == "/libexec/hooks/boot-sel.d/10-sel")
+        .expect("the hook ran");
+    let bootfs: Vec<_> = call
+        .get_env()
+        .iter()
+        .filter(|(name, _)| name == "BOOTFS")
+        .cloned()
+        .collect();
+    assert_eq!(bootfs, [("BOOTFS".into(), Some("tank/ROOT/new".into()))]);
+}
+
 #[test]
 fn a_boot_without_its_key_or_kernel_says_why() {
     let locked = FakeSystem::new();

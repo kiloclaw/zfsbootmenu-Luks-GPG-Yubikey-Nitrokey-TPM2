@@ -35,6 +35,11 @@ pub(crate) trait Needs {
 
     /// Unmounts what [`Needs::mount`] mounted at `mounted`.
     fn unmount(&mut self, mounted: &str);
+
+    /// Records `environment` as the default boot environment, which the
+    /// hooks get as `BOOTFS` from then on, as the legacy menu wrote
+    /// `${BASE}/bootfs`.
+    fn record_default(&mut self, environment: &DatasetName);
 }
 
 /// The machine's needs, on the console when it has the console: the
@@ -74,7 +79,11 @@ impl Needs for OnMachine<'_, '_> {
                 Some(root) => Err(vec![format!("the key of {root} is not loaded")]),
             };
         }
-        let how = KeyLoad::new(&self.settings.hooks, &self.settings.env, BootPath::Menu);
+        let mut env = self.settings.env.clone();
+        if let Some(bootfs) = self.state.bootfs().and_then(|name| name.parse().ok()) {
+            env = env.with_bootfs(&bootfs);
+        }
+        let how = KeyLoad::new(&self.settings.hooks, &env, BootPath::Menu);
         let context = Context::new(*self.system);
         let interaction = ConsoleInteraction::new(*self.system);
         keys::load_key(&context, &interaction, self.state, &how, dataset)
@@ -103,6 +112,12 @@ impl Needs for OnMachine<'_, '_> {
         let context = Context::new(*self.system);
         if let Err(error) = zbm_bootenv::recursive_umount(&context, Path::new(mounted)) {
             tracing::warn!(%error, "unmounting the boot environment");
+        }
+    }
+
+    fn record_default(&mut self, environment: &DatasetName) {
+        if let Err(error) = self.state.set_bootfs(environment.as_str()) {
+            tracing::warn!(%error, %environment, "recording the default boot environment");
         }
     }
 }
@@ -155,6 +170,9 @@ impl Needs for Planning<'_, '_> {
     fn unmount(&mut self, mounted: &str) {
         self.machine.unmount(mounted);
     }
+
+    /// A plan records nothing.
+    fn record_default(&mut self, _environment: &DatasetName) {}
 }
 
 #[cfg(test)]

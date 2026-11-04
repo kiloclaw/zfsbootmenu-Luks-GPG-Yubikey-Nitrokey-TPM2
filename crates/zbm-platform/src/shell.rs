@@ -73,7 +73,9 @@ pub fn interpreter(start: &[u8]) -> Interpreter {
     };
     let line = line.split(|&byte| byte == b'\n').next().unwrap_or_default();
     let line = String::from_utf8_lossy(line);
-    let line = line.trim_matches([' ', '\t']);
+    // A line ending in `\r\n` is read without its `\r`, as the runtime
+    // read it before: a script saved on another system still runs.
+    let line = line.trim_matches([' ', '\t', '\r']);
     let (program, argument) = line
         .split_once([' ', '\t'])
         .map_or((line, ""), |(program, rest)| {
@@ -231,6 +233,8 @@ mod tests {
             (b"#!/bin/sh -e\n", shell(Some("-e"))),
             (b"#! /bin/sh  -eu \t\nset -x\n", shell(Some("-eu"))),
             (b"#!/usr/bin/bash -o pipefail\n", shell(Some("-o pipefail"))),
+            (b"#!/bin/bash\r\necho hi\r\n", shell(None)),
+            (b"#!/bin/sh -e\r\n", shell(Some("-e"))),
             (b"#!/usr/bin/env bash\n", Interpreter::Kernel),
             (b"#!/usr/bin/python3\nprint()\n", Interpreter::Kernel),
             (b"#!/bin/zsh", Interpreter::Kernel),

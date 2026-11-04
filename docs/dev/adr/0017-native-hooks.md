@@ -221,6 +221,16 @@ library files become a generated shell library over a `zbm zfunc` applet.**
    library to SB6, so SB5 is the steps, hook execution and the API alone.
 8. **`/libexec/zfunc`.** Proposed: a link to the applet. The alternative drops it with the legacy payload in SB7.
 
+## Where the work stands
+
+- **SB5a** (4 November 2026), points 6 and 7, as decided but for one thing: a hook whose `#!` line asks for an option
+  brush does not have runs as the kernel runs it, on the interpreter its line names, not on Bash, since Bash refuses
+  what the kernel passes too (`-o pipefail` is one argument). A `#!` line ending in `\r\n` is read without its `\r`,
+  as before. A new default boot environment chosen in the menu is recorded in the state directory, and the hooks that
+  run after it get it as `BOOTFS`, as the legacy menu's did. `NO_CACHE` and `CLEAR_SCREEN`, which legacy `load-key.d`
+  hooks inherited from the functions that ran them, are not set (`CHANGES-FROM-LEGACY.md`). zbm-bootenv's public items
+  rose by three, `Variables`, `StageEnv` and `HookEnv`, the types this record calls for.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 4 November 2026:

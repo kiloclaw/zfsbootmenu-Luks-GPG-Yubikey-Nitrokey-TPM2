@@ -111,7 +111,13 @@ impl<'a> Boot<'_, 'a> {
         } else {
             BootPath::Menu
         };
-        let how = KeyLoad::new(&self.settings.hooks, &self.settings.env, path);
+        // The hooks see the default boot environment as it is now, which the
+        // menu may have changed since it started.
+        let mut settings = self.settings.clone();
+        if let Some(bootfs) = self.state.bootfs().and_then(|name| name.parse().ok()) {
+            settings.env = settings.env.with_bootfs(&bootfs);
+        }
+        let how = KeyLoad::new(&settings.hooks, &settings.env, path);
         let context = self.context();
         let interaction = ConsoleInteraction::new(*self.system);
         if let Err(error) = keys::load_key(&context, &interaction, self.state, &how, environment) {
@@ -132,7 +138,6 @@ impl<'a> Boot<'_, 'a> {
             );
         };
         // The typed line is for this boot only: nothing is written down.
-        let mut settings = self.settings.clone();
         settings.command_line = command_line.map(str::to_owned);
         // The plain console boots on a clear screen, as the legacy menu's
         // boot does once the key is loaded.

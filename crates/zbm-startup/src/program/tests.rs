@@ -145,6 +145,40 @@ fn the_console_counts_down_and_boots() {
     assert!(output.contains(support::MESSAGE));
 }
 
+/// ADR 0017, point 7: the countdown's hooks get the configuration's
+/// variables and `BOOTFS`, as the menu's do.
+#[test]
+fn the_countdown_s_hooks_get_the_configuration_and_bootfs() {
+    let fake = machine();
+    fake.files
+        .file_with_mode("/libexec/hooks/boot-sel.d/10-sel", "#!/bin/sh\n", 0o755)
+        .file_with_mode("/libexec/hooks/teardown.d/10-down", "#!/bin/sh\n", 0o755);
+    let console = Modes {
+        console: true,
+        ..Modes::default()
+    };
+    startup(&fake, "zbm.timeout=0").run(console, Some(1));
+    for hook in [
+        "/libexec/hooks/boot-sel.d/10-sel",
+        "/libexec/hooks/teardown.d/10-down",
+    ] {
+        let call = fake
+            .runner
+            .calls()
+            .into_iter()
+            .find(|call| call.program() == hook)
+            .unwrap_or_else(|| panic!("{hook} ran"));
+        let env = call.get_env();
+        let has = |name: &str, value: &str| {
+            env.iter()
+                .any(|(key, set)| key == name && set.as_deref() == Some(value.as_ref()))
+        };
+        assert!(has("BOOTFS", "tank/ROOT/void"), "{hook}: {env:?}");
+        assert!(has("BASE", "/zfsbootmenu"), "{hook}: {env:?}");
+        assert!(has("ZBM_SELECTED_BE", "tank/ROOT/void"), "{hook}: {env:?}");
+    }
+}
+
 #[test]
 fn the_logs_are_saved_before_the_kernel_starts_when_asked() {
     let fake = machine();

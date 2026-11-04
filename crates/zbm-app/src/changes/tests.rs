@@ -46,6 +46,10 @@ impl Needs for FakeNeeds {
     fn unmount(&mut self, mounted: &str) {
         self.asked.push(format!("unmount {mounted}"));
     }
+
+    fn record_default(&mut self, environment: &DatasetName) {
+        self.asked.push(format!("default {environment}"));
+    }
 }
 
 fn machine() -> FakeZfs {
@@ -104,6 +108,12 @@ fn a_new_default_and_a_snapshot_write_the_pool() {
         &Outcome::Done("zroot/ROOT/void is the default of zroot".to_owned())
     );
     assert_eq!(zfs.pools().unwrap()[0].bootfs, Some(void));
+    // The hooks get the new default as BOOTFS from then on.
+    assert!(
+        needs.asked.contains(&"default zroot/ROOT/void".to_owned()),
+        "{:?}",
+        needs.asked
+    );
 
     let taken = snapshot("zroot/ROOT/void@2026-10-26-101500");
     let events = perform(&zfs, &mut needs, &Action::CreateSnapshot(taken.clone()));
@@ -113,6 +123,7 @@ fn a_new_default_and_a_snapshot_write_the_pool() {
         needs.asked,
         [
             "writable zroot",
+            "default zroot/ROOT/void",
             "writable zroot",
             "load_key zroot/ROOT/void"
         ]

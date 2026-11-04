@@ -11,7 +11,7 @@ use std::path::Path;
 
 use zbm_app::auth;
 use zbm_boot::measured::{self, Event, Extended};
-use zbm_bootenv::hooks::{HOOKS, HookEnv, StageEnv, Variables, run_stage};
+use zbm_bootenv::hooks::{HookEnv, StageEnv, Variables, run_stage};
 use zbm_platform::console::Screen;
 use zbm_platform::files::Files;
 use zbm_platform::{Context, System};
@@ -188,39 +188,6 @@ pub fn skip_hooks(files: &dyn Files, root: &Path, skip: &str) {
     }
 }
 
-/// The start-up stage `init.d/40-early-hooks`: imports hooks from
-/// `zbm.hookroot`, applies `zbm.skip_hooks`, clears the screen and runs the
-/// `early-setup.d` hooks once.
-///
-/// # Errors
-///
-/// As [`prepare_early_stage`], once the hooks ran.
-pub fn early_stage(
-    system: &System<'_>,
-    state: &State<'_>,
-    hook_root: &str,
-    skip: Option<&str>,
-) -> Result<(), StartupError> {
-    early_stage_in(system, state, Path::new(HOOKS), hook_root, skip)
-}
-
-/// [`early_stage`] with the hook directories below `root`.
-///
-/// # Errors
-///
-/// As [`prepare_early_stage`], once the hooks ran.
-pub fn early_stage_in(
-    system: &System<'_>,
-    state: &State<'_>,
-    root: &Path,
-    hook_root: &str,
-    skip: Option<&str>,
-) -> Result<(), StartupError> {
-    let prepared = prepare_early_stage(system, state, root, hook_root, skip);
-    run_early_stage(system, root, &Variables::default());
-    prepared
-}
-
 /// What comes before the `early-setup.d` hooks below `root` run: the hooks
 /// of `zbm.hookroot` are imported, and those of `zbm.skip_hooks` skipped.
 ///
@@ -282,7 +249,22 @@ pub fn run_early_stage(system: &System<'_>, root: &Path, variables: &Variables) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zbm_bootenv::hooks::HOOKS;
     use zbm_testkit::legacy::stub_lines;
+
+    /// The early stage as the `EarlyHooks` step runs it, without the
+    /// configuration's variables.
+    fn early_stage(
+        system: &System<'_>,
+        state: &State<'_>,
+        hook_root: &str,
+        skip: Option<&str>,
+    ) -> Result<(), StartupError> {
+        let root = Path::new(HOOKS);
+        let prepared = prepare_early_stage(system, state, root, hook_root, skip);
+        run_early_stage(system, root, &Variables::default());
+        prepared
+    }
 
     use zbm_platform::{Installed, KernelLog};
     use zbm_testkit::fakes::FakeSystem;

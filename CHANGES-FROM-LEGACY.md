@@ -29,10 +29,11 @@ the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut
 
 - **Before:** hooks ran as programs; a script without a `#!` line ran on Bash.
 - **Now:** a hook whose `#!` line names `sh` or `bash` directly (`#!/bin/bash`, `#!/bin/sh -e`), or that has no `#!`
-  line, runs on brush, with the option of its `#!` line (`brush -e`); one brush does not have, such as `-o pipefail`,
-  runs the hook on Bash, and the log says so. Other hooks, `#!/usr/bin/env bash`, Python and compiled programs among
-  them, run as the kernel runs them. ZFSBootMenu tells which from the hook's first bytes, so a compiled hook is never
-  handed to a shell (ADR 0017).
+  line, runs on brush, with the option of its `#!` line (`brush -e`). A hook whose line asks for an option brush does
+  not have (`-p`) runs as the kernel runs it, on the interpreter it names, and the log says so; as on any Linux system,
+  the kernel passes what follows the interpreter as one argument, so `#!/bin/bash -o pipefail` fails there too. Other
+  hooks, `#!/usr/bin/env bash`, Python and compiled programs among them, run as the kernel runs them. ZFSBootMenu
+  tells which from the hook's first bytes, so a compiled hook is never handed to a shell (ADR 0017).
 - **Why:** hooks see the shell the recovery shell has, and run as they would on any Linux system. A hook that does not
   work on brush can name another interpreter, through `env`, or the whole image can use Bash with `zbm.shell=bash`.
 
@@ -42,8 +43,11 @@ the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut
   `ZFSBOOTMENU_INITIALIZATION`.
 - **Now:** every stage's hooks get the variables of `/etc/zfsbootmenu.conf`, `BOOTFS` once it is known, and their
   stage's own, as in the legacy runtime: `ZFSBOOTMENU_INITIALIZATION=yes` in `early-setup.d`, `ZBM_LOCKED_FS` and
-  `ZBM_ENCRYPTION_ROOT` in `load-key.d`, `ZBM_SELECTED_*` in `boot-sel.d` and `teardown.d`. The variables of the
-  `fzf` menu (`FUZZYSEL`, `PREVIEW_HEIGHT`, `FZF_DEFAULT_OPTS`) are not set: Rust images have no `fzf` menu.
+  `ZBM_ENCRYPTION_ROOT` in `load-key.d`, `ZBM_SELECTED_*` in `boot-sel.d` and `teardown.d`. A new default boot
+  environment chosen in the menu is `BOOTFS` for the hooks that run after it, as the legacy menu's was. The variables
+  of the `fzf` menu (`FUZZYSEL`, `PREVIEW_HEIGHT`, `FZF_DEFAULT_OPTS`) are not set: Rust images have no `fzf` menu.
+  Nor are `NO_CACHE` and `CLEAR_SCREEN`, which the legacy runtime's key loading set for its own functions and its
+  `load-key.d` hooks inherited: the Rust runtime passes them as arguments.
 - **Why:** one environment per stage, built in one place and tested for each stage.
 
 ### SSH logins get brush

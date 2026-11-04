@@ -36,7 +36,8 @@ pub fn run_hook(runner: &dyn Runner, hook: &Path, start: Option<&[u8]>, env: &[(
 
 /// The command that runs `hook`, whose first bytes are `start`, where the
 /// runtime chose `shell`: brush keeps a `#!` line's options when it has them,
-/// and a line asking for another one runs on Bash.
+/// and a line asking for another one runs as the kernel runs it, on the
+/// interpreter it names, which then takes the argument or refuses it.
 fn hook_command(hook: &Path, start: Option<&[u8]>, shell: Option<&Path>) -> Command {
     let Some(start) = start else {
         return Command::new(hook);
@@ -44,17 +45,16 @@ fn hook_command(hook: &Path, start: Option<&[u8]>, shell: Option<&Path>) -> Comm
     match (shell::interpreter(start), shell) {
         (Interpreter::Shell(argument), Some(shell)) => {
             let is_brush = shell.file_name().is_some_and(|name| name == "brush");
-            let program = match argument.as_deref() {
+            match argument.as_deref() {
                 Some(argument) if is_brush && !brush_supports(argument) => {
                     zbm_trace::info!(
-                        "{hook} asks for {argument}, which brush lacks, so bash runs it";
+                        "{hook}: brush lacks {argument}, so its #! line runs it";
                         hook = %hook.display(), argument
                     );
-                    Path::new(shell::BASH)
+                    Command::new(hook)
                 }
-                _ => shell,
-            };
-            Command::new(program).args(argument).arg(hook)
+                _ => Command::new(shell).args(argument).arg(hook),
+            }
         }
         (Interpreter::Shell(_) | Interpreter::Kernel, _) => Command::new(hook),
         (Interpreter::Text, shell) => {
@@ -256,11 +256,9 @@ mod tests {
             line(Some(b"#!/bin/bash\n"), brush),
             "/usr/bin/brush /hooks/h"
         );
-        // One brush lacks, as the kernel passes it: one argument, to Bash.
-        assert_eq!(
-            line(Some(b"#!/bin/bash -o pipefail\n"), brush),
-            "/bin/bash -o pipefail /hooks/h"
-        );
+        // One brush lacks runs as the kernel runs it, on its interpreter.
+        assert_eq!(line(Some(b"#!/bin/bash -o pipefail\n"), brush), "/hooks/h");
+        assert_eq!(line(Some(b"#!/bin/sh -p\n"), brush), "/hooks/h");
         assert_eq!(
             line(Some(b"#!/bin/bash -o pipefail\n"), Some("/bin/bash")),
             "/bin/bash -o pipefail /hooks/h"
@@ -288,21 +286,19 @@ mod tests {
         }
     }
 
-    /// Bash runs a hook whose `#!` option brush lacks, and the log says why.
+    /// A hook whose `#!` option brush lacks runs as its line says, and the
+    /// log says why.
     #[test]
     fn an_option_brush_lacks_is_logged() {
         let files = zbm_testkit::fakes::FakeFiles::new();
         files.dir("/dev");
         let log = zbm_platform::KernelLog::new(&files, "7", Path::new("/zfsbootmenu"), 1).install();
         let brush = Some("/usr/bin/brush");
-        assert_eq!(
-            line(Some(b"#!/bin/bash -o pipefail\n"), brush),
-            "/bin/bash -o pipefail /hooks/h"
-        );
+        assert_eq!(line(Some(b"#!/bin/bash -o pipefail\n"), brush), "/hooks/h");
         drop(log);
         let kmsg = zbm_platform::Files::read_to_string(&files, Path::new("/dev/kmsg")).unwrap();
         assert!(
-            kmsg.contains("/hooks/h asks for -o pipefail, which brush lacks, so bash runs it"),
+            kmsg.contains("/hooks/h: brush lacks -o pipefail, so its #! line runs it"),
             "{kmsg}"
         );
     }

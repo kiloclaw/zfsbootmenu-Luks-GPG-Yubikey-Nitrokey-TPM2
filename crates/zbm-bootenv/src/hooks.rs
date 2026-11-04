@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use zbm_platform::Context;
 use zbm_platform::files::{FileKind, Files};
 use zbm_tools::programs;
-use zbm_types::HookStage;
+use zbm_types::{DatasetName, HookStage};
 
 use crate::kernels::Kernel;
 
@@ -62,6 +62,15 @@ impl Extend<(String, String)> for Variables {
 }
 
 impl Variables {
+    /// These variables with `BOOTFS` set to `bootfs`, the default boot
+    /// environment now, as the legacy menu set it when the default changed.
+    #[must_use]
+    pub fn with_bootfs(mut self, bootfs: &DatasetName) -> Variables {
+        self.0.retain(|(name, _)| name != "BOOTFS");
+        self.0.push(("BOOTFS".to_owned(), bootfs.to_string()));
+        self
+    }
+
     /// Each variable, as its name and its value.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
         self.0
