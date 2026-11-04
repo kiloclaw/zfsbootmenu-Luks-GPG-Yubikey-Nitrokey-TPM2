@@ -10,37 +10,42 @@
 
 ## Context
 
-**The built-in hooks.** Every image installs five hooks from `legacy/zfsbootmenu/hooks/`, and `zbm-host` writes or
-rewrites three in Rust images:
+**The built-in hooks.** Every image installs five hooks from `legacy/zfsbootmenu/hooks/`; `zbm-host` rewrites two of
+them in Rust images, and writes a sixth in any image that asks for a screen reader:
 
 | Hook | What it does | In Rust images today |
 | --- | --- | --- |
-| `early-setup.d/05-screen-readers.sh` | starts `brltty`, loads `speakup` (ADR 0011) | written by `zbm-host` when asked |
+| `early-setup.d/05-screen-readers.sh` | starts `brltty`, loads `speakup` and starts `espeakup` for its soft synthesiser (ADR 0011) | written by `zbm-host` from the build options, after the user's hooks, so it replaces a user hook of its name |
 | `early-setup.d/10-generic-efi-init.sh` | prints an escape sequence so the EFI framebuffer recomputes its size | the legacy script, on brush |
-| `early-setup.d/20-dracut-console-init.sh` | dracut only: runs `/lib/udev/console_init` on the control terminal | the legacy script; it reads `ZBM_BUILDSTYLE`, which early-setup hooks do not get, so it seems to do nothing |
+| `early-setup.d/20-dracut-console-init.sh` | dracut only: runs `/lib/udev/console_init` on the control terminal | the legacy script, on brush |
 | `early-setup.d/30-console-autosize.sh` | picks a console font size | rewritten as `exec /libexec/zbm console-autosize` |
 | `teardown.d/80-luks-close.sh` | closes the LUKS mappings before `kexec`, so the kernel wipes their keys | rewritten as `/bin/zluks close` |
 | `teardown.d/90-xhci-unbind.sh` | unbinds the USB controllers before `kexec` | the legacy `#!/bin/sh` script |
 
 They run among the user's hooks, in the order of their names (`zbm_bootenv::hooks::run_stage`). `zbm.skip_hooks`
 names hooks by file name, `80-luks-close.sh`, and removes their permissions; a user hook with a built-in's name, in
-the image or in `zbm.hookroot`, replaces it (`zfsbootmenu.7`). Nothing in the boot sequence closes LUKS but that hook.
+the image (but for the screen readers') or in `zbm.hookroot`, replaces it (`zfsbootmenu.7`). A locked image ignores
+`zbm.hookroot` (ADR 0010) but not `zbm.skip_hooks`. Nothing in the boot sequence closes LUKS but that hook, and Rust
+images still install the legacy `zkexec`, whose legacy `kexec_kernel` runs the teardown hooks through
+`/libexec/zfsbootmenu-run-hooks`.
 Start-up has a `Step` trait for its stages (`zbm-startup/src/step.rs`); there is no `BootStep` and no table of named
 built-ins.
 
 **Running a hook.** With a shell chosen (`ZBM_SHELL`, brush in Rust images), `run_hook` reads the first line: a `#!`
-line naming a shell, or no `#!` line at all, runs `brush HOOK`; anything else is executed. So the options of
-`#!/bin/sh -e` are dropped (fix 21), and an ELF hook, which has no `#!` line, goes to brush (fix 22).
+line naming a shell, or no `#!` line at all, runs `brush HOOK`; any other `#!` line is executed. So the options of
+`#!/bin/sh -e` are dropped (fix 21), and an ELF hook, which has no `#!` line, goes to brush (fix 22). Hooks run
+through `Command` with a `pre_exec`, so the C library's `execvp`, which runs a file the kernel refuses on `/bin/sh`,
+hides `ENOEXEC` from the runtime.
 
 **The environment.** The supervisor starts with `/etc/zfsbootmenu.conf` exported, so the start-up program and the
-menu's hooks inherit it; each stage adds its own variables. Against the legacy runtime, `early-setup.d` gets no
-`ZFSBOOTMENU_INITIALIZATION`, `load-key.d` no `BOOTFS`, a menu started over SSH no configuration for its key hooks,
+menu's hooks inherit it, `early-setup.d` included; each stage adds its own variables. Against the legacy runtime,
+`early-setup.d` gets no `ZFSBOOTMENU_INITIALIZATION`, `load-key.d` no `BOOTFS`, a menu started over SSH no configuration for its key hooks,
 and no hook gets the `fzf` variables (`FUZZYSEL`, `PREVIEW_HEIGHT`, `FZF_DEFAULT_OPTS`). The environment is assembled
 in four crates, though `crates/DESIGN.md` promises "a pure function, so unit tests check it for every stage". No
 hook gets anything a program not written in a shell can read easily.
 
 **The library.** Rust images still install `legacy/zfsbootmenu/{lib,libexec,bin}`. Hooks may source
-`/lib/zfsbootmenu-core.sh` and `/lib/kmsg-log-lib.sh`, which source `/lib/zfsbootmenu-kcl.sh`: `contrib/`'s hooks do,
+`/lib/zfsbootmenu-core.sh`, which sources `/lib/zfsbootmenu-kcl.sh`, and `/lib/kmsg-log-lib.sh`: `contrib/`'s hooks do,
 the recovery shell's `/root/.bashrc` does, and `crates/DESIGN.md` makes their 69 functions a contract ("Compatibility
 library"), but gives it to "package F", which is SB6, while ROADMAP gives "the generated `zfunc` library" to SB5.
 `/libexec/zfunc` is a Bash script that sources five files and calls any function by name; the legacy menu's `F12`,
@@ -48,7 +53,8 @@ library"), but gives it to "package F", which is SB6, while ROADMAP gives "the g
 the legacy payload, needs the bundled hooks and the library to stop depending on those files.
 
 **Measurement.** ADR 0009 measures the hooks copied from `zbm.hookroot` into PCR 9; the image's own hooks are measured
-with the image.
+with the image. securityfs, which says whether the kernel is locked down, is mounted only in a locked image at start
+and when the kernel is loaded.
 
 ## Decision
 
@@ -59,39 +65,49 @@ library files become a generated shell library over a `zbm zfunc` applet.**
 ### Boot steps
 
 1. **`trait BootStep`** in `zbm-bootenv`'s `hooks` module, beside `run_stage`: a name, a stage (`HookStage`) and
-   `run(&self, &Context, &HookEnv) -> Result<(), BootStepError>`. `run_stage` takes the stage's steps with the hook
+   `run(&self, &Context, &HookEnv) -> Result<(), BootStepError>`; a step that needs what a `Context` does not hold runs
+   the `zbm` applet that has it, as a program, without a shell. `run_stage` takes the stage's steps with the hook
    directory and runs both in the order of their names in the C locale, so a step runs where its file ran and a user's
    `85-x.sh` still runs between the LUKS close and the USB unbind. A step's error is logged with its code and the stage
    goes on, as a hook's exit status is ignored today.
-2. **One table, `zbm_app::steps::BUILT_IN`,** since both boots reach `zbm-app` (the menu's and the countdown's through
+2. **One table, `zbm_app::steps::built_in()`,** since both boots reach `zbm-app` (the menu's and the countdown's through
    `zbm-startup`, which depends on it), and the LUKS close needs `zbm-luks`, which `zbm-boot` may not use. The callers
-   pass the table down: start-up to its early stage, both boots to `kexec_kernel` through `BootSettings`. The console
-   autosize's choice moves from `zbm-startup` to `zbm-app` with it, and the `console-autosize` applet calls it there.
+   pass the table down: start-up to its early stage, both boots to `kexec_kernel` through `BootSettings`, whose
+   `BootSteps` field compares and prints by the steps' names; `zbm-app`'s `Runtime` sets it, and a test checks that
+   both callers of `kexec_kernel` do. The callers also mark the steps that may not be skipped or replaced (point 4),
+   since they know the lock. In Rust images `/libexec/zfsbootmenu-run-hooks` becomes the applet `zbm run-hooks`, which
+   runs the same steps and hooks, so the legacy `zkexec` still closes LUKS until SB6 replaces it.
 3. **The six built-ins become steps,** and Rust images stop installing their scripts; the legacy runtime keeps the
    scripts, unchanged:
-   - `05-screen-readers.sh` starts `brltty` and loads the `speakup` modules through the module loader (CD4), as the
-     image's configuration asks;
+   - `05-screen-readers.sh` starts `brltty`, loads the `speakup` modules through the module loader (CD4) and starts
+     `espeakup` for the soft synthesiser, as the build options ask, which `zbm-host` now writes to the image's
+     configuration instead of into a script;
    - `10-generic-efi-init.sh` writes the escape sequence to the console;
    - `20-dracut-console-init.sh` runs `/lib/udev/console_init` on the control terminal in dracut images, reading the
      build style from the image's configuration, not from the hook's environment;
-   - `30-console-autosize.sh` is the autosize's choice;
-   - `80-luks-close.sh` is `zbm-luks`'s `close_all`, after the pools are exported;
+   - `30-console-autosize.sh` runs the `console-autosize` applet, which holds the console's fonts;
+   - `80-luks-close.sh` is `zbm-luks`'s `close_all`, which exports the pools on the mappings first;
    - `90-xhci-unbind.sh` writes each `xhci_hcd` device to `unbind` through the files port.
 4. **Names, skipping and replacing.** A step keeps its file name, `.sh` included, so `zbm.skip_hooks=80-luks-close.sh`
    and the man page keep their meaning; `zbm.skip_hooks` also accepts the name without `.sh`. A skipped step does not
    run, and the log says so. A user hook with a step's name, in the image or in the hook root, replaces the step, as
-   it replaced the file; a hook-root hook stays measured (ADR 0009). But the LUKS close can be neither skipped nor
-   replaced in a locked image (SE9) or under lockdown or Secure Boot (SE10): the runtime warns, and the step runs.
-5. **Run once.** Early-setup steps run once, as the stage's hooks do, recorded in the state directory with the
-   stages; a restarted start-up program runs neither again.
+   it replaced the file; a hook-root hook stays measured (ADR 0009). But the LUKS close is kept in a locked image
+   (SE9) and under lockdown or Secure Boot (SE10): `zbm.skip_hooks` cannot skip it, which is the one way left in a
+   locked image, and a hook root cannot replace it under lockdown or Secure Boot; the runtime warns, and the step runs.
+   An image's own hook of its name still replaces it, as the image is the owner's. Start-up mounts securityfs
+   read-only before the early stage, as it mounts `efivarfs`, so lockdown is known from the start.
+5. **Run once.** Early-setup steps run once, as the stage's hooks do: each is recorded in the state directory apart
+   from the stages' records, so that neither a restarted start-up program nor `ZFSBOOTMENU_FORCE_INIT` runs it again,
+   as neither runs a renamed hook again.
 
 ### Running a hook
 
-6. **A hook runs as the kernel would run it** (fixes 21 and 22). `run_hook` executes the file. When its `#!` line
-   names a shell (`/bin/sh`, `/bin/bash`, or `env` with either), the runtime's chosen shell runs it with the options
-   of that line (`brush -e HOOK`), unless the line asks for an option the shell does not have, which runs it with
-   Bash, and logs why. A file the kernel refuses (`ENOEXEC`), a text without a `#!` line, runs on the chosen shell, as
-   Bash ran it in the legacy runtime. An ELF hook is executed.
+6. **A hook runs as the kernel would run it** (fixes 21 and 22), decided from its first bytes before it starts,
+   since `execvp` hides `ENOEXEC`. A `#!` line naming `/bin/sh` or `/bin/bash` runs on the runtime's chosen shell with
+   that line's argument, as the kernel passes it, one argument (`#!/bin/sh -e` is `brush -e HOOK`), unless the
+   argument asks for an option the shell does not have, which runs it with Bash, and logs why. Any other `#!` line,
+   `env` included, and an ELF file are executed. A file with neither runs on the chosen shell, as Bash ran it in the
+   legacy runtime.
 
 ### The hook API version 2
 
@@ -101,8 +117,8 @@ library files become a generated shell library over a `zbm zfunc` applet.**
    the stage's own variables as today. The `fzf` variables go, with `fzf` (SB6), and `CHANGES-FROM-LEGACY.md` says so.
 8. **`ZBM_HOOK_API=2`** in every stage, and **`ZBM_HOOK_CONTEXT`,** the path of a JSON file the runtime writes before
    the stage and removes after it: `/run/zbm/hooks/<stage>.json`, mode 0444, owned by root. It holds the API version,
-   the stage, the runtime, the build style, whether the image is a release build, locked, under lockdown or Secure
-   Boot, and what the stage knows: the imported pools and the boot environment (`setup.d` on), the locked dataset and
+   the stage, the runtime, the build style, whether the image is a release build, locked, under lockdown (securityfs,
+   point 4) or Secure Boot, and what the stage knows: the imported pools and the boot environment (`setup.d` on), the locked dataset and
    its encryption root (`load-key.d`), the selected environment, kernel, initramfs and mount point (`boot-sel.d`), and
    the command line, the device tree and how the kernel is loaded (`teardown.d`). It holds no secret and no key
    location's contents. Its schema is documented in `zfsbootmenu.7` and versioned with the API; fields may be added,
@@ -114,10 +130,11 @@ library files become a generated shell library over a `zbm zfunc` applet.**
    the completions, the LUKS libraries) with the recovery tools. `crates/DESIGN.md` changes to say so.
 10. **`zbm zfunc FUNCTION [ARGS]`,** an applet with a table of the 69 functions of `zfsbootmenu-core.sh`,
     `kmsg-log-lib.sh` and `zfsbootmenu-kcl.sh`. Each runs the Rust code where it exists (`import_pool`,
-    `set_rw_pool`, `mount_zfs`, `load_key`, `find_be_kernels`, ...), and for the others the legacy function, until
-    SB7 needs the list empty; a test lists which are still legacy. `emergency_shell` goes through the `ShellGate`
-    (ADR 0010). The applet does not ask for the PIN: hooks are the image's or measured, and the recovery shell is
-    behind the gate already.
+    `set_rw_pool`, `mount_zfs`, `load_key`, `find_be_kernels`, ...), and for any other name, the five files the legacy
+    `zfunc` sources included, the legacy function, which Rust images install under `/usr/share/zfsbootmenu/legacy/`
+    until SB7 needs the list empty; a test lists which are still legacy. `emergency_shell` goes through the gate
+    (ADR 0010: the shell, or the PIN first in a locked image). The applet asks for the PIN for nothing else: hooks are
+    the image's or measured, and the recovery shell is behind the gate already.
 11. **The generated library.** `zbm image plan` writes the three files at their paths from the applet's table: each
     function a wrapper, `f() { /libexec/zbm zfunc f "$@"; }`, with the implicit inputs and outputs `crates/DESIGN.md`
     lists (prefix assignments, `BOOTFS`, `spl_hostid`, `HEIGHT` and `WIDTH`); the functions that only transform text
@@ -134,12 +151,11 @@ library files become a generated shell library over a `zbm zfunc` applet.**
 
 ## Consequences
 
-- Rust images run no shell for the built-ins, and the LUKS close no longer depends on a script that a typo in
-  `zbm.skip_hooks` or a hook root can remove where the image is locked or measured.
-- Hooks run as on any Linux system: `#!/bin/sh -e` stops at the first error, a compiled hook runs, `#!/usr/bin/python3`
-  runs on Python where the image has it.
-- `early-setup.d` hooks get the configuration's variables, which they had in the legacy runtime; `20-dracut-console-init`
-  does what it says on dracut images again.
+- Rust images run no shell for the built-ins, and the LUKS close can no longer be removed by `zbm.skip_hooks` in a
+  locked image, or by a hook root under lockdown or Secure Boot.
+- Hooks run as on any Linux system: `#!/bin/sh -e` stops at the first error, and a compiled hook runs instead of
+  going to brush; other interpreters' `#!` lines run as they do today.
+- `load-key.d` hooks get `BOOTFS`, and a menu over SSH gives its hooks the configuration, as the legacy runtime did.
 - Hooks not written in a shell get one file to read; shell hooks get nothing new to learn.
 - The library's functions keep their names and paths, so `contrib/` and users' hooks keep working through SB7, and
   each function moves to Rust on its own, with the test saying which are left.
@@ -156,11 +172,11 @@ library files become a generated shell library over a `zbm zfunc` applet.**
   explain, but a user's `85-x.sh` would no longer run before the USB unbind, which is why the names are numbered.
 - **New names for the steps** (`luks-close`). Cleaner, but every `zbm.skip_hooks` on a kernel command line and the man
   page would change; accepting both spellings costs one comparison.
-- **Let a hook root replace the LUKS close everywhere,** as today. Compatible, but on a locked or measured machine the
-  hook root is the one input an attacker with the boot device can change, and leaving the keys in memory across
-  `kexec` is what it would do.
-- **Run every hook with brush,** as today, but pass the `#!` options. Fixes 21 only; an ELF or Python hook still goes
-  to brush.
+- **Let `zbm.skip_hooks` and a hook root remove the LUKS close everywhere,** as today. Compatible, but on a locked
+  image the command line, and under lockdown the hook root, are inputs an attacker with the boot device can change,
+  and leaving the keys in memory across `kexec` is what they would do.
+- **Run every shell hook with brush,** as today, but pass the `#!` options. Fixes 21 only; an ELF hook still goes to
+  brush.
 - **Every function of the library in Rust before SB5 ends.** The library is 69 functions, some (`zreport`,
   `zfs_chroot`) with no Rust yet and in SB6's scope; falling back to the legacy function keeps SB5 the size of SB5.
 - **The context as environment variables only.** Lists (pools, kernels) do not fit a variable, and a program not
@@ -171,8 +187,8 @@ library files become a generated shell library over a `zbm zfunc` applet.**
 - Unit tests for each step on `FakeSystem`, for the table (unique names, one stage each, sorted with hooks as the
   files were), for `zbm.skip_hooks` with and without `.sh`, for replacing a step, and for the LUKS close that cannot be
   skipped when locked or measured.
-- `run_hook`'s tests: `#!/bin/sh -e` stops at the first error, `#!/usr/bin/env bash -x` keeps its option, an ELF
-  hook runs, a text without `#!` runs on the shell.
+- `run_hook`'s tests: `#!/bin/sh -e` stops at the first error, `#!/bin/bash -eu` keeps its options, an ELF hook
+  runs, a text without `#!` runs on the shell and not on `/bin/sh`.
 - The environment function's tests for every stage, and a parity test of each stage's variables against the legacy
   runtime's, but for the `fzf` ones.
 - The context's schema test, a test that it holds no secret, and that it is removed after its stage.
@@ -189,10 +205,12 @@ library files become a generated shell library over a `zbm zfunc` applet.**
    alternative keeps `05-screen-readers.sh` and `20-dracut-console-init.sh` as scripts, since they run programs.
 2. **Names.** Proposed: the file names, `.sh` included, with the names without `.sh` accepted. The alternative is new
    names, with the old ones accepted for one release.
-3. **Skipping and replacing the LUKS close.** Proposed: allowed as today, but refused, with a warning, in a locked image
-   or under lockdown or Secure Boot. The alternatives allow it everywhere, as today, or never.
-4. **Running a hook.** Proposed: as the kernel would, the shell's `#!` lines on the chosen shell with their options,
-   texts without `#!` on the shell, and Bash for an option brush lacks. The alternative runs every shell `#!` line on
+3. **Skipping and replacing the LUKS close.** Proposed: allowed as today, but `zbm.skip_hooks` refused in a locked
+   image and under lockdown or Secure Boot, and a hook root's replacement refused under lockdown or Secure Boot, each
+   with a warning. The alternatives allow it everywhere, as today, or never.
+4. **Running a hook.** Proposed: as the kernel would, decided from the first bytes: `/bin/sh` and `/bin/bash` lines
+   on the chosen shell with their argument, other `#!` lines and ELF files executed, texts without `#!` on the shell,
+   and Bash for an option brush lacks. The alternative runs every shell `#!` line on
    Bash, and only hooks without `#!` on brush.
 5. **The environment.** Proposed: the legacy runtime's per stage, the configuration everywhere and `BOOTFS` in
    `load-key.d`, without the `fzf` variables. The alternative keeps today's.
