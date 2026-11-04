@@ -288,6 +288,25 @@ mod tests {
         }
     }
 
+    /// Bash runs a hook whose `#!` option brush lacks, and the log says why.
+    #[test]
+    fn an_option_brush_lacks_is_logged() {
+        let files = zbm_testkit::fakes::FakeFiles::new();
+        files.dir("/dev");
+        let log = zbm_platform::KernelLog::new(&files, "7", Path::new("/zfsbootmenu"), 1).install();
+        let brush = Some("/usr/bin/brush");
+        assert_eq!(
+            line(Some(b"#!/bin/bash -o pipefail\n"), brush),
+            "/bin/bash -o pipefail /hooks/h"
+        );
+        drop(log);
+        let kmsg = zbm_platform::Files::read_to_string(&files, Path::new("/dev/kmsg")).unwrap();
+        assert!(
+            kmsg.contains("/hooks/h asks for -o pipefail, which brush lacks, so bash runs it"),
+            "{kmsg}"
+        );
+    }
+
     #[test]
     fn a_hook_runs_on_the_console_with_its_environment() {
         let runner = FakeRunner::new();
