@@ -25,6 +25,7 @@ pub mod menu;
 pub mod menu_demo;
 mod remote;
 pub mod report;
+mod run_hooks;
 pub mod saved;
 #[cfg(any(test, feature = "secret-test"))]
 pub mod secret_search;
@@ -146,6 +147,12 @@ const LOCK: Applet = Applet {
     run: lock::run,
 };
 
+const RUN_HOOKS: Applet = Applet {
+    name: "run-hooks",
+    summary: "run a hook stage and its built-in steps (zfsbootmenu-run-hooks)",
+    run: run_hooks::run,
+};
+
 const MENU: Applet = Applet {
     name: "zfsbootmenu",
     summary: "the menu: boot environments, booting and the recovery shell",
@@ -171,6 +178,7 @@ pub const APPLETS: &[Applet] = &[
     EXPLAIN,
     MEASURE,
     LOCK,
+    RUN_HOOKS,
 ];
 
 /// The exit status for a command that does not exist, as a shell reports it.
@@ -374,6 +382,7 @@ mod tests {
             "explain",
             "measure",
             "lock",
+            "run-hooks",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

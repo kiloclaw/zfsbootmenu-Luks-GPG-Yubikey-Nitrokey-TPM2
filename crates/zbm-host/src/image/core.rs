@@ -8,9 +8,10 @@ use std::path::{Path, PathBuf};
 use super::{Entry, Fatal, Image};
 
 /// What the Rust runtime is instead of the legacy runtime's files: `zbm`
-/// is the start-up program, `zluks` and the menu.
-const RUST_REPLACES: [&str; 4] = [
+/// is the start-up program, `zluks`, the menu and the hook stages' runner.
+const RUST_REPLACES: [&str; 5] = [
     "libexec/zfsbootmenu-init",
+    "libexec/zfsbootmenu-run-hooks",
     "bin/zluks",
     "bin/zfsbootmenu",
     "bin/zbm",
@@ -25,29 +26,12 @@ case "${1:-}" in
 esac
 "#;
 
-/// The teardown hook of the Rust runtime that closes the LUKS mappings.
-const LUKS_CLOSE: &str = r"#!/bin/bash
-## Close the LUKS mappings that ZFSBootMenu opened to import ZFS pools, with
-## zluks: the pools on them are exported first, and closing them makes the
-## kernel wipe the dm-crypt volume keys before the new kernel starts.
-##
-## This hook may be disabled with zbm.skip_hooks=80-luks-close.sh
-
-command -v cryptsetup >/dev/null 2>&1 || exit 0
-/bin/zluks close
-exit 0
-";
-
-/// The early-setup hook of the Rust runtime that sizes the console font.
-const CONSOLE_AUTOSIZE: &str = r"#!/bin/bash
-## Size the console font to the display (zbm.autosize), with zbm: from the
-## display's physical size where its EDID gives it, so that text is readable
-## on high-density (HiDPI) and ordinary screens alike.
-##
-## This hook may be disabled with zbm.skip_hooks=30-console-autosize.sh
-
-exec /libexec/zbm console-autosize
-";
+/// `/libexec/zfsbootmenu-run-hooks` of the Rust runtime, which the legacy
+/// shell code runs: the hooks of a stage with its built-in steps, so that
+/// the legacy `zkexec` closes the LUKS mappings (ADR 0017).
+const RUN_HOOKS: &str = r#"#!/bin/sh
+exec /libexec/zbm run-hooks "$@"
+"#;
 
 /// The stages of the hooks, in order.
 pub const STAGES: [&str; 5] = [
@@ -118,6 +102,9 @@ pub fn core(image: &mut Image) {
         image.plan.link("/libexec/zbm", "/bin/zluks");
         image.plan.link("/libexec/zbm", "/bin/zfsbootmenu");
         image.plan.write("/bin/zbm", 0o755, BIN_ZBM);
+        image
+            .plan
+            .write("/libexec/zfsbootmenu-run-hooks", 0o755, RUN_HOOKS);
         return;
     }
     for name in image.host.names(&root.join("init.d")) {
@@ -217,27 +204,31 @@ fn listed(image: &Image, dir: &Path) -> Vec<PathBuf> {
     names.into_iter().map(|name| dir.join(name)).collect()
 }
 
-/// The hooks: ZFSBootMenu's own first, so that the user's replace them;
-/// the Rust runtime's own LUKS teardown and font sizing; the user's of
-/// the deprecated options (`zfsbootmenu_early_setup`, `_setup`,
+/// Whether the hook `name` of `stage` is one the Rust runtime runs as a
+/// built-in step (ADR 0017).
+fn is_built_in(stage: &str, name: &str) -> bool {
+    zbm_types::BUILT_IN_HOOKS
+        .iter()
+        .any(|(built_in, file)| built_in.as_str() == stage && *file == name)
+}
+
+/// The hooks: ZFSBootMenu's own first, so that the user's replace them,
+/// but in images of the Rust runtime those it runs as built-in steps; the
+/// user's of the deprecated options (`zfsbootmenu_early_setup`, `_setup`,
 /// `_teardown`), then those of `zfsbootmenu_hook_root`.
 pub fn hooks(image: &mut Image) {
     let root = image.module_root().join("hooks");
     for stage in STAGES {
         let dir = root.join(stage);
         if image.host.is_dir(&dir) {
-            let files = listed(image, &dir);
+            let mut files = listed(image, &dir);
+            if image.is_rust() {
+                files.retain(|file| {
+                    let name = file.file_name().unwrap_or_default().to_string_lossy();
+                    !is_built_in(stage, &name)
+                });
+            }
             hooks_of(image, stage, &files);
-        }
-    }
-    let replaced = [
-        ("teardown.d/80-luks-close.sh", LUKS_CLOSE),
-        ("early-setup.d/30-console-autosize.sh", CONSOLE_AUTOSIZE),
-    ];
-    for (hook, text) in replaced {
-        let dest = Path::new("/libexec/hooks").join(hook);
-        if image.is_rust() && image.plan.has(&dest) {
-            image.plan.write(dest, 0o755, text);
         }
     }
     for (option, stage) in [
@@ -266,6 +257,13 @@ pub fn hooks(image: &mut Image) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_built_in_hooks_are_known_by_stage_and_name() {
+        assert!(is_built_in("teardown.d", "80-luks-close.sh"));
+        assert!(!is_built_in("early-setup.d", "80-luks-close.sh"));
+        assert!(!is_built_in("teardown.d", "80-luks-close"));
+    }
 
     #[test]
     fn days_are_civil_dates() {

@@ -76,7 +76,6 @@ file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-edit-kcl	/libexec/zfsbootmenu-ed
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-help	/libexec/zfsbootmenu-help	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
-file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-run-hooks	/libexec/zfsbootmenu-run-hooks	-
 file	/usr/share/zfsbootmenu/libexec/zfunc	/libexec/zfunc	-
 file	/usr/share/zfsbootmenu/libexec/zpowermenu	/libexec/zpowermenu	-
 link	ztrace	/bin/debug
@@ -99,31 +98,9 @@ file	@/bin/zbm	/bin/zbm	0755
     |   ""|-*) exec /libexec/zbm zfsbootmenu "$@" ;;
     |   *) exec /libexec/zbm "$@" ;;
     | esac
-dir	/libexec/hooks/early-setup.d	0755
-file	/usr/share/zfsbootmenu/hooks/early-setup.d/10-generic-efi-init.sh	/libexec/hooks/early-setup.d/10-generic-efi-init.sh	-
-file	/usr/share/zfsbootmenu/hooks/early-setup.d/20-dracut-console-init.sh	/libexec/hooks/early-setup.d/20-dracut-console-init.sh	-
-dir	/libexec/hooks/teardown.d	0755
-file	/usr/share/zfsbootmenu/hooks/teardown.d/90-xhci-unbind.sh	/libexec/hooks/teardown.d/90-xhci-unbind.sh	-
-file	@/libexec/hooks/teardown.d/80-luks-close.sh	/libexec/hooks/teardown.d/80-luks-close.sh	0755
-    | #!/bin/bash
-    | ## Close the LUKS mappings that ZFSBootMenu opened to import ZFS pools, with
-    | ## zluks: the pools on them are exported first, and closing them makes the
-    | ## kernel wipe the dm-crypt volume keys before the new kernel starts.
-    | ##
-    | ## This hook may be disabled with zbm.skip_hooks=80-luks-close.sh
-    | 
-    | command -v cryptsetup >/dev/null 2>&1 || exit 0
-    | /bin/zluks close
-    | exit 0
-file	@/libexec/hooks/early-setup.d/30-console-autosize.sh	/libexec/hooks/early-setup.d/30-console-autosize.sh	0755
-    | #!/bin/bash
-    | ## Size the console font to the display (zbm.autosize), with zbm: from the
-    | ## display's physical size where its EDID gives it, so that text is readable
-    | ## on high-density (HiDPI) and ordinary screens alike.
-    | ##
-    | ## This hook may be disabled with zbm.skip_hooks=30-console-autosize.sh
-    | 
-    | exec /libexec/zbm console-autosize
+file	@/libexec/zfsbootmenu-run-hooks	/libexec/zfsbootmenu-run-hooks	0755
+    | #!/bin/sh
+    | exec /libexec/zbm run-hooks "$@"
 dir	/libexec/hooks/boot-sel.d	0755
 file	/etc/zfsbootmenu/hooks/boot-sel.d/10-pick.sh	/libexec/hooks/boot-sel.d/10-pick.sh	-
 hook	cmdline	95	/usr/lib/dracut/modules.d/90zfsbootmenu/zfsbootmenu-rust-cmdline.sh

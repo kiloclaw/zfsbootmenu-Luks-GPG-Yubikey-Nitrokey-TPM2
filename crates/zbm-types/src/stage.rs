@@ -104,6 +104,18 @@ named! {
     }
 }
 
+/// The hooks the Rust runtime runs as built-in steps (ADR 0017), by stage
+/// and file name: `zbm-app`'s table of steps, whose scripts the images of
+/// the Rust runtime do not install.
+pub const BUILT_IN_HOOKS: [(HookStage, &str); 6] = [
+    (HookStage::EarlySetup, "05-screen-readers.sh"),
+    (HookStage::EarlySetup, "10-generic-efi-init.sh"),
+    (HookStage::EarlySetup, "20-dracut-console-init.sh"),
+    (HookStage::EarlySetup, "30-console-autosize.sh"),
+    (HookStage::Teardown, "80-luks-close.sh"),
+    (HookStage::Teardown, "90-xhci-unbind.sh"),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -98,7 +98,9 @@ pub fn graphics(image: &mut Image) -> Result<(), Fatal> {
 /// with its configuration, drivers and tables, and the USB serial drivers
 /// of Braille displays; with `zfsbootmenu_speakup=<synth>`, the speakup
 /// modules of that synthesiser (soft: with espeakup, when the host has
-/// it). An early-setup hook starts them before anything is asked.
+/// it). An early-setup hook starts them before anything is asked: in images
+/// of the Rust runtime its built-in step, as `ZBM_BRLTTY`, `ZBM_SPEAKUP` and
+/// `ZBM_ESPEAKUP` of the image's configuration ask (ADR 0017).
 ///
 /// # Errors
 ///
@@ -114,39 +116,29 @@ pub fn screen_readers(image: &mut Image) -> Result<(), Fatal> {
          ## (zfsbootmenu_brltty, zfsbootmenu_speakup).\n",
     );
     if brltty {
-        if image.executable("brltty").is_none() {
-            return Err("zfsbootmenu_brltty is set, but this host has no brltty".into());
-        }
-        if image.host.exists(Path::new("/etc/brltty.conf")) {
-            image.install(Path::new("/etc/brltty.conf"), Path::new("/etc/brltty.conf"));
-        }
-        for dir in BRLTTY_DIRS.map(Path::new) {
-            for (path, found) in image.host.walk(dir) {
-                if found != super::Found::File {
-                    continue;
-                }
-                let name = path.file_name().unwrap_or_default().to_string_lossy();
-                if name.ends_with(".so") || name.contains(".so.") {
-                    image.plan.add(Entry::Library { src: path });
-                } else {
-                    image.install(&path, &path.clone());
-                }
-            }
-        }
-        for module in BRAILLE_MODULES {
-            image.plan.module(module, Need::Optional, true);
-        }
+        brltty_files(image)?;
         hook.push_str("brltty -q >/dev/null 2>&1 || true\n");
     }
-    if let Some(synth) = synth {
+    let mut espeakup = false;
+    if let Some(synth) = &synth {
         image.plan.module("speakup", Need::Required, true);
         image
             .plan
             .module(&format!("speakup_{synth}"), Need::Required, true);
         let _ = writeln!(hook, "modprobe speakup_{synth} >/dev/null 2>&1 || true");
         if synth == "soft" && image.executable("espeakup").is_some() {
+            espeakup = true;
             hook.push_str("espeakup >/dev/null 2>&1 || true\n");
         }
+    }
+    if image.is_rust() {
+        let synth = synth.as_deref().unwrap_or_default();
+        image.plan.append(
+            "/etc/zfsbootmenu.conf",
+            0o644,
+            &screen_reader_conf(brltty, synth, espeakup),
+        );
+        return Ok(());
     }
     hook.push_str("exit 0\n");
     image.plan.write(
@@ -155,6 +147,54 @@ pub fn screen_readers(image: &mut Image) -> Result<(), Fatal> {
         hook,
     );
     Ok(())
+}
+
+/// brltty with its configuration, drivers and tables, and the USB serial
+/// drivers of Braille displays.
+///
+/// # Errors
+///
+/// When the host has no brltty.
+fn brltty_files(image: &mut Image) -> Result<(), Fatal> {
+    if image.executable("brltty").is_none() {
+        return Err("zfsbootmenu_brltty is set, but this host has no brltty".into());
+    }
+    if image.host.exists(Path::new("/etc/brltty.conf")) {
+        image.install(Path::new("/etc/brltty.conf"), Path::new("/etc/brltty.conf"));
+    }
+    for dir in BRLTTY_DIRS.map(Path::new) {
+        for (path, found) in image.host.walk(dir) {
+            if found != super::Found::File {
+                continue;
+            }
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            if name.ends_with(".so") || name.contains(".so.") {
+                image.plan.add(Entry::Library { src: path });
+            } else {
+                image.install(&path, &path.clone());
+            }
+        }
+    }
+    for module in BRAILLE_MODULES {
+        image.plan.module(module, Need::Optional, true);
+    }
+    Ok(())
+}
+
+/// The lines of `/etc/zfsbootmenu.conf` that start the screen readers in
+/// the Rust runtime's early-setup step: `ZBM_BRLTTY`, `ZBM_SPEAKUP` (the
+/// synthesiser) and `ZBM_ESPEAKUP`.
+fn screen_reader_conf(brltty: bool, synth: &str, espeakup: bool) -> String {
+    let flag = |on: bool| if on { "1" } else { "" };
+    let mut conf = String::new();
+    for (name, value) in [
+        ("ZBM_BRLTTY", flag(brltty)),
+        ("ZBM_SPEAKUP", synth),
+        ("ZBM_ESPEAKUP", flag(espeakup)),
+    ] {
+        let _ = writeln!(conf, "export {name}='{}'", value.replace('\'', r"'\''"));
+    }
+    conf
 }
 
 /// The lock of the menu (ADR 0010): the Argon2id hash of its PIN, which

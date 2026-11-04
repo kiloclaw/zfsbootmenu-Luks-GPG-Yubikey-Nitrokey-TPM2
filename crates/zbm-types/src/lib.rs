@@ -79,7 +79,7 @@ pub use preference::{BootfsPreference, PoolRequirement};
 pub use selector::KernelSelector;
 pub use settings::{LogLevel, RetryDelay, Timeout};
 pub use snapshot::SnapshotName;
-pub use stage::{HookStage, Stage};
+pub use stage::{BUILT_IN_HOOKS, HookStage, Stage};
 pub use untrusted::{Printable, Untrusted, must_escape};
 pub use version::KernelVersion;
 pub use zfs::{DatasetName, PoolName};

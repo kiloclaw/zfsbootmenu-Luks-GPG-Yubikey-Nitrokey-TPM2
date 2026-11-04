@@ -63,6 +63,12 @@ fn the_table_is_the_six_hooks_in_the_order_of_their_names() {
         4
     );
     assert_eq!(kept(), ["teardown.d/80-luks-close.sh"]);
+    // The images leave out the scripts of exactly these.
+    let table: Vec<(HookStage, &str)> = TABLE
+        .iter()
+        .map(|step| (step.stage(), step.name()))
+        .collect();
+    assert_eq!(table, zbm_types::BUILT_IN_HOOKS);
 }
 
 /// ADR 0017, points 4 and 5: `zbm.skip_hooks` skips a step by its name,
