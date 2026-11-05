@@ -192,6 +192,12 @@ The system teardown hook *80-luks-close.sh* runs right before **kexec**. It expo
 mapping opened by ZFSBootMenu, including vdevs on partitions inside a mapping, and closes the mappings. It can be
 disabled with **zbm.skip_hooks=80-luks-close.sh**.
 
+In images with the Rust runtime, *80-luks-close.sh* is a built-in step of that name, which runs **zluks close**; the
+image holds no script of that name. **zbm.skip_hooks=80-luks-close.sh** (or *80-luks-close*) skips it, except in a
+locked image (**zfsbootmenu_lock_hash**) and under lockdown or Secure Boot, where the step runs anyway, with a warning.
+Under lockdown or Secure Boot, a *teardown.d/80-luks-close.sh* in **zbm.hookroot** is disabled, so it cannot replace
+the step either. See *User Hooks* in :doc:`zfsbootmenu(7) </man/zfsbootmenu.7>`.
+
 The boot environment must unlock its LUKS volumes again from its own initramfs, for example with a key file embedded
 in that initramfs. Because the initramfs is stored inside the encrypted pool, this does not expose the key.
 
@@ -292,7 +298,8 @@ FILES
 
 */libexec/hooks/teardown.d/80-luks-close.sh*
 
-  Teardown hook that exports pools and closes volumes before **kexec**.
+  Teardown hook that exports pools and closes volumes before **kexec**. Images with the Rust runtime have no such file:
+  they run the built-in step of that name.
 
 */zfsbootmenu/luks-mappings*, */zfsbootmenu/luks-skipped*
 

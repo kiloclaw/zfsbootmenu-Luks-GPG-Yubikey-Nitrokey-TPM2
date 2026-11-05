@@ -245,9 +245,9 @@ fn plain(test: &Test, boot: &Boot, runtime: ZbmRuntime, scenario: &str, log: &st
 
 /// Checks what the hook of the hook root saw of the hook API (ADR 0017):
 /// version 2 and the teardown's context file in the Rust runtime, nothing
-/// in the legacy runtime; the library's `get_zbm_arg` in both, through
-/// `zbm zfunc` in the Rust runtime; the LUKS close a built-in step, not a
-/// script, in the Rust runtime.
+/// in the legacy runtime; the library's function that reads a kernel
+/// argument in both, through `zbm zfunc` in the Rust runtime; the LUKS
+/// close a built-in step, not a script, in the Rust runtime.
 fn check_hook_api(test: &Test, runtime: ZbmRuntime, log: &str) -> Result<()> {
     let api = regex(HOOK_API)?.captures(log);
     let library = regex(LIBRARY)?.captures(log);

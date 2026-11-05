@@ -532,8 +532,10 @@ Security notes
   partition. Use passphrases, a key on a separate device (``path:device``), or a key script.
 * The crypttab itself contains no secrets, but it does reveal device identifiers.
 * Mappings opened by ZFSBootMenu are closed before ``kexec``, which wipes their volume keys from kernel memory. The
-  ``80-luks-close.sh`` teardown hook does this. It can be disabled with ``zbm.skip_hooks=80-luks-close.sh``, but there
-  is rarely a reason to.
+  ``80-luks-close.sh`` teardown hook does this; in images with the Rust runtime it is a built-in step of that name. It
+  can be disabled with ``zbm.skip_hooks=80-luks-close.sh``, but there is rarely a reason to. In images with the Rust
+  runtime, a locked image (``zfsbootmenu_lock_hash``) and any image under lockdown or Secure Boot run it anyway, with a
+  warning, and do not let a ``teardown.d/80-luks-close.sh`` of ``zbm.hookroot`` replace it.
 * **A TPM2 token without a PIN unlocks the pools for anyone who can start the computer.** ZFSBootMenu offers a recovery
   shell and lets you edit kernel command lines. Combine TPM-only unlocking with Secure Boot (bind to PCR 7) and a boot
   environment whose data is also protected otherwise, or require a PIN.

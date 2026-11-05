@@ -65,6 +65,139 @@ Its parser had a bug with `case` patterns inside `$( )`, and its `kill` did not 
 image's brush has fixes for both (`patches/README.md`). A command started with `&` runs inside brush rather than as a
 process of its own: `jobs` lists it, but `$!` is empty and `kill %1` does not stop it.
 
+## Hooks (SB5)
+
+Rust images run the hooks as [ADR 0017](docs/dev/adr/0017-native-hooks.md) decides. How a hook runs and what its
+environment holds are above, with the shell: [Hooks run on brush](#hooks-run-on-brush) and [Hooks get the legacy
+runtime's variables](#hooks-get-the-legacy-runtimes-variables). `zfsbootmenu(7)`, User Hooks, documents the rest.
+
+### The built-in hooks are steps of the runtime
+
+- **Before:** images installed the hooks ZFSBootMenu ships as scripts: `early-setup.d/10-generic-efi-init.sh`,
+  `20-dracut-console-init.sh` (dracut images), `30-console-autosize.sh` and, with a screen reader,
+  `05-screen-readers.sh`; `teardown.d/80-luks-close.sh` and `90-xhci-unbind.sh`. They ran on a shell, among the
+  user's hooks.
+- **Now:** Rust images do not install these scripts. The runtime does the same things itself, as built-in steps with
+  the same names: it writes the escape sequence that makes the EFI framebuffer find its size, runs
+  `/lib/udev/console_init` on the control terminal in dracut images, runs `/libexec/zbm console-autosize`, starts the
+  screen readers, runs `/bin/zluks close` when `cryptsetup` is in the image, and unbinds every `xhci_hcd` USB
+  controller (it tries them all, and fails at the end naming those left bound). A step runs where its file ran: among
+  the stage's hooks, in the order of their names, so a user's `85-x.sh` still runs between the LUKS close and the USB
+  unbind. The log says `running the built-in step <name>`; a step that fails is logged with its code, `ZBM-E0611`, and
+  the stage goes on, as a hook's exit status was ignored. A hook with a step's name, in the image or in
+  `zbm.hookroot`, replaces the step, as it replaced the file, and the log says `the hook <name> replaces its built-in
+  step`. The legacy runtime keeps the scripts, unchanged.
+- **Why:** no shell runs for each built-in at every boot, and the hooks ZFSBootMenu ships no longer need the legacy
+  files, which Rust images are to lose (SB7).
+
+### `zbm.skip_hooks` takes names without `.sh`
+
+- **Before:** `zbm.skip_hooks` named hooks by their file names, `80-luks-close.sh`, and removed the permissions of the
+  files of those exact names.
+- **Now:** a name skips a built-in step with or without `.sh` (`zbm.skip_hooks=80-luks-close`), and a hook file
+  named `<name>.sh` too. A skipped step does not run, and the log says so (`Disabling built-in step`). The steps
+  skipped are recorded in the state directory, so the boots from the menu and `zbm run-hooks` leave them out too.
+- **Why:** the steps keep the names of their files, so command lines and the manual keep their meaning; accepting
+  the name without `.sh` costs one comparison.
+
+### The LUKS close is kept on a locked or measured machine
+
+- **Before:** `zbm.skip_hooks=80-luks-close.sh` removed the LUKS close on any machine, and a hook root's
+  `teardown.d/80-luks-close.sh` took its place; the mappings, and their keys, then stayed open across `kexec`.
+- **Now:** in a locked image (ADR 0010), and under lockdown or Secure Boot (ADR 0008), the LUKS close runs anyway.
+  `zbm.skip_hooks` does not skip it, and warns: `zbm.skip_hooks names 80-luks-close.sh, which this locked or measured
+  machine runs anyway`. Under lockdown or Secure Boot, a hook root's `teardown.d/80-luks-close.sh` is disabled (mode
+  0), with a warning, so the step runs; a locked image ignores `zbm.hookroot` altogether (ADR 0010). A hook of
+  that name in the image itself still replaces the step: the image is the owner's. Elsewhere, both work as before.
+  Start-up mounts securityfs read-only before the `early-setup.d` stage, so lockdown is known from the start, and a
+  locked image without lockdown or Secure Boot is warned about: a changed kernel command line gets past the lock.
+- **Why:** on such a machine the kernel command line and the hook root are what an attacker with the boot device can
+  change, and keys left in memory across `kexec` are what they would be after.
+
+### Early steps run once, recorded in the state directory
+
+- **Before:** the built-in `early-setup.d` hooks ran once as every hook of the stage did: afterwards they lost their
+  permissions and were renamed to `*.completed`.
+- **Now:** the user's `early-setup.d` hooks still are. The built-in steps of the stage are recorded by start-up in the
+  state directory, `/zfsbootmenu/steps`, as `ran <name>` lines (the steps `zbm.skip_hooks` names as `skipped <name>`),
+  apart from the records of the stages, so neither a start-up program started again nor `ZFSBOOTMENU_FORCE_INIT` runs
+  one again, as neither runs a renamed hook again.
+- **Why:** a step has no file to rename.
+
+### `zfsbootmenu-run-hooks` runs the steps too
+
+- **Before:** `/libexec/zfsbootmenu-run-hooks [-once] STAGE` ran the executable files of the stage; the legacy
+  `zkexec` of the recovery shell runs the `teardown.d` hooks with it.
+- **Now:** in Rust images it is a script that execs `zbm run-hooks [-once] STAGE`, which runs the stage's hooks and
+  its built-in steps (but those start-up left out), with `/etc/zfsbootmenu.conf` and the stage's variables from its
+  environment, and exits 0 when a hook or step ran and 1 otherwise, as the script did. A boot with `zkexec` closes the
+  LUKS mappings and unbinds the USB controllers, as a boot from the menu does.
+- **Why:** with the scripts gone, `zkexec` would otherwise boot with the mappings open.
+
+### Hooks get `ZBM_HOOK_API` and `ZBM_HOOK_CONTEXT`
+
+- **Before:** hooks got their stage's variables, and nothing a program not written in a shell reads easily.
+- **Now:** every stage's hooks get `ZBM_HOOK_API=2`. When a stage runs at least one hook file, the runtime writes
+  `/run/zbm/hooks/<stage>.json` before the stage (mode 0444, root's), passes its path as `ZBM_HOOK_CONTEXT`, and
+  removes it after the stage; a stage of built-in steps alone writes none. The file is one line of JSON: the API
+  version, the stage, the runtime, the build style, whether the image is a release build, locked, under lockdown
+  (and which) or Secure Boot; from `setup.d` on, the imported pools and the boot environment; and what the stage
+  knows: the locked dataset and its encryption root in `load-key.d`, the selected environment, kernel, initramfs and
+  mount point in `boot-sel.d`, and in `teardown.d` the selection, the command line, the device tree and how the
+  kernel was loaded. A value that is not known is `null`, as are the last three when `zbm run-hooks` runs the stage
+  for the legacy `zkexec`. It holds no secret and no key location's contents. Later versions may add fields, never
+  change or remove one. When the file cannot be written, `ZBM_HOOK_CONTEXT` is empty and the log says why.
+- **Why:** hooks written in Python or compiled get one file to read, and shell hooks get nothing new to learn.
+
+### The hook library runs in `zbm`
+
+- **Before:** `/lib/zfsbootmenu-core.sh`, `/lib/kmsg-log-lib.sh` and `/lib/zfsbootmenu-kcl.sh` were the legacy shell
+  code, and a hook that sourced them ran their functions in its own shell.
+- **Now:** Rust images install the three files generated from the legacy ones. Their 69 functions keep their names;
+  56 are wrappers that run `/libexec/zbm zfunc <name> "$@"` in a subshell that exports the variables the legacy
+  functions read, so a variable a hook set without `export` still reaches the function. The functions that only
+  transform text (`colorize`, `decolorize`, `center_string`, `is_snapshot`, `kcl_tokenize`, `kcl_suppress`,
+  `kcl_append`, `kcl_assemble`) and the logging functions (`zdebug`, `zinfo`, `znotice`, `zwarn`, `zerror`) stay the
+  legacy shell code. The wrappers leave in the caller's shell what callers read of the legacy functions: `BOOTFS`
+  after a `set_default_env` that succeeded; `ret` after `import_pool`, and `spl_hostid` after a failed import; `ret`
+  after `export_pool`; `HEIGHT` and `WIDTH` after `timed_prompt`; `mount_dev` after `is_mounted`. The other variables
+  the legacy functions left set, such as their loop variables, are not. `emergency_shell` and `is_degraded` are Rust
+  code; any other function runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash, which sources the
+  legacy files, kept below `/usr/share/zfsbootmenu/legacy/lib`, and runs the function with the caller's streams and
+  signals. `emergency_shell` opens the recovery shell through its gate, whichever function calls it: a locked image
+  asks for the PIN first. Each wrapped call is a process, so a hook that calls `import_pool` in a loop is slower; its
+  arguments must be valid UTF-8 (`zbm` refuses others, with status 2); and the function does not see the functions
+  the hook defined.
+- **Why:** the hook contract no longer needs the legacy files, and each function can move to Rust on its own; a test
+  lists those still legacy.
+
+### `/libexec/zfunc` is `zbm`
+
+- **Before:** a Bash script that sourced `/etc/zfsbootmenu.conf` and four files of the legacy library and called a
+  function by name.
+- **Now:** a link to `zbm`: `/libexec/zfunc FUNCTION [ARGS]` is `zbm zfunc`, which runs the function as the
+  library's wrappers do, with the variables of `/etc/zfsbootmenu.conf` the environment does not set, as the script
+  sourced the file. `/libexec/zfunc import_pool`, which the GRUB migration guide names, keeps working.
+- **Why:** one way to call a function of the library, with the recovery shell behind its gate.
+
+### `zreport` does not list the built-in steps
+
+- **Before:** the hook lists of `zreport` in the recovery shell named the built-in hooks with the user's.
+- **Now:** `zreport` still lists the hooks by their files, so in Rust images the built-in steps are not in its lists.
+  The log says which steps ran.
+- **Why:** `zreport` is still the legacy function, and a step has no file.
+
+### Screen readers are started from the configuration
+
+- **Before:** images built with `zfsbootmenu_brltty=yes` or `zfsbootmenu_speakup=<synth>` got an
+  `early-setup.d/05-screen-readers.sh` written by the image build after the user's hooks, so it took the place of a
+  user hook of that name.
+- **Now:** Rust images get `ZBM_BRLTTY`, `ZBM_SPEAKUP` and `ZBM_ESPEAKUP` lines in `/etc/zfsbootmenu.conf` instead,
+  and the built-in step `05-screen-readers.sh` starts `brltty`, loads `speakup_<synth>` through the runtime's module
+  loader and starts `espeakup` for the soft synthesiser, as they ask. As for every step, a user hook of that name
+  replaces it. Legacy images keep the script.
+- **Why:** the build options are values the runtime reads, not a script written for them.
+
 ## The console on the display
 
 Only Rust images have the console of `zbm.console=drm`, which draws the terminal through DRM in place of the kernel

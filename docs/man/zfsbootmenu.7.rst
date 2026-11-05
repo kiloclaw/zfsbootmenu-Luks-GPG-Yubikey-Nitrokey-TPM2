@@ -175,7 +175,9 @@ These options are set on the kernel command line when booting the initramfs or U
   further subdirectorie are ignored. Note that, because ZFSBootMenu copies these scripts into its
   standard hook paths at each boot, it is possible to "mask" a script explicitly included in the
   ZFSBootMenu image by including an external hook script with the same name in the appropriate
-  directory.
+  directory. In images with the Rust runtime, under lockdown or Secure Boot, a hook root's
+  *teardown.d/80-luks-close.sh* is disabled with a warning, so that the built-in step that closes the
+  LUKS volumes before **kexec** runs; a locked image ignores the hook root altogether.
 
   In images with the Rust runtime, on a machine with a TPM, the hooks copied from the hook root are
   measured into PCR 9 before any hook runs. A LUKS2 TPM2 token bound to PCR 9 then unseals only with
@@ -197,6 +199,14 @@ These options are set on the kernel command line when booting the initramfs or U
   Skip execution of any early-setup, setup, load-key, boot-selection or teardown hooks with file
   names matching any entry in the comma-separated list *hooklist*. Only base names of hooks (*i.e.*,
   with any other path component removed) are matched against the *hooklist*.
+
+  In images built with the Rust runtime, an entry may leave out the *.sh* suffix: *90-xhci-unbind*
+  skips the hook *90-xhci-unbind.sh*. The hooks ZFSBootMenu ships run there as built-in steps that
+  keep the hooks' names (see **User Hooks**), and an entry skips a step as it skips a hook file; the
+  log says which steps it disabled. A locked image (**zfsbootmenu_lock_hash**), and any image under
+  lockdown or Secure Boot, runs the step *80-luks-close.sh* anyway, with a warning: it closes the LUKS
+  volumes before **kexec**, so that the kernel wipes their keys. Images with the legacy runtime match
+  the whole file name only.
 
   **NOTE**: The *hooklist* argument **MUST NOT** contain spaces and **MUST NOT** be enclosed in
   quotes.
@@ -916,7 +926,7 @@ if that kernel exists and is usable by ZFSBootMenu. Within the command-line file
 User Hooks
 ==========
 
-At various points during operation, ZFSBootMenu will execute optional hooks that allow critical operations to be supplemented with custom behavior. System hooks are provided in the directory *${zfsbootmenu_module_root}/hooks* and are automatically installed in all ZFSBootMenu images. User hooks may be provided in the directory *${zfsbootmenu_hook_root}*.
+At various points during operation, ZFSBootMenu will execute optional hooks that allow critical operations to be supplemented with custom behavior. System hooks are provided in the directory *${zfsbootmenu_module_root}/hooks* and are automatically installed in images with the legacy runtime; images with the Rust runtime run them as built-in steps instead (see **Built-in Steps** below). User hooks may be provided in the directory *${zfsbootmenu_hook_root}*.
 
 Hooks should be marked executable and placed in a subdirectory of *${zfsbootmenu_hook_root}* named according to the point at which the hooks are executed:
 
@@ -969,11 +979,149 @@ Hooks should be marked executable and placed in a subdirectory of *${zfsbootmenu
 
     The path where the selected boot environment is currently mounted, which is the root relative to which ZFSBootMenu will attempt to load the selected kernel and initramfs.
 
-  The system teardown hook *80-luks-close.sh* exports pools that reside on LUKS volumes opened by ZFSBootMenu and closes those volumes, so later teardown hooks should not expect them to be available.
+  The system teardown hook *80-luks-close.sh*, a built-in step in images with the Rust runtime, exports pools that reside on LUKS volumes opened by ZFSBootMenu and closes those volumes, so later teardown hooks should not expect them to be available.
 
   Teardown hooks should never assume that the filesystem named in **ZBM_SELECTED_BE** is currently mounted. In addition, no teardown hook should assume that the ZFSBootMenu environment is in a consistent operating state. ZFSBootMenu may have exported some or all pools prior to executing teardown hooks.
 
   In general, it is not possible to cleanly abort a boot attempt from boot-selection or teardown hooks. However, a boot-selection or teardown hook may take control of the boot attempt by implementing its own **kexec** load and execution without returning to ZFSBootMenu. This may be useful, for example, to allow ZFSBootMenu to select a boot environment and then restructure the boot process to launch a Xen kernel with the selected environment configured as dom0.
+
+
+Built-in Steps
+--------------
+
+Images built with the Rust runtime do not install the system hooks. The Rust runtime does their work itself, as built-in steps that keep the hooks' names and stages:
+
+**early-setup.d/05-screen-readers.sh**
+
+  Starts **brltty**, loads the module of the **speakup** synthesiser and starts **espeakup** for the soft synthesiser, as **zfsbootmenu_brltty** and **zfsbootmenu_speakup** asked when the image was built (the build writes their answers to */etc/zfsbootmenu.conf*). It does nothing in an image built without them.
+
+**early-setup.d/10-generic-efi-init.sh**
+
+  Writes an escape sequence to the control terminal, or to */dev/console*, so that the EFI framebuffer finds its size.
+
+**early-setup.d/20-dracut-console-init.sh**
+
+  In images built by dracut, runs */lib/udev/console_init* on the control terminal.
+
+**early-setup.d/30-console-autosize.sh**
+
+  Sizes the console font, as **zbm.autosize** asks.
+
+**teardown.d/80-luks-close.sh**
+
+  When **cryptsetup** is in the image, runs **zluks close**, which exports the pools on the LUKS mappings that ZFSBootMenu opened and closes the mappings.
+
+**teardown.d/90-xhci-unbind.sh**
+
+  Unbinds every USB controller of the *xhci_hcd* driver. It tries them all, and fails at the end naming those left bound.
+
+A step runs where its hook ran: among the hooks of its stage, in the order of their names in the C locale. A user hook *teardown.d/85-example.sh* still runs after the LUKS close and before the USB controllers are unbound. A hook with the name of a step, in the image (from *${zfsbootmenu_hook_root}*) or in **zbm.hookroot**, replaces the step, and the log says so. **zbm.skip_hooks** skips a step by its name, with or without *.sh*, and the log says so. A step that fails is logged with its error code, *ZBM-E0611*, and the stage goes on, as it goes on after a hook that fails. Early-setup steps run once: ZFSBootMenu records them in */zfsbootmenu/steps*, so that a restarted start-up program does not run them again.
+
+The LUKS close is kept in a locked image (**zfsbootmenu_lock_hash**) and under lockdown or Secure Boot. There, **zbm.skip_hooks** cannot skip *80-luks-close.sh*: ZFSBootMenu warns, and the step runs. Under lockdown or Secure Boot, a *teardown.d/80-luks-close.sh* copied from **zbm.hookroot** is disabled with a warning, and the step runs; a locked image ignores **zbm.hookroot** altogether. A hook of that name built into the image still replaces the step: the image is its owner's. ZFSBootMenu mounts securityfs before the early-setup hooks run, so lockdown is known from the start; a locked image without lockdown or Secure Boot warns that a changed kernel command line gets past the lock.
+
+When a hook of **zbm.hookroot** fails to copy, the file of its name in the image is disabled, whether it holds part of the copy or the image's own hook that the copy overwrote: it was not measured, so it does not run.
+
+The boot from the menu and the boot at the end of the countdown run the same steps. So does **zkexec** in the recovery shell: in these images, */libexec/zfsbootmenu-run-hooks* runs **zbm run-hooks**, which runs the hooks and steps of a stage with the variables of */etc/zfsbootmenu.conf* and those of the stage from its environment, and exits with status 0 when a hook or step ran and 1 otherwise, as the legacy script does. **zreport** lists hooks by their files, so its lists of hooks leave out the built-in steps.
+
+Images with the legacy runtime install the system hooks as scripts and run them as they run user hooks; they write *05-screen-readers.sh* only into images that ask for a screen reader. Their **zbm.skip_hooks** matches the whole file name only.
+
+The Hook API Version 2
+----------------------
+
+In images built with the Rust runtime, the hooks of every stage get the variable **ZBM_HOOK_API**, set to *2*. Images with the legacy runtime do not set it, so a hook can test it to tell the two apart.
+
+When a stage runs at least one hook file, ZFSBootMenu writes a JSON file that says what the stage knows before the hooks run, passes its path in **ZBM_HOOK_CONTEXT**, and removes it after the stage. The file is */run/zbm/hooks/<stage>.json* (for example, */run/zbm/hooks/teardown.d.json*), owned by root, with mode 0444. When the file cannot be written, the failure is logged and **ZBM_HOOK_CONTEXT** is set but empty. A stage that runs built-in steps alone writes no file. ZFSBootMenu writes the file itself and does not measure it.
+
+The file holds one JSON object, on one line. It holds no secret and no contents of a key location. Later versions of the API may add fields, but never change or remove one. A value ZFSBootMenu does not know is *null*. Every stage has these fields:
+
+**api**
+
+  The version of the hook API, the number *2*.
+
+**stage**
+
+  The stage: *"early-setup.d"*, *"setup.d"*, *"load-key.d"*, *"boot-sel.d"* or *"teardown.d"*.
+
+**runtime**
+
+  The runtime of the image, *"rust"*.
+
+**build_style**
+
+  The builder of the image, *"dracut"* or *"mkinitcpio"*.
+
+**release**
+
+  *true* in a release build, otherwise *false*.
+
+**locked**
+
+  *true* when the menu is locked (**zfsbootmenu_lock_hash**), otherwise *false*.
+
+**lockdown**
+
+  The kernel's lockdown mode, *"integrity"* or *"confidentiality"*, or *null* when the kernel is not locked down.
+
+**secure_boot**
+
+  *true* when the firmware booted with Secure Boot on, otherwise *false*.
+
+From **setup.d** on (in **setup.d**, **load-key.d**, **boot-sel.d** and **teardown.d**), two more:
+
+**pools**
+
+  The names of the imported pools, an array sorted by name, from the pools' directories of */proc/spl/kstat/zfs*.
+
+**boot_environment**
+
+  The default boot environment, as in **BOOTFS**, or *null*.
+
+**load-key.d** adds:
+
+**locked_fs**
+
+  The filesystem that must be unlocked, as in **ZBM_LOCKED_FS**.
+
+**encryption_root**
+
+  Its encryption root, as in **ZBM_ENCRYPTION_ROOT**.
+
+**boot-sel.d** adds:
+
+**selected**
+
+  The boot environment about to be launched, an object of three strings: **boot_environment**, as in **ZBM_SELECTED_BE**; **kernel**, as in **ZBM_SELECTED_KERNEL**; and **initramfs**, as in **ZBM_SELECTED_INITRAMFS**.
+
+**mountpoint**
+
+  Where the selected boot environment is mounted, as in **ZBM_SELECTED_MOUNTPOINT**.
+
+**teardown.d** adds **selected**, as in **boot-sel.d**, and:
+
+**command_line**
+
+  The command line of the kernel that was loaded.
+
+**devicetree**
+
+  The path of the device tree that was loaded with it, or *null* when none was.
+
+**loaded_by**
+
+  What loaded the kernel: *"kexec_file_load"*, the kernel's call, or *"kexec"*, the program.
+
+These three are *null* when the process that runs the stage did not load the kernel, as when **zkexec** in the recovery shell runs the stage through **zbm run-hooks**.
+
+The Shell Library
+-----------------
+
+Hooks may source the shell library of ZFSBootMenu, */lib/zfsbootmenu-core.sh* (which sources */lib/zfsbootmenu-kcl.sh*) and */lib/kmsg-log-lib.sh*, and call its functions. Images built with the Rust runtime install these three files as the build generates them from those of *${zfsbootmenu_module_root}/lib*. Thirteen functions stay the legacy shell code: those that only transform text (**decolorize**, **colorize**, **center_string**, **is_snapshot**, **kcl_tokenize**, **kcl_suppress**, **kcl_append** and **kcl_assemble**) and the logging functions (**zdebug**, **zinfo**, **znotice**, **zwarn** and **zerror**). Every other function is a wrapper that runs **/libexec/zbm zfunc** with the function's name and arguments, in a subshell that exports the variables that the legacy functions read, so that a variable a hook set without **export** still reaches it. What the files run besides their functions stays: their guards, their error trap and the *source* of the command-line functions.
+
+The wrappers keep the variables that callers read after a call: *BOOTFS* after **set_default_env** succeeds; *ret* after **import_pool**, and *spl_hostid* after it failed to import; *ret* after **export_pool**; *HEIGHT* and *WIDTH* after **timed_prompt**; and *mount_dev* after **is_mounted**. Other variables that the legacy functions left set, such as their loop variables, are not kept.
+
+**/libexec/zfunc** *function* [*argument* ...] runs one function of the library, as in images of the legacy runtime. In images built with the Rust runtime, it is a link to **zbm**, and runs as **zbm zfunc** does. Two functions run Rust code: **emergency_shell**, the recovery shell of the start-up program, which asks for the PIN first in a locked image, and **is_degraded**. Any other function runs as the legacy runtime ran it: **zbm** replaces itself with GNU Bash, which sources the legacy library as the legacy **zfunc** did, with the three files kept below */usr/share/zfsbootmenu/legacy/lib*, and runs the function with the caller's standard streams and signals. The variables of */etc/zfsbootmenu.conf* are added where the environment does not set them. A legacy function that opens **emergency_shell** opens that of **zbm**, which asks for the PIN in a locked image.
+
+The library has limits in these images. Each call of a wrapped function starts a process. Its arguments must be valid UTF-8: **zbm** refuses others, with status 2. A wrapped function does not see the functions that its caller defined.
 
 
 SEE ALSO

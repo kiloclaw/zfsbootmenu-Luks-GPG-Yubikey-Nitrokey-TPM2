@@ -50,7 +50,7 @@ A boot runs these processes:
 ```text
 PID 1   zbm, as zfsbootmenu-init --supervise   the supervisor: never exits, reaps every child
 └── zfsbootmenu-init                           start-up sequence, countdown, automatic boot
-    ├── early-setup.d, setup.d, ... hooks      shell scripts, unchanged
+    ├── early-setup.d, setup.d, ... hooks      the user's programs, among the built-in steps
     ├── zluks unlock                           LUKS unlocking without the menu, in its own process
     ├── zfsbootmenu                            the menu (also started over SSH or from the recovery shell)
     │   └── fzf                                draws a screen
@@ -85,7 +85,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-pool` | Pool import: policies, host IDs, the retry loop of the start-up stage, the read-write import before a change. | `init.d/50-import-pools`, `zfsbootmenu-core.sh` |
 | `zbm-bootenv` | Boot environments: their datasets, mounts, kernels, command lines, ZFS encryption keys and hooks. | `zfsbootmenu-core.sh` |
 | `zbm-boot` | Booting a boot environment: the sequence to `kexec`, measured boot, the teardown, the GPUs, saved logs and the recovery port. | `zfsbootmenu-core.sh` |
-| `zbm-app` | What front ends talk to: actions, events and the snapshot of the machine. | — |
+| `zbm-app` | What front ends talk to: actions, events and the snapshot of the machine; the built-in steps of the hook stages (`steps`, ADR 0017). | the bundled hooks |
 | `zbm-startup` | The start-up program: its stages as steps, the recovery shell, the start-up hooks. | `init.d/*`, `zfsbootmenu-init` |
 | `zbm-host` | The host tools (DM10, ADR 0013): `generate-zbm`, which builds images (`generate_zbm`); `zbm-kcl`, which reads and writes the kernel command line of boot environments and EFI images (`kcl`); the plan of an image (`image`, SB8, ADR 0006), the manifest the dracut module and the mkinitcpio hook install (`zbm image plan`), with golden plans; PE images read and written without `objcopy` (`pe`, CD12, ADR 0014). | `bin/generate-zbm`, `bin/zbm-kcl`, `install-helpers.sh`, `module-setup.sh`, `install/zfsbootmenu` |
 | `zbm-tui` | The menu: an Elm architecture on Ratatui and nucleo-matcher. | `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `fzf` |
@@ -268,7 +268,7 @@ The start-up stages run in this order, as the steps of `zbm-startup` (one `Step`
 | Kernel modules, `udevadm settle` | `init.d/10-kmods` |
 | Host ID | `init.d/20-hostid` |
 | Wait for `zbm.wait_for` devices | `init.d/30-device-wait` |
-| External hook root, `zbm.skip_hooks`, `early-setup.d` hooks | `init.d/40-early-hooks` |
+| External hook root, `zbm.skip_hooks`, `early-setup.d` hooks and built-in steps | `init.d/40-early-hooks` |
 | LUKS unlocking | `init.d/45-luks-unlock` |
 | Pool import, retries, host ID matching, restricted pools, unsupported features, `bootfs` | `init.d/50-import-pools` |
 | Mark the start-up done (`initialized`) | `zfsbootmenu-init` |
@@ -313,6 +313,7 @@ they see today; and short-lived callback processes need no server to ask.
 | `ready` | dracut's `initqueue/settled` hook | dracut's `initqueue/finished` hook | empty |
 | `initialized` | start-up, when done | menu | empty |
 | `.stages` | start-up, after each stage (new, replaces the permission bits of `/libexec/init.d`) | start-up | one stage name per line |
+| `steps` | start-up: the steps `zbm.skip_hooks` names, and the `early-setup.d` steps once they ran (`zbm run-hooks -once` too; new, ADR 0017) | every process that runs a hook stage: start-up, the menu, `zbm run-hooks` | `ran <name>` and `skipped <name>` lines |
 | `active`, `active.lock` | menu, at start; `active` removed at exit | menu (takeover), start-up (before the automatic boot), users | process ID and newline; a file locked with `flock` while a menu runs |
 | `bootfs` | pool import; menu (`CTRL+D`) | start-up, menu | dataset name and newline |
 | `degraded` | pool import, re-import after the recovery shell | read-write imports | one pool per line |
@@ -328,7 +329,7 @@ they see today; and short-lived callback processes need no server to ask.
 | `.keys/<key source>/.lock` | key caching, while it runs | key caching | empty; locked with `flock` |
 | `.external_hooks` | external hook root | hook import | mount point |
 | `have_errors`, `have_warnings`, `errors_since` | logging, error printer | previews, recovery shell, `zlogtail` | empty; time stamp |
-| `luks-mappings`, `luks-mappings.lock`, `luks-skipped` | LUKS unlocking | teardown hook, `zluks`, retries | `name<TAB>device<TAB>auto` lines; a file locked with `flock`; one device per line |
+| `luks-mappings`, `luks-mappings.lock`, `luks-skipped` | LUKS unlocking | the LUKS close (`zluks close`), `zluks`, retries | `name<TAB>device<TAB>auto` lines; a file locked with `flock`; one device per line |
 
 Files that other processes may read while they are rewritten (`bootfs`, `bootenvs`, `kernels`, `.kcl` files) are
 written to a temporary name and renamed, so a reader sees the old or the new contents, never a partial file. The
@@ -436,55 +437,159 @@ restores the default `SIGPIPE` action in every program it starts, which matches 
 
 ## Hooks
 
-Hooks stay shell scripts in the same directories (`/libexec/hooks/{early-setup,setup,load-key,boot-sel,teardown}.d`),
-with the same rules as `zfsbootmenu-run-hooks`:
+Hooks are the user's executable files, in the same directories
+(`/libexec/hooks/{early-setup,setup,load-key,boot-sel,teardown}.d`). The six hooks ZFSBootMenu shipped are built-in
+steps of the Rust runtime (ADR 0017), and Rust images no longer install their scripts; the legacy runtime keeps them.
+`zbm_bootenv::hooks::run_stage` runs a stage, its hooks and its steps, with the rules of `zfsbootmenu-run-hooks`:
 
 - Every executable file in the directory runs, in the order of its name in the C locale (the image sets no locale),
-  with the standard streams of the process that runs the stage. `processing <hook>` is logged at the information level
-  before each one; its exit status is ignored and not logged.
-- A stage reports whether any hook ran: `load-key.d` checks the encryption root again only then.
+  with the standard streams of the process that runs the stage. The stage's steps run among the hooks, in the same
+  order, so each runs where its file ran: a user's `85-x.sh` still runs between the LUKS close and the USB unbind.
+  `processing <hook>` is logged at the information level before each hook, and `running the built-in step <name>`
+  before each step. A hook's exit status is ignored and not logged; a step's error is logged with its code
+  (`ZBM-E0611`), and the stage goes on.
+- How a hook runs is decided from its first bytes (`zbm_platform::shell::interpreter`, which
+  `zbm_tools::programs::run_hook` asks): a `#!` line that names `sh` or `bash`, or no `#!` line, runs on the chosen
+  shell (brush in Rust images) with the line's argument; a line with an option the shell does not have, any other
+  interpreter and an ELF file run as the kernel runs them.
+- A stage reports whether any hook or step ran: `load-key.d` checks the encryption root again only then.
 - `early-setup.d` hooks run once: afterwards they lose their permissions and are renamed to `*.completed`, and
-  `Disabling hook after execution: <hook>` is logged.
+  `Disabling hook after execution: <hook>` is logged. The stage's steps run once too: start-up records each in the
+  state directory (`steps`, `ran <name>`), apart from `.stages`, so that neither a start-up program started again nor
+  `ZFSBOOTMENU_FORCE_INIT` runs one again.
 - `zbm.hookroot` imports hooks from another file system first, and `zbm.skip_hooks` then removes the permissions of the
-  named hooks, before the `early-setup.d` stage.
-- The environment is that of the process that runs the stage (the variables of `/etc/zfsbootmenu.conf`, and `BOOTFS`
-  once it is known), plus the variables of the stage. The start-up program has the configuration's variables because
-  the supervisor starts with them exported (see "Start-up hooks"); an applet that does not descend from it, such as a
-  menu started over SSH, adds them to the hooks it runs, as `zfsbootmenu-run-hooks` sources the file. The stage
-  variables are `ZBM_LOCKED_FS` and `ZBM_ENCRYPTION_ROOT` for `load-key.d`; `ZBM_SELECTED_BE`,
-  `ZBM_SELECTED_KERNEL`, `ZBM_SELECTED_INITRAMFS` for `boot-sel.d` and `teardown.d`, and `ZBM_SELECTED_MOUNTPOINT`
-  for `boot-sel.d`.
+  named hooks and records the named steps as skipped (`skipped <name>`), before the `early-setup.d` stage. A name
+  matches with or without `.sh`. A hook-root file that `cp` fails to copy is disabled (mode 0) where it was left, be
+  it part of the copy or the image's hook it overwrote: that file is not measured (ADR 0009), so it does not run.
+- The environment is that of the process that runs the stage, plus one set of variables per stage, which
+  `HookEnv::vars` builds from what the stage knows, and a unit test checks for every stage: the variables of
+  `/etc/zfsbootmenu.conf` and `BOOTFS` once it is known (`Variables`), in every stage, `load-key.d` included; the
+  stage's own; and `ZBM_HOOK_API=2`. The stage variables are `ZFSBOOTMENU_INITIALIZATION=yes` for `early-setup.d`;
+  `ZBM_LOCKED_FS` and `ZBM_ENCRYPTION_ROOT` for `load-key.d`; `ZBM_SELECTED_BE`, `ZBM_SELECTED_KERNEL`,
+  `ZBM_SELECTED_INITRAMFS` for `boot-sel.d` and `teardown.d`, and `ZBM_SELECTED_MOUNTPOINT` for `boot-sel.d`. The
+  start-up program has the configuration's variables because the supervisor starts with them exported (see "Start-up
+  hooks"); an applet that does not descend from it, such as a menu started over SSH, adds them to the hooks it runs,
+  as `zfsbootmenu-run-hooks` sources the file.
 
-Running a hook is a `Command` with inherited streams; the hook environment is built by a pure function, so unit tests
-check it for every stage.
+Running a hook is a `Command` with inherited streams.
+
+### Built-in steps
+
+A step is a `zbm_bootenv::hooks::BootStep`: a name, which is its hook's file name, `.sh` included; a stage; whether it
+is kept on a guarded machine; and `run`, with the stage's `HookEnv`, which returns `BootEnvError::Step` when it fails.
+The table is `zbm_app::steps` (the names also in `zbm_types::BUILT_IN_HOOKS`), since both boots, the menu's and the
+countdown's, reach `zbm-app`, and the LUKS close needs what `zbm-boot` may not use. Every process that runs a stage
+builds its `BootSteps` from the table and the records of `steps`: start-up for `early-setup.d`, both boots for
+`boot-sel.d` and `teardown.d`, and `zbm run-hooks`.
+
+| Stage | Step | Does |
+| --- | --- | --- |
+| `early-setup.d` | `05-screen-readers.sh` | starts `brltty`, loads `speakup_<synth>` through the module loader and starts `espeakup` for the soft synthesiser, as `ZBM_BRLTTY`, `ZBM_SPEAKUP` and `ZBM_ESPEAKUP` of `/etc/zfsbootmenu.conf` ask; the image plan writes them from `zfsbootmenu_brltty` and `zfsbootmenu_speakup` (ADR 0011) |
+| `early-setup.d` | `10-generic-efi-init.sh` | writes the escape sequence that makes the EFI framebuffer find its size to the control terminal, or `/dev/console` |
+| `early-setup.d` | `20-dracut-console-init.sh` | in dracut images only, runs `/lib/udev/console_init` on the control terminal |
+| `early-setup.d` | `30-console-autosize.sh` | runs `/libexec/zbm console-autosize` (`zbm.autosize`) |
+| `teardown.d` | `80-luks-close.sh` | runs `/bin/zluks close`, which exports the pools on the mappings and closes the mappings, when `cryptsetup` is in the image |
+| `teardown.d` | `90-xhci-unbind.sh` | unbinds every `xhci_hcd` USB controller through the files port; tries them all, and fails at the end naming those left bound |
+
+- **Replacing.** A hook with a step's name, in the image (`zfsbootmenu_hook_root` at build time) or in `zbm.hookroot`,
+  runs in its place: `the hook <name> replaces its built-in step` is logged.
+- **The LUKS close is kept** on a guarded machine: a locked image (ADR 0010), or one under lockdown or Secure Boot
+  (ADR 0008). There `zbm.skip_hooks` does not skip it (`zbm_app::steps::skip` returns its name, and start-up warns
+  that this locked or measured machine runs it anyway); under lockdown or Secure Boot, a hook root's
+  `teardown.d/80-luks-close.sh` is disabled (mode 0) with a warning, so the step runs; a locked image ignores
+  `zbm.hookroot` altogether. An image's own hook of that name still replaces it, as the image is the owner's. Start-up
+  mounts securityfs read-only before the `early-setup.d` stage, as it mounts `efivarfs`, so lockdown is known from the
+  start, and warns about a locked image without lockdown or Secure Boot, whose lock a changed kernel command line gets
+  past.
+- **The LUKS close runs `zluks close`,** not `zbm-luks`'s `close_all` in the boot process as ADR 0017 (point 3) has
+  it: closing a LUKS session needs the crypttab configuration that `zluks` reads.
+- **`zbm run-hooks [-once] STAGE`.** In Rust images `/libexec/zfsbootmenu-run-hooks` is a script that execs it, so the
+  legacy `zkexec` of the recovery shell runs the same steps as both boots, until SB6 replaces it. It runs the stage
+  below `/libexec/hooks` with its steps, `/etc/zfsbootmenu.conf` and the stage's variables from its environment, and
+  exits 0 when a hook or step ran, 1 otherwise, as the legacy script.
+- The recovery shell's `zreport` lists hooks by their files, so the steps are not in its lists.
+
+### The hook API version 2
+
+Every stage's hooks get `ZBM_HOOK_API=2`. When a stage runs at least one hook file, `run_stage` writes
+`/run/zbm/hooks/<stage>.json` before the stage (mode 0444, root's; `zbm_bootenv::hooks::context`), passes its path as
+`ZBM_HOOK_CONTEXT`, and removes it after the stage; when the file cannot be written, `ZBM_HOOK_CONTEXT` is empty and
+the failure is logged. A stage of steps alone writes no file. The file is one line of JSON, an object whose fields
+later versions may add to, never change or remove:
+
+- every stage: `api` (2), `stage`, `runtime` (`"rust"`), `build_style` (`"dracut"` or `"mkinitcpio"`), `release`,
+  `locked` (`/etc/zfsbootmenu/lock` exists), `lockdown` (`"integrity"`, `"confidentiality"` or `null`), `secure_boot`;
+- from `setup.d` on: `pools`, the imported pools' names from `/proc/spl/kstat/zfs`, and `boot_environment`, `BOOTFS`
+  or `null`;
+- `load-key.d`: `locked_fs` and `encryption_root`;
+- `boot-sel.d`: `selected` (`boot_environment`, `kernel`, `initramfs`) and `mountpoint`;
+- `teardown.d`: `selected`, `command_line`, `devicetree` and `loaded_by` (`"kexec_file_load"` or `"kexec"`); the last
+  three are `null` when the process that runs the stage did not load the kernel, as for the legacy `zkexec` through
+  `zbm run-hooks`.
+
+A value that is not known is `null`. The file holds no secret and no key location's contents, and is not measured:
+the runtime writes it, and the hooks that read it are measured (ADR 0009) or the image's.
 
 ### Compatibility library
 
-Hooks may source `/lib/zfsbootmenu-core.sh` and `/lib/kmsg-log-lib.sh` (the hooks in `contrib/` do), and
-`zfsbootmenu-core.sh` sources `/lib/zfsbootmenu-kcl.sh` and stops if it is missing. The contract covers every function
-these three files define, 69 today, not a selection: the Rust image installs the three files as a shell library in
-which each function calls `zbm`:
+Hooks may source `/lib/zfsbootmenu-core.sh` and `/lib/kmsg-log-lib.sh` (the hooks in `contrib/` do, as does
+`/root/.bashrc`), and `zfsbootmenu-core.sh` sources `/lib/zfsbootmenu-kcl.sh` and stops if it is missing. The contract
+covers every function these three files define, 69, not a selection. SB5 owns these three files (ADR 0017, point 9);
+SB6 owns the rest of the legacy library (the menu's UI, `fzf`, the completions, the LUKS libraries) with the recovery
+tools.
+
+Rust images install the three files as `zbm_host::image::library` generates them from the module root's legacy files.
+What the files run besides their functions stays as it is: the include guards, the error trap, the `source` of the
+command-line functions. Each function becomes a wrapper that calls one helper, defined once in each file before its
+first function, which runs `zbm zfunc` in a subshell that exports the variables the legacy functions read:
 
 ```sh
-zinfo() { /libexec/zbm zfunc zinfo "$@"; }
-load_key() { /libexec/zbm zfunc load_key "$@"; }
+_zbm_zfunc() {
+  (
+    export BASE BOOTFS ... 2>/dev/null
+    exec /libexec/zbm zfunc "$@"
+  )
+}
+
+load_key() {
+  _zbm_zfunc load_key "$@"
+}
 ```
 
-`zfunc` is the applet that `fzf` already uses to call a library function by name (`libexec/zfunc`), so the library
-needs no new applet. The rules:
+The rules:
 
-- **The list comes from the legacy files.** A test compares the functions the library defines with the functions the
-  three legacy files define, so none is left out when the legacy code changes.
-- **Functions that only transform text** (`colorize`, `decolorize`, `center_string`, the `kcl_*` functions) may stay
-  shell code, copied from the legacy files, which avoids a process per call.
-- **Implicit inputs** (`read_write=yes import_pool tank`) reach `zbm` because the shell exports prefix assignments to
-  the command it runs.
-- **Implicit outputs** need shell code around the call: `set_default_env` sets `BOOTFS` in the caller to its argument
-  when it succeeds (the wrapper does the same), `import_pool` sets `spl_hostid` after a failed import (the wrapper asks
-  `zfunc get_spl_hostid`), and `timed_prompt` leaves `HEIGHT` and `WIDTH` set (from `tput`). Package F checks every
-  function for such effects and adds a test for each one it finds.
+- **The list comes from the legacy files.** A test compares the functions the generated files define with the
+  functions the three legacy files define, so none is left out when the legacy code changes.
+- **Copied functions.** Thirteen stay the legacy shell code, copied from the legacy files, which spares a process per
+  call and per line logged: those that only transform text (`decolorize`, `colorize`, `center_string`, `is_snapshot`,
+  `kcl_tokenize`, `kcl_suppress`, `kcl_append`, `kcl_assemble`) and the logging functions (`zdebug`, which is also a
+  test of the log level, `zinfo`, `znotice`, `zwarn`, `zerror`). The other 56 are wrappers.
+- **Implicit inputs** reach `zbm`: the helper exports every variable the legacy files read (the shell's own and the
+  include guards left out), so a variable a hook set without `export`, as well as a prefix assignment
+  (`read_write=yes import_pool tank`), reaches the function, as it reached the legacy one in the hook's shell.
+- **Implicit outputs** need shell code around the call, for what callers read of the legacy functions:
+  `set_default_env` sets `BOOTFS` to its argument when it succeeds; `import_pool` sets `ret`, and `spl_hostid` after a
+  failed import (the wrapper asks `zfunc get_spl_hostid`); `export_pool` sets `ret`; `timed_prompt` leaves `HEIGHT` and
+  `WIDTH` set (from `tput`); `is_mounted` sets `mount_dev` to its argument. A test checks each. Other variables the
+  legacy functions leaked, such as their loop variables, are not kept.
 - **Calling conventions:** each wrapper passes the caller's standard streams, prints what the legacy function prints
   and returns its status.
+- **Limits.** Each wrapped call is a process; its arguments must be valid UTF-8 (`zbm` refuses others with status 2);
+  and a wrapped function does not see the functions its caller defined.
+
+`zbm zfunc FUNCTION [ARGS]` (`zbm_startup::zfunc`) runs a function. Two have Rust code so far: `emergency_shell`, the
+start-up program's recovery shell, through its gate (ADR 0010: a locked image asks for the PIN first), and
+`is_degraded`. Any other runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash
+(`zbm_tools::programs::legacy_function`), which sources the library files the legacy `zfunc` sourced, those of the
+contract from their legacy copies below `/usr/share/zfsbootmenu/legacy/lib` (they source each other there, not the
+generated files of `/lib`, whose wrappers would come back to `zbm`), and runs the function with the caller's streams
+and signals; the configuration's variables are added where the environment does not set them. Inside it,
+`emergency_shell` is `zbm`'s, so the gate holds whichever legacy function opens the shell. The image links
+`/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool` (`docs/general/grub-migration.rst`) keeps working.
+
+A test in `zbm` lists the 54 functions still legacy; SB6 and SB7 give them Rust code, and SB7 needs the list empty.
+ADR 0017 (point 10) has each function run its Rust code where some exists: only two do so far, because each needs its
+legacy output, status and log lines bridged, and a parity test.
 
 ## Errors and logging
 
@@ -709,7 +814,8 @@ secret's bytes appear in any argument, environment variable, written file or con
 | C: boot environments | sorting, kernel selection and version order, command line cache, key sources, hook environment | every VM test that boots |
 | D: snapshots and pools | the commands each action runs | a new suite test per action, written against the legacy image first |
 | E: menu | the screen that follows each key; snapshot tests of each screen's text | the VM tests that drive the menu |
-| F: recovery tools | the programs `zbm` needs, the recovery commands' logic, the compatibility library's function list and implicit outputs | the `contrib/` hooks unchanged; image sizes compared |
+| F: recovery tools (SB6) | the programs `zbm` needs, the recovery commands' logic | the `contrib/` hooks unchanged; image sizes compared |
+| SB5: hooks | the table of built-in steps, skipping and replacing them, the LUKS close kept when guarded, how a hook runs, each stage's environment and context file, the compatibility library's function list and implicit outputs, the functions still legacy | `runtime-rust-hooks`; the LUKS VM tests' teardown check (`check_teardown`) for the LUKS close; `firmware-usb*` for the USB unbind; `runtime-rust-autosize` and `runtime-rust-console-lines` for the `early-setup.d` steps |
 
 Pure functions with a Bash counterpart get parity tests that run both on the same inputs (`zbm-testkit::legacy`), as
 in phases 2 and 3.
@@ -752,11 +858,11 @@ runtime loads keys in the legacy order, with the key-source cache for boots chos
 (`/bin/zfsbootmenu`, the `zfsbootmenu` applet of `zbm`), so the list is empty in every Rust image; an image without
 the menu program would still list the menu.
 
-Hooks themselves are not on the list: every image installs the bundled hooks (console set-up in `early-setup.d`, LUKS
-closing and xHCI unbinding in `teardown.d`), so the Phase 5 runtime already runs the `early-setup.d`, `boot-sel.d` and
-`teardown.d` stages, with `zbm.skip_hooks`, through the hook runner of package A. Running executable files in order
-with an environment is small, and leaving it out would leave the console unset and some USB controllers unprepared for
-`kexec`.
+Hooks themselves are not on the list: every image installed the bundled hooks (console set-up in `early-setup.d`,
+LUKS closing and xHCI unbinding in `teardown.d`; built-in steps since SB5), so the Phase 5 runtime already ran the
+`early-setup.d`, `boot-sel.d` and `teardown.d` stages, with `zbm.skip_hooks`, through the hook runner of package A.
+Running executable files in order with an environment is small, and leaving it out would leave the console unset and
+some USB controllers unprepared for `kexec`.
 
 If the list is not empty, the runtime logs each item as an error and opens the recovery shell with the message
 `not supported by this build of ZFSBootMenu yet`, from which the user can boot by hand or switch to the legacy image.
@@ -766,9 +872,10 @@ the recovery shell with the same message, and kept doing so, importing pools aga
 does. Since R5 step 3 that loop runs the menu and then the recovery shell, as the legacy loop does, and the
 countdown runs in the menu; since PM9 the menu runs in the start-up program, the session (see "Processes").
 
-Until package F replaces them with the compatibility library, the Rust image keeps the legacy shell libraries, the
-recovery shell's tools and the bundled hooks, which source those libraries; only the legacy start-up program and
-`init.d` are left out.
+The Phase 5 image left out only the legacy start-up program and `init.d`. Since SB5 the bundled hooks are built-in
+steps, and the three files of the hook contract are the generated library (see "Compatibility library"), with their
+legacy copies below `/usr/share/zfsbootmenu/legacy/lib`. The rest of the legacy shell library and the recovery shell's
+tools stay in the Rust image until SB6 replaces them; SB7 leaves the legacy payload out.
 
 ## Freezing the legacy runtime
 
@@ -785,9 +892,10 @@ These choices shape the later phases and are the points to review:
    after a crash it restarts the start-up program without the countdown and the automatic boot.
 2. **The state directory stays the only shared state,** with the legacy layout, instead of a server process the
    others would ask over a socket: a crashed server would take the menu with it, hooks and users need the files, and
-   the documentation names some of them. One internal file is new: `.stages`. Superseded, as the zones come, by
-   [ADR 0002](../docs/dev/adr/0002-trust-zones.md) (accepted 28 October 2026): the processes talk over typed
-   messages on Unix sockets, and the state directory stays for users, hooks and the recovery shell.
+   the documentation names some of them. Two internal files are new: `.stages`, and `steps` (ADR 0017).
+   Superseded, as the zones come, by [ADR 0002](../docs/dev/adr/0002-trust-zones.md) (accepted 28 October 2026): the
+   processes talk over typed messages on Unix sockets, and the state directory stays for users, hooks and the
+   recovery shell.
 3. **Every applet reads `/etc/zfsbootmenu.conf` itself,** like the legacy scripts, so a menu started over SSH works
    as one started on the console.
 4. **Applets keep the legacy names, arguments and subcommands,** so `fzf` bindings, documentation and habits stay

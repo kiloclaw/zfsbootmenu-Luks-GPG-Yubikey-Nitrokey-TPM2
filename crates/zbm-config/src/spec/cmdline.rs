@@ -459,7 +459,9 @@ files found therein into its own memory-backed root filesystem. The copy is not 
 further subdirectorie are ignored. Note that, because ZFSBootMenu copies these scripts into its
 standard hook paths at each boot, it is possible to "mask" a script explicitly included in the
 ZFSBootMenu image by including an external hook script with the same name in the appropriate
-directory.
+directory. In images with the Rust runtime, under lockdown or Secure Boot, a hook root's
+*teardown.d/80-luks-close.sh* is disabled with a warning, so that the built-in step that closes the
+LUKS volumes before **kexec** runs; a locked image ignores the hook root altogether.
 
 In images with the Rust runtime, on a machine with a TPM, the hooks copied from the hook root are
 measured into PCR 9 before any hook runs. A LUKS2 TPM2 token bound to PCR 9 then unseals only with
@@ -515,6 +517,14 @@ const SKIP_HOOKS_DOC: &str = r"
 Skip execution of any early-setup, setup, load-key, boot-selection or teardown hooks with file
 names matching any entry in the comma-separated list *hooklist*. Only base names of hooks (*i.e.*,
 with any other path component removed) are matched against the *hooklist*.
+
+In images built with the Rust runtime, an entry may leave out the *.sh* suffix: *90-xhci-unbind*
+skips the hook *90-xhci-unbind.sh*. The hooks ZFSBootMenu ships run there as built-in steps that
+keep the hooks' names (see **User Hooks**), and an entry skips a step as it skips a hook file; the
+log says which steps it disabled. A locked image (**zfsbootmenu_lock_hash**), and any image under
+lockdown or Secure Boot, runs the step *80-luks-close.sh* anyway, with a warning: it closes the LUKS
+volumes before **kexec**, so that the kernel wipes their keys. Images with the legacy runtime match
+the whole file name only.
 
 **NOTE**: The *hooklist* argument **MUST NOT** contain spaces and **MUST NOT** be enclosed in
 quotes.

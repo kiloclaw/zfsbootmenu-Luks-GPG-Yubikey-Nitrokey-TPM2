@@ -81,7 +81,8 @@ Parameter                             Effect
 ``zbm.luks_key=<path>[:<dev>]``       key file for volumes without their own; ``*.gpg`` files are decrypted
 ``zbm.luks_tokens=0``                 do not use LUKS2 tokens (TPM2, FIDO2, clevis)
 ``zbm.luks_token_wait=<seconds>``     wait for a security key, card or key stick (default 10, 0 = no wait)
-``zbm.skip_hooks=80-luks-close.sh``   keep volumes open at hand-off (not recommended)
+``zbm.skip_hooks=80-luks-close.sh``   keep volumes open at hand-off (not recommended); Rust images close them
+                                      anyway when locked or under lockdown or Secure Boot
 ====================================  =========================================================================
 
 Boot Environment Parameters

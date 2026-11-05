@@ -195,8 +195,8 @@ library files become a generated shell library over a `zbm zfunc` applet.**
 - The library's test against the legacy files' functions, a test of each wrapper's implicit outputs, and the list of
   functions still legacy.
 - VM tests: `runtime-rust-hooks` with a `#!/bin/sh -e` hook, a hook without `#!`, a hook that reads its context,
-  `zbm.skip_hooks` of a step; the LUKS close's test in `secrets-*`, whose secret search before `kexec` would find a
-  key left in a mapping; `firmware-usb*` for the USB unbind; `runtime-rust-autosize` and `runtime-rust-console-lines`
+  `zbm.skip_hooks` of a step; the LUKS close's test in the LUKS VM tests (`keys-*`, `layouts-*`, `complex-*`), whose
+  teardown report after the close fails the boot when a mapping is left open; `firmware-usb*` for the USB unbind; `runtime-rust-autosize` and `runtime-rust-console-lines`
   for the early-setup steps; `contrib/keycache.sh` sourcing the generated library.
 
 ## Questions for the maintainer
@@ -230,6 +230,74 @@ library files become a generated shell library over a `zbm zfunc` applet.**
   run after it get it as `BOOTFS`, as the legacy menu's did. `NO_CACHE` and `CLEAR_SCREEN`, which legacy `load-key.d`
   hooks inherited from the functions that ran them, are not set (`CHANGES-FROM-LEGACY.md`). zbm-bootenv's public items
   rose by three, `Variables`, `StageEnv` and `HookEnv`, the types this record calls for.
+- **SB5b** (4 November 2026), points 1 to 5, as decided but for the LUKS close and what a name without `.sh` skips. The
+  six built-ins are `BootStep`s in one table, `zbm_app::steps` (`zbm_types::BUILT_IN_HOOKS` lists their names, and a
+  test holds the two together); `run_stage` runs a stage's steps among its hook files in the order of their names, and a
+  hook file of a step's name, in the image or in `zbm.hookroot`, replaces the step, which the log says. Rust images no
+  longer install the built-ins' scripts; the legacy runtime keeps them, unchanged. `zbm-host` writes the screen readers'
+  build options to `/etc/zfsbootmenu.conf` as `ZBM_BRLTTY`, `ZBM_SPEAKUP` and `ZBM_ESPEAKUP`. The LUKS close runs the
+  `zluks close` applet, as a program, and not `zbm-luks`'s `close_all` in the boot process (point 3), since a LUKS
+  session needs the crypttab configuration `zluks` reads; it still exports the pools on the mappings first, and does
+  nothing in an image without `cryptsetup`, as the script did. The USB unbind tries every controller and fails at the
+  end naming those left bound. `zbm.skip_hooks` skips a step by its name, with or without `.sh`, and a name without
+  `.sh` now also skips the hook file of that name with `.sh`, so that a hook of a skipped step's name does not run in
+  its place; the legacy runtime matched the exact file name only. In a locked image and under lockdown or Secure Boot,
+  `zbm.skip_hooks` does not skip the LUKS close, with a warning; under lockdown or Secure Boot a hook root's
+  `teardown.d/80-luks-close.sh` is disabled (mode 0), with a warning, so the step runs. When `cp` fails to copy a
+  hook-root file, the file of its name in the image is disabled too, whether it holds part of the copy or the image's
+  hook the copy overwrote, since it was not measured. Start-up mounts securityfs read-only before the early stage, and
+  warns about a locked image without lockdown or Secure Boot, whose kernel command line can be changed past the lock.
+  Early-setup steps are recorded in the state directory (`/zfsbootmenu/steps`, lines `ran NAME` and `skipped NAME`). A
+  step's error is ZBM-E0611. In Rust images `/libexec/zfsbootmenu-run-hooks` is a script that execs
+  `zbm run-hooks [-once] STAGE`, which runs the stage's hooks and steps with the image's configuration and the stage's
+  variables from its environment, and succeeds when a hook or step ran, as the legacy script did; so the legacy `zkexec`
+  of the recovery shell still closes the mappings. The recovery shell's `zreport` lists hooks by their files, so the
+  steps do not appear in its lists. Public items rose for the table, the trait, `run_quietly` and the list of names:
+  `zbm-app` from 153 to 157, `zbm-bootenv` from 35 to 37, `zbm-tools` from 43 to 44 and `zbm-types` from 43 to 44.
+- **SB5c** (4 November 2026), point 8, as decided but for when the file is written. Every stage's hooks get
+  `ZBM_HOOK_API=2`. A stage that runs at least one hook file gets `/run/zbm/hooks/<stage>.json`, written before it (mode
+  0444, root) and removed after it, and `ZBM_HOOK_CONTEXT` with its path; a stage of built-in steps alone writes no
+  file. When the file cannot be written, `ZBM_HOOK_CONTEXT` is set empty and the failure logged, so that no hook takes
+  for its own the file of a stage it runs within, which its environment may name, and a write that fails part way
+  removes what it left. The file is one line of JSON with the fields of point 8: `api`, `stage`, `runtime`,
+  `build_style`, `release`, `locked`, `lockdown` and `secure_boot` in every stage; `pools` (from `/proc/spl/kstat/zfs`)
+  and `boot_environment` from `setup.d` on; `locked_fs` and `encryption_root` in `load-key.d`; `selected` and
+  `mountpoint` in `boot-sel.d`; `selected`, `command_line`, `devicetree` and `loaded_by` (`kexec_file_load` or `kexec`)
+  in `teardown.d`. An unknown value is null, as are the last three when the process running the stage did not load the
+  kernel (the legacy `zkexec`, through `zbm run-hooks`). `zbm_tools::kexec` reads lockdown and Secure Boot apart, and
+  the lock's path is `zbm_config::conf::LOCK`. `zbm-bootenv` may use `serde_json`, for the file. Public items rose:
+  `zbm-bootenv` from 37 to 38, `zbm-tools` from 44 to 46 and `zbm-config` from 217 to 218.
+- **SB5d** (4 and 5 November 2026), points 9 to 11, as decided but for which functions run Rust. Rust images install the
+  three files as `zbm-host` generates them from the module root's (`image/library.rs`): 13 functions stay the legacy
+  shell code (`decolorize`, `colorize`, `center_string`, `is_snapshot`, `kcl_tokenize`, `kcl_suppress`, `kcl_append`,
+  `kcl_assemble` and the five logging functions), and the other 56 are wrappers that run `/libexec/zbm zfunc NAME "$@"`.
+  A wrapper runs in a subshell that exports the variables the legacy functions read, so a variable a hook set without
+  `export` still reaches the function. It keeps the implicit outputs callers read: `BOOTFS` after `set_default_env`
+  succeeds; `ret`, and `spl_hostid` after a failed import, after `import_pool`; `ret` after `export_pool`; `HEIGHT` and
+  `WIDTH` after `timed_prompt`; `mount_dev` after `is_mounted`. The other variables the legacy functions left behind,
+  their loop variables, are not kept. The files' guards, error trap and `source` of the kcl file stay. The legacy files
+  go below `/usr/share/zfsbootmenu/legacy/lib`, and `/libexec/zfunc` is a link to `zbm`. `zbm zfunc`
+  (`zbm_startup::zfunc`) runs Rust code for two functions only, `emergency_shell`, through the gate (a locked image asks
+  for the PIN first), and `is_degraded`, not for each that has Rust code (point 10): a function moved needs its legacy
+  output, status and log lines bridged and a parity test; the 27 functions that have a Rust equivalent were surveyed for
+  SB6 and SB7. Any other function runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash, which sources the
+  legacy files (they source each other there, not the generated library) and runs the function with its caller's streams
+  and signals, with the configuration's variables where the environment sets none; inside it, `emergency_shell` is
+  `zbm`'s gated one. A test lists the 54 functions still legacy (`crates/zbm/src/zfunc.rs`). Each wrapped call is a
+  process, its arguments must be UTF-8 (`zbm` refuses others with status 2), and a wrapped function does not see
+  functions its caller defined. Public items rose: `zbm-host` from 113 to 115, `zbm-startup` from 99 to 102 and
+  `zbm-tools` from 46 to 48.
+- **SB5e** (5 November 2026): the docs (`zfsbootmenu.7`'s User Hooks: the built-in steps, the hook API, the context's
+  schema and the shell library; `CHANGES-FROM-LEGACY.md`, `crates/DESIGN.md`'s compatibility library, the threat model,
+  the LUKS pages and `zfsbootmenu-luks.7`, the help of `zbm.skip_hooks`), and VM checks in `runtime-rust-hooks` and
+  `runtime-legacy-hooks`: the hook root's hook reports `ZBM_HOOK_API=2`, the teardown's context file (its stage and what
+  loaded the kernel), the library's `get_zbm_arg` through `zbm zfunc`, and no script for the LUKS close in the Rust
+  runtime; no API version, the same `get_zbm_arg` and the LUKS close's script in the legacy runtime. The other VM checks
+  of "How it is checked" are those of the scenarios that ran the built-ins' scripts before (the LUKS tests' teardown
+  report, which fails a boot that leaves a mapping open, `firmware-usb*`, `runtime-rust-autosize`, `runtime-rust-console-lines`), which now run the steps; hooks with
+  `#!/bin/sh -e` or without `#!` and `zbm.skip_hooks` of a step are checked by unit tests only, and no test sources the
+  generated library from `contrib/keycache.sh`. The VM run of SB5, on rebuilt images, is the maintainer's and has not
+  run yet.
 
 ## Answers of the maintainer
 
