@@ -19,7 +19,7 @@ zbm-host                   0           0               0            0           
 zbm-luks                   0           0               0            0              0             0             0              0             0             27            0            81           0
 zbm-platform               0           0               0            0              0             0             0              0             0              0            0           217           0
 zbm-pool                   0           0               0            0              0             0             0              0             0              5            0            59           0
-zbm-startup                0           0               0            0              0             0             0              0             0              0            0           101           0
+zbm-startup                0           0               0            0              0             0             0              0             0              0            0           102           0
 zbm-state                  0           0               0            0              0             0             0              0             0              0            0             7           0
 zbm-sys                    0           0               0            0              0             0             0             56             0              0            0            81           0
 zbm-testkit                0           0               0            0              0             0             0              0             0              0            0            63           0

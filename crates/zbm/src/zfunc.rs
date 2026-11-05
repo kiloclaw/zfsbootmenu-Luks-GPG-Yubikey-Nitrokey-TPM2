@@ -2,11 +2,13 @@
 //! hook contract (ADR 0017, point 10), which the generated library's
 //! wrappers and `/libexec/zfunc` run: `zbm_startup::zfunc` runs it.
 
+use std::os::unix::process::CommandExt as _;
 use std::path::Path;
 
 use zbm_config::conf::{self, Conf};
-use zbm_platform::RealSystem;
 use zbm_platform::console::NoConsole;
+use zbm_platform::{Command, RealSystem};
+use zbm_startup::zfunc::Outcome;
 
 use crate::Io;
 
@@ -28,12 +30,71 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         .read_to_string(Path::new(conf::PATH))
         .map(|text| Conf::parse(&text))
         .unwrap_or_default();
-    zbm_startup::zfunc::run(&system, &conf, function, args)
+    match zbm_startup::zfunc::run(&system, &conf, function, args) {
+        Outcome::Status(status) => status,
+        Outcome::Legacy(command) => replace_with(&command, io),
+    }
+}
+
+/// Replaces this process with `command`, on its streams, so that the
+/// legacy function gets the signals of its caller; 127 when it cannot.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the legacy function replaces this process (`exec`), which the Runner does not do"
+)]
+fn replace_with(command: &Command, io: &mut Io) -> i32 {
+    let mut exec = std::process::Command::new(command.program());
+    exec.args(command.get_args());
+    for (name, value) in command.get_env() {
+        match value {
+            Some(value) => exec.env(name, value),
+            None => exec.env_remove(name),
+        };
+    }
+    let error = exec.exec();
+    let _ = writeln!(io.stderr, "zfunc: unable to run bash: {error}");
+    127
 }
 
 #[cfg(test)]
 mod tests {
     use zbm_host::image::library::{COPIED, FUNCTIONS};
+
+    use super::*;
+
+    /// Runs `body` with an `Io` on buffers; its result and what it wrote
+    /// on standard error.
+    fn with_io<T>(body: impl FnOnce(&mut Io) -> T) -> (T, String) {
+        let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+        let result = body(&mut Io {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+        });
+        (result, String::from_utf8(stderr).unwrap())
+    }
+
+    #[test]
+    fn the_applet_runs_a_function_or_says_how() {
+        let (status, stderr) = with_io(|io| run(&[], io));
+        assert_eq!(status, crate::USAGE);
+        assert!(stderr.contains("Usage: zbm zfunc FUNCTION"), "{stderr}");
+        // A function with Rust code runs here: an empty pool is not
+        // restricted, whatever the machine.
+        let (status, _) = with_io(|io| run(&["is_degraded".to_owned(), String::new()], io));
+        assert_eq!(status, 1);
+    }
+
+    #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a command that cannot start, for the exec to fail"
+    )]
+    fn a_legacy_function_that_cannot_start_is_said() {
+        let command = Command::new("/nonexistent/zbm-zfunc-test").arg("x");
+        let (status, stderr) = with_io(|io| replace_with(&command, io));
+        assert_eq!(status, 127);
+        assert!(stderr.contains("zfunc: unable to run bash"), "{stderr}");
+    }
 
     /// ADR 0017, point 10: the functions of the library that still run the
     /// legacy code, which SB6 and SB7 make Rust; every function is copied

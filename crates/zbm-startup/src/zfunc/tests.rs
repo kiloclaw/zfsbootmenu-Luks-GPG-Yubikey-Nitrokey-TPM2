@@ -6,9 +6,17 @@ use zbm_testkit::fakes::FakeSystem;
 use super::*;
 
 /// Runs `function` on `fake` with `args` and the configuration `conf`.
-fn call(fake: &FakeSystem, conf: &str, function: &str, args: &[&str]) -> i32 {
+fn outcome(fake: &FakeSystem, conf: &str, function: &str, args: &[&str]) -> Outcome {
     let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
     run(&fake.system(), &Conf::parse(conf), function, &args)
+}
+
+/// The status of a function that ran.
+fn call(fake: &FakeSystem, conf: &str, function: &str, args: &[&str]) -> i32 {
+    match outcome(fake, conf, function, args) {
+        Outcome::Status(status) => status,
+        Outcome::Legacy(command) => panic!("legacy: {}", command.display()),
+    }
 }
 
 /// An image with the legacy library and a state directory.
@@ -27,14 +35,13 @@ fn image() -> FakeSystem {
 fn other_functions_run_from_the_legacy_files() {
     let fake = image();
     fake.environment.set("BASE", "/elsewhere");
-    fake.runner.respond_program("bash", 3, "");
     let conf = "export BASE=\"/zfsbootmenu\"\nexport loglevel=\"7\"\n";
-    assert_eq!(call(&fake, conf, "import_pool", &["tank", "a b"]), 3);
-
-    let calls = fake.runner.calls();
-    let [bash] = calls.as_slice() else {
-        panic!("{calls:?}");
+    let Outcome::Legacy(bash) = outcome(&fake, conf, "import_pool", &["tank", "a b"]) else {
+        panic!("not the legacy function");
     };
+    assert_eq!(bash.program(), "bash");
+    // zfunc replaces itself with Bash: nothing ran here.
+    assert!(fake.runner.lines().is_empty());
     let args: Vec<String> = bash
         .get_args()
         .iter()
@@ -59,18 +66,11 @@ fn other_functions_run_from_the_legacy_files() {
 }
 
 #[test]
-fn without_the_legacy_files_or_bash_nothing_runs() {
+fn without_the_legacy_files_nothing_runs() {
     let fake = FakeSystem::new();
     fake.files.dir("/zfsbootmenu");
     assert_eq!(call(&fake, "", "import_pool", &[]), 1);
     assert!(fake.runner.lines().is_empty());
-
-    let fake = image();
-    fake.runner.on(|command| {
-        (command.program() == "bash")
-            .then(|| Err(std::io::Error::from(std::io::ErrorKind::NotFound)))
-    });
-    assert_eq!(call(&fake, "", "zreport", &[]), 127);
 }
 
 #[test]

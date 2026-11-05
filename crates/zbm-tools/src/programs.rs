@@ -185,26 +185,26 @@ for src in /lib/profiling-lib.sh /lib/kmsg-log-lib.sh \
   fi
 done
 unset src legacy
+# The recovery shell goes through the gate of zbm, whichever function
+# opens it (ADR 0010).
+emergency_shell() { /libexec/zbm zfunc emergency_shell "$@"; }
 func="${1}"
 shift
 zdebug "Calling ${func} with $*"
 "${func}" "$@"
 "#;
 
-/// Runs the legacy function `function` with `args`, on Bash, with the
-/// legacy files below `legacy`, this process's streams and environment,
-/// and `env` added (ADR 0017, point 10).
-///
-/// # Errors
-///
-/// The error that kept Bash from starting.
+/// The command that runs the legacy function `function` with `args`, on
+/// Bash, with the legacy files below `legacy`, this process's streams and
+/// environment, and `env` added (ADR 0017, point 10). `zbm zfunc` replaces
+/// itself with it, so that Bash gets the caller's signals as the function
+/// did in the caller's shell.
 pub fn legacy_function(
-    runner: &dyn Runner,
     legacy: &Path,
     function: &str,
     args: &[String],
     env: &[(&str, &str)],
-) -> io::Result<Output> {
+) -> Command {
     let command = Command::new("bash")
         .args(["-c", LEGACY_FUNCTION, "/libexec/zfunc"])
         .arg(legacy)
@@ -213,10 +213,8 @@ pub fn legacy_function(
         .stdin(Input::Inherit)
         .stdout(Stream::Inherit)
         .stderr(Stream::Inherit);
-    let command = env
-        .iter()
-        .fold(command, |command, (name, value)| command.env(name, value));
-    runner.run(&command)
+    env.iter()
+        .fold(command, |command, (name, value)| command.env(name, value))
 }
 
 /// Where the boot image installs `zbm`.
@@ -349,22 +347,15 @@ mod tests {
 
     #[test]
     fn a_legacy_function_runs_on_bash_from_the_legacy_files() {
-        let runner = FakeRunner::new();
-        runner.respond_program("bash", 4, "");
         let args = ["tank".to_owned()];
-        let output = legacy_function(
-            &runner,
+        let call = legacy_function(
             Path::new(LEGACY_LIBRARY),
             "export_pool",
             &args,
             &[("loglevel", "7")],
-        )
-        .unwrap();
-        assert_eq!(output.status.code(), Some(4));
-        let calls = runner.calls();
-        let [call] = calls.as_slice() else {
-            panic!("one call: {calls:?}");
-        };
+        );
+        assert_eq!(call.program(), "bash");
+        assert!(LEGACY_FUNCTION.contains("emergency_shell() { /libexec/zbm zfunc"));
         let args: Vec<String> = call
             .get_args()
             .iter()
