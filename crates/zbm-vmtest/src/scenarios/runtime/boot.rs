@@ -14,10 +14,25 @@ use crate::record::Test;
 use crate::settings::{Settings, ZbmRuntime};
 use crate::vm::Vm;
 
-/// A teardown hook on the FAT disk of `hooks`.
+/// A teardown hook on the FAT disk of `hooks`: it says where it ran, what
+/// the hook API version 2 gives it (ADR 0017, point 8), and what a function
+/// of the library hooks source returns (point 11), and whether the image
+/// has the LUKS close as a script (point 3).
 const HOOK: &str = r#"#!/bin/bash
 echo "ZBMTEST-HOOKROOT ran from $0"
+field() { grep -o "\"$1\":\"[^\"]*\"" "${ZBM_HOOK_CONTEXT}" 2>/dev/null; }
+echo "ZBMTEST-HOOKAPI api=[${ZBM_HOOK_API}] stage=[$(field stage)] loaded=[$(field loaded_by)]"
+luks=none
+[ -e /libexec/hooks/teardown.d/80-luks-close.sh ] && luks=script
+source /lib/zfsbootmenu-core.sh >/dev/null 2>&1
+echo "ZBMTEST-LIBRARY arg=[$(get_zbm_arg zbm.skip_hooks)] luks=[${luks}]"
 "#;
+
+/// The hook API the hook of the hook root saw.
+const HOOK_API: &str = r"ZBMTEST-HOOKAPI api=\[(.*?)\] stage=\[(.*?)\] loaded=\[(.*?)\]";
+
+/// The library function the hook of the hook root ran, and the LUKS close.
+const LIBRARY: &str = r"ZBMTEST-LIBRARY arg=\[(.*?)\] luks=\[(.*?)\]";
 
 /// The command line of every boot scenario, before the scenario's options.
 const APPEND: &str = "console=ttyS0 zbm.timeout=3 loglevel=7";
@@ -222,6 +237,68 @@ fn plain(test: &Test, boot: &Boot, runtime: ZbmRuntime, scenario: &str, log: &st
     // ZFSBootMenu exports only pools it imported read-write
     check_teardown(test, boot, &["tplain"]);
     check_be(test, boot, "tplain", &["tplain"], &[]);
+    if scenario == "hooks" {
+        check_hook_api(test, runtime, log)?;
+    }
+    Ok(())
+}
+
+/// Checks what the hook of the hook root saw of the hook API (ADR 0017):
+/// version 2 and the teardown's context file in the Rust runtime, nothing
+/// in the legacy runtime; the library's `get_zbm_arg` in both, through
+/// `zbm zfunc` in the Rust runtime; the LUKS close a built-in step, not a
+/// script, in the Rust runtime.
+fn check_hook_api(test: &Test, runtime: ZbmRuntime, log: &str) -> Result<()> {
+    let api = regex(HOOK_API)?.captures(log);
+    let library = regex(LIBRARY)?.captures(log);
+    test.check(
+        api.is_some() && library.is_some(),
+        "the hook of the hook root reported the hook API",
+    );
+    let (Some(api), Some(library)) = (api, library) else {
+        return Ok(());
+    };
+    let field = |captures: &regex::Captures<'_>, n: usize| captures[n].trim().to_owned();
+    test.check(
+        field(&library, 1) == "20-runtime.sh",
+        &format!(
+            "the library's get_zbm_arg reads zbm.skip_hooks ({})",
+            field(&library, 1)
+        ),
+    );
+    if runtime == ZbmRuntime::Rust {
+        test.check(
+            field(&api, 1) == "2",
+            &format!("hooks get ZBM_HOOK_API=2 ({})", field(&api, 1)),
+        );
+        test.check(
+            field(&api, 2) == r#""stage":"teardown.d""#,
+            &format!(
+                "ZBM_HOOK_CONTEXT names the teardown's context ({})",
+                field(&api, 2)
+            ),
+        );
+        test.check(
+            field(&api, 3).starts_with(r#""loaded_by":"kexec"#),
+            &format!(
+                "the context says what loaded the kernel ({})",
+                field(&api, 3)
+            ),
+        );
+        test.check(
+            field(&library, 2) == "none",
+            "the LUKS close is a built-in step, not a script",
+        );
+    } else {
+        test.check(
+            field(&api, 1).is_empty(),
+            "the legacy runtime has no hook API version",
+        );
+        test.check(
+            field(&library, 2) == "script",
+            "the legacy runtime closes LUKS with its script",
+        );
+    }
     Ok(())
 }
 

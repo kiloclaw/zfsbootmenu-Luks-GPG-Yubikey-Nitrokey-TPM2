@@ -247,6 +247,8 @@ fn hooks_from_the_hook_root_run_and_skipped_hooks_do_not() {
     let reports = "Booting /boot/vmlinuz-7.3 for tplain/ROOT/be in 3 seconds\r\n\
         ZBMTEST-STATUS-BEGIN\r\nZS|   pool: tplain\r\nZS|  state: ONLINE\r\nZBMTEST-STATUS-END\r\n\
         ZBMTEST-HOOKROOT ran from /libexec/hooks/teardown.d/50-hookroot\r\n\
+        ZBMTEST-HOOKAPI api=[] stage=[] loaded=[]\r\n\
+        ZBMTEST-LIBRARY arg=[20-runtime.sh] luks=[script]\r\n\
         ZBMTEST-TEARDOWN dm=[] pools=[tplain] state=[]\r\n";
     let script = vec![Step::Say(reports), Step::Say(BE)];
 
@@ -258,6 +260,45 @@ fn hooks_from_the_hook_root_run_and_skipped_hooks_do_not() {
             "ok   - zbm.hookroot added a teardown hook",
             "ok   - zbm.skip_hooks disabled the runtime report hook",
             "ok   - the countdown boots the default boot environment",
+        ]
+    );
+    let last = &checks[checks.len() - 4..];
+    assert_eq!(
+        last,
+        [
+            "ok   - the hook of the hook root reported the hook API",
+            "ok   - the library's get_zbm_arg reads zbm.skip_hooks (20-runtime.sh)",
+            "ok   - the legacy runtime has no hook API version",
+            "ok   - the legacy runtime closes LUKS with its script",
+        ]
+    );
+}
+
+/// ADR 0017: the Rust runtime's hooks get the hook API version 2 and the
+/// library through `zbm zfunc`, without the LUKS close's script.
+#[test]
+fn the_rust_runtime_s_hooks_get_the_hook_api() {
+    let reports = "Booting /boot/vmlinuz-7.3 for tplain/ROOT/be in 3 seconds\r\n\
+        ZBMTEST-STATUS-BEGIN\r\nZS|   pool: tplain\r\nZS|  state: ONLINE\r\nZBMTEST-STATUS-END\r\n\
+        ZBMTEST-HOOKROOT ran from /libexec/hooks/teardown.d/50-hookroot\r\n\
+        ZBMTEST-HOOKAPI api=[2] stage=[\"stage\":\"teardown.d\"] \
+        loaded=[\"loaded_by\":\"kexec_file_load\"]\r\n\
+        ZBMTEST-LIBRARY arg=[20-runtime.sh] luks=[none]\r\n\
+        ZBMTEST-TEARDOWN dm=[] pools=[tplain] state=[]\r\n";
+    let script = vec![Step::Say(reports), Step::Say(BE)];
+
+    let checks = drive_script("runtime-rust-hooks", ZbmRuntime::Rust, "hooks", script);
+
+    let last = &checks[checks.len() - 6..];
+    assert_eq!(
+        last,
+        [
+            "ok   - the hook of the hook root reported the hook API",
+            "ok   - the library's get_zbm_arg reads zbm.skip_hooks (20-runtime.sh)",
+            "ok   - hooks get ZBM_HOOK_API=2 (2)",
+            "ok   - ZBM_HOOK_CONTEXT names the teardown's context (\"stage\":\"teardown.d\")",
+            "ok   - the context says what loaded the kernel (\"loaded_by\":\"kexec_file_load\")",
+            "ok   - the LUKS close is a built-in step, not a script",
         ]
     );
 }
