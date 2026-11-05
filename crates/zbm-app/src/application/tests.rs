@@ -170,6 +170,8 @@ fn the_locked_menu_refuses_what_it_keeps_until_the_pin_is_typed_on_the_console()
 
 #[test]
 fn the_lock_keeps_all_but_the_default_boot_and_what_changes_nothing() {
+    use zbm_types::ImportPolicy::{Force, Hostid, Strict};
+
     let default: zbm_types::DatasetName = "tank/ROOT/be".parse().unwrap();
     let boot = |environment: &str, kernel: Option<&str>, countdown| Action::Boot {
         environment: environment.parse().unwrap(),
@@ -184,8 +186,20 @@ fn the_lock_keeps_all_but_the_default_boot_and_what_changes_nothing() {
     assert!(boot("tank/ROOT/be", Some("6.1"), false).is_kept_by_lock(bootfs));
     assert!(boot("tank/ROOT/be", None, false).is_kept_by_lock(None));
     let pool: zbm_types::PoolName = "tank".parse().unwrap();
-    assert!(Action::Import(pool.clone(), zbm_types::ImportPolicy::Force).is_kept_by_lock(bootfs));
-    assert!(!Action::Import(pool, zbm_types::ImportPolicy::Strict).is_kept_by_lock(bootfs));
+    let import = |access, policy, rewind| {
+        let options = model::ImportOptions {
+            access,
+            policy,
+            rewind,
+        };
+        Action::Import(pool.clone(), options).is_kept_by_lock(bootfs)
+    };
+    let (read_only, read_write) = (model::Access::ReadOnly, model::Access::ReadWrite);
+    assert!(!import(read_only, Strict, false));
+    assert!(import(read_only, Hostid, false));
+    assert!(import(read_only, Force, false));
+    assert!(import(read_write, Strict, false));
+    assert!(import(read_only, Strict, true));
     for open in [Action::Shell, Action::Reboot, Action::UnlockAll] {
         assert!(!open.is_kept_by_lock(bootfs), "{open:?}");
     }
@@ -219,7 +233,7 @@ fn of_kind(kind: model::Offer) -> Action {
             paths: vec![zbm_types::Untrusted::new("/etc/fstab".to_owned())],
         },
         Offer::Chroot => Action::Chroot(environment.to_string()),
-        Offer::Import => Action::ImportReadWrite(environment.pool()),
+        Offer::Import => Action::Import(environment.pool(), model::ImportOptions::default()),
         Offer::OpenVolume => Action::Open {
             device: "/dev/sda2".to_owned(),
             name: None,

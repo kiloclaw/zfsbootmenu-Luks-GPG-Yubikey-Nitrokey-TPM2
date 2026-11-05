@@ -5,8 +5,8 @@ use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 use super::data::NOW;
 use super::untrusted;
 use crate::menu::world::{
-    Action, CommandLine, Environment, Event, Origin, Outcome, Snapshot, SnapshotInfo,
-    restore_snapshot,
+    Access, Action, CommandLine, Environment, Event, ImportOptions, Origin, Outcome, Snapshot,
+    SnapshotInfo, restore_snapshot,
 };
 
 /// Applies an action on storage, and says what happened.
@@ -44,8 +44,6 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
         | Action::Duplicate(name, new)
         | Action::CloneAndPromote(name, new) => copy(snapshot, &name, &new),
         Action::ResetBootTries(name) => reset_tries(snapshot, &name),
-        Action::ImportReadWrite(pool) => writable(snapshot, &pool),
-        Action::RewindCheckpoint(pool) => rewind(snapshot, &pool),
         _ => return Vec::new(),
     };
     vec![Event::Changed(snapshot.clone()), Event::Finished(outcome)]
@@ -234,11 +232,27 @@ fn reset_tries(snapshot: &mut Snapshot, name: &DatasetName) -> Outcome {
     }
 }
 
-fn writable(snapshot: &mut Snapshot, pool: &PoolName) -> Outcome {
-    if make_writable(snapshot, pool).is_empty() {
-        Outcome::Done(format!("{pool} was imported read/write already"))
-    } else {
-        Outcome::Done(format!("{pool} imported read/write"))
+/// An import of `pool`, which is imported: read-only or read/write
+/// again, or rewound to its checkpoint.
+pub(super) fn reimport(
+    snapshot: &mut Snapshot,
+    pool: &PoolName,
+    options: ImportOptions,
+) -> Outcome {
+    if options.rewind {
+        return rewind(snapshot, pool);
+    }
+    match options.access {
+        Access::ReadWrite if make_writable(snapshot, pool).is_empty() => {
+            Outcome::Done(format!("{pool} was imported read/write already"))
+        }
+        Access::ReadWrite => Outcome::Done(format!("{pool} imported read/write")),
+        Access::ReadOnly => {
+            if let Some(found) = snapshot.pools.iter_mut().find(|p| &p.name == pool) {
+                found.writable = false;
+            }
+            Outcome::Done(format!("{pool} imported read-only"))
+        }
     }
 }
 
@@ -246,6 +260,7 @@ fn rewind(snapshot: &mut Snapshot, pool: &PoolName) -> Outcome {
     match snapshot.pools.iter_mut().find(|p| &p.name == pool) {
         Some(found) if found.checkpoint => {
             found.checkpoint = false;
+            found.writable = true;
             Outcome::Done(format!("{pool} rewound to its checkpoint"))
         }
         _ => Outcome::Warning(format!("{pool} has no checkpoint")),

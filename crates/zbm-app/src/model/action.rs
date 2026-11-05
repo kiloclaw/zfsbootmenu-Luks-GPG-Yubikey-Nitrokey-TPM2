@@ -6,11 +6,9 @@ use std::sync::Arc;
 
 use zbm_crypt::OpenOptions;
 use zbm_platform::secret::Secret;
-use zbm_types::{
-    Answer, DatasetName, DevicePath, ImportPolicy, MappingName, PoolName, SnapshotName, Untrusted,
-};
+use zbm_types::{Answer, DatasetName, DevicePath, MappingName, PoolName, SnapshotName, Untrusted};
 
-use super::{Change, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
+use super::{Change, ImportOptions, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
 
 /// What the name of the safety snapshot restoring files takes first starts
 /// with: `<environment>@before-restore-<UTC time>`, the time as a new
@@ -76,12 +74,11 @@ pub enum Action {
     Reseal(String),
     /// A shell in a chroot of an environment, or of a snapshot read-only.
     Chroot(String),
-    /// Import a pool read/write again.
-    ImportReadWrite(PoolName),
-    /// Rewind a pool to its checkpoint.
-    RewindCheckpoint(PoolName),
-    /// Import a pool with a policy.
-    Import(PoolName, ImportPolicy),
+    /// Import a pool with the options given: one that is imported is
+    /// exported first, which a rewind does whatever its access, and
+    /// imported again; one that is not is imported read-only first, then
+    /// again like one that is (ADR 0016, point 3).
+    Import(PoolName, ImportOptions),
     /// Unlock a volume with a method and, for typed methods, a secret.
     Unlock {
         /// The volume.
@@ -142,11 +139,13 @@ pub enum Action {
 impl Action {
     /// Whether the action takes the console from the menu: booting, which
     /// may ask for a passphrase, the recovery shell, rebooting and powering
-    /// off.
+    /// off, and every import, which may ask about hibernation and must not
+    /// be cancelled between the export and the import.
     pub fn needs_console(&self) -> bool {
         matches!(
             self,
             Action::Boot { .. }
+                | Action::Import(..)
                 | Action::Shell
                 | Action::Reboot
                 | Action::PowerOff
@@ -154,14 +153,16 @@ impl Action {
         )
     }
 
-    /// Whether the action is one of package D, which imports the pool
+    /// Whether the action is a change of package D: an import, or a change
+    /// of an environment or its snapshots, which imports the pool
     /// read/write first unless it is the diff of two snapshots
     /// ([`Action::needs_writable_pool`]), and loads the environment's key
     /// where it needs it.
     pub fn is_change(&self) -> bool {
         matches!(
             self,
-            Action::SetDefaultEnvironment(_)
+            Action::Import(..)
+                | Action::SetDefaultEnvironment(_)
                 | Action::SetDefaultKernel(..)
                 | Action::InheritDefaultKernel(_)
                 | Action::CreateSnapshot(_)
@@ -176,17 +177,17 @@ impl Action {
 
     /// Whether the change writes its pool, which it imports read/write
     /// first: every change but the diff of two snapshots, which reads
-    /// them.
+    /// them, and an import, which is how the pool is imported.
     pub fn needs_writable_pool(&self) -> bool {
-        self.is_change() && !matches!(self, Action::Diff(_, Some(_)))
+        self.is_change() && !matches!(self, Action::Diff(_, Some(_)) | Action::Import(..))
     }
 
     /// Whether the locked menu keeps the action (ROADMAP.md SE9, ADR 0010):
     /// everything but the default boot, the countdown's or of `bootfs` with
     /// its own kernel and command line, what changes nothing (a diff, a dry
-    /// run) and a pool imported without force. Unlocking
-    /// a volume with its own secret, the recovery shell, which asks for the
-    /// PIN itself, and powering off or rebooting stay open.
+    /// run) and a pool imported read-only as this host, without a rewind.
+    /// Unlocking a volume with its own secret, the recovery shell, which
+    /// asks for the PIN itself, and powering off or rebooting stay open.
     pub fn is_kept_by_lock(&self, bootfs: Option<&DatasetName>) -> bool {
         match self {
             Action::Boot {
@@ -210,7 +211,7 @@ impl Action {
             | Action::Reboot
             | Action::PowerOff
             | Action::Plan(_) => false,
-            Action::Import(_, policy) => *policy == ImportPolicy::Force,
+            Action::Import(_, options) => options.is_kept_by_lock(),
             Action::BootSnapshot(_)
             | Action::SetDefaultEnvironment(_)
             | Action::SetDefaultKernel(..)
@@ -224,8 +225,6 @@ impl Action {
             | Action::ResetBootTries(_)
             | Action::Reseal(_)
             | Action::Chroot(_)
-            | Action::ImportReadWrite(_)
-            | Action::RewindCheckpoint(_)
             | Action::OpenWithKeyFile { .. }
             | Action::Close(_) => true,
         }

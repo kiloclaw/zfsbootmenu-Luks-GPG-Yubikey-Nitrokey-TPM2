@@ -17,7 +17,8 @@ use zbm_platform::secret::Secret;
 use zbm_types::Untrusted;
 
 use crate::menu::world::{
-    Action, Event, Method, Notice, Outcome, Snapshot, StageState, Volume, VolumeState,
+    Access, Action, Event, ImportOptions, Method, Notice, Outcome, Snapshot, StageState, Volume,
+    VolumeState,
 };
 
 /// What the demo machine has.
@@ -209,7 +210,7 @@ impl FakeMachine {
                 self.waiting = false;
                 vec![self.changed()]
             }
-            Action::Import(pool, policy) => self.import(&pool, policy),
+            Action::Import(pool, options) => self.import(&pool, options),
             Action::Shell => leave("Opening the recovery shell"),
             Action::Reboot => leave("Rebooting"),
             Action::PowerOff => leave("Powering off"),
@@ -367,12 +368,9 @@ impl FakeMachine {
         }
     }
 
-    /// An import of a pool that did not import at start-up.
-    fn import(
-        &mut self,
-        name: &zbm_types::PoolName,
-        policy: zbm_types::ImportPolicy,
-    ) -> Vec<Event> {
+    /// An import of a pool: one that did not import at start-up, or an
+    /// imported one again.
+    fn import(&mut self, name: &zbm_types::PoolName, options: ImportOptions) -> Vec<Event> {
         let Some(pool) = self
             .snapshot
             .pools
@@ -381,6 +379,11 @@ impl FakeMachine {
         else {
             return Vec::new();
         };
+        if pool.imported {
+            let outcome = storage::reimport(&mut self.snapshot, name, options);
+            return vec![self.changed(), Event::Finished(outcome)];
+        }
+        let policy = options.policy;
         if pool.foreign_hostid.is_some() && policy == zbm_types::ImportPolicy::Strict {
             return vec![Event::Finished(Outcome::Failed {
                 what: format!("{name} did not import"),
@@ -397,6 +400,7 @@ impl FakeMachine {
             })];
         }
         pool.imported = true;
+        pool.writable = options.access == Access::ReadWrite;
         self.waiting = false;
         storage::add_backup_environment(&mut self.snapshot, name);
         let done = Outcome::Done(format!("{name} imported ({policy})"));

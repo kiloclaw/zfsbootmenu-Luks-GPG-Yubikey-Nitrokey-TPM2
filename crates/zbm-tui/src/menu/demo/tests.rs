@@ -152,6 +152,58 @@ fn copies_and_rollbacks_change_the_storage() {
 }
 
 #[test]
+fn an_import_toggles_the_access_rewinds_and_imports_a_foreign_pool() {
+    let mut machine = FakeMachine::new(&DemoOptions {
+        foreign: true,
+        ..DemoOptions::default()
+    });
+    let import = |pool: &str, access, policy, rewind| {
+        let options = ImportOptions {
+            access,
+            policy,
+            rewind,
+        };
+        Action::Import(pool.parse().unwrap(), options)
+    };
+    let strict = zbm_types::ImportPolicy::Strict;
+    let said = |events: Vec<Event>| match events.last() {
+        Some(Event::Finished(Outcome::Done(text) | Outcome::Warning(text))) => text.clone(),
+        other => panic!("not finished: {other:?}"),
+    };
+    let pool = |machine: &FakeMachine, name: &str| {
+        let pools = &machine.snapshot().pools;
+        pools
+            .iter()
+            .find(|p| p.name.as_str() == name)
+            .cloned()
+            .unwrap()
+    };
+
+    let events = machine.apply(import("zroot", Access::ReadWrite, strict, false));
+    assert_eq!(said(events), "zroot imported read/write");
+    let events = machine.apply(import("zroot", Access::ReadWrite, strict, false));
+    assert_eq!(said(events), "zroot was imported read/write already");
+    let events = machine.apply(import("zroot", Access::ReadOnly, strict, false));
+    assert_eq!(said(events), "zroot imported read-only");
+    assert!(!pool(&machine, "zroot").writable);
+
+    let events = machine.apply(import("tank", Access::ReadWrite, strict, true));
+    assert_eq!(said(events), "tank rewound to its checkpoint");
+    assert!(pool(&machine, "tank").writable && !pool(&machine, "tank").checkpoint);
+    let events = machine.apply(import("tank", Access::ReadWrite, strict, true));
+    assert_eq!(said(events), "tank has no checkpoint");
+
+    let hostid = zbm_types::ImportPolicy::Hostid;
+    let events = machine.apply(import("backup", Access::ReadOnly, strict, false));
+    assert!(matches!(
+        events.last(),
+        Some(Event::Finished(Outcome::Failed { .. }))
+    ));
+    machine.apply(import("backup", Access::ReadOnly, hostid, false));
+    assert!(pool(&machine, "backup").imported);
+}
+
+#[test]
 fn leaving_actions_end_the_menu() {
     let mut machine = FakeMachine::new(&DemoOptions::default());
 

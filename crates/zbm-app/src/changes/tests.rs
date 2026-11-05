@@ -6,6 +6,7 @@ use zbm_testkit::zfs::FakeZfs;
 use zbm_zfs::{DiffChange, Difference, Zfs};
 
 use super::*;
+use crate::model::{Access, ImportOptions};
 
 /// Needs that record what was asked, and refuse what the test says.
 #[derive(Default)]
@@ -20,6 +21,8 @@ struct FakeNeeds {
     refused: Option<String>,
     /// Why the copy of a restore fails, if it does.
     copy_error: Option<String>,
+    /// Why an import fails, if it does.
+    import_error: Option<String>,
 }
 
 impl Needs for FakeNeeds {
@@ -29,6 +32,13 @@ impl Needs for FakeNeeds {
             return Err(vec![format!("{pool} may not be imported read/write")]);
         }
         Ok(())
+    }
+
+    fn import(&mut self, pool: &PoolName, options: ImportOptions) -> Result<(), Vec<String>> {
+        self.asked.push(format!("import {pool} {options:?}"));
+        self.import_error
+            .clone()
+            .map_or(Ok(()), |why| Err(vec![why]))
     }
 
     fn load_key(&mut self, dataset: &DatasetName) -> Result<(), Vec<String>> {
@@ -580,4 +590,5 @@ fn removed_and_created_paths_are_named_as_such() {
 }
 
 mod console;
+mod import;
 mod kernels_and_files;

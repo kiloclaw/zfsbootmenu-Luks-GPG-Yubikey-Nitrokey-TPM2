@@ -44,8 +44,7 @@ stays right when the snapshot changes under it.
 | `ResetBootTries` | environment | palette |
 | `Reseal` | volume | re-seal alert, palette |
 | `Chroot` | environment or snapshot | main, snapshots |
-| `ImportReadWrite`, `RewindCheckpoint` | pool | main, pools |
-| `Import` | pool, policy (host ID, force), read-only or not | pools, import problem |
+| `Import` | pool, `ImportOptions`: read-only or read/write, the policy (this host, its last host, forced), whether to rewind to the checkpoint; an imported pool is exported first | main, pools, import problem |
 | `Unlock` | volume, method, the secret (a `Secret`, never a `String`) | unlock dialog, pools |
 | `SkipUnlock` | volume | unlock dialog |
 | `AnswerImportProblem` | pool, the choice | import problem dialog |

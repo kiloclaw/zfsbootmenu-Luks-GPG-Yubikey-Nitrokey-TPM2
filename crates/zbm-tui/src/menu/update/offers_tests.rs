@@ -13,8 +13,9 @@ use crate::menu::demo::{DemoOptions, FakeMachine};
 use crate::menu::keymap::{self, CLASSIC, Context, Map, Modifiers};
 use crate::menu::model::{Dialog, Model, Screen, Then};
 use crate::menu::theme::Theme;
-use crate::menu::world::{Action, Event, Offer, Outcome, Snapshot, StageState};
+use crate::menu::world::{Access, Action, Event, Offer, Outcome, Snapshot, StageState};
 use crate::text::text;
+use zbm_types::ImportPolicy;
 
 /// What the application offers today.
 const APP: &[Offer] = &[
@@ -27,6 +28,7 @@ const APP: &[Offer] = &[
     Offer::Duplicate,
     Offer::Diff,
     Offer::RestoreFiles,
+    Offer::Import,
     Offer::Shell,
     Offer::FirmwareSetup,
     Offer::Power,
@@ -246,7 +248,17 @@ fn the_dialogs_of_the_machine_offer_only_what_is_offered() {
     };
 
     events::apply(&mut model, problem);
-    assert_eq!(reached(&model, Vec::new()), [Action::Shell]);
+    let backup = "backup".parse().unwrap();
+    let import = |policy| super::dialogs::import(&backup, Access::ReadOnly, policy);
+    assert_eq!(
+        reached(&model, Vec::new()),
+        [
+            import(ImportPolicy::Strict),
+            import(ImportPolicy::Hostid),
+            import(ImportPolicy::Force),
+            Action::Shell
+        ]
+    );
     model.dialog = None;
     events::apply(&mut model, Event::ResealOffered("luks-zroot-a".to_owned()));
     assert_eq!(model.dialog, None);
@@ -269,14 +281,11 @@ fn machine_all() -> (Snapshot, Event) {
 fn a_key_of_something_not_offered_opens_nothing_and_says_so() {
     let machine = machine(APP);
     let key = |c| KeyPress::new(Key::Char(c));
-    // Booting a snapshot, a chroot, an import, a rewind, unlocking.
+    // Booting a snapshot, a chroot, unlocking.
     let cases = [
         (Place::Snapshots, key('b')),
         (Place::Snapshots, key('j')),
         (Place::Main, key('j')),
-        (Place::Main, key('w')),
-        (Place::Pools(0), key('i')),
-        (Place::Pools(1), key('h')),
         (Place::Pools(3), key('u')),
         (Place::Pools(3), KeyPress::new(Key::Enter)),
     ];
@@ -290,9 +299,9 @@ fn a_key_of_something_not_offered_opens_nothing_and_says_so() {
     }
 
     // Offered, the same key opens its dialog.
-    let mut model = menu(&machine_all(), Map::Classic, Place::Pools(0));
-    let _ = key_press(&mut model, key('i'));
-    assert!(matches!(model.dialog, Some(Dialog::Choose { .. })));
+    let mut model = menu(&machine_all(), Map::Classic, Place::Pools(3));
+    let _ = key_press(&mut model, key('u'));
+    assert!(matches!(model.dialog, Some(Dialog::Unlock(_))), "{model:?}");
 }
 
 #[test]

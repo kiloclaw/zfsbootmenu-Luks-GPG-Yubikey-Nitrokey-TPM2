@@ -23,6 +23,7 @@ use zbm_platform::console::Console;
 use zbm_platform::sandbox::{self, Profile as _};
 use zbm_platform::{Clock, SystemClock};
 use zbm_platform::{Context, System};
+use zbm_pool::ImportSettings;
 use zbm_startup::preinit;
 use zbm_startup::program::Startup;
 use zbm_startup::program::menu::{Menu, SessionMenu};
@@ -77,6 +78,8 @@ struct Terminal<'s, 'a> {
     /// The session's socket, which another instance asks first.
     session: Option<&'s Path>,
     options: &'s ZbmOptions,
+    /// The image's configuration, which says how pools are imported.
+    conf: &'s Conf,
     base: &'s Path,
     show: Show<'s>,
     countdown: Countdown,
@@ -102,7 +105,9 @@ fn is_taken_over(received: SignalSet) -> bool {
 
 impl Menu for Terminal<'_, '_> {
     fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery) {
-        let runtime = Runtime::new(self.options.clone(), self.base).with_boot(settings.clone());
+        let runtime = Runtime::new(self.options.clone(), self.base)
+            .with_boot(settings.clone())
+            .with_import(ImportSettings::from_conf(self.conf));
         // The keyholders check the PIN of a locked menu (ROADMAP.md SE9).
         let keyholders = crate::unlock::ProcessKeyholders::new();
         let app = App::new(Context::new(self.system), &runtime).with_keyholders(&keyholders);
@@ -153,6 +158,7 @@ fn menu(
         handover: None,
         session: Some(Path::new(session::SOCKET)),
         options: &options,
+        conf,
         base: &base,
         show,
         countdown,
@@ -200,6 +206,7 @@ impl SessionMenu for InSession<'_, '_> {
             handover: self.handover,
             session: None,
             options: &options,
+            conf: self.conf,
             base: &base,
             show: &mut show,
             countdown: if countdown {

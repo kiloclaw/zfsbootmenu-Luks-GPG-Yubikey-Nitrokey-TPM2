@@ -3,7 +3,9 @@
 //! clone or a new default has the pool exported and imported read/write
 //! first, unless its `org.zfsbootmenu:readonly` property or a degraded
 //! health forbids it, or the user does not allow it while a hibernated
-//! system may resume.
+//! system may resume. The menu's imports of an imported pool, read/write,
+//! read-only again or rewound to its checkpoint, are the same export and
+//! import ([`reimport`]).
 
 use std::path::Path;
 
@@ -15,7 +17,7 @@ use zbm_types::{ImportPolicy, PoolName};
 use zbm_zfs::{Stderr, ZfsText};
 
 use crate::error::{PoolError, WritableError};
-use crate::import::{Access, Import, import_pool};
+use crate::import::{Access, Import, Rewind, import_pool};
 use crate::resume::resume_prompt;
 
 /// The module parameters set to 0 before a pool is written, as the legacy
@@ -127,26 +129,67 @@ pub fn set_rw_pool(
     pool: &PoolName,
     policy: ImportPolicy,
 ) -> Result<(), WritableError> {
+    reimport(
+        context,
+        interaction,
+        state,
+        pool,
+        policy,
+        Access::ReadWrite,
+        Rewind::No,
+    )
+}
+
+/// Imports `pool`, which is imported, again with `access`, rewound to its
+/// checkpoint with `rewind`: exports it, then imports it with `policy`, as
+/// the legacy runtime's read/write and read-only imports and its rewind
+/// do. Nothing is done when the pool has `access` already and nothing is
+/// rewound; a rewind exports it whatever its access. Before the export, a
+/// read/write import is refused by the [`READONLY`] property or a degraded
+/// health, and asks the resume question. When the import fails, the pool
+/// is imported read-only again, without a rewind, so that it is not left
+/// exported.
+///
+/// # Errors
+///
+/// [`WritableError::ReadWriteProhibited`], [`WritableError::PoolProperty`]
+/// or [`WritableError::ResumeRefused`] for a read/write import, before
+/// anything is exported; [`WritableError::Pool`] when the export or the
+/// import fails.
+pub fn reimport(
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
+    state: &State<'_>,
+    pool: &PoolName,
+    policy: ImportPolicy,
+    access: Access,
+    rewind: Rewind,
+) -> Result<(), WritableError> {
     zbm_trace::debug!("pool set to {pool}"; %pool);
-    disable_risky_writes(context);
-    if is_writable(context.runner(), pool) {
+    let writes = access == Access::ReadWrite;
+    if writes {
+        disable_risky_writes(context);
+    }
+    if rewind == Rewind::No && is_writable(context.runner(), pool) == writes {
         return Ok(());
     }
-    zbm_trace::debug!("{pool} is not already writable"; %pool);
-    if let Some(reason) = prohibition(context, state, pool)? {
-        return Err(WritableError::ReadWriteProhibited {
-            pool: pool.to_string(),
-            reason,
-        });
+    if writes {
+        zbm_trace::debug!("{pool} is not already writable"; %pool);
+        if let Some(reason) = prohibition(context, state, pool)? {
+            return Err(WritableError::ReadWriteProhibited {
+                pool: pool.to_string(),
+                reason,
+            });
+        }
+        let _choice = resume_prompt(context, interaction, state, pool)?;
     }
-    let _choice = resume_prompt(context, interaction, state, pool)?;
     export(context.runner(), pool)?;
     let import = Import::pool(pool).policy(policy);
-    let imported = import_pool(context, state, import.access(Access::ReadWrite));
+    let imported = import_pool(context, state, import.access(access).rewind(rewind));
     zbm_trace::debug!("import_pool: {status}"; status = %i32::from(imported.is_err()));
     if imported.is_err() {
         zbm_trace::warn!(
-            "{pool} could not be imported read/write; importing it read-only again";
+            "{pool} could not be imported as asked; importing it read-only again";
             %pool
         );
         if let Err(error) = import_pool(context, state, import.access(Access::ReadOnly)) {

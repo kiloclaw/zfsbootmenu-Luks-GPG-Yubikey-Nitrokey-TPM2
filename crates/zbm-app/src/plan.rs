@@ -67,6 +67,7 @@ impl App<'_> {
             system: &system,
             state: &state,
             settings: &self.runtime.boot,
+            import: &self.runtime.import,
             asks: false,
         };
         let mut needs = Planning {

@@ -1,11 +1,11 @@
 //! The intents of the main, kernels, pools and recovery views.
 
-use zbm_types::{ImportPolicy, Untrusted};
+use zbm_types::{ImportPolicy, PoolName, Untrusted};
 
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent, Tab};
 use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
-use crate::menu::world::{Action, Environment, Method, Outcome, Verdict};
+use crate::menu::world::{Access, Action, Environment, Method, Outcome, Verdict};
 use crate::text::text;
 
 /// What `intent` does on the current screen.
@@ -161,7 +161,7 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Edit => focus(model, name, Screen::CommandLine),
         Intent::SetDefault => return vec![Action::SetDefaultEnvironment(name)],
         Intent::Pools => model.screen = Screen::Pools,
-        Intent::ReadWrite => return vec![Action::ImportReadWrite(name.pool())],
+        Intent::ReadWrite => return vec![read_write(&name.pool())],
         Intent::Chroot => return vec![Action::Chroot(name.to_string())],
         Intent::NewSnapshot => {
             let then = super::snapshots::new_snapshot(model, name);
@@ -227,17 +227,19 @@ fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
     match intent {
         Intent::Primary => dialogs::pool_details(model, &pool),
         Intent::Import => import_choices(model, &pool),
-        Intent::ReadWrite => return vec![Action::ImportReadWrite(pool)],
+        Intent::ReadWrite => return vec![read_write(&pool)],
+        Intent::Rewind if !has_checkpoint(model, &pool) => {
+            model.notification = Some(Outcome::Warning(text!(
+                "pool-no-checkpoint",
+                pool = pool.to_string()
+            )));
+        }
         Intent::Rewind => {
-            model.dialog = Some(dialogs::confirm(Then::Confirm {
-                action: Action::RewindCheckpoint(pool.clone()),
-                title: text!("rewind.title", pool = pool.to_string()),
-                lines: vec![
-                    text!("rewind", pool = pool.to_string()),
-                    text!("rewind.discarded"),
-                ],
-                name: pool.to_string(),
-            }));
+            let lines = vec![
+                text!("rewind", pool = pool.to_string()),
+                text!("rewind.discarded"),
+            ];
+            model.dialog = Some(dialogs::confirm(dialogs::rewind(&pool, lines)));
         }
         _ => {}
     }
@@ -257,22 +259,67 @@ pub(super) fn unlock(model: &mut Model, volume: &str) {
     model.dialog = Some(crate::menu::model::Dialog::Unlock(prompt));
 }
 
-/// The ways to import `pool`.
-fn import_choices(model: &mut Model, pool: &zbm_types::PoolName) {
-    let choices = vec![
-        Choice {
-            label: text!("pool-import-this-host"),
-            then: Then::Act(Action::Import(pool.clone(), ImportPolicy::Strict)),
-        },
-        Choice {
-            label: text!("pool-import-last-host"),
-            then: Then::Act(Action::Import(pool.clone(), ImportPolicy::Hostid)),
-        },
-        Choice {
-            label: text!("pool-force-import"),
-            then: dialogs::force_import(pool),
-        },
-    ];
+/// Whether the snapshot says `pool` has a checkpoint to rewind to.
+fn has_checkpoint(model: &Model, pool: &PoolName) -> bool {
+    model
+        .snapshot
+        .pools
+        .iter()
+        .any(|known| &known.name == pool && known.checkpoint)
+}
+
+/// The read/write import of `pool`.
+fn read_write(pool: &PoolName) -> Action {
+    dialogs::import(pool, Access::ReadWrite, ImportPolicy::Strict)
+}
+
+/// The ways to import `pool`: imported, with the other access, and rewound
+/// to its checkpoint when it has one; not imported, as this host, as the
+/// host that last imported it, or forced.
+fn import_choices(model: &mut Model, pool: &PoolName) {
+    let known = model
+        .snapshot
+        .pools
+        .iter()
+        .find(|known| &known.name == pool);
+    let choices = match known {
+        Some(known) if known.imported => {
+            let mut choices = vec![dialogs::toggle(pool, known.writable)];
+            if known.checkpoint {
+                let lines = vec![
+                    text!("rewind", pool = pool.to_string()),
+                    text!("rewind.discarded"),
+                ];
+                choices.push(Choice {
+                    label: text!("pool-rewind"),
+                    then: dialogs::rewind(pool, lines),
+                });
+            }
+            choices
+        }
+        _ => vec![
+            Choice {
+                label: text!("pool-import-this-host"),
+                then: Then::Act(dialogs::import(
+                    pool,
+                    Access::ReadOnly,
+                    ImportPolicy::Strict,
+                )),
+            },
+            Choice {
+                label: text!("pool-import-last-host"),
+                then: Then::Act(dialogs::import(
+                    pool,
+                    Access::ReadOnly,
+                    ImportPolicy::Hostid,
+                )),
+            },
+            Choice {
+                label: text!("pool-force-import"),
+                then: dialogs::force_import(pool),
+            },
+        ],
+    };
     let title = text!("import-title", pool = pool.to_string());
     dialogs::choose_offered(model, &title, Vec::new(), choices);
 }

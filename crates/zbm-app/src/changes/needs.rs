@@ -1,7 +1,7 @@
 //! What a change needs besides ZFS, from the machine: its pool imported
 //! read/write, its key loaded, the kernels of an environment or a
-//! snapshot, a mount for `zfs diff`, and a read/write one to restore files
-//! into.
+//! snapshot, a mount for `zfs diff`, a read/write one to restore files
+//! into, and the menu's imports of a pool.
 
 use std::path::Path;
 
@@ -9,13 +9,14 @@ use zbm_boot::BootSettings;
 use zbm_bootenv::Noise;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::{Context, System};
+use zbm_pool::ImportSettings;
 use zbm_pool::writable::set_rw_pool;
 use zbm_state::State;
 use zbm_tools::console::ConsoleInteraction;
 use zbm_types::{DatasetName, FilesystemName, PoolName, Printable, SnapshotName, Untrusted};
 
 use super::restore::Restore;
-use crate::model::{Step, StepKind};
+use crate::model::{ImportOptions, Step, StepKind};
 use crate::volumes::causes;
 
 /// What a change needs besides ZFS. A failure is its reasons, outermost
@@ -23,6 +24,10 @@ use crate::volumes::causes;
 pub(crate) trait Needs {
     /// Imports `pool` read/write unless it is.
     fn writable(&mut self, pool: &PoolName) -> Result<(), Vec<String>>;
+
+    /// Imports `pool` with `options`, exporting it first if it is
+    /// imported (`changes::import`).
+    fn import(&mut self, pool: &PoolName, options: ImportOptions) -> Result<(), Vec<String>>;
 
     /// Loads the key of the encryption root of `dataset` unless it is
     /// loaded or there is none.
@@ -91,6 +96,8 @@ pub(crate) struct OnMachine<'s, 'a> {
     pub state: &'s State<'a>,
     /// The hooks and the import policy.
     pub settings: &'s BootSettings,
+    /// The settings of a first import, which host ID matching reads.
+    pub import: &'s ImportSettings,
     /// Whether the change has the console, and may ask.
     pub asks: bool,
 }
@@ -108,6 +115,10 @@ impl Needs for OnMachine<'_, '_> {
         let policy = self.settings.import_policy;
         set_rw_pool(&context, &interaction, self.state, pool, policy)
             .map_err(|error| causes(&error))
+    }
+
+    fn import(&mut self, pool: &PoolName, options: ImportOptions) -> Result<(), Vec<String>> {
+        super::import::import(self, pool, options)
     }
 
     fn load_key(&mut self, dataset: &DatasetName) -> Result<(), Vec<String>> {
@@ -217,9 +228,9 @@ impl Needs for OnMachine<'_, '_> {
 }
 
 /// What a change needs, planned instead of done: a pool imported
-/// read-only, a key that is not loaded and a restore become steps of the
-/// plan, and what is read, such as the kernels of a snapshot or the files
-/// to restore, is read from the machine, mounted read-only.
+/// read-only, a key that is not loaded, an import and a restore become
+/// steps of the plan, and what is read, such as the kernels of a snapshot
+/// or the files to restore, is read from the machine, mounted read-only.
 pub(crate) struct Planning<'s, 'm> {
     /// The machine, without the console.
     pub machine: OnMachine<'s, 'm>,
@@ -229,11 +240,15 @@ pub(crate) struct Planning<'s, 'm> {
 
 impl Planning<'_, '_> {
     fn step(&self, kind: StepKind) {
+        self.push(Step {
+            kind,
+            command: None,
+        });
+    }
+
+    fn push(&self, step: Step) {
         if let Ok(mut steps) = self.steps.lock() {
-            steps.push(Step {
-                kind,
-                command: None,
-            });
+            steps.push(step);
         }
     }
 }
@@ -242,6 +257,13 @@ impl Needs for Planning<'_, '_> {
     fn writable(&mut self, pool: &PoolName) -> Result<(), Vec<String>> {
         if !zbm_pool::writable::is_writable(self.machine.system.runner, pool) {
             self.step(StepKind::ImportReadWrite(pool.clone()));
+        }
+        Ok(())
+    }
+
+    fn import(&mut self, pool: &PoolName, options: ImportOptions) -> Result<(), Vec<String>> {
+        for step in super::import::steps(&self.machine, pool, options)? {
+            self.push(step);
         }
         Ok(())
     }

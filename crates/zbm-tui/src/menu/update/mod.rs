@@ -209,6 +209,8 @@ pub(crate) fn show_failure(model: &mut Model, outcome: &Outcome) {
 #[cfg(test)]
 mod health_tests;
 #[cfg(test)]
+mod import_tests;
+#[cfg(test)]
 mod offers_tests;
 #[cfg(test)]
 mod question_tests;

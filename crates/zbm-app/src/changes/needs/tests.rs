@@ -14,10 +14,12 @@ fn with_needs<T>(
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
     let settings = BootSettings::default();
+    let import = ImportSettings::default();
     test(&mut OnMachine {
         system: &system,
         state: &state,
         settings: &settings,
+        import: &import,
         asks,
     })
 }
@@ -206,10 +208,12 @@ fn a_new_default_is_recorded_for_the_hooks() {
     let system = unwritable.system();
     let state = State::new(&unwritable.files, "/missing/zfsbootmenu");
     let settings = BootSettings::default();
+    let import = ImportSettings::default();
     let mut needs = OnMachine {
         system: &system,
         state: &state,
         settings: &settings,
+        import: &import,
         asks: true,
     };
     needs.record_default(&dataset("tank/ROOT/void"));
@@ -227,6 +231,7 @@ fn planned_needs_are_steps_and_what_they_read_comes_from_the_machine() {
             system: machine.system,
             state: machine.state,
             settings: machine.settings,
+            import: machine.import,
             asks: false,
         };
         let mut planning = Planning {
@@ -291,6 +296,7 @@ fn a_restore_mounts_read_write_and_its_plan_copies_nothing() {
             system: needs.system,
             state: needs.state,
             settings: needs.settings,
+            import: needs.import,
             asks: false,
         };
         let mut planning = Planning {

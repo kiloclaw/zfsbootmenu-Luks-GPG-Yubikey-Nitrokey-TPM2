@@ -288,3 +288,43 @@ fn a_default_kernel_and_a_restore_plan_their_steps_and_change_nothing() {
             .any(|line| line.starts_with("cp"))
     );
 }
+
+#[test]
+fn an_import_plans_the_export_and_the_import_and_moves_nothing() {
+    let fake = machine("on");
+    fake.runner.respond("zpool list -H -o name", 0, "tank\n");
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let options = crate::model::ImportOptions {
+        access: crate::model::Access::ReadWrite,
+        policy: zbm_types::ImportPolicy::Strict,
+        rewind: false,
+    };
+    let import = Action::Import("tank".parse().unwrap(), options);
+
+    let events = app.apply(
+        &Action::Plan(Box::new(import)),
+        Through::Quietly(fake.system()),
+    );
+
+    let [Event::Planned { plan, .. }] = events.as_slice() else {
+        panic!("not a plan: {events:?}");
+    };
+    let commands: Vec<Option<&str>> = plan
+        .steps
+        .iter()
+        .map(|step| step.command.as_deref())
+        .collect();
+    assert_eq!(
+        commands,
+        [
+            Some("zpool export tank"),
+            Some("zpool import -N -o readonly=off tank")
+        ]
+    );
+    assert_eq!(
+        plan.outcome,
+        Outcome::Done("tank is imported read/write".to_owned())
+    );
+    assert!(changes(&fake).is_empty(), "{:?}", changes(&fake));
+}

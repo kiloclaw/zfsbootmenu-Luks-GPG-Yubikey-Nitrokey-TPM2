@@ -7,7 +7,7 @@
 
 use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
-use super::Outcome;
+use super::{ImportOptions, Outcome};
 
 /// What a step does.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -69,6 +69,19 @@ pub enum StepKind {
     InheritKey(DatasetName),
     /// A pool is exported.
     Export(PoolName),
+    /// A pool is imported with the options given; read/write, an imported
+    /// one may ask about a hibernated system first.
+    Import {
+        /// The pool.
+        pool: PoolName,
+        /// How.
+        options: ImportOptions,
+    },
+    /// When the pool, not imported, does not import with this machine's
+    /// host ID, the host ID of the host that last imported it is written to
+    /// `/etc/hostid` and recorded for the boot, and the pool is imported
+    /// read-only with it.
+    AdoptHostid(PoolName),
     /// Paths are copied back from a snapshot into its environment, mounted
     /// read/write, with their owner, mode and times; nothing is deleted.
     Restore {

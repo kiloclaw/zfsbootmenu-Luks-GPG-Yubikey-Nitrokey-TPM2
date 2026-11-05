@@ -1,7 +1,10 @@
 //! What the machine's events do to the menu.
 
+use super::dialogs::import;
 use crate::menu::model::{Asking, Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
-use crate::menu::world::{Action, Event, Outcome, Stage, StageState, Target, UnlockOutcome};
+use crate::menu::world::{
+    Access, Action, Event, Outcome, Stage, StageState, Target, UnlockOutcome,
+};
 use crate::text::text;
 use zbm_types::ImportPolicy;
 
@@ -142,11 +145,11 @@ fn import_problem(model: &mut Model, pool: &zbm_types::PoolName, reason: String)
     let choices = vec![
         act(
             text!("import-retry"),
-            Then::Act(Action::Import(pool.clone(), ImportPolicy::Strict)),
+            Then::Act(import(pool, Access::ReadOnly, ImportPolicy::Strict)),
         ),
         act(
             text!("pool-import-last-host"),
-            Then::Act(Action::Import(pool.clone(), ImportPolicy::Hostid)),
+            Then::Act(import(pool, Access::ReadOnly, ImportPolicy::Hostid)),
         ),
         act(
             text!("pool-force-import"),

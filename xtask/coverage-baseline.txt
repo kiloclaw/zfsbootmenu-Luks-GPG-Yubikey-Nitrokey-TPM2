@@ -24,7 +24,7 @@ zbm-sys                  89
 zbm-testkit              95
 zbm-tools               100
 zbm-trace                98
-zbm-tui                  90
+zbm-tui                  92
 zbm-types                98
 zbm-vmtest               58
 zbm-zfs                  99

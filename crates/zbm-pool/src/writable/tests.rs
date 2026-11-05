@@ -197,3 +197,115 @@ fn with_a_suspend_partition_the_resume_question_decides() {
         }
     }
 }
+
+/// [`reimport`] of `tank` on `fake`, where no one answers.
+fn again(fake: &FakeSystem, access: Access, rewind: Rewind) -> Result<(), WritableError> {
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let context = Context::new(fake.system());
+    let policy = ImportPolicy::Strict;
+    reimport(
+        &context,
+        &NoInteraction,
+        &state,
+        &name("tank"),
+        policy,
+        access,
+        rewind,
+    )
+}
+
+#[test]
+fn a_writable_pool_is_imported_read_only_again_without_a_question() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu").file(BCLONE, "1\n");
+    fake.runner
+        .respond("zpool get -H -o value readonly tank", 0, "off\n");
+
+    again(&fake, Access::ReadOnly, Rewind::No).unwrap();
+
+    assert_eq!(
+        fake.runner.lines(),
+        [
+            "zpool get -H -o value readonly tank",
+            "zpool export tank",
+            "zpool import -N -o readonly=on tank"
+        ]
+    );
+    // Only a read/write import turns block cloning off.
+    assert_eq!(fake.files.contents(BCLONE).as_deref(), Some(&b"1\n"[..]));
+
+    let (read_only, _log) = machine("-");
+    again(&read_only, Access::ReadOnly, Rewind::No).unwrap();
+    assert_eq!(
+        read_only.runner.lines(),
+        ["zpool get -H -o value readonly tank"]
+    );
+}
+
+#[test]
+fn a_rewind_exports_a_writable_pool_and_asks_what_read_write_asks() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    fake.runner
+        .respond("zpool get -H -o value readonly tank", 0, "off\n");
+    fake.runner
+        .respond(&format!("zpool get -H -o value {READONLY} tank"), 0, "-\n");
+    fake.runner.respond_program("blkid", 2, "");
+
+    again(&fake, Access::ReadWrite, Rewind::ToCheckpoint).unwrap();
+
+    let lines = fake.runner.lines();
+    assert!(lines.contains(&format!("zpool get -H -o value {READONLY} tank")));
+    assert_eq!(
+        lines[lines.len() - 2..],
+        [
+            "zpool export tank",
+            "zpool import -N -o readonly=off --rewind-to-checkpoint tank"
+        ]
+    );
+
+    let (forbidden, _log) = machine("on");
+    assert!(matches!(
+        again(&forbidden, Access::ReadWrite, Rewind::ToCheckpoint),
+        Err(WritableError::ReadWriteProhibited { .. })
+    ));
+    assert!(
+        !forbidden
+            .runner
+            .lines()
+            .iter()
+            .any(|line| line.contains("export"))
+    );
+}
+
+#[test]
+fn a_failed_rewind_imports_the_pool_read_only_without_rewinding() {
+    let (fake, _log) = machine("-");
+    fake.runner.respond(
+        "zpool import -N -o readonly=off --rewind-to-checkpoint tank",
+        1,
+        "",
+    );
+
+    let failed = again(&fake, Access::ReadWrite, Rewind::ToCheckpoint);
+
+    assert!(matches!(
+        failed,
+        Err(WritableError::Pool(PoolError::Import { .. }))
+    ));
+    let lines = fake.runner.lines();
+    assert_eq!(
+        lines[lines.len() - 2..],
+        [
+            "zpool import -N -o readonly=off --rewind-to-checkpoint tank",
+            "zpool import -N -o readonly=on tank"
+        ]
+    );
+
+    // A pool that does not import again either is said to have failed.
+    let (fake, _log) = machine("-");
+    fake.runner.respond("zpool export tank", 0, "");
+    fake.runner.respond_program("zpool", 1, "");
+    assert!(again(&fake, Access::ReadWrite, Rewind::ToCheckpoint).is_err());
+    assert!(fake.kmsg().contains("tank could not be imported again"));
+}

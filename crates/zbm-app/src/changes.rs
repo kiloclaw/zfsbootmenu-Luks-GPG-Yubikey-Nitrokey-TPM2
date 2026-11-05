@@ -17,12 +17,16 @@
 //!   the live filesystem, which takes a snapshot of it, and not for two
 //!   snapshots;
 //! - restoring files from a snapshot: a safety snapshot, then a copy of
-//!   each path into the environment mounted read/write ([`restore`]).
+//!   each path into the environment mounted read/write ([`restore`]);
+//! - an import of a pool, read-only or read/write, under a policy, rewound
+//!   to its checkpoint or not: `zpool export`, when it is imported, then
+//!   `zpool import` ([`import`]).
 //!
 //! What a change needs besides ZFS ([`Needs`]) comes from the console when
 //! the change may ask for something ([`Action::needs_console_on`]), and
 //! without it in the menu otherwise.
 
+mod import;
 mod needs;
 mod restore;
 
@@ -101,6 +105,7 @@ impl Changes<'_, '_> {
             Action::Duplicate(snapshot, target) => self.duplicate(snapshot, target),
             Action::Diff(from, to) => self.diff(from, to.as_ref()),
             Action::RestoreFiles { snapshot, paths } => self.restore(snapshot, paths),
+            Action::Import(pool, options) => self.import(pool, *options),
             _ => return None,
         };
         Some(result.unwrap_or_else(|failure| vec![failure.into_event()]))

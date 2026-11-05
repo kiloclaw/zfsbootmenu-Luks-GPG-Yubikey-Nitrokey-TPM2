@@ -5,7 +5,7 @@ use zbm_types::{Answer, ImportPolicy, PoolName};
 use super::screens;
 use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Asking, Choice, Dialog, Make, Model, Naming, Then, is_name_char};
-use crate::menu::world::{Action, Outcome};
+use crate::menu::world::{Access, Action, ImportOptions, Outcome};
 use crate::text::text;
 
 /// A choice dialog.
@@ -58,10 +58,38 @@ pub(super) fn confirm(then: Then) -> Dialog {
     }
 }
 
+/// The import of `pool` with `access` and `policy`, without a rewind. An
+/// imported pool is imported again under `zbm.import_policy`, whatever
+/// `policy` says.
+pub(super) fn import(pool: &PoolName, access: Access, policy: ImportPolicy) -> Action {
+    let options = ImportOptions {
+        access,
+        policy,
+        rewind: false,
+    };
+    Action::Import(pool.clone(), options)
+}
+
+/// The confirmation of the rewind of `pool` to its checkpoint, which
+/// imports it read/write, as the legacy menu's rewind did.
+pub(super) fn rewind(pool: &PoolName, lines: Vec<String>) -> Then {
+    let options = ImportOptions {
+        access: Access::ReadWrite,
+        policy: ImportPolicy::Strict,
+        rewind: true,
+    };
+    Then::Confirm {
+        action: Action::Import(pool.clone(), options),
+        title: text!("rewind.title", pool = pool.to_string()),
+        lines,
+        name: pool.to_string(),
+    }
+}
+
 /// The confirmation of a forced import.
 pub(super) fn force_import(pool: &PoolName) -> Then {
     Then::Confirm {
-        action: Action::Import(pool.clone(), ImportPolicy::Force),
+        action: import(pool, Access::ReadOnly, ImportPolicy::Force),
         title: text!("force-import.title", pool = pool.to_string()),
         lines: vec![
             text!("force-import", pool = pool.to_string()),
@@ -116,16 +144,13 @@ pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
         lines.push(text!("pool-last-host", hostid = hostid.as_str()));
     }
     let mut choices = Vec::new();
-    if pool.imported && !pool.writable {
-        choices.push(Choice {
-            label: text!("pool-import-read-write"),
-            then: Then::Act(Action::ImportReadWrite(name.clone())),
-        });
+    if pool.imported {
+        choices.push(toggle(name, pool.writable));
     }
     if !pool.imported {
         choices.push(Choice {
             label: text!("pool-import-last-host"),
-            then: Then::Act(Action::Import(name.clone(), ImportPolicy::Hostid)),
+            then: Then::Act(import(name, Access::ReadOnly, ImportPolicy::Hostid)),
         });
         choices.push(Choice {
             label: text!("pool-force-import"),
@@ -135,12 +160,7 @@ pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
     if pool.checkpoint {
         choices.push(Choice {
             label: text!("pool-rewind"),
-            then: Then::Confirm {
-                action: Action::RewindCheckpoint(name.clone()),
-                title: text!("rewind.title", pool = name.to_string()),
-                lines: vec![text!("rewind", pool = name.to_string())],
-                name: name.to_string(),
-            },
+            then: rewind(name, vec![text!("rewind", pool = name.to_string())]),
         });
     }
     let choices = super::offers::offered(model, choices);
@@ -149,6 +169,21 @@ pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
         lines,
         choices,
     ));
+}
+
+/// The import of `name`, imported, with the other access: read-only when
+/// it is `writable`, read/write when not, as the legacy menu's `w` toggled
+/// it.
+pub(super) fn toggle(name: &PoolName, writable: bool) -> Choice {
+    let (label, access) = if writable {
+        (text!("pool-import-read-only"), Access::ReadOnly)
+    } else {
+        (text!("pool-import-read-write"), Access::ReadWrite)
+    };
+    Choice {
+        label,
+        then: Then::Act(import(name, access, ImportPolicy::Strict)),
+    }
 }
 
 /// An input while a dialog is open.

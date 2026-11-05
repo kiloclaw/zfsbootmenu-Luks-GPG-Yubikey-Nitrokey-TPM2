@@ -11,6 +11,7 @@ use zbm_config::args::ZbmArgs;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::Luks;
 use zbm_platform::{Context, System};
+use zbm_pool::ImportSettings;
 
 use zbm_types::DatasetName;
 
@@ -23,7 +24,8 @@ use crate::{AppError, SnapshotError, boot, changes, read, volumes};
 pub const LAYOUTS: &str = "/usr/share/zfsbootmenu/layouts";
 
 /// What the application knows of this boot, which every use case may need:
-/// the options, the state directory, the keyboard layouts and how to boot.
+/// the options, the state directory, the keyboard layouts, how to boot and
+/// how to import pools.
 #[derive(Clone, Debug)]
 pub struct Runtime {
     /// The options of this boot: the countdown and the console.
@@ -36,6 +38,9 @@ pub struct Runtime {
     /// How to boot besides the state directory: the hooks, the host ID and
     /// the saved logs.
     pub boot: BootSettings,
+    /// How pools are imported, as start-up imports them: what an import
+    /// of a pool that is not imported reads.
+    pub import: ImportSettings,
 }
 
 impl Runtime {
@@ -47,6 +52,7 @@ impl Runtime {
             base: base.to_owned(),
             layouts: PathBuf::from(LAYOUTS),
             boot: BootSettings::default(),
+            import: ImportSettings::default(),
         }
     }
 
@@ -75,6 +81,13 @@ impl Runtime {
     #[must_use]
     pub fn with_boot(mut self, settings: BootSettings) -> Runtime {
         self.boot = settings;
+        self
+    }
+
+    /// The runtime, which imports pools with `settings`.
+    #[must_use]
+    pub fn with_import(mut self, settings: ImportSettings) -> Runtime {
+        self.import = settings;
         self
     }
 }
@@ -308,7 +321,8 @@ impl<'a> App<'a> {
 
     /// Applies `action`, one that may take the console
     /// ([`Action::needs_console`]): booting, which may ask for a
-    /// passphrase, the recovery shell, rebooting and powering off.
+    /// passphrase, the recovery shell, rebooting and powering off, an
+    /// import, and a change that may ask.
     fn on_console(
         &self,
         action: &Action,
@@ -385,6 +399,7 @@ impl<'a> App<'a> {
             system,
             state: &state,
             settings: &self.runtime.boot,
+            import: &self.runtime.import,
             asks,
         };
         let mut changes = changes::Changes {
@@ -397,9 +412,9 @@ impl<'a> App<'a> {
     }
 
     /// The kinds of action the application performs: the boot, the
-    /// changes of package D ([`Action::is_change`]), the default kernel and
-    /// restoring files among them, the recovery shell and the power
-    /// actions. The others have no use case yet, and end as
+    /// changes of package D ([`Action::is_change`]), the default kernel,
+    /// restoring files and the import among them, the recovery shell and
+    /// the power actions. The others have no use case yet, and end as
     /// [`unavailable`].
     fn offers() -> std::collections::BTreeSet<Offer> {
         [
@@ -412,6 +427,7 @@ impl<'a> App<'a> {
             Offer::Duplicate,
             Offer::Diff,
             Offer::RestoreFiles,
+            Offer::Import,
             Offer::Shell,
             Offer::FirmwareSetup,
             Offer::Power,

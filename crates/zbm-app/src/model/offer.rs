@@ -92,9 +92,7 @@ impl Action {
             Action::ResetBootTries(_) => Offer::ResetBootTries,
             Action::Reseal(_) => Offer::Reseal,
             Action::Chroot(_) => Offer::Chroot,
-            Action::ImportReadWrite(_) | Action::RewindCheckpoint(_) | Action::Import(..) => {
-                Offer::Import
-            }
+            Action::Import(..) => Offer::Import,
             Action::Open { .. } => Offer::OpenVolume,
             Action::Shell => Offer::Shell,
             Action::FirmwareSetup => Offer::FirmwareSetup,

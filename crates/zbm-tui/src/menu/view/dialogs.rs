@@ -8,7 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Clear, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph, Wrap,
 };
-use zbm_types::Printable;
+use zbm_types::{ImportPolicy, Printable};
 
 use super::lists;
 use crate::menu::format::{capitalised, fit};
@@ -252,8 +252,10 @@ fn verb(action: &Action) -> String {
     match action {
         Action::Rollback { .. } => text!("button-roll-back"),
         Action::CloneAndPromote(..) => text!("button-promote"),
-        Action::RewindCheckpoint(_) => text!("button-rewind"),
-        Action::Import(..) => text!("button-force-import"),
+        Action::Import(_, options) if options.rewind => text!("button-rewind"),
+        Action::Import(_, options) if options.policy == ImportPolicy::Force => {
+            text!("button-force-import")
+        }
         Action::RestoreFiles { .. } => text!("button-restore"),
         Action::Reseal(_) => text!("button-reseal"),
         _ => text!("button-continue"),
@@ -414,4 +416,31 @@ fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .highlight_style(theme.style(Role::Selected));
     let mut state = ListState::default().with_selected(Some(palette.selected));
     frame.render_stateful_widget(widget, list, &mut state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::menu::world::{Access, ImportOptions};
+
+    #[test]
+    fn the_button_of_an_import_says_whether_it_rewinds_or_forces() {
+        let import = |policy, rewind| {
+            let options = ImportOptions {
+                access: Access::ReadWrite,
+                policy,
+                rewind,
+            };
+            verb(&Action::Import("tank".parse().unwrap(), options))
+        };
+        assert_eq!(import(ImportPolicy::Strict, true), text!("button-rewind"));
+        assert_eq!(
+            import(ImportPolicy::Force, false),
+            text!("button-force-import")
+        );
+        assert_eq!(
+            import(ImportPolicy::Hostid, false),
+            text!("button-continue")
+        );
+    }
 }
