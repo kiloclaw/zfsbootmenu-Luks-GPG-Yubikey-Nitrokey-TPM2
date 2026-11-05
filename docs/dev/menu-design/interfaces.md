@@ -17,7 +17,7 @@ loads them and an event delivers them.
 | `timeout` | the countdown: seconds, or none (wait), or skip (boot at once) | `zbm-config` |
 | `pools` | name, health, read-only or read/write, host ID, whether imported, whether it has a checkpoint, problems | `zbm-pool`, `zbm-zfs` |
 | `environments` | name, pool, default or not, encryption (none, locked, unlocked), kernels with the default marked, the command line with its origin, the number of snapshots and the newest, the checks of whether it will boot (name, verdict, what was found, the fix), its boot tries left of the total | `zbm-boot`, `zbm-kcl`, `zbm-zfs` |
-| `fallback` | when the default used up its boot tries: which, after how many, and what boots instead (an environment, or a clone of a snapshot) | `zbm-boot`, an EFI variable |
+| `fallback` | when the default used up its boot tries: which, after how many, and the last environment that marked a boot good, which boots instead; without one, nothing boots on its own | `zbm-boot`, an EFI variable |
 | `next_boot` | the environment the running system asked to boot once | an EFI variable |
 | `volumes` | LUKS volumes: name, device, state (locked, open, failed, skipped), the key methods that apply, the pool it holds, the PCRs its TPM2 key is sealed to and those that changed since, with what the event log says | `zbm-luks`, `zbm-crypt` |
 | `keyboard` | the layouts typing can be translated into, the console's own first, and whether keys come from the machine's keyboard or a serial terminal | `zbm-config` |
@@ -32,7 +32,7 @@ stays right when the snapshot changes under it.
 | Action | Parameters | Used by |
 | --- | --- | --- |
 | `Boot` | environment, kernel (or its default), command line (or its own) | main, kernels, command line, palette |
-| `BootSnapshot` | snapshot | snapshots: a temporary clone, booted |
+| `BootSnapshot` | snapshot, the new environment's name | snapshots, palette: the snapshot cloned under that name, as `Clone` does, then booted |
 | `SetDefaultEnvironment` | environment | main |
 | `SetDefaultKernel`, `InheritDefaultKernel` | environment, kernel | kernels |
 | `LoadSnapshots` | environment, sort order | snapshots |

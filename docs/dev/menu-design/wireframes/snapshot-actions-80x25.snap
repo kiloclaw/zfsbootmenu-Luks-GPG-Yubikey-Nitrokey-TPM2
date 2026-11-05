@@ -11,7 +11,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │     auto│                   Snapshot pre-upgrade                   │  69 MiB │
 │     auto│ zroot/ROOT/void@pre-upgrade · 12 h ago · 1.1 GiB         │  82 MiB │
 │     auto│                                                          │ 4.0 MiB │
-│     auto│ ▶ Boot a Temporary Clone                                 │  17 MiB │
+│     auto│ ▶ Boot a New Clone…                                      │  17 MiB │
 │     auto│   Roll Back to It…                                       │  30 MiB │
 │     auto│   Clone as a New Boot Environment…                       │  43 MiB │
 │     auto│   Duplicate as an Independent Copy…                      │  56 MiB │

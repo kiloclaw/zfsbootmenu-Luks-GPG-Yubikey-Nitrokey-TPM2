@@ -7,7 +7,7 @@ use zbm_display::keys::{Key, KeyPress};
 
 use super::keymap::{self, Input, Intent};
 use super::model::{Dialog, Model, Screen};
-use super::world::{Action, Event, Outcome, Target};
+use super::world::{Action, Event, Outcome};
 
 mod dialogs;
 mod diff;
@@ -165,7 +165,8 @@ fn back(model: &mut Model) {
 
 /// Time passed: the countdown runs, and when it ends boots the selection:
 /// the default environment, the one asked for once, or the fallback of a
-/// default that used up its boot tries. It never asks: nobody may be there.
+/// default that used up its boot tries. It boots only environments, and
+/// never asks: nobody may be there.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
     if let Some(ran) = &mut model.working {
         *ran = ran.saturating_add(ms);
@@ -182,9 +183,6 @@ fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
         return Vec::new();
     }
     model.countdown = None;
-    if let Some(Target::Snapshot(snapshot)) = model.snapshot.fallback.as_ref().map(|f| &f.target) {
-        return vec![Action::BootSnapshot(snapshot.clone())];
-    }
     let Some(environment) = model.selected_environment().cloned() else {
         return Vec::new();
     };

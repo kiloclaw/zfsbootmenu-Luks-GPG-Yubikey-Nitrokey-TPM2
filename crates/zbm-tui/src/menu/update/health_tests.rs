@@ -8,7 +8,7 @@ use zbm_types::Untrusted;
 
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
-use crate::menu::model::{Dialog, Screen};
+use crate::menu::model::{Dialog, Model, Screen};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Action, Outcome};
 
@@ -104,8 +104,49 @@ fn after_failed_boots_the_countdown_boots_the_fallback() {
         session.tick(1000);
     }
 
-    let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
-    assert_eq!(session.actions, [Action::BootSnapshot(snapshot)]);
+    // The countdown boots environments only: the last good one.
+    assert!(matches!(
+        session.actions.as_slice(),
+        [Action::Boot { environment, countdown: true, .. }]
+            if environment.as_str() == "zroot/ROOT/ubuntu"
+    ));
+}
+
+#[test]
+fn a_default_that_used_up_its_tries_never_boots_on_its_own_again() {
+    let options = DemoOptions {
+        failing: true,
+        ..DemoOptions::default()
+    };
+    let machine = crate::menu::demo::FakeMachine::new(&options);
+    // No environment marked good, or one that is not listed.
+    for target in [None, Some("zroot/ROOT/gone".parse().unwrap())] {
+        let mut snapshot = machine.snapshot().clone();
+        for stage in &mut snapshot.startup {
+            stage.state = crate::menu::world::StageState::Done;
+        }
+        let fallback = snapshot.fallback.as_mut().unwrap();
+        fallback.target = target;
+        let failed = fallback.failed.to_string();
+        let mut model = Model::new(snapshot, Theme::new(Capabilities::FULL));
+        super::events::start(&mut model);
+
+        let text = crate::menu::view::tests::screen(&model, 120, 25);
+        let actions = super::tick(&mut model, 60_000);
+
+        // The default is selected, sorted first, yet nothing counts down.
+        assert_eq!(
+            model.selected_environment().map(|e| e.name.to_string()),
+            Some(failed.clone())
+        );
+        assert_eq!(model.countdown, None);
+        assert!(
+            text.contains(&format!("{failed} failed to start")),
+            "{text}"
+        );
+        assert!(!text.contains("Booting"), "{text}");
+        assert_eq!(actions, Vec::new());
+    }
 }
 
 #[test]

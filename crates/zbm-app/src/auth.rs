@@ -20,6 +20,8 @@ use std::time::Duration;
 
 use zbm_platform::{Files, Output, RealFiles, Runner, Secret, System};
 use zbm_state::State;
+use zbm_tools::programs::ShellRoot;
+use zbm_types::FilesystemName;
 
 use crate::keyholder::Keyholders;
 use crate::model::{Event, Outcome};
@@ -187,7 +189,24 @@ impl ShellGate {
     ///
     /// The error that kept the shell from starting.
     pub fn run(self, runner: &dyn Runner) -> io::Result<Output> {
-        zbm_tools::programs::interactive_shell(runner)
+        Self::start(runner, ShellRoot::Image)
+    }
+
+    /// Runs `zfs-chroot` for `filesystem` on the console with `runner`,
+    /// which opens a shell in a chroot of it, until it ends; the gate is
+    /// closed again.
+    ///
+    /// # Errors
+    ///
+    /// The error that kept `zfs-chroot` from starting.
+    pub fn chroot(self, runner: &dyn Runner, filesystem: &FilesystemName) -> io::Result<Output> {
+        Self::start(runner, ShellRoot::Chroot(filesystem))
+    }
+
+    /// The gate's one start of a shell, in `root`, which only an open gate
+    /// reaches.
+    fn start(runner: &dyn Runner, root: ShellRoot<'_>) -> io::Result<Output> {
+        zbm_tools::programs::interactive_shell(runner, root)
     }
 }
 
@@ -279,6 +298,24 @@ pub fn recovery_shell(
     let ran = ShellGate::open(&authorized).run(runner);
     authority.forget();
     ran
+}
+
+/// Opens a shell in a chroot of `filesystem` on the console with
+/// `runner`, through the shell's gate, when `authority` authorises it at
+/// `now`, as a person who opened a volume of `state` is; `None`, running
+/// nothing, when it does not. Once the shell ended, the proof is
+/// forgotten, as after the recovery shell.
+pub fn chroot(
+    authority: &Authority,
+    state: &State<'_>,
+    runner: &dyn Runner,
+    now: Duration,
+    filesystem: &FilesystemName,
+) -> Option<io::Result<Output>> {
+    let authorized = authority.authorized(state.has_attended_unlock(), now)?;
+    let ran = ShellGate::open(&authorized).chroot(runner, filesystem);
+    authority.forget();
+    Some(ran)
 }
 
 /// The Argon2id hash of `pin`, salted from the kernel's random numbers

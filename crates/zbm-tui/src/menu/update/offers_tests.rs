@@ -20,6 +20,7 @@ use zbm_types::ImportPolicy;
 /// What the application offers today.
 const APP: &[Offer] = &[
     Offer::Boot,
+    Offer::BootSnapshot,
     Offer::SetDefaultEnvironment,
     Offer::DefaultKernel,
     Offer::CreateSnapshot,
@@ -279,18 +280,17 @@ fn machine_all() -> (Snapshot, Event) {
 
 #[test]
 fn a_key_of_something_not_offered_opens_nothing_and_says_so() {
-    let machine = machine(APP);
+    let app = machine(APP);
     let key = |c| KeyPress::new(Key::Char(c));
-    // Booting a snapshot, a chroot, unlocking.
+    // A chroot, unlocking.
     let cases = [
-        (Place::Snapshots, key('b')),
         (Place::Snapshots, key('j')),
         (Place::Main, key('j')),
         (Place::Pools(3), key('u')),
         (Place::Pools(3), KeyPress::new(Key::Enter)),
     ];
     for (place, press) in cases {
-        let mut model = menu(&machine, Map::Classic, place);
+        let mut model = menu(&app, Map::Classic, place);
         let screen = model.screen;
 
         assert_eq!(key_press(&mut model, press), [], "{place:?} {press:?}");
@@ -298,10 +298,19 @@ fn a_key_of_something_not_offered_opens_nothing_and_says_so() {
         assert_eq!(model.screen, screen);
     }
 
-    // Offered, the same key opens its dialog.
+    // Booting a snapshot, where only an environment's boot is offered.
+    let boot_only = machine(&[Offer::Boot]);
+    let mut model = menu(&boot_only, Map::Classic, Place::Snapshots);
+    assert_eq!(key_press(&mut model, key('b')), []);
+    assert!(is_refused(&model), "{model:?}");
+
+    // Offered, the same keys open their dialogs.
     let mut model = menu(&machine_all(), Map::Classic, Place::Pools(3));
     let _ = key_press(&mut model, key('u'));
     assert!(matches!(model.dialog, Some(Dialog::Unlock(_))), "{model:?}");
+    let mut model = menu(&app, Map::Classic, Place::Snapshots);
+    let _ = key_press(&mut model, key('b'));
+    assert!(matches!(model.dialog, Some(Dialog::Name(_))), "{model:?}");
 }
 
 #[test]
@@ -313,7 +322,7 @@ fn the_toolbar_help_menus_recovery_and_palette_show_only_what_is_offered() {
     let has = |what| help.iter().any(|(_, id)| *id == what);
 
     assert!(has(crate::text::id!("action-roll-back")));
-    assert!(!has(crate::text::id!("action-boot")));
+    assert!(has(crate::text::id!("action-boot")));
     assert!(!has(crate::text::id!("action-chroot")));
     let classic = keymap::classic_bindings(Context::Snapshots, &offered);
     assert!(
@@ -331,6 +340,7 @@ fn the_toolbar_help_menus_recovery_and_palette_show_only_what_is_offered() {
     assert_eq!(
         labels,
         [
+            text!("snapshot-boot-clone"),
             text!("snapshot-roll-back"),
             text!("snapshot-clone"),
             text!("snapshot-duplicate"),
@@ -346,7 +356,7 @@ fn the_toolbar_help_menus_recovery_and_palette_show_only_what_is_offered() {
     let palette = palette_items(&model);
     assert!(palette.iter().all(|item| !matches!(
         item.then,
-        Then::Act(Action::BootSnapshot(_) | Action::ResetBootTries(_))
+        Then::Act(Action::Chroot(_) | Action::ResetBootTries(_))
     ) && !matches!(item.then, Then::Confirm { .. })));
 }
 

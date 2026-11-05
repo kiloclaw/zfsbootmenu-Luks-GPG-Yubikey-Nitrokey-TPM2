@@ -10,7 +10,8 @@ use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::{
-    Answer, DatasetName, DevicePath, ImportPolicy, MappingName, PoolName, SnapshotName, Untrusted,
+    Answer, DatasetName, DevicePath, FilesystemName, ImportPolicy, MappingName, PoolName,
+    SnapshotName, Untrusted,
 };
 
 /// Reads a name of type `T` from a string, with `T`'s parser.
@@ -52,6 +53,7 @@ as_text!(
     DatasetName,
     PoolName,
     SnapshotName,
+    FilesystemName,
     DevicePath,
     MappingName,
     ImportPolicy
@@ -108,6 +110,9 @@ mod tests {
         round_trip(&dataset);
         round_trip(&"zroot".parse::<PoolName>().unwrap());
         round_trip(&"zroot/ROOT/void@before".parse::<SnapshotName>().unwrap());
+        for filesystem in ["zroot/ROOT/void", "zroot/ROOT/void@before"] {
+            round_trip(&filesystem.parse::<FilesystemName>().unwrap());
+        }
         round_trip(&"/dev/sda2".parse::<DevicePath>().unwrap());
         round_trip(&"root".parse::<MappingName>().unwrap());
         round_trip(&ImportPolicy::default());
@@ -117,6 +122,7 @@ mod tests {
             assert!(serde_json::from_str::<DatasetName>(bad).is_err(), "{bad}");
         }
         assert!(serde_json::from_str::<MappingName>("\"-x\"").is_err());
+        assert!(serde_json::from_str::<FilesystemName>("\"zroot@a@b\"").is_err());
         assert!(serde_json::from_str::<Answer>("\"maybe\"").is_err());
     }
 }

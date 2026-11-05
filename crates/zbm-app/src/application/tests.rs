@@ -203,7 +203,15 @@ fn the_lock_keeps_all_but_the_default_boot_and_what_changes_nothing() {
     for open in [Action::Shell, Action::Reboot, Action::UnlockAll] {
         assert!(!open.is_kept_by_lock(bootfs), "{open:?}");
     }
-    assert!(Action::Chroot("tank/ROOT/be".to_owned()).is_kept_by_lock(bootfs));
+    let snapshot: zbm_types::SnapshotName = "tank/ROOT/be@old".parse().unwrap();
+    let chroot = Action::Chroot(snapshot.clone().into());
+    let boot_clone = Action::BootSnapshot(snapshot, "tank/ROOT/new".parse().unwrap());
+    for kept in [chroot, boot_clone] {
+        assert!(
+            kept.is_kept_by_lock(bootfs) && kept.needs_console(),
+            "{kept:?}"
+        );
+    }
 }
 
 /// An action of `kind`, on the environment `tank/ROOT/be` or its snapshot
@@ -220,7 +228,7 @@ fn of_kind(kind: model::Offer) -> Action {
             command_line: None,
             countdown: false,
         },
-        Offer::BootSnapshot => Action::BootSnapshot(snapshot),
+        Offer::BootSnapshot => Action::BootSnapshot(snapshot, target),
         Offer::SetDefaultEnvironment => Action::SetDefaultEnvironment(environment),
         Offer::DefaultKernel => Action::InheritDefaultKernel(environment),
         Offer::CreateSnapshot => Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap()),
@@ -232,7 +240,7 @@ fn of_kind(kind: model::Offer) -> Action {
             snapshot,
             paths: vec![zbm_types::Untrusted::new("/etc/fstab".to_owned())],
         },
-        Offer::Chroot => Action::Chroot(environment.to_string()),
+        Offer::Chroot => Action::Chroot(environment.into()),
         Offer::Import => Action::Import(environment.pool(), model::ImportOptions::default()),
         Offer::OpenVolume => Action::Open {
             device: "/dev/sda2".to_owned(),
@@ -248,24 +256,247 @@ fn of_kind(kind: model::Offer) -> Action {
 
 #[test]
 fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
+    for has_chroot in [false, true] {
+        let fake = FakeSystem::new();
+        fake.files.dir("/zfsbootmenu");
+        if has_chroot {
+            fake.files.file(ZFS_CHROOT, "#!/bin/bash\n");
+        }
+        fake.runner.respond_program("zpool", 0, "");
+        fake.runner.respond_program("zfs", 0, "");
+        let runtime = Runtime::default();
+        let app = App::new(Context::new(fake.system()), &runtime);
+        let offers = app.snapshot().unwrap().offers;
+
+        assert!(!offers.is_empty());
+        assert_eq!(offers.contains(&model::Offer::Chroot), has_chroot);
+        for kind in model::Offer::ALL {
+            let action = of_kind(kind);
+            assert_eq!(action.offer(), Some(kind));
+            let events = app.apply(&action, Through::Console(fake.system(), &NoShell));
+            let is_unavailable = events == unavailable(&action);
+            assert_eq!(
+                is_unavailable,
+                !offers.contains(&kind),
+                "{kind:?}: {events:?}"
+            );
+        }
+    }
+}
+
+/// A machine whose pool `tank` is writable and unencrypted, and whose new
+/// environment `tank/ROOT/new` has a kernel once it is mounted.
+fn cloning_machine() -> FakeSystem {
     let fake = FakeSystem::new();
     fake.files.dir("/zfsbootmenu");
-    fake.runner.respond_program("zpool", 0, "");
-    fake.runner.respond_program("zfs", 0, "");
+    fake.runner
+        .respond("zpool get -H -o value readonly tank", 0, "off\n");
+    fake.runner
+        .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+    let boot = "/zfsbootmenu/environments/tank/ROOT/new/mnt/boot";
+    fake.files
+        .file(format!("{boot}/vmlinuz-6.6.2"), "kernel")
+        .file(format!("{boot}/initramfs-6.6.2.img"), "initramfs");
+    fake
+}
+
+#[test]
+fn a_snapshot_boots_as_a_new_clone_once_the_clone_is_made() {
+    let fake = cloning_machine();
     let runtime = Runtime::default();
     let app = App::new(Context::new(fake.system()), &runtime);
-    let offers = app.snapshot().unwrap().offers;
+    let action = Action::BootSnapshot(
+        "tank/ROOT/be@old".parse().unwrap(),
+        "tank/ROOT/new".parse().unwrap(),
+    );
 
-    assert!(!offers.is_empty());
-    for kind in model::Offer::ALL {
-        let action = of_kind(kind);
-        assert_eq!(action.offer(), Some(kind));
-        let events = app.apply(&action, Through::Console(fake.system(), &NoShell));
-        let is_unavailable = events == unavailable(&action);
-        assert_eq!(
-            is_unavailable,
-            !offers.contains(&kind),
-            "{kind:?}: {events:?}"
-        );
-    }
+    let events = app.apply(&action, Through::Console(fake.system(), &NoShell));
+
+    let lines = fake.runner.lines();
+    let cloned = lines
+        .iter()
+        .position(|line| {
+            line == "zfs clone -o mountpoint=/ -o canmount=noauto tank/ROOT/be@old tank/ROOT/new"
+        })
+        .unwrap_or_else(|| panic!("{lines:#?}"));
+    let loaded = lines
+        .iter()
+        .position(|line| line.starts_with("kexec -a -l") && line.contains("tank/ROOT/new"))
+        .unwrap_or_else(|| panic!("{lines:#?}"));
+    assert!(cloned < loaded, "{lines:#?}");
+    assert!(!lines.iter().any(|line| line.starts_with("zfs promote")));
+    // The fake's kexec returns: the boot failed, and the clone stays.
+    let Some(Event::Finished(model::Outcome::Failed { what, next, .. })) = events.last() else {
+        panic!("{events:?}");
+    };
+    assert_eq!(what, "unable to boot tank/ROOT/new");
+    assert_eq!(
+        next.last().map(String::as_str),
+        Some("tank/ROOT/new cloned from tank/ROOT/be@old: it stays, to boot or destroy")
+    );
+    // Quietly, nothing is cloned and nothing boots.
+    let quiet = app.apply(&action, Through::Quietly(fake.system()));
+    assert_eq!(quiet, unavailable(&action));
+}
+
+#[test]
+fn a_snapshot_whose_clone_fails_does_not_boot() {
+    let fake = cloning_machine();
+    fake.runner.first(|command| {
+        let failed = zbm_platform::Output::new(zbm_platform::Status::exited(1), "");
+        command
+            .display()
+            .starts_with("zfs clone")
+            .then(|| Ok(failed))
+    });
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let action = Action::BootSnapshot(
+        "tank/ROOT/be@old".parse().unwrap(),
+        "tank/ROOT/new".parse().unwrap(),
+    );
+
+    let events = app.apply(&action, Through::Console(fake.system(), &NoShell));
+
+    assert!(
+        matches!(
+            events.last(),
+            Some(Event::Finished(model::Outcome::Failed { what, .. }))
+                if what == "unable to create tank/ROOT/new from tank/ROOT/be@old"
+        ),
+        "{events:?}"
+    );
+    let lines = fake.runner.lines();
+    assert!(lines.iter().any(|line| line.starts_with("zfs clone")));
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.starts_with("kexec") || line.starts_with("mount")),
+        "{lines:#?}"
+    );
+}
+
+#[test]
+fn the_chroot_runs_zfs_chroot_on_the_console_through_the_gate() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    fake.files.file(ZFS_CHROOT, "#!/bin/bash\n");
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let on_console = |target: &str| {
+        let action = Action::Chroot(target.parse().unwrap());
+        app.apply(&action, Through::Console(fake.system(), &NoShell))
+    };
+
+    let environment = on_console("tank/ROOT/be");
+    let snapshot = on_console("tank/ROOT/be@old");
+
+    assert_eq!(
+        fake.runner.lines(),
+        [
+            "/bin/zfs-chroot tank/ROOT/be",
+            "/bin/zfs-chroot tank/ROOT/be@old"
+        ]
+    );
+    let call = &fake.runner.calls()[0];
+    assert_eq!(
+        call.get_default_signals(),
+        [zbm_platform::Signal::Interrupt]
+    );
+    assert_eq!(call.get_stdout(), zbm_platform::Stream::Inherit);
+    assert_eq!(
+        environment,
+        [Event::Finished(model::Outcome::Done(
+            "the shell in tank/ROOT/be ended".to_owned()
+        ))]
+    );
+    assert!(matches!(
+        snapshot.last(),
+        Some(Event::Finished(model::Outcome::Done(_)))
+    ));
+
+    // A chroot that cannot start says why.
+    fake.runner
+        .first(|_| Some(Err(std::io::Error::from(std::io::ErrorKind::NotFound))));
+    let failed = on_console("tank/ROOT/be");
+    assert!(matches!(
+        failed.last(),
+        Some(Event::Finished(model::Outcome::Failed { what, .. }))
+            if what == "unable to open a shell in tank/ROOT/be"
+    ));
+    // Nor is one done that opened no shell: zfs-chroot exits 1 when it
+    // cannot mount the filesystem, one whose key is not loaded.
+    fake.runner.first(|_| {
+        let status = zbm_platform::Status::exited(1);
+        Some(Ok(zbm_platform::Output::new(status, "")))
+    });
+    let refused = on_console("tank/ROOT/be@old");
+    assert!(
+        matches!(
+            refused.as_slice(),
+            [Event::Finished(model::Outcome::Failed { what, why, next })]
+                if what == "unable to open a shell in tank/ROOT/be@old"
+                    && why[0].contains("status 1")
+                    && next[0] == "if tank/ROOT/be@old is locked, load its key, then try again"
+        ),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn the_locked_menu_runs_the_chroot_only_after_the_pin_and_locks_again() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    fake.files.file(ZFS_CHROOT, "#!/bin/bash\n");
+    let runtime = Runtime::default();
+    let authority = Authority::new(auth::Lock::On("hash".to_owned()));
+    let app = App::new(Context::new(fake.system()), &runtime).with_authority(&authority);
+    let chroot = Action::Chroot("tank/ROOT/be".parse().unwrap());
+    let ran_chroot = || {
+        fake.runner
+            .lines()
+            .iter()
+            .filter(|line| line.contains("zfs-chroot"))
+            .count()
+    };
+
+    // Quietly, and on the console with no keyholder to check a PIN.
+    assert!(is_refused(
+        &app.apply(&chroot, Through::Quietly(fake.system()))
+    ));
+    fake.console.secret(b"correct horse");
+    assert!(is_refused(
+        &app.apply(&chroot, Through::Console(fake.system(), &NoShell))
+    ));
+    assert_eq!(ran_chroot(), 0, "{:?}", fake.runner.lines());
+
+    // The right PIN: the chroot runs, and the menu is locked again after.
+    let (client, keyholder) = zbm_sys::socket::Connection::pair().unwrap();
+    fake.console.secret(b"correct horse");
+    let runner = &fake.runner;
+    let events = std::thread::scope(|scope| {
+        zbm_platform::event::spawn_scoped_traced(scope, move || {
+            let _ = crate::keyholder::serve(
+                &keyholder,
+                runner,
+                |_, _| Vec::new(),
+                |pin| pin.expose() == b"correct horse",
+            );
+        });
+        let keyholders = crate::keyholder::tests::Given::new(client);
+        let events = app
+            .with_keyholders(&keyholders)
+            .apply(&chroot, Through::Console(fake.system(), &NoShell));
+        drop(keyholders);
+        events
+    });
+    assert!(
+        matches!(
+            events.last(),
+            Some(Event::Finished(model::Outcome::Done(_)))
+        ),
+        "{events:?}"
+    );
+    assert_eq!(ran_chroot(), 1, "{:?}", fake.runner.lines());
+    assert!(app.snapshot().unwrap().menu_locked);
 }

@@ -25,9 +25,9 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
                 command_line,
             ))];
         }
-        Action::BootSnapshot(name) => {
+        Action::BootSnapshot(name, new) => {
             return vec![Event::Leaving(format!(
-                "Booting a temporary clone of {name}"
+                "Booting {new}, a new clone of {name}"
             ))];
         }
         Action::Chroot(target) => {

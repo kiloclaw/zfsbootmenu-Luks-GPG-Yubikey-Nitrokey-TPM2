@@ -328,3 +328,58 @@ fn an_import_plans_the_export_and_the_import_and_moves_nothing() {
     );
     assert!(changes(&fake).is_empty(), "{:?}", changes(&fake));
 }
+
+#[test]
+fn a_snapshot_boot_plans_its_clone_then_the_boot_and_does_neither() {
+    let fake = machine("on");
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let snapshot: zbm_types::SnapshotName = "tank/ROOT/be@old".parse().unwrap();
+    let target: zbm_types::DatasetName = "tank/ROOT/new".parse().unwrap();
+
+    let plan = app
+        .plan(
+            &Action::BootSnapshot(snapshot.clone(), target.clone()),
+            fake.system(),
+        )
+        .unwrap();
+
+    assert_eq!(
+        plan.steps,
+        [
+            Step {
+                kind: StepKind::ImportReadWrite("tank".parse().unwrap()),
+                command: None,
+            },
+            Step {
+                kind: StepKind::Clone {
+                    snapshot: snapshot.clone(),
+                    target: target.clone(),
+                },
+                command: Some(
+                    "zfs clone -o mountpoint=/ -o canmount=noauto tank/ROOT/be@old tank/ROOT/new"
+                        .into()
+                ),
+            },
+            Step {
+                kind: StepKind::Boot(target),
+                command: None,
+            },
+        ]
+    );
+    assert!(matches!(plan.outcome, Outcome::Done(_)), "{plan:?}");
+    assert!(changes(&fake).is_empty(), "{:?}", changes(&fake));
+    assert!(
+        !fake
+            .runner
+            .lines()
+            .iter()
+            .any(|line| line.starts_with("zfs clone") || line.starts_with("kexec"))
+    );
+
+    // A clone the change would refuse plans no boot.
+    let elsewhere = Action::BootSnapshot(snapshot, "other/ROOT/new".parse().unwrap());
+    let plan = app.plan(&elsewhere, fake.system()).unwrap();
+    assert!(matches!(plan.outcome, Outcome::Failed { .. }), "{plan:?}");
+    assert!(plan.steps.is_empty(), "{plan:?}");
+}

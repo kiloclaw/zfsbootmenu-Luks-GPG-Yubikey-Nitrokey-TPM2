@@ -16,6 +16,8 @@ pub enum Make {
     Snapshot(DatasetName),
     /// A clone of the snapshot.
     Clone(SnapshotName),
+    /// A clone of the snapshot, booted once it is made.
+    BootClone(SnapshotName),
     /// A clone of the snapshot, promoted.
     Promote(SnapshotName),
     /// An independent copy of the snapshot.
@@ -49,7 +51,10 @@ impl Naming {
     pub fn new(make: Make, now: u64, title: String, lines: Vec<String>) -> Naming {
         let (prefix, typed) = match &make {
             Make::Snapshot(environment) => (format!("{environment}@"), timestamp(now)),
-            Make::Clone(snapshot) | Make::Promote(snapshot) | Make::Duplicate(snapshot) => {
+            Make::Clone(snapshot)
+            | Make::BootClone(snapshot)
+            | Make::Promote(snapshot)
+            | Make::Duplicate(snapshot) => {
                 let environment = snapshot.dataset().as_str();
                 let (parent, last) = environment
                     .rsplit_once('/')
@@ -80,6 +85,7 @@ impl Naming {
         Some(match &self.make {
             Make::Snapshot(_) => Action::CreateSnapshot(full.parse().ok()?),
             Make::Clone(snapshot) => Action::Clone(snapshot.clone(), full.parse().ok()?),
+            Make::BootClone(snapshot) => Action::BootSnapshot(snapshot.clone(), full.parse().ok()?),
             Make::Promote(snapshot) => {
                 Action::CloneAndPromote(snapshot.clone(), full.parse().ok()?)
             }
@@ -99,7 +105,20 @@ mod tests {
         assert_eq!(clone.full_name(), "zroot/ROOT/void_NEW");
         assert_eq!(
             clone.action(),
-            Some(Action::Clone(void, "zroot/ROOT/void_NEW".parse().unwrap()))
+            Some(Action::Clone(
+                void.clone(),
+                "zroot/ROOT/void_NEW".parse().unwrap()
+            ))
+        );
+
+        let booted = Naming::new(Make::BootClone(void.clone()), 0, String::new(), Vec::new());
+        assert_eq!(booted.full_name(), "zroot/ROOT/void_NEW");
+        assert_eq!(
+            booted.action(),
+            Some(Action::BootSnapshot(
+                void.clone(),
+                "zroot/ROOT/void_NEW".parse().unwrap()
+            ))
         );
 
         let root: SnapshotName = "zroot@x".parse().unwrap();

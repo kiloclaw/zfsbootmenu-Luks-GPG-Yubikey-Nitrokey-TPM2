@@ -2,7 +2,7 @@
 //! counting and the fallback after failed boots, and the one-time boot
 //! (`docs/dev/menu-design/boot-health.md`).
 
-use zbm_types::{DatasetName, SnapshotName};
+use zbm_types::DatasetName;
 
 /// How a check came out.
 #[derive(
@@ -51,15 +51,6 @@ pub struct Tries {
     pub total: u8,
 }
 
-/// What boots instead of an environment that used up its tries.
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum Target {
-    /// Another environment: the last one the booted system marked good.
-    Environment(DatasetName),
-    /// A temporary clone of a snapshot, when no environment was marked good.
-    Snapshot(SnapshotName),
-}
-
 /// The default environment failed to start: what boots instead.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Fallback {
@@ -67,8 +58,11 @@ pub struct Fallback {
     pub failed: DatasetName,
     /// How many times it failed.
     pub attempts: u8,
-    /// What boots instead.
-    pub target: Target,
+    /// What boots instead: the last environment the booted system marked
+    /// good. With none, nothing boots on its own: the default, which the
+    /// list sorts first, does not boot again, and the countdown never
+    /// boots a snapshot.
+    pub target: Option<DatasetName>,
 }
 
 #[cfg(test)]

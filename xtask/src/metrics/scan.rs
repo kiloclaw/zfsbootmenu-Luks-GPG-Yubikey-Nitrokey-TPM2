@@ -26,7 +26,8 @@ pub const SHELL_HELPERS: &[&str] = &[
     "trim_ifs",
 ];
 
-/// The functions that start an interactive shell. SE9 puts them behind one
+/// The functions that start an interactive shell, in the image or in a
+/// chroot (`zbm_tools::programs::ShellRoot`). SE9 puts them behind one
 /// gate, `ShellGate`; until then their calls outside tests are counted, and
 /// may only go down.
 pub const SHELL_STARTS: &[&str] = &["interactive_shell", "run_recovery_shell"];

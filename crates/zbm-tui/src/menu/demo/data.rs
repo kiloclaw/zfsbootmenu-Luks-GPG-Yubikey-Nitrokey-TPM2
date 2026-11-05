@@ -10,8 +10,8 @@ use super::health;
 use super::{DemoOptions, untrusted};
 use crate::menu::world::{
     CommandLine, Environment, Fallback, Health, Kernel, Keyboard, Level, Log, LogEntry, Method,
-    Offer, Origin, PcrChange, Pool, Snapshot, SnapshotInfo, Stage, StageState, Target, Timeout,
-    Tpm2Seal, Tries, Volume, VolumeState,
+    Offer, Origin, PcrChange, Pool, Snapshot, SnapshotInfo, Stage, StageState, Timeout, Tpm2Seal,
+    Tries, Volume, VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -77,7 +77,7 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
     let fallback = options.failing.then(|| Fallback {
         failed: dataset("zroot/ROOT/void"),
         attempts: 3,
-        target: Target::Snapshot(snapshot_name("zroot/ROOT/void@pre-upgrade")),
+        target: Some(dataset("zroot/ROOT/ubuntu")),
     });
     Snapshot {
         next_boot: options.next_boot.then(|| dataset("tank/ROOT/arch")),

@@ -118,7 +118,7 @@ fn t3_another_kernel_boots_in_three_keys() {
 }
 
 #[test]
-fn t4_a_snapshot_boots_as_a_clone() {
+fn t4_a_snapshot_boots_as_a_clone_under_the_name_given() {
     let mut session = started();
 
     session.key(Key::Char('s'));
@@ -126,9 +126,41 @@ fn t4_a_snapshot_boots_as_a_clone() {
     session.key(Key::Home);
     session.key(Key::Char('b'));
 
-    assert_eq!(session.keys(), 4);
+    let Some(Dialog::Name(naming)) = &session.model().dialog else {
+        panic!("no name asked: {:?}", session.model().dialog);
+    };
+    assert_eq!(naming.full_name(), "zroot/ROOT/void_NEW");
+    assert_eq!(session.actions, []);
+    session.key(Key::Backspace);
+    session.key(Key::Backspace);
+    session.key(Key::Backspace);
+    session.type_text("BOOT");
+    session.key(Key::Enter);
+
     let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
-    assert_eq!(session.actions, [Action::BootSnapshot(snapshot)]);
+    let target = "zroot/ROOT/void_BOOT".parse().unwrap();
+    assert_eq!(session.actions, [Action::BootSnapshot(snapshot, target)]);
+}
+
+#[test]
+fn t4_the_snapshot_menu_boots_a_clone_under_the_name_given() {
+    let mut session = started();
+    session.key(Key::Char('s'));
+    session.key(Key::Char('o'));
+    session.key(Key::Home);
+
+    session.key(Key::Enter);
+    let Some(Dialog::Choose { choices, .. }) = &session.model().dialog else {
+        panic!("no choice: {:?}", session.model().dialog);
+    };
+    assert_eq!(choices[0].label, crate::text::text!("snapshot-boot-clone"));
+    session.key(Key::Enter);
+    assert!(matches!(&session.model().dialog, Some(Dialog::Name(_))));
+    session.key(Key::Enter);
+
+    let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
+    let target = "zroot/ROOT/void_NEW".parse().unwrap();
+    assert_eq!(session.actions, [Action::BootSnapshot(snapshot, target)]);
 }
 
 #[test]
@@ -340,8 +372,12 @@ fn the_palette_finds_a_snapshot_among_hundreds() {
     session.type_text("2026-08-31");
     session.key(Key::Enter);
 
+    // The clone's name is asked for first.
+    assert!(matches!(&session.model().dialog, Some(Dialog::Name(_))));
+    session.key(Key::Enter);
     let snapshot = "zroot/ROOT/void@autosnap_2026-08-31_daily".parse().unwrap();
-    assert_eq!(session.actions, [Action::BootSnapshot(snapshot)]);
+    let target = "zroot/ROOT/void_NEW".parse().unwrap();
+    assert_eq!(session.actions, [Action::BootSnapshot(snapshot, target)]);
 }
 
 #[test]

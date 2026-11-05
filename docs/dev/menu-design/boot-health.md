@@ -47,9 +47,11 @@ EFI, a property of the environment written before the kexec). The booted system 
 When the default has none left, it failed to start that many times in a row, and the menu does not boot it again:
 
 - the banner, in the warning role, says so and what boots instead: *“zroot/ROOT/void failed to start 3 times.
-  Booting a clone of pre-upgrade in 10 s.”* (wireframe `main-fallback`), with shorter forms on narrow screens;
-- the fallback is the last environment that blessed a boot, or else a clone of the default's newest snapshot taken
-  by ZFSBootMenu (`@pre-upgrade` in the demo), booted as `BootSnapshot` does;
+  Booting zroot/ROOT/ubuntu, the last good one, in 10 s.”* (wireframe `main-fallback`), with shorter forms on narrow
+  screens;
+- the fallback is the last environment that blessed a boot; with none, or one that is not listed, nothing boots on
+  its own, and the banner only says what failed, as with the countdown off. The countdown never boots a snapshot: a
+  snapshot boots only when someone chooses it and names its clone (`BootSnapshot`);
 - with the countdown off, the banner only says what failed, and nothing boots on its own;
 - the inspector shows `Boot Tries  0 of 3 left`, and the command palette offers *“Give zroot/ROOT/void Its Boot Tries
   Back”* (`ResetBootTries`) once the cause is fixed.

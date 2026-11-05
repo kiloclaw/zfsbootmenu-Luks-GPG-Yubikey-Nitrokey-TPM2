@@ -13,7 +13,8 @@ use zbm_luks::unlocker::Luks;
 use zbm_platform::{Context, System};
 use zbm_pool::ImportSettings;
 
-use zbm_types::DatasetName;
+use zbm_tools::programs::ZFS_CHROOT;
+use zbm_types::{DatasetName, FilesystemName};
 
 use crate::auth::{self, Authority};
 use crate::keyholder::{self, Keyholders, UnlockRequest};
@@ -321,8 +322,8 @@ impl<'a> App<'a> {
 
     /// Applies `action`, one that may take the console
     /// ([`Action::needs_console`]): booting, which may ask for a
-    /// passphrase, the recovery shell, rebooting and powering off, an
-    /// import, and a change that may ask.
+    /// passphrase, a snapshot's too, the recovery shell and the chroot,
+    /// rebooting and powering off, an import, and a change that may ask.
     fn on_console(
         &self,
         action: &Action,
@@ -343,6 +344,8 @@ impl<'a> App<'a> {
             Action::Reboot => boot::reset(&system, &pools(), "b"),
             Action::PowerOff => boot::reset(&system, &pools(), "o"),
             Action::FirmwareSetup => boot::firmware_setup(&system, &pools()),
+            Action::BootSnapshot(_, target) => self.boot_clone(action, target, &system, recovery),
+            Action::Chroot(filesystem) => self.chroot(action, filesystem, &system),
             change if change.is_change() => self.change(change, &system, true),
             Action::Boot {
                 environment,
@@ -366,6 +369,79 @@ impl<'a> App<'a> {
             }
             other => self.alone(other),
         }
+    }
+
+    /// Clones the snapshot of `action`, a [`Action::BootSnapshot`], into
+    /// `target` as a change on the console of `system`, then, once the
+    /// clone is done, boots `target` as a boot chosen in the menu, with its
+    /// own kernel and command line. When the boot fails, the clone stays,
+    /// and the failure says so.
+    fn boot_clone(
+        &self,
+        action: &Action,
+        target: &DatasetName,
+        system: &System<'_>,
+        recovery: &dyn Recovery,
+    ) -> Vec<Event> {
+        let mut events = self.change(action, system, true);
+        let Some(Event::Finished(Outcome::Done(cloned))) = events.last() else {
+            return events;
+        };
+        let cloned = cloned.clone();
+        events.pop();
+        let state = zbm_state::State::new(system.files, &self.runtime.base);
+        let boot = boot::Boot {
+            system,
+            state: &state,
+            settings: &self.runtime.boot,
+        };
+        let mut booted = boot.boot(target, None, None, false, recovery);
+        if let Some(Event::Finished(Outcome::Failed { next, .. })) = booted.last_mut() {
+            next.push(format!("{cloned}: it stays, to boot or destroy"));
+        }
+        events.extend(booted);
+        events
+    }
+
+    /// Opens a shell in a chroot of `filesystem` on the console of `system`
+    /// with `zfs-chroot`, through the shell's gate (ADR 0010), unless the
+    /// image has no `zfs-chroot`. It is done once a shell ran: `zfs-chroot`
+    /// exits 0 then, whatever the shell's status, and otherwise, when it
+    /// could not mount the filesystem (one whose key is not loaded) or run
+    /// a shell in it, says why on the console and fails.
+    fn chroot(
+        &self,
+        action: &Action,
+        filesystem: &FilesystemName,
+        system: &System<'_>,
+    ) -> Vec<Event> {
+        if !system.files.exists(Path::new(ZFS_CHROOT)) {
+            return unavailable(action);
+        }
+        let state = zbm_state::State::new(system.files, &self.runtime.base);
+        let now = system.clock.now();
+        let outcome = match auth::chroot(self.authority, &state, system.runner, now, filesystem) {
+            None => return auth::refused(),
+            Some(Ok(ran)) if ran.status.is_success() => {
+                Outcome::Done(format!("the shell in {filesystem} ended"))
+            }
+            Some(Ok(ran)) => Outcome::Failed {
+                what: format!("unable to open a shell in {filesystem}"),
+                why: vec![format!(
+                    "zfs-chroot ended with status {}, after saying why on the console",
+                    ran.status.shell_code()
+                )],
+                next: vec![format!(
+                    "if {filesystem} is locked, load its key, then try again"
+                )],
+            },
+            Some(Err(error)) => Outcome::Failed {
+                what: format!("unable to open a shell in {filesystem}"),
+                why: vec![error.to_string()],
+                next: Vec::new(),
+            },
+        };
+        vec![Event::Finished(outcome)]
     }
 
     /// Applies `action` without taking the console: the volumes', the
@@ -411,14 +487,17 @@ impl<'a> App<'a> {
             .unwrap_or_else(|| self.alone(action))
     }
 
-    /// The kinds of action the application performs: the boot, the
-    /// changes of package D ([`Action::is_change`]), the default kernel,
-    /// restoring files and the import among them, the recovery shell and
-    /// the power actions. The others have no use case yet, and end as
-    /// [`unavailable`].
-    fn offers() -> std::collections::BTreeSet<Offer> {
+    /// The kinds of action the application performs on the machine of
+    /// `files`: the boot, a snapshot's too, the changes of package D
+    /// ([`Action::is_change`]), the default kernel, restoring files and the
+    /// import among them, the recovery shell, the chroot when the image
+    /// has `zfs-chroot`, and the power actions. The others have no use
+    /// case yet, and end as [`unavailable`].
+    fn offers(files: &dyn zbm_platform::Files) -> std::collections::BTreeSet<Offer> {
+        let chroot = files.exists(Path::new(ZFS_CHROOT)).then_some(Offer::Chroot);
         [
             Offer::Boot,
+            Offer::BootSnapshot,
             Offer::SetDefaultEnvironment,
             Offer::DefaultKernel,
             Offer::CreateSnapshot,
@@ -433,6 +512,7 @@ impl<'a> App<'a> {
             Offer::Power,
         ]
         .into_iter()
+        .chain(chroot)
         .collect()
     }
 
@@ -478,7 +558,7 @@ impl Application for App<'_> {
             now,
             bootfs,
             menu_locked: self.is_menu_locked(files),
-            offers: App::offers(),
+            offers: App::offers(files),
             ..Snapshot::default()
         })
     }

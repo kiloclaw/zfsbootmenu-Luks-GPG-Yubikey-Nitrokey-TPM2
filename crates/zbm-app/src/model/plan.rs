@@ -82,6 +82,8 @@ pub enum StepKind {
     /// `/etc/hostid` and recorded for the boot, and the pool is imported
     /// read-only with it.
     AdoptHostid(PoolName),
+    /// The environment is booted, with its own kernel and command line.
+    Boot(DatasetName),
     /// Paths are copied back from a snapshot into its environment, mounted
     /// read/write, with their owner, mode and times; nothing is deleted.
     Restore {

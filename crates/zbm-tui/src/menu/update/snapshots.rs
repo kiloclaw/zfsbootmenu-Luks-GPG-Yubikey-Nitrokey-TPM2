@@ -40,12 +40,12 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
             return Vec::new();
         }
         Intent::Diff => Then::Act(diff(model, &name)),
-        Intent::Boot => Then::Act(Action::BootSnapshot(name)),
+        Intent::Boot => boot_clone(model, &name),
         Intent::Rollback => rollback(model, &snapshot),
         Intent::Clone => clone(model, &name),
         Intent::Duplicate => duplicate(model, &snapshot),
         Intent::CloneAndPromote => promote(model, &name),
-        Intent::Chroot => Then::Act(Action::Chroot(name.to_string())),
+        Intent::Chroot => Then::Act(Action::Chroot(name.into())),
         _ => return Vec::new(),
     };
     dialogs::follow(model, then)
@@ -78,10 +78,7 @@ fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
     let name = &snapshot.name;
     let choice = |label: String, then: Then| Choice { label, then };
     let choices = vec![
-        choice(
-            text!("snapshot-boot-clone"),
-            Then::Act(Action::BootSnapshot(name.clone())),
-        ),
+        choice(text!("snapshot-boot-clone"), boot_clone(model, name)),
         choice(text!("snapshot-roll-back"), rollback(model, snapshot)),
         choice(text!("snapshot-clone"), clone(model, name)),
         choice(text!("snapshot-duplicate"), duplicate(model, snapshot)),
@@ -92,7 +89,7 @@ fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
         ),
         choice(
             text!("snapshot-chroot"),
-            Then::Act(Action::Chroot(name.to_string())),
+            Then::Act(Action::Chroot(name.clone().into())),
         ),
     ];
     let lines = vec![format!(
@@ -165,6 +162,16 @@ fn clone(model: &Model, name: &SnapshotName) -> Then {
         model.snapshot.now,
         text!("name-clone.title", snapshot = name.name()),
         vec![text!("name-clone", snapshot = name.to_string())],
+    ))
+}
+
+/// The name of the clone of `name` that boots once it is made.
+pub(super) fn boot_clone(model: &Model, name: &SnapshotName) -> Then {
+    Then::Name(Naming::new(
+        Make::BootClone(name.clone()),
+        model.snapshot.now,
+        text!("name-boot-clone.title", snapshot = name.name()),
+        vec![text!("name-boot-clone", snapshot = name.to_string())],
     ))
 }
 

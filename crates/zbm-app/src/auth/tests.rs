@@ -117,6 +117,29 @@ fn the_recovery_shell_asks_for_the_pin_when_locked_and_locks_again_after() {
 }
 
 #[test]
+fn the_chroot_runs_only_while_a_proof_lasts_and_forgets_it_after() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let locked = Authority::new(Lock::On("hash".to_owned()));
+    let snapshot: FilesystemName = "tank/ROOT/be@old".parse().unwrap();
+
+    // No proof, then one that lapsed: nothing runs.
+    assert!(chroot(&locked, &state, &fake.runner, at(0), &snapshot).is_none());
+    locked.prove(Verified::new(), at(10));
+    let lapsed = at(10 + IDLE.as_secs());
+    assert!(chroot(&locked, &state, &fake.runner, lapsed, &snapshot).is_none());
+    assert_eq!(fake.runner.lines(), Vec::<String>::new());
+
+    // A proof that lasts: the chroot runs, and the proof goes with it.
+    locked.prove(Verified::new(), at(1000));
+    let ran = chroot(&locked, &state, &fake.runner, at(1001), &snapshot);
+    assert!(matches!(ran, Some(Ok(_))), "{ran:?}");
+    assert!(locked.is_locked(false, at(1002)));
+    assert_eq!(fake.runner.lines(), ["/bin/zfs-chroot tank/ROOT/be@old"]);
+}
+
+#[test]
 fn a_wrong_pin_doubles_the_wait_before_the_next_and_a_right_one_ends_it() {
     let fake = FakeSystem::new();
     fake.files.dir("/zfsbootmenu");

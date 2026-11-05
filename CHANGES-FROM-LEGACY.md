@@ -238,6 +238,27 @@ menu also restores files from a snapshot, which the legacy menu did not.
   already. The time of a snapshot's name is in UTC, as the image has no time zone.
 - **Why:** the name is part of the action, and what can be typed is what can be used.
 
+### A snapshot boots as a new clone under a chosen name
+
+- **Before:** `Enter` on a snapshot asked for the name of a new environment, filled with `<environment>_NEW`, and
+  copied the snapshot into it; nothing booted a snapshot, and the new environment was booted by hand.
+- **Now:** booting a snapshot (`b`, the snapshot's `Enter` menu or the palette) asks for the name the same way, clones
+  the snapshot into it with `zfs clone`, as a clone without promotion does, and boots it, with its own kernel and
+  command line, through the menu's boot: the hooks, the key and `kexec`. It takes the console, as a boot does, and the
+  locked menu keeps it. A clone that fails boots nothing; a boot that fails leaves the clone, and says so.
+- **Why:** booting a snapshot is one step, and what boots is an environment with a name that stays, not a temporary
+  clone that has to be found and destroyed later.
+
+### The chroot goes through the lock
+
+- **Before:** `mod-j` ran `zfs-chroot` on the console for the environment or snapshot selected; nothing stood in the
+  way of the shell it opened.
+- **Now:** the chroot runs the same `/bin/zfs-chroot <filesystem>` on the console, through the one gate to a shell
+  (ADR 0010): a locked menu asks for the PIN first, and runs nothing without it; the proof is forgotten once the shell
+  ends. An image without `zfs-chroot` does not offer it. When `zfs-chroot` opens no shell, as on a filesystem whose
+  key is not loaded, the menu says it failed and why, where it used to come back as if a shell had run.
+- **Why:** a shell in a chroot is a shell, and the lock keeps every shell.
+
 ### Rollback has no safety snapshot
 
 - **Before:** typing `ROLLBACK` confirmed the rollback, which destroys the newer snapshots.
@@ -376,6 +397,17 @@ takes over from a menu already running.
   one the countdown would have booted, and Escape only stops the countdown. `zbm.timeout`, `zbm.show` and `zbm.skip`
   mean what they meant.
 - **Why:** what is about to boot, and what else there is, can be seen without a key press.
+
+### No countdown to a snapshot
+
+- **Before:** there was no boot counting, so nothing booted in place of a default that failed. The menu's design had
+  the countdown boot a clone of the default's newest snapshot when no environment had marked a boot good.
+- **Now:** the countdown boots only environments. When the default used up its boot tries, it boots the last
+  environment that marked a boot good; with none, nothing boots on its own, and the banner says only what failed, as
+  it does with the countdown off. A snapshot is booted only when someone chooses it, under the name they give its
+  clone.
+- **Why:** the countdown cannot ask for the clone's name, and nobody may be there to find and destroy a clone it made;
+  the environment the list selects first is the default, which must not boot again.
 
 ### Encrypted environments are listed locked
 

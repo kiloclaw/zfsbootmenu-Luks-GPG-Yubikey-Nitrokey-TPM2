@@ -2,9 +2,7 @@
 
 use super::dialogs::import;
 use crate::menu::model::{Asking, Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
-use crate::menu::world::{
-    Access, Action, Event, Outcome, Stage, StageState, Target, UnlockOutcome,
-};
+use crate::menu::world::{Access, Action, Event, Outcome, Stage, StageState, UnlockOutcome};
 use crate::text::text;
 use zbm_types::ImportPolicy;
 
@@ -120,18 +118,23 @@ pub(super) fn start(model: &mut Model) {
     // What the countdown boots: the fallback of a default that used up its
     // tries, else the environment the running system asked for once, else
     // the one start-up chose.
-    let fallback = model.snapshot.fallback.as_ref().map(|f| f.target.clone());
-    let target = match fallback {
-        Some(Target::Environment(name)) => Some(name),
-        Some(Target::Snapshot(_)) => None,
+    let target = match &model.snapshot.fallback {
+        Some(fallback) => fallback.target.clone(),
         None => model
             .snapshot
             .next_boot
             .clone()
             .or_else(|| model.snapshot.bootfs.clone()),
     };
-    if let Some(name) = target {
-        model.select_environment(&name);
+    if let Some(name) = &target {
+        model.select_environment(name);
+    }
+    // A default that used up its tries never boots on its own again: with
+    // no fallback the list selects, which would be the default, sorted
+    // first, nothing boots until someone chooses.
+    let selected = model.selected_environment().map(|e| &e.name);
+    if model.snapshot.fallback.is_some() && (target.is_none() || selected != target.as_ref()) {
+        model.countdown = None;
     }
     if model.snapshot.environments.is_empty() {
         model.countdown = None;

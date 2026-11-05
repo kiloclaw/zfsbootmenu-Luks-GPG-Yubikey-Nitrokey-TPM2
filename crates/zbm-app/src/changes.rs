@@ -9,7 +9,8 @@
 //! - a snapshot: `zfs snapshot`;
 //! - a rollback, to a snapshot that has kernels: `zfs rollback -r`;
 //! - a clone, promoted or not: `zfs clone` with the environment's own
-//!   properties, then `zfs promote`;
+//!   properties, then `zfs promote`; the boot of a snapshot clones it so,
+//!   unpromoted, before the boot;
 //! - a duplicate: a raw send into a receive, when the space is there, then
 //!   the copy inherits its parent's key where the source did;
 //! - the differences of a snapshot: `zfs diff` on the filesystem mounted
@@ -98,7 +99,9 @@ impl Changes<'_, '_> {
             Action::InheritDefaultKernel(environment) => self.default_kernel(environment, None),
             Action::CreateSnapshot(snapshot) => self.create_snapshot(snapshot),
             Action::Rollback(snapshot) => self.rollback(snapshot),
-            Action::Clone(snapshot, target) => self.clone_snapshot(snapshot, target, false),
+            Action::Clone(snapshot, target) | Action::BootSnapshot(snapshot, target) => {
+                self.clone_snapshot(snapshot, target, false)
+            }
             Action::CloneAndPromote(snapshot, target) => {
                 self.clone_snapshot(snapshot, target, true)
             }

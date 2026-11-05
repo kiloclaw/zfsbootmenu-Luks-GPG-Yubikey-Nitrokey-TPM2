@@ -7,7 +7,7 @@ use ratatui::text::{Line, Span};
 use crate::menu::format::fit;
 use crate::menu::model::Model;
 use crate::menu::theme::{Glyph, Role, Theme};
-use crate::menu::world::{Environment, Fallback, Target, Verdict, worst};
+use crate::menu::world::{Environment, Fallback, Verdict, worst};
 use crate::text::text;
 
 /// The banner: its forms, longest first, and its role; `None` when there
@@ -55,26 +55,22 @@ fn spaced(forms: Vec<String>) -> Vec<String> {
 }
 
 /// The forms of the banner of a default that used up its boot tries,
-/// longest first: with the countdown to the fallback when `seconds` runs.
+/// longest first: with the countdown to the fallback when `seconds` runs,
+/// which it does only towards a fallback.
 fn fallback_forms(fallback: &Fallback, seconds: Option<u64>) -> Vec<String> {
     let failed = fallback.failed.to_string();
     let failed = failed.as_str();
     let attempts = fallback.attempts;
-    let Some(seconds) = seconds else {
+    let (Some(seconds), Some(target)) = (seconds, &fallback.target) else {
         return vec![
             text!("banner-used-up", failed = failed, attempts = attempts),
             text!("banner-used-up.short", failed = failed, attempts = attempts),
         ];
     };
-    let target = match &fallback.target {
-        Target::Environment(name) => {
-            text!(
-                "fallback-target-environment",
-                environment = name.to_string()
-            )
-        }
-        Target::Snapshot(name) => text!("fallback-target-clone", snapshot = name.name()),
-    };
+    let target = text!(
+        "fallback-target-environment",
+        environment = target.to_string()
+    );
     let target = target.as_str();
     vec![
         text!(

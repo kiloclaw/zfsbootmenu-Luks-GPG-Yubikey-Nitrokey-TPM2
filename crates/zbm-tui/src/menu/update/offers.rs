@@ -14,6 +14,7 @@ fn offer_of(then: &Then) -> Option<Offer> {
         Then::Name(naming) => Some(match naming.make {
             Make::Snapshot(_) => Offer::CreateSnapshot,
             Make::Clone(_) | Make::Promote(_) => Offer::Clone,
+            Make::BootClone(_) => Offer::BootSnapshot,
             Make::Duplicate(_) => Offer::Duplicate,
         }),
         // The command line is edited for a boot.

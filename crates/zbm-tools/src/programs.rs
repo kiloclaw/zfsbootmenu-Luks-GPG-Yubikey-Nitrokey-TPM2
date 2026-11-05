@@ -11,6 +11,7 @@ use std::path::Path;
 
 use zbm_platform::shell::{self, Interpreter};
 use zbm_platform::{Command, Input, Output, Runner, Signal, Stream};
+use zbm_types::FilesystemName;
 
 /// `command` with the console as its standard input, output and error.
 fn on_console(command: Command) -> Command {
@@ -95,19 +96,40 @@ pub fn key_script(
     runner.run(&command)
 }
 
-/// Runs an interactive shell on the console, the one the runtime chose
-/// ([`zbm_platform::shell`]) or Bash (`/bin/bash -i`), which Ctrl-C reaches
-/// with its default action. When it ends, this process takes the terminal
-/// back: a shell with job control that ended without giving it back, or
-/// was killed, leaves its own process group in the foreground, and the
-/// menu or start-up could then read no key.
+/// Where an interactive shell runs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ShellRoot<'a> {
+    /// In the image's own root: the shell the runtime chose.
+    Image,
+    /// In a chroot of a filesystem, which [`ZFS_CHROOT`] mounts, read-only
+    /// for a snapshot, and cleans up after.
+    Chroot(&'a FilesystemName),
+}
+
+/// Where the image keeps `zfs-chroot`, which opens a shell in a chroot of a
+/// filesystem: one of a snapshot read-only.
+pub const ZFS_CHROOT: &str = "/bin/zfs-chroot";
+
+/// Runs an interactive shell on the console, in `root`: in the image, the
+/// one the runtime chose ([`zbm_platform::shell`]) or Bash
+/// (`/bin/bash -i`); in a chroot, [`ZFS_CHROOT`] for the filesystem.
+/// Ctrl-C reaches it with its default action. When it ends, this process
+/// takes the terminal back: a shell with job control that ended without
+/// giving it back, or was killed, leaves its own process group in the
+/// foreground, and the menu or start-up could then read no key.
 ///
 /// # Errors
 ///
 /// The error that kept the shell from starting.
-pub fn interactive_shell(runner: &dyn Runner) -> io::Result<Output> {
-    let program = shell::chosen().unwrap_or_else(|| shell::BASH.into());
-    let command = on_console(Command::new(program).arg("-i")).default_signal(Signal::Interrupt);
+pub fn interactive_shell(runner: &dyn Runner, root: ShellRoot<'_>) -> io::Result<Output> {
+    let command = match root {
+        ShellRoot::Image => {
+            let program = shell::chosen().unwrap_or_else(|| shell::BASH.into());
+            Command::new(program).arg("-i")
+        }
+        ShellRoot::Chroot(filesystem) => Command::new(ZFS_CHROOT).arg(filesystem.to_string()),
+    };
+    let command = on_console(command).default_signal(Signal::Interrupt);
     let ran = runner.run(&command);
     // Not a terminal (a script, the tests): nothing to take back.
     let _ = zbm_sys::take_terminal(io::stdin());
@@ -479,7 +501,9 @@ mod tests {
             &[("CRYPTTAB_NAME", "root")],
         )
         .unwrap();
-        interactive_shell(&runner).unwrap();
+        interactive_shell(&runner, ShellRoot::Image).unwrap();
+        let snapshot = "tank/ROOT/be@old".parse().unwrap();
+        interactive_shell(&runner, ShellRoot::Chroot(&snapshot)).unwrap();
         applet(&runner, "zluks", &["unlock"], &[("LUKS_RETRY", "1")]).unwrap();
 
         copy_file(&runner, Path::new("/a"), Path::new("/b")).unwrap();
@@ -498,6 +522,7 @@ mod tests {
             [
                 "/etc/keyscript none",
                 "/bin/bash -i",
+                "/bin/zfs-chroot tank/ROOT/be@old",
                 "zluks unlock",
                 "cp /a /b",
                 "cp -a -- /s/-a /b",
@@ -508,8 +533,10 @@ mod tests {
         let calls = runner.calls();
         assert_eq!(calls[0].get_stdout(), Stream::CaptureSecret);
         assert_eq!(calls[1].get_default_signals(), [Signal::Interrupt]);
+        assert_eq!(calls[2].get_default_signals(), [Signal::Interrupt]);
+        assert_eq!(calls[2].get_stdin(), &Input::Inherit);
         assert_eq!(
-            calls[2].get_env(),
+            calls[3].get_env(),
             [("LUKS_RETRY".into(), Some("1".into()))]
         );
     }

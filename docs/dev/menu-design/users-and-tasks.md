@@ -103,7 +103,7 @@ menu's key help, to be checked in the sessions.
 | T1 | nothing | 0 | 0 | 0 |
 | T2 | Down, Enter; or `/`, letters, Enter | 2 | 4 | 3 (Esc to stop the countdown, Down, Enter) |
 | T3 | `k`, Down, Enter | 3 | 5 | 4 (Esc, `MOD+K`, Down, Enter) |
-| T4, boot a snapshot | `s`, `o` (newest first), `b` | 3 | 6 | no direct path: clone it, then boot the clone |
+| T4, boot a snapshot | `s`, `o` (newest first), `b`, Enter (the clone's name offered) | 4 | 6 | no direct path: clone it, then boot the clone |
 | T4, roll back | `s`, `o`, `r`, the name, Enter | 4 | 6 | Esc, `MOD+S`, choose, `MOD+R`, then confirm |
 | T5 | the secret, Enter | 1 | 1 | 1 |
 | T6 | `e`, the edit, Enter | 2 | 3 | about 3 (Esc, `MOD+E`, the edit, Enter) |
@@ -117,7 +117,7 @@ T7 are the same in both maps:
 | --- | --- | --- | --- |
 | T2 | `j`, Enter | 2 | 2 |
 | T3 | `l` (into the kernels), `j`, Enter | 3 | 3 |
-| T4, boot a snapshot | `2` (the Snapshots tab), `o`, `b` | 3 | 3 |
+| T4, boot a snapshot | `2` (the Snapshots tab), `o`, `b`, Enter | 4 | 4 |
 | T4, roll back | `2`, `o`, `r`, the name, Enter | 4 | 4 |
 | T8 | `2`, `o`, `f`, Enter, the name, Enter | 5 | 5 |
 

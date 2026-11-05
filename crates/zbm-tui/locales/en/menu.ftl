@@ -359,8 +359,7 @@ banner-fallback = { $failed } failed to start { $attempts } times. Booting { $ta
     .shorter = { $failed } failed { $attempts } times. Booting { $target } in { $seconds } s.
     .short = { $failed } failed { $attempts } times. Fallback in { $seconds } s.
     .shortest = Fallback in { $seconds } s.
-fallback-target-environment = { $environment }, the last good one
-fallback-target-clone = a clone of { $snapshot }
+fallback-target-environment = { $environment }, the last good one,
 badge-problems = { $count ->
         [one] { $count } problem
        *[other] { $count } problems
@@ -521,7 +520,7 @@ may-not-boot =
 ## The actions on a snapshot.
 
 snapshot-title = Snapshot { $snapshot }
-snapshot-boot-clone = Boot a Temporary Clone
+snapshot-boot-clone = Boot a New Clone
 snapshot-roll-back = Roll Back to It
 snapshot-clone = Clone as a New Boot Environment
 snapshot-duplicate = Duplicate as an Independent Copy
@@ -548,6 +547,8 @@ name-snapshot = The snapshot keeps { $environment } as it is now.
     .title = New Snapshot of { $environment }
 name-clone = The new boot environment shares the data of { $snapshot } until either changes.
     .title = Clone { $snapshot }
+name-boot-clone = The new boot environment is cloned from { $snapshot }, then boots; it stays afterwards.
+    .title = Boot a Clone of { $snapshot }
 name-duplicate = The copy of { $snapshot } shares nothing with it, and takes its space again.
     .title = Duplicate { $snapshot }
 name-taken = { $name } exists already: choose another name

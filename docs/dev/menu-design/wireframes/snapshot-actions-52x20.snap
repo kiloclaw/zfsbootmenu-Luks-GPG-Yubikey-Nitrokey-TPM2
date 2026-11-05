@@ -9,7 +9,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ │ zroot/ROOT/void@pre-upgrade · 12 h ago · 1.1 │ │
 │ │ GiB                                          │ │
 │ │                                              │ │
-│ │ ▶ Boot a Temporary Clone                     │ │
+│ │ ▶ Boot a New Clone…                          │ │
 │ │   Roll Back to It…                           │ │
 │ │   Clone as a New Boot Environment…           │ │
 │ │   Duplicate as an Independent Copy…          │ │

@@ -47,10 +47,15 @@ fn step(change: ZfsChange) -> Step {
 impl App<'_> {
     /// What the change `action` would do on the machine `console`, the
     /// front end's whole system, without doing it: nothing is changed,
-    /// imported or unlocked. `None` for an action that changes nothing,
-    /// such as the differences of a snapshot.
+    /// imported or unlocked. The boot of a snapshot is its clone's steps,
+    /// then the boot, when the clone would be made. `None` for an action
+    /// that changes nothing, such as the differences of a snapshot.
     pub fn plan(&self, action: &Action, console: System<'_>) -> Option<Plan> {
-        if !action.is_change() || matches!(action, Action::Diff(..)) {
+        let boots = match action {
+            Action::BootSnapshot(_, target) => Some(target),
+            _ => None,
+        };
+        if (!action.is_change() && boots.is_none()) || matches!(action, Action::Diff(..)) {
             return None;
         }
         let system = console.with_runner(self.context.runner());
@@ -85,10 +90,14 @@ impl App<'_> {
             _ => None,
         });
         let outcome = finished.unwrap_or_else(|| Outcome::Done(String::new()));
-        Some(Plan {
-            steps: steps.into_inner().unwrap_or_default(),
-            outcome,
-        })
+        let mut steps = steps.into_inner().unwrap_or_default();
+        if let (Some(target), Outcome::Done(_)) = (boots, &outcome) {
+            steps.push(Step {
+                kind: StepKind::Boot(target.clone()),
+                command: None,
+            });
+        }
+        Some(Plan { steps, outcome })
     }
 
     /// The events of [`Action::Plan`] of `action`.

@@ -94,10 +94,15 @@ fn first_tasks() -> Vec<Task> {
         Task {
             name: "T4 boot the newest snapshot",
             options: options(false, false),
-            steps: &[Press(Char('s')), Press(Char('o')), Press(Char('b'))],
-            measured: 3,
+            steps: &[
+                Press(Char('s')),
+                Press(Char('o')),
+                Press(Char('b')),
+                Press(Enter),
+            ],
+            measured: 4,
             budget: 6,
-            done: |s| matches!(s.actions.as_slice(), [Action::BootSnapshot(_)]),
+            done: |s| matches!(s.actions.as_slice(), [Action::BootSnapshot(..)]),
         },
         Task {
             name: "T4 roll back to the newest snapshot",
@@ -215,10 +220,15 @@ fn workspace_tasks() -> Vec<Task> {
         Task {
             name: "workspace: T4 boot the newest snapshot",
             options: workspace(),
-            steps: &[Press(Char('2')), Press(Char('o')), Press(Char('b'))],
-            measured: 3,
+            steps: &[
+                Press(Char('2')),
+                Press(Char('o')),
+                Press(Char('b')),
+                Press(Enter),
+            ],
+            measured: 4,
             budget: 6,
-            done: |s| matches!(s.actions.as_slice(), [Action::BootSnapshot(_)]),
+            done: |s| matches!(s.actions.as_slice(), [Action::BootSnapshot(..)]),
         },
         Task {
             name: "workspace: T4 roll back to the newest snapshot",

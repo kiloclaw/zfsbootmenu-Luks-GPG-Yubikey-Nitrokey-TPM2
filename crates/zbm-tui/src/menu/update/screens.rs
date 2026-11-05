@@ -162,7 +162,7 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::SetDefault => return vec![Action::SetDefaultEnvironment(name)],
         Intent::Pools => model.screen = Screen::Pools,
         Intent::ReadWrite => return vec![read_write(&name.pool())],
-        Intent::Chroot => return vec![Action::Chroot(name.to_string())],
+        Intent::Chroot => return vec![Action::Chroot(name.into())],
         Intent::NewSnapshot => {
             let then = super::snapshots::new_snapshot(model, name);
             return dialogs::follow(model, then);
@@ -340,7 +340,7 @@ fn recovery(model: &mut Model, intent: Intent) -> Vec<Action> {
         RecoveryTool::Shell => vec![Action::Shell],
         RecoveryTool::Chroot => model
             .selected_environment()
-            .map(|environment| vec![Action::Chroot(environment.name.to_string())])
+            .map(|environment| vec![Action::Chroot(environment.name.clone().into())])
             .unwrap_or_default(),
         RecoveryTool::Log => {
             model.screen = Screen::Log;

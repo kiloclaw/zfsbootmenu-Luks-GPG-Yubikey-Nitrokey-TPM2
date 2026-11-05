@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use zbm_crypt::OpenOptions;
 use zbm_platform::secret::Secret;
-use zbm_types::{Answer, DatasetName, DevicePath, MappingName, PoolName, SnapshotName, Untrusted};
+use zbm_types::{
+    Answer, DatasetName, DevicePath, FilesystemName, MappingName, PoolName, SnapshotName, Untrusted,
+};
 
 use super::{Change, ImportOptions, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
 
@@ -33,8 +35,9 @@ pub enum Action {
         /// countdown's boot tries no key source.
         countdown: bool,
     },
-    /// Boot a temporary clone of a snapshot.
-    BootSnapshot(SnapshotName),
+    /// Clone a snapshot into the new environment named, as
+    /// [`Action::Clone`] does, and boot that environment once it is made.
+    BootSnapshot(SnapshotName, DatasetName),
     /// Make an environment the `bootfs` of its pool.
     SetDefaultEnvironment(DatasetName),
     /// Make a kernel the default of its environment: its version, as the
@@ -72,8 +75,9 @@ pub enum Action {
     ResetBootTries(DatasetName),
     /// Seal a volume's TPM2 key to the PCRs as they are now.
     Reseal(String),
-    /// A shell in a chroot of an environment, or of a snapshot read-only.
-    Chroot(String),
+    /// A shell in a chroot of an environment, or of a snapshot read-only,
+    /// which `zfs-chroot` opens on the console through the shell's gate.
+    Chroot(FilesystemName),
     /// Import a pool with the options given: one that is imported is
     /// exported first, which a rewind does whatever its access, and
     /// imported again; one that is not is imported read-only first, then
@@ -138,15 +142,18 @@ pub enum Action {
 
 impl Action {
     /// Whether the action takes the console from the menu: booting, which
-    /// may ask for a passphrase, the recovery shell, rebooting and powering
-    /// off, and every import, which may ask about hibernation and must not
-    /// be cancelled between the export and the import.
+    /// may ask for a passphrase, a snapshot's too, the recovery shell and
+    /// the chroot, rebooting and powering off, and every import, which may
+    /// ask about hibernation and must not be cancelled between the export
+    /// and the import.
     pub fn needs_console(&self) -> bool {
         matches!(
             self,
             Action::Boot { .. }
+                | Action::BootSnapshot(..)
                 | Action::Import(..)
                 | Action::Shell
+                | Action::Chroot(_)
                 | Action::Reboot
                 | Action::PowerOff
                 | Action::FirmwareSetup
@@ -177,9 +184,11 @@ impl Action {
 
     /// Whether the change writes its pool, which it imports read/write
     /// first: every change but the diff of two snapshots, which reads
-    /// them, and an import, which is how the pool is imported.
+    /// them, and an import, which is how the pool is imported; and the
+    /// boot of a snapshot, which clones it first.
     pub fn needs_writable_pool(&self) -> bool {
-        self.is_change() && !matches!(self, Action::Diff(_, Some(_)) | Action::Import(..))
+        matches!(self, Action::BootSnapshot(..))
+            || (self.is_change() && !matches!(self, Action::Diff(_, Some(_)) | Action::Import(..)))
     }
 
     /// Whether the locked menu keeps the action (ROADMAP.md SE9, ADR 0010):
@@ -212,7 +221,7 @@ impl Action {
             | Action::PowerOff
             | Action::Plan(_) => false,
             Action::Import(_, options) => options.is_kept_by_lock(),
-            Action::BootSnapshot(_)
+            Action::BootSnapshot(..)
             | Action::SetDefaultEnvironment(_)
             | Action::SetDefaultKernel(..)
             | Action::InheritDefaultKernel(_)
@@ -237,7 +246,8 @@ impl Action {
             Action::SetDefaultEnvironment(environment)
             | Action::SetDefaultKernel(environment, _)
             | Action::InheritDefaultKernel(environment) => Some(environment),
-            Action::CreateSnapshot(snapshot)
+            Action::BootSnapshot(snapshot, _)
+            | Action::CreateSnapshot(snapshot)
             | Action::Rollback(snapshot)
             | Action::Clone(snapshot, _)
             | Action::CloneAndPromote(snapshot, _)

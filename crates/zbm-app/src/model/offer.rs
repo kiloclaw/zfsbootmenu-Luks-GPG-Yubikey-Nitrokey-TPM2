@@ -13,7 +13,7 @@ use super::{Action, Snapshot};
 pub enum Offer {
     /// Booting an environment.
     Boot,
-    /// Booting a snapshot.
+    /// Booting a snapshot: a new clone of it.
     BootSnapshot,
     /// Making an environment the default of its pool.
     SetDefaultEnvironment,
@@ -80,7 +80,7 @@ impl Action {
     pub fn offer(&self) -> Option<Offer> {
         Some(match self {
             Action::Boot { .. } => Offer::Boot,
-            Action::BootSnapshot(_) => Offer::BootSnapshot,
+            Action::BootSnapshot(..) => Offer::BootSnapshot,
             Action::SetDefaultEnvironment(_) => Offer::SetDefaultEnvironment,
             Action::SetDefaultKernel(..) | Action::InheritDefaultKernel(_) => Offer::DefaultKernel,
             Action::CreateSnapshot(_) => Offer::CreateSnapshot,
