@@ -16,7 +16,7 @@ use zbm_types::DatasetName;
 
 use crate::auth::{self, Authority};
 use crate::keyholder::{self, Keyholders, UnlockRequest};
-use crate::model::{Action, Encryption, Event, Keyboard, Outcome, Snapshot};
+use crate::model::{Action, Encryption, Event, Keyboard, Offer, Outcome, Snapshot};
 use crate::{AppError, SnapshotError, boot, changes, read, volumes};
 
 /// Where the image keeps its keyboard layouts.
@@ -396,6 +396,27 @@ impl<'a> App<'a> {
             .unwrap_or_else(|| self.alone(action))
     }
 
+    /// The kinds of action the application performs: the boot, the
+    /// changes of package D ([`Action::is_change`]), the recovery shell and
+    /// the power actions. The others have no use case yet, and end as
+    /// [`unavailable`].
+    fn offers() -> std::collections::BTreeSet<Offer> {
+        [
+            Offer::Boot,
+            Offer::SetDefaultEnvironment,
+            Offer::CreateSnapshot,
+            Offer::Rollback,
+            Offer::Clone,
+            Offer::Duplicate,
+            Offer::Diff,
+            Offer::Shell,
+            Offer::FirmwareSetup,
+            Offer::Power,
+        ]
+        .into_iter()
+        .collect()
+    }
+
     /// The keyboard layouts secrets can be typed with, and whether keys
     /// come from the machine's own keyboard; it reads no pool, so start-up
     /// can ask it before any is imported.
@@ -438,6 +459,7 @@ impl Application for App<'_> {
             now,
             bootfs,
             menu_locked: self.is_menu_locked(files),
+            offers: App::offers(),
             ..Snapshot::default()
         })
     }

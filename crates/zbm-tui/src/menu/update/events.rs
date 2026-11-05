@@ -29,7 +29,9 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             model.dialog = Some(Dialog::Question(Asking { question, left }));
         }
         Event::ResealOffered(volume) => {
-            if let Some(then) = super::unlock::reseal(model, &volume) {
+            if let Some(then) = super::unlock::reseal(model, &volume)
+                && super::offers::is_offered(model, &then)
+            {
                 model.dialog = Some(super::dialogs::confirm(then));
             }
         }
@@ -134,7 +136,7 @@ pub(super) fn start(model: &mut Model) {
     }
 }
 
-/// The choices of a pool that did not import.
+/// The choices the machine offers for a pool that did not import.
 fn import_problem(model: &mut Model, pool: &zbm_types::PoolName, reason: String) {
     let act = |label: String, then: Then| Choice { label, then };
     let choices = vec![
@@ -152,6 +154,7 @@ fn import_problem(model: &mut Model, pool: &zbm_types::PoolName, reason: String)
         ),
         act(text!("import-shell"), Then::Act(Action::Shell)),
     ];
+    let choices = super::offers::offered(model, choices);
     model.dialog = Some(super::dialogs::choose(
         &text!("import-failed.title", pool = pool.to_string()),
         vec![reason],

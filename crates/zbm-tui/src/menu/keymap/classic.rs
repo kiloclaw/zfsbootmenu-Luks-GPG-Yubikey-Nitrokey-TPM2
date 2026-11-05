@@ -73,12 +73,15 @@ pub(super) fn classic(context: Context, press: KeyPress) -> Option<Intent> {
         })
 }
 
-/// The classic bindings of `context`, as (`MOD+K`, what it does).
-pub fn classic_bindings(context: Context) -> Vec<(String, Id)> {
+/// The classic bindings of `context` whose intents are `offered`, as
+/// (`MOD+K`, what it does).
+pub fn classic_bindings(context: Context, offered: &dyn Fn(Intent) -> bool) -> Vec<(String, Id)> {
     CLASSIC
         .iter()
         .filter_map(|(letter, meanings)| {
-            let (_, intent) = meanings.iter().find(|(view, _)| *view == context)?;
+            let (_, intent) = meanings
+                .iter()
+                .find(|(view, intent)| *view == context && offered(*intent))?;
             let key = text!("key-classic", letter = letter.to_uppercase().to_string());
             Some((key, describe(context, *intent)))
         })

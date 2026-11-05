@@ -10,7 +10,7 @@ use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine};
 use crate::menu::keymap::press;
 use crate::menu::theme::Theme;
-use crate::menu::world::{Action, Event, Snapshot};
+use crate::menu::world::{Action, Event, Offer, Snapshot};
 
 /// Keys from a script, `None` for the time asked passing without one on
 /// the clock, then time passing; what was done to the input; its size.
@@ -151,7 +151,10 @@ fn the_console_is_lent_to_what_takes_it_and_the_size_followed() {
     input.wait(3);
     let mut session = Session::on(
         Shell {
-            snapshot: Snapshot::default(),
+            snapshot: Snapshot {
+                offers: [Offer::Shell].into(),
+                ..Snapshot::default()
+            },
             ran: false,
         },
         Theme::new(Capabilities::FULL),

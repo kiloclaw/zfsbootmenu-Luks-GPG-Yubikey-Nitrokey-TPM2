@@ -21,6 +21,9 @@ fn long_snapshot() -> Snapshot {
         startup: vec![stage; 200],
         bootfs: Some(dataset("zroot/ROOT/void")),
         now: 1_700_000_000,
+        offers: [crate::model::Offer::Boot, crate::model::Offer::Power]
+            .into_iter()
+            .collect(),
         ..Snapshot::default()
     }
 }

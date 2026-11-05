@@ -4,6 +4,11 @@ use zbm_display::keys::{Key, KeyPress};
 use super::*;
 use crate::text::id;
 
+/// Every intent offered: the key map's own bindings.
+fn every(_: Intent) -> bool {
+    true
+}
+
 fn plain(c: char) -> KeyPress {
     press(Key::Char(c), NONE)
 }
@@ -130,7 +135,7 @@ fn ctrl_keys_of_the_new_map_win_over_classic_ones() {
 
 /// The toolbar of `context` at `width` columns, as (key, label).
 fn toolbar(context: Context, width: usize) -> Vec<(String, String)> {
-    footer(Map::Classic, context, width)
+    footer(Map::Classic, context, width, &every)
         .into_iter()
         .map(|tool| (tool.key, tool.label))
         .collect()
@@ -167,7 +172,7 @@ fn the_toolbar_shows_five_whole_actions_then_more() {
     );
     assert_eq!(toolbar(Main, 5), []);
     assert!(
-        footer(Map::Classic, Context::Choose, 80)
+        footer(Map::Classic, Context::Choose, 80, &every)
             .iter()
             .all(|tool| !tool.is_more)
     );
@@ -179,7 +184,7 @@ fn the_toolbar_shows_five_whole_actions_then_more() {
 
 #[test]
 fn help_lists_every_key_of_an_intent_together() {
-    let help = help(Map::Classic, Main);
+    let help = help(Map::Classic, Main, &every);
     let has = |keys: &str, what| help.contains(&(keys.to_owned(), what));
 
     assert!(has("Enter", id!("action-boot")));
@@ -194,11 +199,11 @@ fn help_lists_every_key_of_an_intent_together() {
 
 #[test]
 fn the_classic_bindings_of_a_view_are_listed() {
-    let main = classic_bindings(Main);
+    let main = classic_bindings(Main, &every);
 
     assert!(main.contains(&("MOD+K".to_owned(), id!("action-kernels"))));
     assert!(main.contains(&("MOD+R".to_owned(), id!("action-shell"))));
-    assert_eq!(classic_bindings(Context::Help), []);
+    assert_eq!(classic_bindings(Context::Help, &every), []);
 }
 
 #[test]
@@ -294,7 +299,7 @@ fn every_key_has_one_meaning_and_no_letter_depends_on_case() {
 
 #[test]
 fn the_workspace_toolbar_goes_into_the_kernels_with_l() {
-    let tools: Vec<(String, String)> = footer(Map::Workspace, Main, 80)
+    let tools: Vec<(String, String)> = footer(Map::Workspace, Main, 80, &every)
         .into_iter()
         .map(|tool| (tool.key, tool.label))
         .collect();
@@ -309,7 +314,7 @@ fn the_workspace_toolbar_goes_into_the_kernels_with_l() {
             ("?", "More"),
         ])
     );
-    let help = help(Map::Workspace, Main);
+    let help = help(Map::Workspace, Main, &every);
     assert!(help.contains(&("2".to_owned(), id!("action-tab-snapshots"))));
     assert!(help.contains(&("Tab".to_owned(), id!("action-next-tab"))));
     assert!(help.contains(&("Shift-Tab".to_owned(), id!("action-previous-tab"))));

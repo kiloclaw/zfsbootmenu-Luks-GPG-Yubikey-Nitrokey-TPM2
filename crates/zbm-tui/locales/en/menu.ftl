@@ -500,6 +500,7 @@ rewind = Every change to { $pool } since its checkpoint is lost.
     .title = Rewind { $pool } to Its Checkpoint
     .discarded = The checkpoint itself is discarded.
 error-nothing-to-confirm = nothing to confirm
+not-offered = not available on this machine
 confirm-type-first = type { $name } to confirm
 
 ## Power.

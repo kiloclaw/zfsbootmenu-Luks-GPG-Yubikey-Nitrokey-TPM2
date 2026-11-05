@@ -191,3 +191,67 @@ fn the_lock_keeps_all_but_the_default_boot_and_what_changes_nothing() {
     }
     assert!(Action::Chroot("tank/ROOT/be".to_owned()).is_kept_by_lock(bootfs));
 }
+
+/// An action of `kind`, on the environment `tank/ROOT/be` or its snapshot
+/// `old`.
+fn of_kind(kind: model::Offer) -> Action {
+    use model::Offer;
+    let environment: DatasetName = "tank/ROOT/be".parse().unwrap();
+    let snapshot: zbm_types::SnapshotName = "tank/ROOT/be@old".parse().unwrap();
+    let target: DatasetName = "tank/ROOT/new".parse().unwrap();
+    match kind {
+        Offer::Boot => Action::Boot {
+            environment,
+            kernel: None,
+            command_line: None,
+            countdown: false,
+        },
+        Offer::BootSnapshot => Action::BootSnapshot(snapshot),
+        Offer::SetDefaultEnvironment => Action::SetDefaultEnvironment(environment),
+        Offer::DefaultKernel => Action::InheritDefaultKernel(environment),
+        Offer::CreateSnapshot => Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap()),
+        Offer::Rollback => Action::Rollback(snapshot),
+        Offer::Clone => Action::Clone(snapshot, target),
+        Offer::Duplicate => Action::Duplicate(snapshot, target),
+        Offer::Diff => Action::Diff(snapshot, None),
+        Offer::RestoreFiles => Action::RestoreFiles {
+            snapshot,
+            paths: vec![zbm_types::Untrusted::new("/etc/fstab".to_owned())],
+        },
+        Offer::Chroot => Action::Chroot(environment.to_string()),
+        Offer::Import => Action::ImportReadWrite(environment.pool()),
+        Offer::OpenVolume => Action::Open {
+            device: "/dev/sda2".to_owned(),
+            name: None,
+        },
+        Offer::Reseal => Action::Reseal("luks-a".to_owned()),
+        Offer::ResetBootTries => Action::ResetBootTries(environment),
+        Offer::Shell => Action::Shell,
+        Offer::FirmwareSetup => Action::FirmwareSetup,
+        Offer::Power => Action::Reboot,
+    }
+}
+
+#[test]
+fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "");
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let offers = app.snapshot().unwrap().offers;
+
+    assert!(!offers.is_empty());
+    for kind in model::Offer::ALL {
+        let action = of_kind(kind);
+        assert_eq!(action.offer(), Some(kind));
+        let events = app.apply(&action, Through::Console(fake.system(), &NoShell));
+        let is_unavailable = events == unavailable(&action);
+        assert_eq!(
+            is_unavailable,
+            !offers.contains(&kind),
+            "{kind:?}: {events:?}"
+        );
+    }
+}

@@ -18,6 +18,22 @@ pub(super) fn choose(title: &str, lines: Vec<String>, choices: Vec<Choice>) -> D
     }
 }
 
+/// Opens a choice dialog of the `choices` the machine offers; with none,
+/// the status line says so.
+pub(super) fn choose_offered(
+    model: &mut Model,
+    title: &str,
+    lines: Vec<String>,
+    choices: Vec<Choice>,
+) {
+    let choices = super::offers::offered(model, choices);
+    if choices.is_empty() {
+        super::offers::not_offered(model);
+        return;
+    }
+    model.dialog = Some(choose(title, lines, choices));
+}
+
 /// The confirmation dialog of a [`Then::Confirm`]; another `then` is a
 /// programming error that yields an empty confirmation.
 pub(super) fn confirm(then: Then) -> Dialog {
@@ -77,18 +93,15 @@ pub(super) fn power(model: &mut Model) {
         label,
         then: Then::Act(action),
     };
-    model.dialog = Some(choose(
-        &text!("power-title"),
-        Vec::new(),
-        vec![
-            act(text!("power-off"), Action::PowerOff),
-            act(text!("power-reboot"), Action::Reboot),
-            act(text!("power-firmware-setup"), Action::FirmwareSetup),
-        ],
-    ));
+    let choices = vec![
+        act(text!("power-off"), Action::PowerOff),
+        act(text!("power-reboot"), Action::Reboot),
+        act(text!("power-firmware-setup"), Action::FirmwareSetup),
+    ];
+    choose_offered(model, &text!("power-title"), Vec::new(), choices);
 }
 
-/// The details of a pool, with what can be done to it.
+/// The details of a pool, with what the machine offers to do to it.
 pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
     let Some(pool) = model.snapshot.pools.iter().find(|pool| &pool.name == name) else {
         return;
@@ -130,6 +143,7 @@ pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
             },
         });
     }
+    let choices = super::offers::offered(model, choices);
     model.dialog = Some(choose(
         &text!("pool-title", pool = name.to_string()),
         lines,

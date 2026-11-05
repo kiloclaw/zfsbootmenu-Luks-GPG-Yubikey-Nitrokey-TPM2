@@ -209,10 +209,12 @@ fn log(model: &Model) -> Vec<String> {
 
 /// Help: the keys of the view it was opened from.
 fn help(model: &Model, context: keymap::Context) -> Vec<String> {
-    keymap::help(model.map, context)
-        .into_iter()
-        .map(|(keys, what)| format!("{keys}: {}", text::title(what)))
-        .collect()
+    keymap::help(model.map, context, &|intent| {
+        keymap::is_offered(context, intent, model)
+    })
+    .into_iter()
+    .map(|(keys, what)| format!("{keys}: {}", text::title(what)))
+    .collect()
 }
 
 /// The changes of the differences view: files or packages, as shown.
@@ -339,11 +341,13 @@ fn palette(model: &Model) -> Option<Said> {
 /// map that are characters, with what they do.
 pub(crate) fn commands(model: &Model) -> Vec<String> {
     let context = model.context();
-    keymap::bindings(model.map, context)
-        .into_iter()
-        .filter(|(_, key, _)| key.chars().count() == 1)
-        .map(|(_, key, what)| format!("{key} {}", text::get(what)))
-        .collect()
+    keymap::bindings(model.map, context, &|intent| {
+        keymap::is_offered(context, intent, model)
+    })
+    .into_iter()
+    .filter(|(_, key, _)| key.chars().count() == 1)
+    .map(|(_, key, what)| format!("{key} {}", text::get(what)))
+    .collect()
 }
 
 #[cfg(test)]

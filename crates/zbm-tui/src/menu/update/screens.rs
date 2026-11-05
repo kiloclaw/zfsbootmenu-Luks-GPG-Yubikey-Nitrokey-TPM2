@@ -273,11 +273,8 @@ fn import_choices(model: &mut Model, pool: &zbm_types::PoolName) {
             then: dialogs::force_import(pool),
         },
     ];
-    model.dialog = Some(dialogs::choose(
-        &text!("import-title", pool = pool.to_string()),
-        Vec::new(),
-        choices,
-    ));
+    let title = text!("import-title", pool = pool.to_string());
+    dialogs::choose_offered(model, &title, Vec::new(), choices);
 }
 
 /// The recovery tools.

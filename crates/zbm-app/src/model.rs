@@ -9,9 +9,12 @@
 mod action;
 mod diff;
 mod health;
+mod offer;
 mod packages;
 mod plan;
 mod unlock;
+
+use std::collections::BTreeSet;
 
 use zbm_types::Untrusted;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
@@ -19,6 +22,7 @@ use zbm_types::{DatasetName, PoolName, SnapshotName};
 pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
+pub use self::offer::Offer;
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};
 pub use self::plan::{Plan, Step, StepKind};
 pub use self::unlock::{Keyboard, Notice, PcrChange, Tpm2Seal, pcr_name};
@@ -65,6 +69,10 @@ pub struct Snapshot {
     /// [`Action::is_kept_by_lock`] asks for the PIN on the console first.
     #[serde(default)]
     pub menu_locked: bool,
+    /// The kinds of action this machine performs now: the menu shows and
+    /// sends only these ([`Snapshot::is_offered`]). None by default.
+    #[serde(default)]
+    pub offers: BTreeSet<Offer>,
 }
 
 /// One stage of start-up.

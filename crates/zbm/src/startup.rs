@@ -542,9 +542,12 @@ fn stages_on_view(
     let base = zbm_startup::preinit::base(conf);
     let runtime = Runtime::new(options, &base);
     let keyboard = App::new(Context::new(system), &runtime).keyboard();
+    // The view answers start-up's questions and performs nothing else:
+    // it offers nothing, until the menu's machine says what it offers.
     let snapshot = Snapshot {
         startup: stages(),
         keyboard,
+        offers: std::collections::BTreeSet::new(),
         ..Snapshot::default()
     };
     let view = match open(snapshot.clone(), theme) {

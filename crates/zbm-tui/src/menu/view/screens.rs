@@ -10,7 +10,7 @@ use zbm_types::Printable;
 use super::lists;
 use crate::menu::format::{age, date, fit, size};
 use crate::menu::keymap::{self, Context};
-use crate::menu::model::{Model, RECOVERY};
+use crate::menu::model::{Model, RECOVERY, recovery_tools};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Level, StageState, VolumeState};
 use crate::text::{self, Id, text};
@@ -279,7 +279,7 @@ pub(super) fn recovery(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let title = text!("recovery-none");
     let empty = (title.as_str(), "");
     let header = text!("recovery-title");
-    let total = (header.as_str(), RECOVERY.len());
+    let total = (header.as_str(), recovery_tools(&model.snapshot).len());
     lists::render(model, frame, area, total, &model.recovery, rows, empty);
 }
 
@@ -338,8 +338,15 @@ pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Co
             ]));
         }
     };
-    section(text!("help-this-view"), keymap::help(model.map, context));
-    section(text!("help-classic"), keymap::classic_bindings(context));
+    let offered = |intent| keymap::is_offered(context, intent, model);
+    section(
+        text!("help-this-view"),
+        keymap::help(model.map, context, &offered),
+    );
+    section(
+        text!("help-classic"),
+        keymap::classic_bindings(context, &offered),
+    );
     let shown = usize::from(area.height.saturating_sub(2));
     let scroll = model.scroll.min(lines.len().saturating_sub(shown));
     let header = if lines.len() > shown {

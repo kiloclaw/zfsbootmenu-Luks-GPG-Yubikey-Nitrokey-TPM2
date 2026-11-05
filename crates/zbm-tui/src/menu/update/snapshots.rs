@@ -32,7 +32,7 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     let name = snapshot.name.clone();
     let then = match intent {
         Intent::Primary => {
-            model.dialog = Some(actions(model, &snapshot));
+            actions(model, &snapshot);
             return Vec::new();
         }
         Intent::Mark => {
@@ -73,8 +73,8 @@ fn diff(model: &Model, selected: &SnapshotName) -> Action {
     }
 }
 
-/// The choice of actions for a snapshot.
-fn actions(model: &Model, snapshot: &SnapshotInfo) -> crate::menu::model::Dialog {
+/// Opens the choice of the actions the machine offers for a snapshot.
+fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
     let name = &snapshot.name;
     let choice = |label: String, then: Then| Choice { label, then };
     let choices = vec![
@@ -101,11 +101,8 @@ fn actions(model: &Model, snapshot: &SnapshotInfo) -> crate::menu::model::Dialog
         age(model.snapshot.now, snapshot.created),
         size(snapshot.used)
     )];
-    dialogs::choose(
-        &text!("snapshot-title", snapshot = name.name()),
-        lines,
-        choices,
-    )
+    let title = text!("snapshot-title", snapshot = name.name());
+    dialogs::choose_offered(model, &title, lines, choices);
 }
 
 /// The confirmation of a rollback: what is lost, and the name to type.

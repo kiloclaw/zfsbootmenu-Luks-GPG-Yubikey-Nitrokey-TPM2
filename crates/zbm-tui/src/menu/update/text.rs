@@ -4,7 +4,7 @@
 use zbm_types::Untrusted;
 
 use super::dialogs;
-use crate::menu::keymap::{Input, Intent};
+use crate::menu::keymap::{self, Input, Intent};
 use crate::menu::model::{Model, Palette, PaletteItem, Screen, Then};
 use crate::menu::world::{Action, Outcome};
 use crate::text::{self, id, text};
@@ -44,6 +44,9 @@ pub(super) fn filter(model: &mut Model, input: Input) -> Vec<Action> {
         }
         Input::Intent(Intent::Primary) => {
             list.filtering = false;
+            if !keymap::is_offered(model.context(), Intent::Primary, model) {
+                return super::offers::not_offered(model);
+            }
             super::screens::intent(model, Intent::Primary)
         }
         Input::Intent(intent @ (Intent::Up | Intent::Down | Intent::PageUp | Intent::PageDown)) => {
@@ -102,7 +105,7 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
 }
 
 /// Everything the command palette finds: environments, their kernels and
-/// snapshots, and the actions of every view.
+/// snapshots, and the actions of every view the machine offers.
 pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     let item = |label: String, then: Then| PaletteItem { label, then };
     let mut items = Vec::new();
@@ -144,6 +147,7 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
         }
     }
     items.extend(tool_items(model));
+    items.retain(|item| super::offers::is_offered(model, &item.then));
     items
 }
 

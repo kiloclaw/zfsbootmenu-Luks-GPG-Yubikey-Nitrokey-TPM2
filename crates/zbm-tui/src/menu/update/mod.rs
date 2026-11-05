@@ -13,6 +13,7 @@ mod dialogs;
 mod diff;
 mod events;
 mod lists;
+mod offers;
 mod screens;
 mod snapshots;
 mod text;
@@ -34,7 +35,8 @@ pub enum Message {
     Busy(bool),
 }
 
-/// The menu after `message`, and the actions it asks the machine for.
+/// The menu after `message`, and the actions it asks the machine for:
+/// only those the machine offers.
 pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
     let actions = match message {
         Message::Key(key) => {
@@ -52,6 +54,7 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
             Vec::new()
         }
     };
+    let actions = offers::only_offered(&mut model, actions);
     (model, actions)
 }
 
@@ -92,6 +95,9 @@ fn handle(model: &mut Model, input: Input) -> Vec<Action> {
     let Input::Intent(intent) = input else {
         return Vec::new();
     };
+    if !keymap::is_offered(model.context(), intent, model) {
+        return offers::not_offered(model);
+    }
     if let Some(actions) = global(model, intent) {
         return actions;
     }
@@ -202,6 +208,8 @@ pub(crate) fn show_failure(model: &mut Model, outcome: &Outcome) {
 
 #[cfg(test)]
 mod health_tests;
+#[cfg(test)]
+mod offers_tests;
 #[cfg(test)]
 mod question_tests;
 #[cfg(test)]

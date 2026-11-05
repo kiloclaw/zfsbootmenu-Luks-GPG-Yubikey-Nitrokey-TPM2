@@ -161,7 +161,9 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
     let gap = " ".repeat(keymap::TOOLBAR_GAP);
     let mut spans = vec![Span::raw(" ")];
     let mut used = 0;
-    for (index, tool) in keymap::footer(model.map, model.context(), width)
+    let context = model.context();
+    let offered = |intent| keymap::is_offered(context, intent, model);
+    for (index, tool) in keymap::footer(model.map, context, width, &offered)
         .into_iter()
         .enumerate()
     {

@@ -66,12 +66,17 @@ pub fn describe(context: Context, intent: Intent) -> Id {
 }
 
 /// The bindings of `context` in the key map `map` shown in the toolbar, in
-/// order: (intent, key, what it does).
-pub fn bindings(map: Map, context: Context) -> Vec<(Intent, String, Id)> {
+/// order: (intent, key, what it does). Only the intents `offered` says the
+/// machine offers are shown.
+pub fn bindings(
+    map: Map,
+    context: Context,
+    offered: &dyn Fn(Intent) -> bool,
+) -> Vec<(Intent, String, Id)> {
     let idle = matches!(context, Context::Startup | Context::Help | Context::Log);
     map.table()
         .into_iter()
-        .filter(|binding| binding.scope.contains(context))
+        .filter(|binding| binding.scope.contains(context) && offered(binding.intent))
         .filter(|binding| !(idle && binding.intent == Intent::Primary))
         .filter_map(|binding| {
             let key = match binding.footer {
@@ -112,9 +117,14 @@ impl Tool {
 /// columns wide: at most
 /// [`TOOLBAR`] actions that fit whole, as `Enter Boot`, the most important
 /// first; then `? More`, which opens help with every key, wherever help can
-/// be opened.
-pub fn footer(map: Map, context: Context, width: usize) -> Vec<Tool> {
-    let all = bindings(map, context);
+/// be opened. Only the intents `offered` are shown.
+pub fn footer(
+    map: Map,
+    context: Context,
+    width: usize,
+    offered: &dyn Fn(Intent) -> bool,
+) -> Vec<Tool> {
+    let all = bindings(map, context, offered);
     let more = all
         .iter()
         .find(|(intent, ..)| *intent == Intent::Help)
@@ -173,13 +183,14 @@ pub fn key_name(code: Key, modifiers: Modifiers) -> String {
 }
 
 /// Every binding of `context` in the key map `map` for the help view, the
-/// keys of one intent together: (keys, what they do).
-pub fn help(map: Map, context: Context) -> Vec<(String, Id)> {
+/// keys of one intent together: (keys, what they do). Only the intents
+/// `offered` are listed.
+pub fn help(map: Map, context: Context, offered: &dyn Fn(Intent) -> bool) -> Vec<(String, Id)> {
     let mut lines: Vec<(Intent, Vec<String>)> = Vec::new();
     for binding in map
         .table()
         .into_iter()
-        .filter(|binding| binding.scope.contains(context))
+        .filter(|binding| binding.scope.contains(context) && offered(binding.intent))
     {
         let name = key_name(binding.key, binding.modifiers);
         match lines

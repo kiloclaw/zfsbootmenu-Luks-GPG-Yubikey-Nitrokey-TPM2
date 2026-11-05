@@ -10,7 +10,7 @@ use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::session::Session;
 use crate::menu::theme::Theme;
-use crate::menu::world::{Outcome, Timeout};
+use crate::menu::world::{Offer, Outcome, Timeout};
 
 /// A machine whose `Shell` takes the console, and that records what it was
 /// asked to do.
@@ -45,7 +45,10 @@ fn theme() -> Theme {
 #[test]
 fn actions_that_take_the_console_wait_for_the_front_end() {
     let machine = Recorded {
-        snapshot: Snapshot::default(),
+        snapshot: Snapshot {
+            offers: [Offer::Shell].into(),
+            ..Snapshot::default()
+        },
         applied: Vec::new(),
     };
     let mut session = Session::on(machine, theme());

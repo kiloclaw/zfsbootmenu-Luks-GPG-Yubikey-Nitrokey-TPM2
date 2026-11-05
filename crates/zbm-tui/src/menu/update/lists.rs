@@ -34,7 +34,10 @@ fn moved(position: usize, last: usize, intent: Intent) -> usize {
 fn text_lines(model: &Model) -> usize {
     match model.screen {
         Screen::Help(context) => {
-            keymap::help(model.map, context).len() + keymap::classic_bindings(context).len() + 2
+            let offered = |intent| keymap::is_offered(context, intent, model);
+            keymap::help(model.map, context, &offered).len()
+                + keymap::classic_bindings(context, &offered).len()
+                + 2
         }
         Screen::Log => model.snapshot.log.entries.len(),
         _ => 0,

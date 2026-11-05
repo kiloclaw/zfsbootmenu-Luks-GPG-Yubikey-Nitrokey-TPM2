@@ -328,7 +328,8 @@ pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
         return Vec::new();
     }
     let theme = model.theme;
-    let steps: Vec<(String, String)> = keymap::bindings(model.map, Context::Main)
+    let offered = |intent| keymap::is_offered(Context::Main, intent, model);
+    let steps: Vec<(String, String)> = keymap::bindings(model.map, Context::Main, &offered)
         .into_iter()
         .filter(|(intent, ..)| !matches!(intent, Intent::Primary | Intent::Help))
         .take(NEXT_STEPS)

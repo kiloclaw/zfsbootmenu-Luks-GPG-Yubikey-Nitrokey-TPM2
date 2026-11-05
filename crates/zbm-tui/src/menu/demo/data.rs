@@ -10,8 +10,8 @@ use super::health;
 use super::{DemoOptions, untrusted};
 use crate::menu::world::{
     CommandLine, Environment, Fallback, Health, Kernel, Keyboard, Level, Log, LogEntry, Method,
-    Origin, PcrChange, Pool, Snapshot, SnapshotInfo, Stage, StageState, Target, Timeout, Tpm2Seal,
-    Tries, Volume, VolumeState,
+    Offer, Origin, PcrChange, Pool, Snapshot, SnapshotInfo, Stage, StageState, Target, Timeout,
+    Tpm2Seal, Tries, Volume, VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -105,6 +105,8 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         log: log(),
         now: NOW,
         menu_locked: false,
+        // The demo answers every action.
+        offers: Offer::ALL.into_iter().collect(),
     }
 }
 
