@@ -5,8 +5,8 @@ use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 use super::data::NOW;
 use super::untrusted;
 use crate::menu::world::{
-    Action, CommandLine, Environment, Event, Origin, Outcome, RESTORE_SNAPSHOT, Snapshot,
-    SnapshotInfo,
+    Action, CommandLine, Environment, Event, Origin, Outcome, Snapshot, SnapshotInfo,
+    restore_snapshot,
 };
 
 /// Applies an action on storage, and says what happened.
@@ -202,15 +202,15 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, new: &DatasetName) -> Outc
 pub(super) fn restore(snapshot: &mut Snapshot, from: &SnapshotName, count: usize) -> Outcome {
     let environment = from.dataset();
     let note = make_writable(snapshot, &environment.pool());
-    let Ok(safety) = format!("{environment}@{RESTORE_SNAPSHOT}").parse::<SnapshotName>() else {
+    let Some(safety) = restore_snapshot(environment, snapshot.now) else {
         return Outcome::Warning(format!("no safety snapshot for {environment}"));
     };
-    let safety = create(snapshot, &safety);
     let files = if count == 1 { "file" } else { "files" };
-    match safety {
+    match create(snapshot, &safety) {
         Outcome::Done(_) => Outcome::Done(format!(
-            "{count} {files} of {environment} restored from {}{note}; @before-restore undoes it",
-            from.name()
+            "{count} {files} of {environment} restored from {}{note}; @{} undoes it",
+            from.name(),
+            safety.name()
         )),
         other => other,
     }

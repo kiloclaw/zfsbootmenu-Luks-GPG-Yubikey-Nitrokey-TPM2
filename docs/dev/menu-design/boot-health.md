@@ -71,10 +71,12 @@ preview of the selected change, to the right from 100 columns and below otherwis
 - `Space` or `Tab` marks paths; `Enter` restores the marked ones, or the selection when none is marked. A created
   path has nothing to restore and is left out, with a notification when it is the only one.
 - The confirmation alert names the files, says they replace the files as they are now, and that the pool is imported
-  read/write and a safety snapshot `@before-restore` is taken first; it wants the environment's short name typed
-  (wireframe `restore-confirm`).
-- `RestoreFiles` copies each path back from `.zfs/snapshot/<name>/`, keeping owner, mode and times; the view is then
-  refreshed, and the restored paths no longer show.
+  read/write and a safety snapshot `@before-restore-<time>` is taken first; it wants the environment's short name
+  typed (wireframe `restore-confirm`). The time is the UTC time of the restore, so the outcome names the snapshot.
+- `RestoreFiles` copies each path back from `.zfs/snapshot/<name>/` into the environment mounted read/write, keeping
+  owner, mode and times, and deletes nothing. The view is not refreshed; diffing again can still list a restored
+  path, as its copy is a new file to ZFS.
+- Only the differences against the live filesystem restore: those of two snapshots did not look at the live files.
 
 `Esc` goes back to the snapshots.
 

@@ -559,7 +559,7 @@ restore = They replace the files in { $environment } as they are now.
        *[other] Restore { $count } Files from { $snapshot }
     }
     .more = and { $count } more
-    .safety = { $pool } is imported read/write, and a safety snapshot { $safety } is taken first: roll back to it to undo.
+    .safety = { $pool } is imported read/write, and a safety snapshot { $safety }-<time> is taken first: roll back to it to undo.
 restore-nothing = { $path } was created after { $snapshot }: there is nothing to restore
 
 ## Keyboard layouts and sealing a TPM2 key again.

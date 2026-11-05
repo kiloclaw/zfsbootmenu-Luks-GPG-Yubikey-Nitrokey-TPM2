@@ -12,6 +12,7 @@ mod health;
 mod offer;
 mod packages;
 mod plan;
+mod time;
 mod unlock;
 
 use std::collections::BTreeSet;
@@ -25,6 +26,7 @@ pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
 pub use self::offer::Offer;
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};
 pub use self::plan::{Plan, Step, StepKind};
+pub use self::time::{restore_snapshot, timestamp};
 pub use self::unlock::{Keyboard, Notice, PcrChange, Tpm2Seal, pcr_name};
 
 /// The encryption of a boot environment.

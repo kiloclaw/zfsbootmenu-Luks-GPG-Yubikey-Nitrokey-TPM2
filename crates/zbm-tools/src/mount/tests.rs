@@ -31,6 +31,10 @@ fn without_system_calls_the_programs_run_with_the_legacy_command_lines() {
     assert!(mount.unmount(mnt, Shown::Console));
     assert!(mount.unmount(mnt, Shown::Hidden));
     assert!(mount.unmount_recursive(mnt));
+    mount
+        .zfs_writable("tank/ROOT/void", mnt, true, Shown::Hidden)
+        .unwrap()
+        .leave();
 
     assert_eq!(
         runner.lines(),
@@ -43,6 +47,7 @@ fn without_system_calls_the_programs_run_with_the_legacy_command_lines() {
             "umount /zfsbootmenu/mnt",
             "umount /zfsbootmenu/mnt",
             "umount -R /zfsbootmenu/mnt",
+            "mount -o zfsutil,rw -t zfs tank/ROOT/void /zfsbootmenu/mnt",
         ]
     );
     let calls = runner.calls();

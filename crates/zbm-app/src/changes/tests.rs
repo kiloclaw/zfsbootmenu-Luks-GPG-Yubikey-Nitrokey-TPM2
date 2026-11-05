@@ -14,6 +14,12 @@ struct FakeNeeds {
     read_only: bool,
     locked: bool,
     no_kernels: bool,
+    /// Why the environment cannot be mounted read/write, if it cannot.
+    mount_error: Option<String>,
+    /// Why the paths to restore are refused, if they are.
+    refused: Option<String>,
+    /// Why the copy of a restore fails, if it does.
+    copy_error: Option<String>,
 }
 
 impl Needs for FakeNeeds {
@@ -43,8 +49,58 @@ impl Needs for FakeNeeds {
         Ok("/zfsbootmenu/environments/mnt".to_owned())
     }
 
+    fn mount_writable(&mut self, environment: &DatasetName) -> Result<String, Vec<String>> {
+        self.asked.push(format!("mount_writable {environment}"));
+        if let Some(why) = &self.mount_error {
+            return Err(vec![why.clone()]);
+        }
+        Ok("/zfsbootmenu/environments/mnt".to_owned())
+    }
+
     fn unmount(&mut self, mounted: &str) {
         self.asked.push(format!("unmount {mounted}"));
+    }
+
+    fn kernel_file(
+        &mut self,
+        environment: &DatasetName,
+        version: &str,
+    ) -> Result<String, Vec<String>> {
+        self.asked
+            .push(format!("kernel_file {environment} {version}"));
+        if self.no_kernels {
+            return Err(vec![format!("{environment} has no kernel {version}")]);
+        }
+        Ok(format!("vmlinuz-{version}"))
+    }
+
+    fn check_restore(
+        &mut self,
+        _mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<(), Vec<String>> {
+        self.asked
+            .push(format!("check {snapshot} {}", paths.join(",")));
+        self.refused.clone().map_or(Ok(()), |why| Err(vec![why]))
+    }
+
+    fn restore(
+        &mut self,
+        _mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<usize, Vec<String>> {
+        self.asked
+            .push(format!("restore {snapshot} {}", paths.join(",")));
+        match &self.copy_error {
+            Some(why) => Err(vec![why.clone()]),
+            None => Ok(paths.len()),
+        }
+    }
+
+    fn now(&self) -> u64 {
+        1_793_009_715
     }
 
     fn record_default(&mut self, environment: &DatasetName) {
@@ -385,9 +441,19 @@ fn a_diff_compares_the_older_snapshot_with_the_newer_below_the_mount() {
         Some("/etc/b")
     );
     assert_eq!(
-        needs.asked.last().map(String::as_str),
-        Some("unmount /zfsbootmenu/environments/mnt")
+        needs.asked,
+        [
+            "load_key zroot/ROOT/void",
+            "mount zroot/ROOT/void",
+            "unmount /zfsbootmenu/environments/mnt"
+        ],
+        "two snapshots are compared on the pool as it is"
     );
+
+    let mut against_live = FakeNeeds::default();
+    let events = perform(&zfs, &mut against_live, &Action::Diff(first.clone(), None));
+    assert!(matches!(events.as_slice(), [Event::DiffReady { .. }]));
+    assert_eq!(against_live.asked[0], "writable zroot");
 
     let failing = machine().failing("diff", "not mounted");
     let events = perform(&failing, &mut needs, &Action::Diff(first, None));
@@ -410,71 +476,6 @@ fn other_actions_are_not_changes() {
         .perform(&Action::Reboot)
         .is_none()
     );
-}
-
-#[test]
-fn a_change_takes_the_console_on_a_read_only_pool_or_a_locked_environment() {
-    use crate::model::{CommandLine, Encryption, Environment, Health, Origin, Pool, Snapshot};
-    let pool = |name: &str, writable| Pool {
-        name: name.parse().unwrap(),
-        health: Health::Online,
-        writable,
-        imported: true,
-        foreign_hostid: None,
-        checkpoint: false,
-    };
-    let environment = |name: &str, encryption| Environment {
-        name: dataset(name),
-        is_default: false,
-        encryption,
-        kernels: Vec::new(),
-        command_line: CommandLine {
-            value: Untrusted::default(),
-            origin: Origin::Default,
-        },
-        snapshots: Vec::new(),
-        checks: Vec::new(),
-        tries: None,
-    };
-    let machine = Snapshot {
-        pools: vec![pool("zroot", true), pool("tank", false)],
-        environments: vec![
-            environment("zroot/ROOT/void", Encryption::None),
-            environment("zroot/ROOT/sealed", Encryption::Locked),
-            environment("tank/ROOT/arch", Encryption::None),
-        ],
-        ..Snapshot::default()
-    };
-
-    let take = |text: &str| Action::CreateSnapshot(snapshot(text));
-    assert!(!take("zroot/ROOT/void@x").needs_console_on(&machine));
-    assert!(take("zroot/ROOT/sealed@x").needs_console_on(&machine));
-    assert!(take("tank/ROOT/arch@x").needs_console_on(&machine));
-    assert!(Action::Reboot.needs_console_on(&machine));
-    assert!(!Action::ResetBootTries(dataset("tank/ROOT/arch")).needs_console_on(&machine));
-    let first = snapshot("zroot/ROOT/void@first");
-    let new = dataset("zroot/ROOT/new");
-    for change in [
-        Action::Rollback(first.clone()),
-        Action::Clone(first.clone(), new.clone()),
-        Action::CloneAndPromote(first.clone(), new.clone()),
-        Action::Duplicate(first.clone(), new),
-        Action::Diff(first, None),
-    ] {
-        assert_eq!(
-            change.changed_environment(),
-            Some(&dataset("zroot/ROOT/void"))
-        );
-    }
-    let set = Action::SetDefaultEnvironment(dataset("zroot/ROOT/void"));
-    assert!(set.is_change() && !set.needs_console_on(&machine));
-
-    // A duplicate loads the key of its target's parent too: the console is
-    // taken unless that parent is known to need no key.
-    let copy = |target: &str| Action::Duplicate(snapshot("zroot/ROOT/void@first"), dataset(target));
-    assert!(!copy("zroot/ROOT/copy").needs_console_on(&machine));
-    assert!(copy("zroot/ROOT/sealed/copy").needs_console_on(&machine));
-    assert!(copy("zroot/secure/copy").needs_console_on(&machine));
 }
 
 #[test]
@@ -577,3 +578,6 @@ fn removed_and_created_paths_are_named_as_such() {
         ChangeKind::Created
     );
 }
+
+mod console;
+mod kernels_and_files;

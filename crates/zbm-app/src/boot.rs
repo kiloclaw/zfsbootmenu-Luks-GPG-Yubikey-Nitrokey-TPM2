@@ -165,6 +165,18 @@ impl<'a> Boot<'_, 'a> {
         settings
     }
 
+    /// The file name in `/boot` of the kernel of version `version` of
+    /// `environment`, found by mounting it read-only: `vmlinuz-6.12.9_1`;
+    /// `None` when it has no such kernel.
+    pub fn kernel_file(&self, environment: &DatasetName, version: &str) -> Option<String> {
+        let fs = FilesystemName::from(environment.clone());
+        zbm_bootenv::find_kernels(&self.context(), self.state, &fs).ok()?;
+        let kernel = self.selected(&fs, Some(version))?;
+        // As the legacy menu took it from the path: without `/` and `boot/`.
+        let path = kernel.kernel.strip_prefix('/').unwrap_or(&kernel.kernel);
+        Some(path.strip_prefix("boot/").unwrap_or(path).to_owned())
+    }
+
     /// The kernel of `fs` to boot: the one of version `version`, or the one
     /// its kernel list selects.
     fn selected(&self, fs: &FilesystemName, version: Option<&str>) -> Option<Kernel> {

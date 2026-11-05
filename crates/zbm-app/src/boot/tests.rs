@@ -72,6 +72,24 @@ fn versions_are_what_follows_the_kernel_s_name() {
 }
 
 #[test]
+fn a_kernel_is_named_by_its_file_in_boot() {
+    let fake = machine();
+    let file = with_boot(&fake, |boot| boot.kernel_file(&be(), "6.1.10"));
+    assert_eq!(file.as_deref(), Some("vmlinuz-6.1.10"));
+    assert_eq!(
+        with_boot(&fake, |boot| boot.kernel_file(&be(), "6.9")),
+        None
+    );
+
+    let missing = FakeSystem::new();
+    missing.runner.respond_program("mount", 32, "");
+    assert_eq!(
+        with_boot(&missing, |boot| boot.kernel_file(&be(), "6.1.10")),
+        None
+    );
+}
+
+#[test]
 fn kernels_are_found_with_the_one_the_property_names() {
     let fake = machine();
     let kernels = with_boot(&fake, |boot| boot.kernels(&be()));

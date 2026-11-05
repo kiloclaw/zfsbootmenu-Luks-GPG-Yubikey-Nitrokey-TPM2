@@ -12,12 +12,12 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ │ zroot/ROOT/void áás thhéý ááré ññów.         │ │
 │ │ zroot íís ímmpórrtédd réáád/wrrítéé, áñdd á  │ │
 └─│ sááféttý sññápsshótt                         │─┘
-┌ │ zroot/ROOT/void@before-restore íís táákéññ   │ ┐
-│ │ fírrst: rrólll báççk tóó ít ttó úññdó.       │ │
+┌ │ zroot/ROOT/void@before-restore-<ttíméé> ís   │ ┐
+│ │ ttákééñ fíírstt: rólll bááçk ttó ítt tó      │ │
+│ │ úúñdóó.                                      │ │
 │ │                                              │ │
 │ │ TTýpéé void ttó çóóñfíírm: vo                │ │
 │ │                                              │ │
 │ │                 [ ÇÇáñççél ]  [ RRésttóréé ] │ │
-│ └──────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────┘
+└─└──────────────────────────────────────────────┘─┘
  ÉÉñtéér ÇÇóñffírmm   ÉÉsç ÇÇáñççél

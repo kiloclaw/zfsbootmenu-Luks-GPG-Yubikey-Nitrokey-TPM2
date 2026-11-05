@@ -22,8 +22,8 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                             │ They replace the files in zroot/ROOT/void as they are    │                             │
 │                             │ now.                                                     │                             │
 │                             │ zroot is imported read/write, and a safety snapshot      │                             │
-│                             │ zroot/ROOT/void@before-restore is taken first: roll back │                             │
-│                             │ to it to undo.                                           │                             │
+│                             │ zroot/ROOT/void@before-restore-<time> is taken first:    │                             │
+│                             │ roll back to it to undo.                                 │                             │
 │                             │                                                          │                             │
 │                             │ Type void to confirm: vo                                 │                             │
 │                             │                                                          │                             │

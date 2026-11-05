@@ -35,5 +35,5 @@ mod testing;
 
 pub use discovery::{find_kernels, kernel_property, select_kernel};
 pub use error::{BOOTENV_CODES, BootEnvError};
-pub use mounts::{Noise, is_mount_point, mount_zfs, recursive_umount, umount};
+pub use mounts::{Noise, is_mount_point, mount_zfs, mount_zfs_writable, recursive_umount, umount};
 pub use zfs::{encryption_root, locked_root};

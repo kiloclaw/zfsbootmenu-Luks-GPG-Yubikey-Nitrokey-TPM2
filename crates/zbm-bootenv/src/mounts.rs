@@ -7,7 +7,7 @@ use zbm_platform::{Context, Files};
 use zbm_state::State;
 use zbm_tools::Shown;
 use zbm_tools::mount::{Mount, Mounted};
-use zbm_types::FilesystemName;
+use zbm_types::{DatasetName, FilesystemName};
 use zbm_zfs::{Stderr, ZfsText};
 
 use crate::error::BootEnvError;
@@ -52,6 +52,36 @@ pub fn mount_zfs<'a>(
     fs: &FilesystemName,
     noise: Noise,
 ) -> Option<Mounted<'a>> {
+    mount_as(context, state, fs, noise, "ro")
+}
+
+/// Mounts the boot environment `dataset` read/write, on the mount point it
+/// is mounted read-only on otherwise, as the legacy runtime did when asked
+/// to; its pool must be imported read/write. A snapshot is never mounted
+/// read/write.
+pub fn mount_zfs_writable<'a>(
+    context: &'a Context<'_>,
+    state: &State<'_>,
+    dataset: &DatasetName,
+    noise: Noise,
+) -> Option<Mounted<'a>> {
+    mount_as(
+        context,
+        state,
+        &FilesystemName::from(dataset.clone()),
+        noise,
+        "rw",
+    )
+}
+
+/// Mounts `fs` on its mount point with `rwo`, `ro` or `rw`.
+fn mount_as<'a>(
+    context: &'a Context<'_>,
+    state: &State<'_>,
+    fs: &FilesystemName,
+    noise: Noise,
+    rwo: &str,
+) -> Option<Mounted<'a>> {
     if locked_root(context.runner(), fs.dataset()).is_some() {
         zbm_trace::error!("{fs} is locked, unable to mount filesystem"; %fs);
         zbm_trace::debug!("{fs} is locked, returning"; %fs);
@@ -60,8 +90,6 @@ pub fn mount_zfs<'a>(
     let name = fs.to_string();
     let mnt = be_location(state, &name).join("mnt");
     let _ = context.files().create_dir_all(&mnt);
-    let rwo = "ro";
-
     let errors = match noise {
         Noise::Shown => Stderr::Console,
         Noise::Hidden => Stderr::Hidden,
@@ -76,8 +104,12 @@ pub fn mount_zfs<'a>(
     } else {
         zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})"; %fs, %mnt_text, %rwo);
     }
-    let mounted =
-        Mount::new(context.runner(), context.files()).zfs(&name, &mnt, zfsutil, noise.shown());
+    let mount = Mount::new(context.runner(), context.files());
+    let mounted = if rwo == "rw" {
+        mount.zfs_writable(&name, &mnt, zfsutil, noise.shown())
+    } else {
+        mount.zfs(&name, &mnt, zfsutil, noise.shown())
+    };
     let code = mounted.as_ref().err().copied().unwrap_or(0);
     zbm_trace::debug!("mount return code: {code}"; %code);
     mounted.ok()

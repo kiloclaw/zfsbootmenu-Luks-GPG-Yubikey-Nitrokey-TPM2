@@ -256,6 +256,25 @@ pub fn copy_file(runner: &dyn Runner, from: &Path, to: &Path) -> io::Result<Outp
     runner.run(&command)
 }
 
+/// Copies `from` to `to`, which does not exist, as `cp -a -- FROM TO`
+/// does: a directory with what it holds, a symbolic link as a link, each
+/// with its owner, mode and times. GNU's, uutils' and busybox's `cp` take
+/// these options. Its errors are captured.
+///
+/// # Errors
+///
+/// The error that kept `cp` from starting.
+pub fn copy_preserving(runner: &dyn Runner, from: &Path, to: &Path) -> io::Result<Output> {
+    let command = Command::new("cp")
+        .args(["-a", "--"])
+        .arg(from)
+        .arg(to)
+        .stdin(Input::Null)
+        .stdout(Stream::Null)
+        .stderr(Stream::Capture);
+    runner.run(&command)
+}
+
 /// Runs the program of `args` with the rest as its arguments and `env`
 /// added to its environment, without a shell, with the console as its
 /// standard input and what it prints, errors included, captured: the
@@ -464,6 +483,7 @@ mod tests {
         applet(&runner, "zluks", &["unlock"], &[("LUKS_RETRY", "1")]).unwrap();
 
         copy_file(&runner, Path::new("/a"), Path::new("/b")).unwrap();
+        copy_preserving(&runner, Path::new("/s/-a"), Path::new("/b")).unwrap();
         edit(&runner, "vi", Path::new("/tmp/kcl")).unwrap();
         merged(
             &runner,
@@ -480,6 +500,7 @@ mod tests {
                 "/bin/bash -i",
                 "zluks unlock",
                 "cp /a /b",
+                "cp -a -- /s/-a /b",
                 "vi /tmp/kcl",
                 "dracut -f"
             ]

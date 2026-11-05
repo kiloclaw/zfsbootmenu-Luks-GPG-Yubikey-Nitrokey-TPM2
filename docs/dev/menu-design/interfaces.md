@@ -40,7 +40,7 @@ stays right when the snapshot changes under it.
 | `Rollback` | snapshot, whether to take a safety snapshot first | snapshots |
 | `Clone`, `CloneAndPromote`, `Duplicate` | snapshot, new name | snapshots |
 | `Diff` | snapshot, and a second snapshot or the live filesystem | snapshots |
-| `RestoreFiles` | snapshot, the paths | changes |
+| `RestoreFiles` | snapshot, the paths | changes, from a diff against the live filesystem |
 | `ResetBootTries` | environment | palette |
 | `Reseal` | volume | re-seal alert, palette |
 | `Chroot` | environment or snapshot | main, snapshots |

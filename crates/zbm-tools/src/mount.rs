@@ -91,7 +91,37 @@ impl<'a> Mount<'a> {
         zfsutil: bool,
         errors: Shown,
     ) -> Result<Mounted<'a>, i32> {
-        match self.files.mount_zfs(fs, target, true) {
+        self.zfs_as(fs, target, (zfsutil, "ro"), errors)
+    }
+
+    /// Mounts the ZFS filesystem `fs` read/write on `target`, as
+    /// [`Mount::zfs`] mounts it read-only: `mount -o [zfsutil,]rw -t zfs FS
+    /// TARGET` where `mount(2)` fails.
+    ///
+    /// # Errors
+    ///
+    /// The exit status of `mount` when it failed, 126 when it could not
+    /// start.
+    pub fn zfs_writable(
+        self,
+        fs: &str,
+        target: &Path,
+        zfsutil: bool,
+        errors: Shown,
+    ) -> Result<Mounted<'a>, i32> {
+        self.zfs_as(fs, target, (zfsutil, "rw"), errors)
+    }
+
+    /// Mounts `fs` on `target` with `zfsutil` or not, and `access`, `ro` or
+    /// `rw`.
+    fn zfs_as(
+        self,
+        fs: &str,
+        target: &Path,
+        (zfsutil, access): (bool, &str),
+        errors: Shown,
+    ) -> Result<Mounted<'a>, i32> {
+        match self.files.mount_zfs(fs, target, access == "ro") {
             Ok(()) => return Ok(Mounted::new(self, target)),
             Err(error) => log_fallback("mount", target, &error),
         }
@@ -99,9 +129,13 @@ impl<'a> Mount<'a> {
             Shown::Console => Stream::Inherit,
             Shown::Hidden => Stream::Null,
         };
-        let options = if zfsutil { "zfsutil,ro" } else { "ro" };
+        let options = if zfsutil {
+            format!("zfsutil,{access}")
+        } else {
+            access.to_owned()
+        };
         let command = Command::new("mount")
-            .args(["-o", options, "-t", "zfs", fs])
+            .args(["-o", options.as_str(), "-t", "zfs", fs])
             .arg(target)
             .stderr(stderr);
         let run = self.runner.run(&command);

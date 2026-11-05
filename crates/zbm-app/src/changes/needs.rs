@@ -1,6 +1,7 @@
 //! What a change needs besides ZFS, from the machine: its pool imported
-//! read/write, its key loaded, the kernels of a snapshot, and a mount for
-//! `zfs diff`.
+//! read/write, its key loaded, the kernels of an environment or a
+//! snapshot, a mount for `zfs diff`, and a read/write one to restore files
+//! into.
 
 use std::path::Path;
 
@@ -11,8 +12,9 @@ use zbm_platform::{Context, System};
 use zbm_pool::writable::set_rw_pool;
 use zbm_state::State;
 use zbm_tools::console::ConsoleInteraction;
-use zbm_types::{DatasetName, FilesystemName, PoolName, SnapshotName};
+use zbm_types::{DatasetName, FilesystemName, PoolName, Printable, SnapshotName, Untrusted};
 
+use super::restore::Restore;
 use crate::model::{Step, StepKind};
 use crate::volumes::causes;
 
@@ -33,8 +35,44 @@ pub(crate) trait Needs {
     /// Mounts `filesystem` read-only; where.
     fn mount(&mut self, filesystem: &DatasetName) -> Result<String, Vec<String>>;
 
-    /// Unmounts what [`Needs::mount`] mounted at `mounted`.
+    /// Mounts the environment `environment` read/write; where.
+    fn mount_writable(&mut self, environment: &DatasetName) -> Result<String, Vec<String>>;
+
+    /// Unmounts what [`Needs::mount`] or [`Needs::mount_writable`] mounted
+    /// at `mounted`.
     fn unmount(&mut self, mounted: &str);
+
+    /// The file name in `/boot` of the kernel of version `version` of
+    /// `environment`: `vmlinuz-6.12.9_1`.
+    fn kernel_file(
+        &mut self,
+        environment: &DatasetName,
+        version: &str,
+    ) -> Result<String, Vec<String>>;
+
+    /// Fails, with the reason for each path, unless each of `paths` is in
+    /// `snapshot` and can be restored into its environment, mounted
+    /// read/write at `mounted`, without following a symbolic link.
+    fn check_restore(
+        &mut self,
+        mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<(), Vec<String>>;
+
+    /// Copies `paths` from `snapshot` into its environment, mounted
+    /// read/write at `mounted`, with their owner, mode and times; how many
+    /// were restored.
+    fn restore(
+        &mut self,
+        mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<usize, Vec<String>>;
+
+    /// The time, in seconds since 1970, that a safety snapshot is named
+    /// for.
+    fn now(&self) -> u64;
 
     /// Records `environment` as the default boot environment, which the
     /// hooks get as `BOOTFS` from then on, as the legacy menu wrote
@@ -108,11 +146,67 @@ impl Needs for OnMachine<'_, '_> {
         .ok_or_else(|| vec![format!("{filesystem} could not be mounted")])
     }
 
+    fn mount_writable(&mut self, environment: &DatasetName) -> Result<String, Vec<String>> {
+        // Mounted until `unmount`, as `mount` is.
+        zbm_bootenv::mount_zfs_writable(
+            &Context::new(*self.system),
+            self.state,
+            environment,
+            Noise::Hidden,
+        )
+        .map(|mounted| mounted.leave().to_string_lossy().into_owned())
+        .ok_or_else(|| vec![format!("{environment} could not be mounted read/write")])
+    }
+
     fn unmount(&mut self, mounted: &str) {
         let context = Context::new(*self.system);
         if let Err(error) = zbm_bootenv::recursive_umount(&context, Path::new(mounted)) {
             tracing::warn!(%error, "unmounting the boot environment");
         }
+    }
+
+    fn kernel_file(
+        &mut self,
+        environment: &DatasetName,
+        version: &str,
+    ) -> Result<String, Vec<String>> {
+        let boot = crate::boot::Boot {
+            system: self.system,
+            state: self.state,
+            settings: self.settings,
+        };
+        boot.kernel_file(environment, version).ok_or_else(|| {
+            vec![format!(
+                "{environment} has no kernel {}",
+                Printable(version)
+            )]
+        })
+    }
+
+    fn check_restore(
+        &mut self,
+        mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<(), Vec<String>> {
+        Restore::new(self.system.files, self.system.runner, mounted, snapshot).check(paths)
+    }
+
+    fn restore(
+        &mut self,
+        mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<usize, Vec<String>> {
+        Restore::new(self.system.files, self.system.runner, mounted, snapshot).copy(paths)
+    }
+
+    fn now(&self) -> u64 {
+        self.system
+            .clock
+            .wall()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |time| time.as_secs())
     }
 
     fn record_default(&mut self, environment: &DatasetName) {
@@ -123,9 +217,9 @@ impl Needs for OnMachine<'_, '_> {
 }
 
 /// What a change needs, planned instead of done: a pool imported
-/// read-only and a key that is not loaded become steps of the plan, and
-/// what is read, such as the kernels of a snapshot, is read from the
-/// machine.
+/// read-only, a key that is not loaded and a restore become steps of the
+/// plan, and what is read, such as the kernels of a snapshot or the files
+/// to restore, is read from the machine, mounted read-only.
 pub(crate) struct Planning<'s, 'm> {
     /// The machine, without the console.
     pub machine: OnMachine<'s, 'm>,
@@ -167,8 +261,47 @@ impl Needs for Planning<'_, '_> {
         self.machine.mount(filesystem)
     }
 
+    /// A plan writes nothing: the environment is mounted read-only.
+    fn mount_writable(&mut self, environment: &DatasetName) -> Result<String, Vec<String>> {
+        self.machine.mount(environment)
+    }
+
     fn unmount(&mut self, mounted: &str) {
         self.machine.unmount(mounted);
+    }
+
+    fn kernel_file(
+        &mut self,
+        environment: &DatasetName,
+        version: &str,
+    ) -> Result<String, Vec<String>> {
+        self.machine.kernel_file(environment, version)
+    }
+
+    fn check_restore(
+        &mut self,
+        mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<(), Vec<String>> {
+        self.machine.check_restore(mounted, snapshot, paths)
+    }
+
+    fn restore(
+        &mut self,
+        _mounted: &str,
+        snapshot: &SnapshotName,
+        paths: &[String],
+    ) -> Result<usize, Vec<String>> {
+        self.step(StepKind::Restore {
+            snapshot: snapshot.clone(),
+            paths: paths.iter().cloned().map(Untrusted::new).collect(),
+        });
+        Ok(paths.len())
+    }
+
+    fn now(&self) -> u64 {
+        self.machine.now()
     }
 
     /// A plan records nothing.

@@ -216,9 +216,10 @@ console.
 
 ## Snapshots and changes (R5 step 5)
 
-The snapshots view and the main view make the changes of the legacy menu: a new default, a snapshot, a rollback, a
-clone (promoted or not), an independent copy, and the differences since a snapshot. Each imports its pool read/write
-first and loads the environment's key, as before, with the same commands.
+The snapshots view and the main view make the changes of the legacy menu: a new default, a default kernel, a
+snapshot, a rollback, a clone (promoted or not), an independent copy, and the differences since a snapshot. Each that
+writes its pool imports it read/write first and loads the environment's key, as before, with the same commands. The
+menu also restores files from a snapshot, which the legacy menu did not.
 
 ### The changes run in the menu
 
@@ -263,6 +264,49 @@ first and loads the environment's key, as before, with the same commands.
 - **Before:** setting the default loaded the key of the pool's root dataset first, which could ask for a passphrase.
 - **Now:** only the pool is imported read/write; `zpool set bootfs` needs no key.
 - **Why:** the passphrase was asked for nothing.
+
+### The differences of two snapshots leave the pool read-only
+
+- **Before:** the differences always imported the pool read/write first (`zfsbootmenu-diff`), which could ask the
+  hibernation question, also to compare two snapshots.
+- **Now:** two snapshots are compared on the pool as it is imported, the environment mounted read-only once its key
+  is loaded; the menu takes the console only when that key must be asked for. The differences against the live
+  filesystem still import the pool read/write, as `zfs diff` takes a snapshot of the filesystem for them.
+- **Why:** comparing two snapshots writes nothing, and a pool imported read-only should stay so for it.
+
+### Files are restored from a snapshot
+
+- **Before:** the differences since a snapshot could only be read; a file was put back by hand from the recovery
+  shell.
+- **Now:** in the differences against the live filesystem, `Enter` restores the marked paths, or the selected one,
+  after the environment's name is typed. The pool is imported read/write, the key is loaded, and a safety snapshot
+  `<environment>@before-restore-<UTC time>` (`%Y-%m-%d-%H%M%S`, `-2` and on for another in the same second) is taken
+  first; each path is copied back with `cp -a` from the snapshot's read-only `.zfs/snapshot/<name>` into the
+  environment, mounted read/write, keeping owner, mode and times. Nothing is deleted: a file created since the
+  snapshot stays, a directory the environment has is left as it is, and the partial copy of a directory that failed
+  is left, named in the failure. A path that is not absolute and normalised, that has a symbolic link above it in the
+  environment or the snapshot, or that is a directory in only one of them, is refused before anything is written; the
+  path itself is replaced, never written through. The differences of two snapshots restore nothing, as they did not
+  look at the live files.
+- **Why:** undoing a bad edit or upgrade of a few files should not need a rollback, which destroys the newer
+  snapshots, and rolling back to the safety snapshot undoes the restore.
+
+### Inheriting the default kernel asks for no key
+
+- **Before:** `set_default_kernel` loaded the environment's key, and went on when it did not load, also to inherit
+  the default kernel again.
+- **Now:** inheriting imports the pool read/write only; `zfs inherit` needs no key. Setting a default kernel still
+  loads the key, as finding the kernel's file mounts the environment, and fails when it does not load.
+- **Why:** the passphrase was asked for nothing, as for a new default environment.
+
+### The default kernel names its kernel alone
+
+- **Before:** `org.zfsbootmenu:kernel` was set to the kernel's file name followed by `$`, read as an extended regular
+  expression: the dots of `vmlinuz-6.1.10` matched any character, a `+` in a version repeated what came before it, and
+  `linux-6.1$` also matched `vmlinux-6.1`.
+- **Now:** the value is `/`, the file name with the metacharacters escaped, then `$`: `/vmlinuz-6\.12\.9\+$`. Bash's
+  `=~` reads it the same way, so the legacy runtime boots the same kernel from it.
+- **Why:** the kernel chosen is the one that boots, whatever its version holds.
 
 ## Start-up (R5 step 4)
 

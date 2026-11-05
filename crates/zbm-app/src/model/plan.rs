@@ -5,7 +5,7 @@
 //! [`Action::Plan`]: super::Action::Plan
 //! [`Event::Planned`]: super::Event::Planned
 
-use zbm_types::{DatasetName, PoolName, SnapshotName};
+use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
 use super::Outcome;
 
@@ -69,6 +69,14 @@ pub enum StepKind {
     InheritKey(DatasetName),
     /// A pool is exported.
     Export(PoolName),
+    /// Paths are copied back from a snapshot into its environment, mounted
+    /// read/write, with their owner, mode and times; nothing is deleted.
+    Restore {
+        /// The snapshot.
+        snapshot: SnapshotName,
+        /// The paths, as the environment has them.
+        paths: Vec<Untrusted<String>>,
+    },
 }
 
 /// A step of a plan: what it does, and the command it runs, when one

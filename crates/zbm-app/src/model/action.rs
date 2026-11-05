@@ -12,8 +12,11 @@ use zbm_types::{
 
 use super::{Change, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
 
-/// The name of the safety snapshot restoring files takes first:
-/// `<environment>@before-restore`.
+/// What the name of the safety snapshot restoring files takes first starts
+/// with: `<environment>@before-restore-<UTC time>`, the time as a new
+/// snapshot is named (`%Y-%m-%d-%H%M%S`), so that each restore has its own
+/// ([`restore_snapshot`](super::restore_snapshot)); one in the same second
+/// as another ends with `-2`, `-3` and on.
 pub const RESTORE_SNAPSHOT: &str = "before-restore";
 
 /// What the menu asks the machine to do.
@@ -54,10 +57,13 @@ pub enum Action {
     /// Copy a snapshot into the new, independent environment named.
     Duplicate(SnapshotName, DatasetName),
     /// The differences between a snapshot and another one or the live
-    /// filesystem.
+    /// filesystem. Against the filesystem, `zfs diff` takes a snapshot of
+    /// it, so the pool is imported read/write; two snapshots are compared
+    /// on the pool as it is.
     Diff(SnapshotName, Option<SnapshotName>),
     /// Copy paths back from a snapshot into its environment, after a safety
-    /// snapshot.
+    /// snapshot ([`RESTORE_SNAPSHOT`]); nothing is deleted. The menu offers
+    /// it from a diff against the live filesystem.
     RestoreFiles {
         /// The snapshot.
         snapshot: SnapshotName,
@@ -148,19 +154,31 @@ impl Action {
         )
     }
 
-    /// Whether the action changes a pool: package D, which imports the
-    /// pool read/write first and loads the environment's key.
+    /// Whether the action is one of package D, which imports the pool
+    /// read/write first unless it is the diff of two snapshots
+    /// ([`Action::needs_writable_pool`]), and loads the environment's key
+    /// where it needs it.
     pub fn is_change(&self) -> bool {
         matches!(
             self,
             Action::SetDefaultEnvironment(_)
+                | Action::SetDefaultKernel(..)
+                | Action::InheritDefaultKernel(_)
                 | Action::CreateSnapshot(_)
                 | Action::Rollback(_)
                 | Action::Clone(..)
                 | Action::CloneAndPromote(..)
                 | Action::Duplicate(..)
                 | Action::Diff(..)
+                | Action::RestoreFiles { .. }
         )
+    }
+
+    /// Whether the change writes its pool, which it imports read/write
+    /// first: every change but the diff of two snapshots, which reads
+    /// them.
+    pub fn needs_writable_pool(&self) -> bool {
+        self.is_change() && !matches!(self, Action::Diff(_, Some(_)))
     }
 
     /// Whether the locked menu keeps the action (ROADMAP.md SE9, ADR 0010):
@@ -213,27 +231,30 @@ impl Action {
         }
     }
 
-    /// The environment a change works on, whose pool it writes and whose
-    /// key it loads.
+    /// The environment a change works on, whose key it loads and whose
+    /// pool it writes, if it does ([`Action::needs_writable_pool`]).
     pub fn changed_environment(&self) -> Option<&DatasetName> {
         match self {
-            Action::SetDefaultEnvironment(environment) => Some(environment),
+            Action::SetDefaultEnvironment(environment)
+            | Action::SetDefaultKernel(environment, _)
+            | Action::InheritDefaultKernel(environment) => Some(environment),
             Action::CreateSnapshot(snapshot)
             | Action::Rollback(snapshot)
             | Action::Clone(snapshot, _)
             | Action::CloneAndPromote(snapshot, _)
             | Action::Duplicate(snapshot, _)
-            | Action::Diff(snapshot, _) => Some(snapshot.dataset()),
+            | Action::Diff(snapshot, _)
+            | Action::RestoreFiles { snapshot, .. } => Some(snapshot.dataset()),
             _ => None,
         }
     }
 
     /// Whether the action takes the console on the machine `snapshot`
-    /// describes: those of [`Action::needs_console`], and a change whose
-    /// pool is imported read-only or whose environment is locked, as the
-    /// read/write import may ask about hibernation and the key may be
-    /// asked for; and a duplicate whose target may go under a locked
-    /// encryption root.
+    /// describes: those of [`Action::needs_console`], a change that writes
+    /// a pool imported read-only ([`Action::needs_writable_pool`]), as the
+    /// read/write import may ask about hibernation, and one whose
+    /// environment is locked, as the key may be asked for; and a duplicate
+    /// whose target may go under a locked encryption root.
     pub fn needs_console_on(&self, snapshot: &super::Snapshot) -> bool {
         // The PIN is asked on the console.
         if self.needs_console()
@@ -245,10 +266,11 @@ impl Action {
             return false;
         };
         let pool = environment.pool();
-        let read_only = snapshot
-            .pools
-            .iter()
-            .any(|known| known.name == pool && !known.writable);
+        let read_only = self.needs_writable_pool()
+            && snapshot
+                .pools
+                .iter()
+                .any(|known| known.name == pool && !known.writable);
         let locked = snapshot.environments.iter().any(|known| {
             known.name.as_str() == environment.as_str()
                 && known.encryption == super::Encryption::Locked

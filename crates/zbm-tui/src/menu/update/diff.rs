@@ -28,9 +28,10 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
 }
 
 /// Asks to restore the marked paths, or the selected one: a typed
-/// confirmation that says what is replaced and how to undo it.
+/// confirmation that says what is replaced and how to undo it. Only a diff
+/// against the live filesystem restores.
 fn restore(model: &mut Model) {
-    let Some(diff) = &model.diff else {
+    let Some(diff) = model.diff.as_ref().filter(|diff| diff.to.is_none()) else {
         return;
     };
     let paths = diff.to_restore();
@@ -48,7 +49,9 @@ fn restore(model: &mut Model) {
     model.dialog = Some(dialogs::confirm(confirmation(diff, paths)));
 }
 
-/// The confirmation of restoring `paths` from the snapshot of `diff`.
+/// The confirmation of restoring `paths` from the snapshot of `diff`. The
+/// safety snapshot is named for the time the restore takes it, which the
+/// outcome gives, so the confirmation shows only its form.
 fn confirmation(diff: &DiffView, paths: Vec<Untrusted<String>>) -> Then {
     let environment = diff.from.dataset();
     let mut lines: Vec<String> = paths

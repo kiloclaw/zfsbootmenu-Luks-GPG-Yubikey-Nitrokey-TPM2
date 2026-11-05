@@ -3,7 +3,7 @@
 //! of something else does nothing but say so.
 
 use super::{Context, Intent};
-use crate::menu::model::{Model, RECOVERY};
+use crate::menu::model::{Model, RECOVERY, Segment};
 use crate::menu::world::Offer;
 use Context::{Diff, Kernels, Main, Pools, Recovery, Snapshots};
 
@@ -39,7 +39,11 @@ fn offer_of(context: Context, intent: Intent, model: &Model) -> Option<Offer> {
         (Snapshots, Intent::Duplicate) => Some(Offer::Duplicate),
         // Snapshots are marked for a diff, and paths for a restore.
         (Snapshots, Intent::Diff | Intent::Mark) => Some(Offer::Diff),
-        (Diff, Intent::Primary | Intent::Mark) => Some(Offer::RestoreFiles),
+        (Diff, Intent::Primary | Intent::Mark) => model
+            .diff
+            .as_ref()
+            .filter(|diff| diff.segment == Segment::Files)
+            .map(|_| Offer::RestoreFiles),
         (Main | Snapshots, Intent::Chroot) => Some(Offer::Chroot),
         (Main | Pools, Intent::ReadWrite) | (Pools, Intent::Import | Intent::Rewind) => {
             Some(Offer::Import)
@@ -57,11 +61,19 @@ fn offer_of(context: Context, intent: Intent, model: &Model) -> Option<Offer> {
 }
 
 /// Whether `intent` in `context` starts nothing, what the machine of
-/// `model` offers, or a menu with at least one entry it offers.
+/// `model` offers, or a menu with at least one entry it offers. Files are
+/// restored only over the live filesystem a diff compared the snapshot
+/// with, never from a diff of two snapshots, which did not look at it.
 pub(crate) fn is_offered(context: Context, intent: Intent, model: &Model) -> bool {
     let offers = &model.snapshot.offers;
     if let Some(kinds) = menu_of(context, intent) {
         return kinds.iter().any(|kind| offers.contains(kind));
     }
-    offer_of(context, intent, model).is_none_or(|kind| offers.contains(&kind))
+    match offer_of(context, intent, model) {
+        None => true,
+        Some(Offer::RestoreFiles) if model.diff.as_ref().is_some_and(|diff| diff.to.is_some()) => {
+            false
+        }
+        Some(kind) => offers.contains(&kind),
+    }
 }

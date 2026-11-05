@@ -397,18 +397,21 @@ impl<'a> App<'a> {
     }
 
     /// The kinds of action the application performs: the boot, the
-    /// changes of package D ([`Action::is_change`]), the recovery shell and
-    /// the power actions. The others have no use case yet, and end as
+    /// changes of package D ([`Action::is_change`]), the default kernel and
+    /// restoring files among them, the recovery shell and the power
+    /// actions. The others have no use case yet, and end as
     /// [`unavailable`].
     fn offers() -> std::collections::BTreeSet<Offer> {
         [
             Offer::Boot,
             Offer::SetDefaultEnvironment,
+            Offer::DefaultKernel,
             Offer::CreateSnapshot,
             Offer::Rollback,
             Offer::Clone,
             Offer::Duplicate,
             Offer::Diff,
+            Offer::RestoreFiles,
             Offer::Shell,
             Offer::FirmwareSetup,
             Offer::Power,

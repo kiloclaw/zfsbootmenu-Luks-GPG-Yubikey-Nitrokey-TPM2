@@ -260,3 +260,129 @@ fn planned_needs_are_steps_and_what_they_read_comes_from_the_machine() {
             .any(|line| line.starts_with("zfs load-key"))
     );
 }
+
+#[test]
+fn a_restore_mounts_read_write_and_its_plan_copies_nothing() {
+    let fake = FakeSystem::new();
+    fake.runner
+        .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+    let mnt = "/zfsbootmenu/environments/tank/ROOT/void/mnt";
+    fake.files
+        .file(format!("{mnt}/.zfs/snapshot/old/etc/fstab"), "fstab")
+        .symlink(format!("{mnt}/.zfs/snapshot/old/lib"), "/usr/lib");
+    let snapshot: SnapshotName = "tank/ROOT/void@old".parse().unwrap();
+    let fstab = ["/etc/fstab".to_owned()];
+    let steps = std::sync::Mutex::new(Vec::new());
+    with_needs(&fake, true, |needs| {
+        let mounted = needs.mount_writable(&dataset("tank/ROOT/void")).unwrap();
+        assert_eq!(mounted, mnt);
+        assert_eq!(needs.check_restore(&mounted, &snapshot, &fstab), Ok(()));
+        let why = needs
+            .check_restore(&mounted, &snapshot, &["/lib/libc.so".to_owned()])
+            .unwrap_err();
+        assert_eq!(why, ["/lib is a symbolic link in tank/ROOT/void@old"]);
+        assert!(needs.now() > 0);
+        assert_eq!(
+            needs.kernel_file(&dataset("tank/ROOT/void"), "6.1"),
+            Err(vec!["tank/ROOT/void has no kernel 6.1".to_owned()])
+        );
+
+        let machine = OnMachine {
+            system: needs.system,
+            state: needs.state,
+            settings: needs.settings,
+            asks: false,
+        };
+        let mut planning = Planning {
+            machine,
+            steps: &steps,
+        };
+        let mounted = planning.mount_writable(&dataset("tank/ROOT/void")).unwrap();
+        assert_eq!(planning.check_restore(&mounted, &snapshot, &fstab), Ok(()));
+        assert_eq!(planning.restore(&mounted, &snapshot, &fstab), Ok(1));
+        assert!(
+            planning
+                .kernel_file(&dataset("tank/ROOT/void"), "6.1")
+                .is_err()
+        );
+        assert_eq!(planning.now(), needs.now());
+    });
+    let lines = fake.runner.lines();
+    // Read/write once, for the restore; the kernels and the plan, read-only.
+    let mounts: Vec<&String> = lines
+        .iter()
+        .filter(|line| line.starts_with("mount "))
+        .collect();
+    assert_eq!(
+        mounts[0],
+        &format!("mount -o zfsutil,rw -t zfs tank/ROOT/void {mnt}")
+    );
+    assert!(mounts[1..].iter().all(|line| line.contains("zfsutil,ro")));
+    assert!(!lines.iter().any(|line| line.starts_with("cp")));
+    let kinds: Vec<StepKind> = steps
+        .into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|step| step.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        [StepKind::Restore {
+            snapshot,
+            paths: vec![Untrusted::new("/etc/fstab".to_owned())],
+        }]
+    );
+}
+
+/// On the machine, the paths are copied with `cp -a` into the mounted
+/// environment, and a refusal stops the copy.
+#[test]
+fn a_restore_on_the_machine_copies_with_cp() {
+    let fake = FakeSystem::new();
+    let mnt = "/zfsbootmenu/environments/tank/ROOT/void/mnt";
+    fake.files
+        .file(format!("{mnt}/.zfs/snapshot/old/etc/fstab"), "old fstab")
+        .file(format!("{mnt}/etc/fstab"), "new fstab")
+        .symlink(format!("{mnt}/.zfs/snapshot/old/lib"), "/usr/lib");
+    let files = fake.files.clone();
+    fake.runner.first(move |command| {
+        let [_, _, from, to] = command.get_args() else {
+            return None;
+        };
+        if command.program() != "cp" {
+            return None;
+        }
+        files.file(to, files.contents(from)?);
+        Some(Ok(zbm_platform::exec::Output::new(
+            zbm_platform::exec::Status::exited(0),
+            "",
+        )))
+    });
+    let snapshot: SnapshotName = "tank/ROOT/void@old".parse().unwrap();
+    with_needs(&fake, true, |needs| {
+        assert_eq!(
+            needs.restore(mnt, &snapshot, &["/etc/fstab".to_owned()]),
+            Ok(1)
+        );
+        let why = needs
+            .restore(mnt, &snapshot, &["/lib/libc.so".to_owned()])
+            .unwrap_err();
+        assert_eq!(
+            why,
+            [
+                "/lib is a symbolic link in tank/ROOT/void@old",
+                "0 restored before it"
+            ]
+        );
+    });
+    assert_eq!(
+        fake.files.text(format!("{mnt}/etc/fstab")).as_deref(),
+        Some("old fstab")
+    );
+    assert_eq!(
+        fake.runner.lines(),
+        [format!(
+            "cp -a -- {mnt}/.zfs/snapshot/old/etc/fstab {mnt}/etc/.fstab.zbm-restore"
+        )]
+    );
+}

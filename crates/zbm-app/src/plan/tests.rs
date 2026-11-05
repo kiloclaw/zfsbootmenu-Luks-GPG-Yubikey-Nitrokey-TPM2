@@ -22,7 +22,14 @@ fn machine(readonly: &str) -> FakeSystem {
 
 /// The lines that would have changed the machine.
 fn changes(fake: &FakeSystem) -> Vec<String> {
-    let writes = ["zfs snapshot", "zpool set", "zpool import", "zpool export"];
+    let writes = [
+        "zfs snapshot",
+        "zfs set",
+        "zfs inherit",
+        "zpool set",
+        "zpool import",
+        "zpool export",
+    ];
     fake.runner
         .lines()
         .into_iter()
@@ -211,5 +218,73 @@ fn a_rollback_the_change_would_refuse_fails_its_plan() {
             .lines()
             .iter()
             .any(|line| line.starts_with("zfs rollback"))
+    );
+}
+
+#[test]
+fn a_default_kernel_and_a_restore_plan_their_steps_and_change_nothing() {
+    let fake = machine("off");
+    let mnt = "/zfsbootmenu/environments/tank/ROOT/be/mnt";
+    fake.files
+        .file(format!("{mnt}/boot/vmlinuz-6.12.9+"), "kernel")
+        .file(format!("{mnt}/boot/initramfs-6.12.9+.img"), "initramfs")
+        .file(format!("{mnt}/.zfs/snapshot/old/etc/fstab"), "fstab");
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let environment: zbm_types::DatasetName = "tank/ROOT/be".parse().unwrap();
+    let version = zbm_types::Untrusted::new("6.12.9+".to_owned());
+
+    let set = Action::SetDefaultKernel(environment.clone(), version);
+    let plan = app.plan(&set, fake.system()).unwrap();
+    assert_eq!(
+        plan.steps,
+        [Step {
+            kind: StepKind::SetProperty {
+                dataset: environment.clone(),
+                property: "org.zfsbootmenu:kernel".into(),
+            },
+            command: Some(
+                "zfs set org.zfsbootmenu:kernel=/vmlinuz-6\\.12\\.9\\+$ tank/ROOT/be".into()
+            ),
+        }]
+    );
+    let inherit = Action::InheritDefaultKernel(environment.clone());
+    let plan = app.plan(&inherit, fake.system()).unwrap();
+    assert!(matches!(
+        plan.steps.as_slice(),
+        [Step {
+            kind: StepKind::InheritProperty { .. },
+            ..
+        }]
+    ));
+
+    let paths = vec![zbm_types::Untrusted::new("/etc/fstab".to_owned())];
+    let restore = Action::RestoreFiles {
+        snapshot: "tank/ROOT/be@old".parse().unwrap(),
+        paths: paths.clone(),
+    };
+    let plan = app.plan(&restore, fake.system()).unwrap();
+    let kinds: Vec<&StepKind> = plan.steps.iter().map(|step| &step.kind).collect();
+    let [
+        StepKind::Snapshot(safety),
+        StepKind::Restore {
+            snapshot,
+            paths: restored,
+        },
+    ] = kinds.as_slice()
+    else {
+        panic!("not a safety snapshot and a restore: {plan:?}");
+    };
+    assert!(safety.name().starts_with("before-restore-"), "{safety}");
+    assert_eq!(safety.dataset(), &environment);
+    assert_eq!((snapshot.name(), restored), ("old", &paths));
+    assert!(matches!(plan.outcome, Outcome::Done(_)), "{plan:?}");
+    assert!(changes(&fake).is_empty(), "{:?}", changes(&fake));
+    assert!(
+        !fake
+            .runner
+            .lines()
+            .iter()
+            .any(|line| line.starts_with("cp"))
     );
 }

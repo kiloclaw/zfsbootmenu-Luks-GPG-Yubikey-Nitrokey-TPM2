@@ -20,11 +20,13 @@ use crate::text::text;
 const APP: &[Offer] = &[
     Offer::Boot,
     Offer::SetDefaultEnvironment,
+    Offer::DefaultKernel,
     Offer::CreateSnapshot,
     Offer::Rollback,
     Offer::Clone,
     Offer::Duplicate,
     Offer::Diff,
+    Offer::RestoreFiles,
     Offer::Shell,
     Offer::FirmwareSetup,
     Offer::Power,
@@ -387,5 +389,50 @@ fn enter_on_a_snapshot_is_refused_and_hidden_when_none_of_its_actions_is_offered
     );
 
     let _ = key_press(&mut model, KeyPress::new(Key::Enter));
+    assert!(is_refused(&model), "{model:?}");
+}
+
+#[test]
+fn files_are_restored_only_from_a_diff_against_the_live_filesystem() {
+    let (snapshot, _) = machine(APP);
+    let environment = &snapshot.environments[0];
+    let (old, new) = (
+        environment.snapshots[0].name.clone(),
+        environment.snapshots[1].name.clone(),
+    );
+    let mut demo = FakeMachine::new(&DemoOptions {
+        snapshots: 3,
+        ..DemoOptions::default()
+    });
+    let live = demo.apply(Action::Diff(old.clone(), None)).remove(0);
+    let two = demo.apply(Action::Diff(old, Some(new))).remove(0);
+    let enter = KeyPress::new(Key::Enter);
+
+    let mut model = menu(&(snapshot.clone(), live), Map::Classic, Place::Files);
+    assert!(keymap::is_offered(
+        Context::Diff,
+        keymap::Intent::Primary,
+        &model
+    ));
+    let _ = key_press(&mut model, enter);
+    assert!(
+        matches!(
+            &model.dialog,
+            Some(Dialog::Confirm {
+                action: Action::RestoreFiles { .. },
+                ..
+            })
+        ),
+        "{:?}",
+        model.dialog
+    );
+
+    let mut model = menu(&(snapshot, two), Map::Classic, Place::Files);
+    assert!(!keymap::is_offered(
+        Context::Diff,
+        keymap::Intent::Primary,
+        &model
+    ));
+    assert_eq!(key_press(&mut model, enter), []);
     assert!(is_refused(&model), "{model:?}");
 }

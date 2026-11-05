@@ -1,31 +1,39 @@
 //! Package D: the changes the menu makes to boot environments and their
-//! snapshots (ROADMAP.md, R5 step 5). Each change has its pool
-//! imported read/write and the key of its environment loaded first, as
-//! the legacy functions do, then runs the commands of the legacy runtime
-//! through the ZFS port:
+//! snapshots (ROADMAP.md, R5 step 5). Each change that writes its pool has
+//! it imported read/write first, and the key of its environment loaded,
+//! as the legacy functions do, then runs the commands of the legacy
+//! runtime through the ZFS port:
 //!
 //! - a new default: `zpool set bootfs=`;
+//! - a default kernel: `zfs set org.zfsbootmenu:kernel=`, or `zfs inherit`;
 //! - a snapshot: `zfs snapshot`;
 //! - a rollback, to a snapshot that has kernels: `zfs rollback -r`;
 //! - a clone, promoted or not: `zfs clone` with the environment's own
 //!   properties, then `zfs promote`;
 //! - a duplicate: a raw send into a receive, when the space is there, then
 //!   the copy inherits its parent's key where the source did;
-//! - the differences of a snapshot: `zfs diff` on the mounted filesystem.
+//! - the differences of a snapshot: `zfs diff` on the filesystem mounted
+//!   read-only; the pool is imported read/write only for a diff against
+//!   the live filesystem, which takes a snapshot of it, and not for two
+//!   snapshots;
+//! - restoring files from a snapshot: a safety snapshot, then a copy of
+//!   each path into the environment mounted read/write ([`restore`]).
 //!
 //! What a change needs besides ZFS ([`Needs`]) comes from the console when
 //! the change may ask for something ([`Action::needs_console_on`]), and
 //! without it in the menu otherwise.
 
 mod needs;
+mod restore;
 
 pub(crate) use needs::{Needs, OnMachine, Planning};
 
-use zbm_types::Untrusted;
+use zbm_config::spec::properties::KERNEL;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
+use zbm_types::{Printable, Untrusted};
 use zbm_zfs::{DiffChange, Difference, Zfs, ZfsError};
 
-use crate::model::{Action, Change, ChangeKind, Event, Outcome};
+use crate::model::{self, Action, Change, ChangeKind, Event, Outcome};
 
 /// The properties a clone does not take from its environment: those it
 /// is given ([`clone_options`]), and the encryption ones, which only an
@@ -80,6 +88,10 @@ impl Changes<'_, '_> {
     pub fn perform(&mut self, action: &Action) -> Option<Vec<Event>> {
         let result = match action {
             Action::SetDefaultEnvironment(environment) => self.set_default(environment),
+            Action::SetDefaultKernel(environment, version) => {
+                self.default_kernel(environment, Some(version))
+            }
+            Action::InheritDefaultKernel(environment) => self.default_kernel(environment, None),
             Action::CreateSnapshot(snapshot) => self.create_snapshot(snapshot),
             Action::Rollback(snapshot) => self.rollback(snapshot),
             Action::Clone(snapshot, target) => self.clone_snapshot(snapshot, target, false),
@@ -88,6 +100,7 @@ impl Changes<'_, '_> {
             }
             Action::Duplicate(snapshot, target) => self.duplicate(snapshot, target),
             Action::Diff(from, to) => self.diff(from, to.as_ref()),
+            Action::RestoreFiles { snapshot, paths } => self.restore(snapshot, paths),
             _ => return None,
         };
         Some(result.unwrap_or_else(|failure| vec![failure.into_event()]))
@@ -116,6 +129,43 @@ impl Changes<'_, '_> {
             .map_err(|error| Failure::zfs(format!("unable to {what}"), &error))?;
         self.needs.record_default(environment);
         Ok(done(format!("{environment} is the default of {pool}")))
+    }
+
+    /// Makes the kernel of `version` the default of `environment`, or lets
+    /// it inherit its default again without one. Only finding the kernel's
+    /// file needs the key; `zfs inherit` does not.
+    fn default_kernel(
+        &mut self,
+        environment: &DatasetName,
+        version: Option<&Untrusted<String>>,
+    ) -> Result<Vec<Event>, Failure> {
+        let what = match version {
+            Some(version) => format!(
+                "make {} the default kernel of {environment}",
+                version.printable()
+            ),
+            None => format!("let {environment} inherit its default kernel"),
+        };
+        let failed = |error: &ZfsError| Failure::zfs(format!("unable to {what}"), error);
+        self.writable(&environment.pool(), &what)?;
+        let Some(version) = version else {
+            self.zfs
+                .inherit(environment, KERNEL.name)
+                .map_err(|error| failed(&error))?;
+            return Ok(done(format!("{environment} inherits its default kernel")));
+        };
+        self.load_key(environment, &what)?;
+        let file = self
+            .needs
+            .kernel_file(environment, version.get())
+            .map_err(|why| Failure::new(format!("unable to {what}"), why))?;
+        self.zfs
+            .set(environment, KERNEL.name, &kernel_selector(&file))
+            .map_err(|error| failed(&error))?;
+        Ok(done(format!(
+            "{} is the default kernel of {environment}",
+            Printable(&file)
+        )))
     }
 
     fn create_snapshot(&mut self, snapshot: &SnapshotName) -> Result<Vec<Event>, Failure> {
@@ -272,7 +322,10 @@ impl Changes<'_, '_> {
             _ => (first.clone(), second.cloned()),
         };
         let what = format!("compare {from}");
-        self.writable(&from.pool(), &what)?;
+        // Against the filesystem, `zfs diff` takes a snapshot of it.
+        if to.is_none() {
+            self.writable(&from.pool(), &what)?;
+        }
         let filesystem = from.dataset();
         self.load_key(filesystem, &what)?;
         let mounted = self
@@ -294,10 +347,133 @@ impl Changes<'_, '_> {
         }])
     }
 
+    /// Copies `paths` back from `snapshot` into its environment, mounted
+    /// read/write, after a safety snapshot of it; nothing is deleted.
+    fn restore(
+        &mut self,
+        snapshot: &SnapshotName,
+        paths: &[Untrusted<String>],
+    ) -> Result<Vec<Event>, Failure> {
+        let environment = snapshot.dataset();
+        let what = format!("restore files of {environment} from {}", snapshot.name());
+        let paths = restorable(paths)
+            .map_err(|why| Failure::new(format!("unable to {what}"), vec![why]))?;
+        self.writable(&snapshot.pool(), &what)?;
+        self.load_key(environment, &what)?;
+        let mounted = self.needs.mount_writable(environment).map_err(|why| {
+            Failure::new(format!("unable to mount {environment} read/write"), why)
+        })?;
+        let restored = self.restore_mounted(snapshot, &paths, &mounted, &what);
+        self.needs.unmount(&mounted);
+        restored
+    }
+
+    /// Restores `paths` from `snapshot` into its environment, mounted
+    /// read/write at `mounted`, for `what`.
+    fn restore_mounted(
+        &mut self,
+        snapshot: &SnapshotName,
+        paths: &[String],
+        mounted: &str,
+        what: &str,
+    ) -> Result<Vec<Event>, Failure> {
+        let unable = |why| Failure::new(format!("unable to {what}"), why);
+        self.needs
+            .check_restore(mounted, snapshot, paths)
+            .map_err(unable)?;
+        let environment = snapshot.dataset();
+        let safety = self.safety_snapshot(environment).ok_or_else(|| {
+            unable(vec![format!(
+                "no name is left for a safety snapshot of {environment}"
+            )])
+        })?;
+        self.zfs
+            .create_snapshot(&safety)
+            .map_err(|error| Failure::zfs(format!("unable to take {safety}"), &error))?;
+        let copied = self
+            .needs
+            .restore(mounted, snapshot, paths)
+            .map_err(|mut why| {
+                why.push(format!("rolling back to {safety} undoes what was restored"));
+                unable(why)
+            })?;
+        let paths = if copied == 1 { "path" } else { "paths" };
+        Ok(done(format!(
+            "{copied} {paths} of {environment} restored from {}; rolling back to {safety} \
+             undoes it",
+            snapshot.name()
+        )))
+    }
+
+    /// The name of the safety snapshot of `environment` a restore takes
+    /// now: one no snapshot has, `-2` and on after the time when another
+    /// restore took it in the same second.
+    fn safety_snapshot(&self, environment: &DatasetName) -> Option<SnapshotName> {
+        let first = model::restore_snapshot(environment, self.needs.now())?;
+        let is_free = |name: &SnapshotName| self.zfs.snapshot_property(name, "creation").is_err();
+        if is_free(&first) {
+            return Some(first);
+        }
+        (2..100)
+            .filter_map(|count| format!("{first}-{count}").parse().ok())
+            .find(is_free)
+    }
+
     /// When `snapshot` was taken, 0 when unknown.
     fn created(&self, snapshot: &SnapshotName) -> u64 {
         number(self.zfs.snapshot_property(snapshot, "creation")).unwrap_or_default()
     }
+}
+
+/// The value of `org.zfsbootmenu:kernel` that names the kernel file `file`
+/// of `/boot` alone, as an extended regular expression matched against
+/// the kernel's path: `/` and the name, its metacharacters escaped, then
+/// the `$` the legacy menu ended it with. So `vmlinuz-6.12.9+` is not
+/// read as `vmlinuz-6.12.` and one or more `9`, and `linux-6.1` does not
+/// name `vmlinux-6.1` too.
+fn kernel_selector(file: &str) -> String {
+    let mut value = String::from("/");
+    for c in file.chars() {
+        if "\\.[]()*+?{}|^$".contains(c) {
+            value.push('\\');
+        }
+        value.push(c);
+    }
+    value.push('$');
+    value
+}
+
+/// The paths of a restore, sorted, each once: parents come before what
+/// is in them. Each must be absolute and normalised, with no `.` or `..`
+/// and no NUL.
+fn restorable(paths: &[Untrusted<String>]) -> Result<Vec<String>, String> {
+    if paths.is_empty() {
+        return Err("no path was chosen".to_owned());
+    }
+    let mut checked = Vec::with_capacity(paths.len());
+    for path in paths {
+        let text = path.get();
+        let shown = path.printable();
+        if text.contains('\0') {
+            return Err(format!("{shown} holds a NUL byte"));
+        }
+        let Some(rest) = text.strip_prefix('/') else {
+            return Err(format!("{shown} is not an absolute path"));
+        };
+        if text != "/" {
+            let parts: Vec<&str> = rest.split('/').collect();
+            if parts.contains(&"..") {
+                return Err(format!("{shown} goes up with .."));
+            }
+            if parts.iter().any(|part| part.is_empty() || *part == ".") {
+                return Err(format!("{shown} is not a normalised path"));
+            }
+        }
+        checked.push(text.clone());
+    }
+    checked.sort();
+    checked.dedup();
+    Ok(checked)
 }
 
 /// The properties every new environment is given: mounted at `/`, not
