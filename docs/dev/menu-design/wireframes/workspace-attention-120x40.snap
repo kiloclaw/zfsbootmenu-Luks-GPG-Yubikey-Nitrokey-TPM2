@@ -7,29 +7,29 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ tank       DEGRADED ro ││   tank/ROOT/arch       1 warning  6.11.5-arch1-1 ││   Boot Tries  3 of 3 left              │
 │ archive   not imported ││   tank/ROOT/debian     1 problem  6.1.0-26-amd64 ││         Pool  zroot · ONLINE · read-o… │
 │ tank      not imported ││   zroot/ROOT/ubuntu             6.8.0-47-generic ││       Kernel  6.12.9_1 · 3 kernels     │
-└────────────────────────┘│                                                  ││    Snapshots  400 · newest pre-upgrad… │
-┌ VOLUMES ─────── 3 of 3 ┐│                                                  ││   Encryption  key loaded               │
-│ luks-zroot-a      open ││                                                  ││ Command Line  quiet loglevel=4 · from… │
-│ luks-zroot-b      open ││                                                  ││                                        │
-│ luks-tank         open ││                                                  ││ NEXT STEPS                             │
-└────────────────────────┘│                                                  ││   l kernels         s snapshots        │
-┌ ATTENTION ────────── 8 ┐│                                                  ││   e edit            d default          │
-│ ! tank DEGRADED        ││                                                  ││                                        │
-│   3 Pools              ││                                                  ││ CHECKS                                 │
-│ ! tank: sdb2 UNAVAIL   ││                                                  ││   √ Kernel and initramfs: 6.12.9_1 wi… │
-│   3 Pools              ││                                                  ││   √ ZFS module: zfs 2.4.4 for 6.12.9_1 │
-│ ! tank: checkpoint     ││                                                  ││   √ Pool features: its ZFS reads ever… │
-│   3 Pools              ││                                                  ││   √ Root dataset: mountpoint / and ca… │
-│ ! archive: host deadb… ││                                                  ││   √ Free space: 62% of the pool is fr… │
+└────────────────────────┘│                                                  ││    Last Boot  Loaded 2026-10-22 19:00… │
+┌ VOLUMES ─────── 3 of 3 ┐│                                                  ││    Snapshots  400 · newest pre-upgrad… │
+│ luks-zroot-a      open ││                                                  ││   Encryption  key loaded               │
+│ luks-zroot-b      open ││                                                  ││ Command Line  quiet loglevel=4 · from… │
+│ luks-tank         open ││                                                  ││                                        │
+└────────────────────────┘│                                                  ││ NEXT STEPS                             │
+┌ ATTENTION ────────── 8 ┐│                                                  ││   l kernels         s snapshots        │
+│ ! tank DEGRADED        ││                                                  ││   e edit            d default          │
 │   3 Pools              ││                                                  ││                                        │
-│ ! tank: not imported   ││                                                  ││ KERNELS                                │
-│   3 Pools              ││                                                  ││   6.12.9_1                       boots │
-│ ! arch: 1 warning      ││                                                  ││   6.12.8_1                             │
-│   1 Boot               ││                                                  ││   6.8.0_1                              │
-│ × debian: 1 problem    ││                                                  ││                                        │
-│   1 Boot               ││                                                  ││ NEWEST SNAPSHOTS                       │
-│ ! 1 warning in the log ││                                                  ││   pre-upgrade                 12 h ago │
-│   4 Log                ││                                                  ││                                        │
+│ ! tank: sdb2 UNAVAIL   ││                                                  ││ CHECKS                                 │
+│   3 Pools              ││                                                  ││   √ Kernel and initramfs: 6.12.9_1 wi… │
+│ ! tank: checkpoint     ││                                                  ││   √ ZFS module: zfs 2.4.4 for 6.12.9_1 │
+│   3 Pools              ││                                                  ││   √ Pool features: its ZFS reads ever… │
+│ ! archive: host deadb… ││                                                  ││   √ Root dataset: mountpoint / and ca… │
+│   3 Pools              ││                                                  ││   √ Free space: 62% of the pool is fr… │
+│ ! tank: not imported   ││                                                  ││                                        │
+│   3 Pools              ││                                                  ││ KERNELS                                │
+│ ! arch: 1 warning      ││                                                  ││   6.12.9_1                       boots │
+│   1 Boot               ││                                                  ││   6.12.8_1                             │
+│ × debian: 1 problem    ││                                                  ││   6.8.0_1                              │
+│   1 Boot               ││                                                  ││                                        │
+│ ! 1 warning in the log ││                                                  ││ NEWEST SNAPSHOTS                       │
+│   4 Log                ││                                                  ││   pre-upgrade                 12 h ago │
 │                        ││                                                  ││                                        │
 │                        ││                                                  ││                                        │
 │                        ││                                                  ││                                        │

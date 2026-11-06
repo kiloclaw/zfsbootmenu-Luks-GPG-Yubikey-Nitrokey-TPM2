@@ -7,6 +7,7 @@
 
 pub mod data;
 mod health;
+mod history;
 mod keyboard;
 mod session;
 mod snapshots;
@@ -18,8 +19,8 @@ use zbm_platform::secret::Secret;
 use zbm_types::Untrusted;
 
 use crate::menu::world::{
-    Access, Action, Event, ImportOptions, Method, Notice, Outcome, Pool, Snapshot, StageState,
-    Volume, VolumeState,
+    Access, Action, Event, History, ImportOptions, Method, Notice, Outcome, Pool, Snapshot,
+    StageState, Volume, VolumeState,
 };
 
 /// What the demo machine has.
@@ -52,6 +53,8 @@ pub struct DemoOptions {
     /// Pools start-up leaves alone, which the menu's scan finds: one of
     /// another host, and one named like an imported pool.
     pub exported: bool,
+    /// `zbm.save_logs` is given: the menu reads the boots it kept.
+    pub save_logs: bool,
 }
 
 impl Default for DemoOptions {
@@ -66,6 +69,7 @@ impl Default for DemoOptions {
             tpm_changed: false,
             workspace: false,
             exported: false,
+            save_logs: true,
         }
     }
 }
@@ -96,6 +100,8 @@ pub struct FakeMachine {
     /// The snapshots of each environment, which the snapshot holds only
     /// for the column open.
     lists: snapshots::Lists,
+    /// The boot history.
+    history: History,
 }
 
 impl FakeMachine {
@@ -109,6 +115,7 @@ impl FakeMachine {
             restored: Vec::new(),
             exported: data::exported(options),
             lists: snapshots::Lists::new(data::snapshots(options)),
+            history: history::history(options),
         }
     }
 
@@ -216,6 +223,7 @@ impl FakeMachine {
                 vec![Event::DeviceLogLoaded(data::device_log(&device))]
             }
             Action::LoadSnapshots(environment) => self.lists.load(environment, &mut self.snapshot),
+            Action::LoadHistory => vec![Event::HistoryLoaded(self.history.clone())],
             Action::Shell => leave("Opening the recovery shell"),
             Action::Reboot => leave("Rebooting"),
             Action::PowerOff => leave("Powering off"),

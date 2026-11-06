@@ -255,6 +255,20 @@ log-info = info
 log-warning = warning
 log-error = error
 
+## The boot history, above the log in the workspace's Log tab.
+
+history-title = Saved Boots
+history-reading = Reading the saved boots...
+history-off = No boot is kept without zbm.save_logs.
+history-off-how = It keeps the last five: see zfsbootmenu(7).
+history-unavailable = The saved boots cannot be read: { $why } ({ $code }).
+history-none = No boot is saved yet.
+history-loaded = { $when }  { $environment }  { $kernel }  { $measured }
+history-measured = measured
+history-not-measured = not measured
+history-no-record = { $name }  saved without a record, from the shell or after a crash
+history-unreadable = { $name }  its record cannot be read: { $why }
+
 ## Help.
 
 help-keys = Keys
@@ -361,6 +375,8 @@ fact-kernel = Kernel
     }
 fact-snapshots = Snapshots
     .newest = newest { $snapshot }, { $age }
+fact-last-boot = Last Boot
+    .loaded = Loaded { $when } with { $kernel }
 fact-encryption = Encryption
 fact-command-line = Command Line
 encryption-unlocked = key loaded

@@ -13,6 +13,7 @@ use super::world::{Action, Event, Outcome};
 mod dialogs;
 mod diff;
 mod events;
+mod history;
 mod lists;
 mod offers;
 mod screens;
@@ -41,8 +42,11 @@ pub enum Message {
 pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
     let actions = match message {
         Message::Key(key) => {
-            let actions = key_press(&mut model, key);
+            let mut actions = key_press(&mut model, key);
             events::start(&mut model);
+            if model.screen == Screen::Log {
+                actions.extend(history::load(&mut model));
+            }
             actions
         }
         Message::Tick(ms) => tick(&mut model, ms),
@@ -51,6 +55,7 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
             model.working = busy.then(|| model.working.unwrap_or(0));
             if !busy {
                 model.not_loaded();
+                model.reading_history = false;
             }
             Vec::new()
         }
@@ -174,15 +179,17 @@ fn back(model: &mut Model) {
 /// Time passed: the countdown runs, as start-up's dialog's does; and the
 /// first time after the main view opened with no countdown running, the
 /// menu asks the machine to scan the pools, which the views list once it
-/// answers. While the countdown runs, nothing is scanned: the boot it ends
-/// with would wait for the scan, and Escape would cancel the scan instead
-/// of stopping the countdown.
+/// answers, and the workspace asks for the boot history, which its
+/// inspector shows. While the countdown runs, nothing is read: the boot it
+/// ends with would wait for the scan, and Escape would cancel the scan
+/// instead of stopping the countdown.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
     let mut actions = count_down(model, ms);
     let counting = model.countdown.is_some();
     if actions.is_empty() && model.started && !counting && !model.scanned {
         model.scanned = true;
         actions.push(Action::ScanPools);
+        actions.extend(history::load(model));
     }
     actions
 }
@@ -230,6 +237,8 @@ pub(crate) fn show_failure(model: &mut Model, outcome: &Outcome) {
 
 #[cfg(test)]
 mod health_tests;
+#[cfg(test)]
+mod history_tests;
 #[cfg(test)]
 mod import_tests;
 #[cfg(test)]

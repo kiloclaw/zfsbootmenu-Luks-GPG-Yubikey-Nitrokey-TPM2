@@ -26,7 +26,7 @@ pub use self::sort::Sort;
 use super::filter::Ranked;
 use super::keymap::{Context, Map, Tab};
 use super::theme::Theme;
-use super::world::{Action, DeviceLog, Environment, Outcome, Snapshot, Timeout};
+use super::world::{Action, DeviceLog, Environment, History, Outcome, Snapshot, Timeout};
 
 /// What a refresh keeps selected: the environment and the snapshot named,
 /// and the row of the pools view ([`Model::selected_row`]).
@@ -242,6 +242,12 @@ pub struct Model {
     /// The kernel's messages about a device of a pool, which the
     /// workspace's Pools tab shows below the pools until Back.
     pub device_log: Option<DeviceLog>,
+    /// The boot history, once the machine sent it, which the workspace's
+    /// Log tab and inspector show.
+    pub history: Option<History>,
+    /// Whether the menu asked for the boot history, and the machine has not
+    /// answered yet.
+    pub reading_history: bool,
     /// The keyboard layout typing is translated into, as an index of the
     /// snapshot's layouts: 0 is the console's own.
     pub layout: usize,
@@ -283,6 +289,8 @@ impl Model {
             scroll: 0,
             diff: None,
             device_log: None,
+            history: None,
+            reading_history: false,
             layout: 0,
             map: Map::Classic,
             snapshot,

@@ -81,8 +81,9 @@ fn workspace() -> DemoOptions {
 /// The wireframes of the workspace: the Boot tab, and the kernels column
 /// it goes into; what needs attention once the scan, which waits for a
 /// key to stop the countdown, found the pools start-up left alone, one of
-/// them another host's; and the kernel's messages about the disk `tank`
-/// lost, chosen in its pool's dialog.
+/// them another host's; the kernel's messages about the disk `tank`
+/// lost, chosen in its pool's dialog; and the Log tab with the boot
+/// history `zbm.save_logs` kept, and without the option.
 fn workspace_wireframes() -> Vec<Wireframe> {
     use Step::{Char, Code, Tick};
     let frame = |name, keys| Wireframe {
@@ -93,6 +94,10 @@ fn workspace_wireframes() -> Vec<Wireframe> {
     };
     let exported = DemoOptions {
         exported: true,
+        ..workspace()
+    };
+    let no_history = DemoOptions {
+        save_logs: false,
         ..workspace()
     };
     vec![
@@ -118,6 +123,13 @@ fn workspace_wireframes() -> Vec<Wireframe> {
                 Code(Key::Enter),
             ],
         ),
+        frame("log-history", &[Char('4')]),
+        Wireframe {
+            name: "log-no-history",
+            options: no_history,
+            ticks: 50,
+            keys: &[Char('4')],
+        },
     ]
 }
 

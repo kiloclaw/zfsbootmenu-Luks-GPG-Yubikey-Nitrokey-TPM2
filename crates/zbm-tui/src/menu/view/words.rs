@@ -195,19 +195,22 @@ fn kernels(model: &Model) -> Vec<String> {
 
 /// The log, oldest first, each entry with its level.
 fn log(model: &Model) -> Vec<String> {
-    model
-        .snapshot
-        .log
-        .entries
-        .iter()
-        .map(|entry| {
+    // The workspace says its boot history first.
+    let history = if model.map == keymap::Map::Workspace {
+        super::history::rows(model)
+    } else {
+        Vec::new()
+    };
+    let saved = history.into_iter().map(|(_, row)| row);
+    saved
+        .chain(model.snapshot.log.entries.iter().map(|entry| {
             let level = match entry.level {
                 Level::Info => text!("log-info"),
                 Level::Warning => text!("log-warning"),
                 Level::Error => text!("log-error"),
             };
             format!("{level}: {}", entry.text.printable())
-        })
+        }))
         .collect()
 }
 

@@ -191,6 +191,24 @@ impl<'a> Mount<'a> {
         self.mounted(&run, dir)
     }
 
+    /// Mounts the FAT file system on `device` read-only on `dir`, quietly
+    /// (`mount -t vfat -o ro,nosuid,nodev,noexec DEVICE DIR`), as for
+    /// reading the EFI system partition: nothing on it is written, and
+    /// nothing on it runs.
+    ///
+    /// # Errors
+    ///
+    /// The exit status of `mount` when it failed, 126 when it could not
+    /// start.
+    pub fn fat_read_only(self, device: &str, dir: &Path) -> Result<Mounted<'a>, i32> {
+        let command = Command::new("mount")
+            .args(["-t", "vfat", "-o", "ro,nosuid,nodev,noexec", device])
+            .arg(dir)
+            .timeout(DEVICE_TIMEOUT);
+        let run = self.runner.run(&shown(command, Shown::Hidden));
+        self.mounted(&run, dir)
+    }
+
     /// Mounts, or with `options` `remount,...` remounts, `efivarfs` on
     /// `location` (`mount -t efivarfs efivarfs LOCATION -o OPTIONS`); whether
     /// it succeeded. It stays mounted.
@@ -270,6 +288,14 @@ impl<'a> Mounted<'a> {
     /// The same mount, which `umount` unmounts quietly.
     pub fn quietly(mut self) -> Mounted<'a> {
         self.output = Shown::Hidden;
+        self
+    }
+
+    /// The same mount, which `runner` unmounts where the system call
+    /// fails, such as a runner no token cancels: a mount made by a program
+    /// an action may cancel is still unmounted once the action is.
+    pub fn unmounted_by(mut self, runner: &'a dyn Runner) -> Mounted<'a> {
+        self.mount.runner = runner;
         self
     }
 

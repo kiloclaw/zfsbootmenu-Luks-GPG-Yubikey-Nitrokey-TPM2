@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 BBóótt  2 SSñáppshóóts  3 PPóólls [4 LLóg]  ! 6
+┌ SSÁVÉÉD BÓÓÓTSS ────────────────────────────── 4 ┐
+│ 2026-10-22 19:00  zroot/ROOT/void  6.12.9_1  mm… │
+│ 2026-10-22T08-31-05Z  ssávééd wííthóóút áá réçç… │
+│ 2026-10-21T22-04-51Z  ííts rréçóórd ççáñññót bb… │
+│ 2026-10-20 08:00  zroot/ROOT/void  6.12.8\x1b[2… │
+└──────────────────────────────────────────────────┘
+┌ LLÓG SSÍÑÇÇÉ STTÁRTT ──────────────── 2026-10-23 ┐
+│   ííñfóó  ZFS 2.4.4 loaded, host ID 00bab10c     │
+│   ííñfóó  imported zroot read-only               │
+│ ! wwárññíñggtank is DEGRADED: /dev/sdb2 is       │
+│ missing, 1 of 3 devices                          │
+│   ííñfóó  imported tank read-only                │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ : ÇÇómmmáñdds   ! RRéçóóvérrý             ? MMóréé

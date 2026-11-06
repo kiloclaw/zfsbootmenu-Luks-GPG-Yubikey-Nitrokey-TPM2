@@ -544,6 +544,21 @@ takes over from a menu already running.
 - **Why:** the boot history (ADR 0016, point 7) needs to know what each saved boot booted, and the logs alone do
   not say; fields may be added, never changed, and a reader takes the record as text from a disk anyone can write.
 
+### The boot history
+
+- **Before:** the menu showed the kernel's warnings and errors of the boot running (`logs`, `zlogtail`); nothing of
+  earlier boots.
+- **Now:** with `zbm.save_logs`, the workspace's Log tab lists the boots saved on the ESP, newest first, above the
+  log since start: when each loaded which environment and kernel, and whether what was loaded was measured, or that
+  it was saved without a record (from the shell, after a crash) or with one this runtime does not read. The
+  inspector says when the selected environment was last loaded, and with which kernel. The ESP is mounted read-only,
+  at `/run/zbm-saved-logs-read`, for the read alone, and unmounted even when Escape cancels it; at most the newest 16
+  boots, 32 files of each and records of 64 KiB are read. Without the option the ESP is not read, and the tab says
+  how to keep a history. The read needs no PIN under the locked menu, and is never made while the countdown runs.
+  The classic menu shows nothing new.
+- **Why:** after a boot that went wrong, the menu should say what was booted last and how (ADR 0016, point 7);
+  reading a partition the user did not name for logs would mount it for nothing.
+
 ### When the menu cannot start
 
 - **Before:** the countdown of the start-up program booted the default environment before the menu ran, so a menu

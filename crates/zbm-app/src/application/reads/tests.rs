@@ -334,4 +334,5 @@ fn the_snapshot_has_no_default_once_its_pool_is_exported() {
     assert_eq!(bootfs(&app), None);
 }
 
+mod history;
 mod snapshots;

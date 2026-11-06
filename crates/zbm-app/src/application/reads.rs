@@ -3,16 +3,18 @@
 //! last scan found, and the scan itself ([`Action::ScanPools`]), which
 //! looks at every device and so runs only when asked, and again after an
 //! action that may have imported or exported a pool, or opened what holds
-//! one; a device's kernel messages ([`Action::LoadDeviceLog`]); and the
+//! one; a device's kernel messages ([`Action::LoadDeviceLog`]); the
 //! snapshots of an environment ([`Action::LoadSnapshots`]), which every
-//! snapshot of the machine read after them carries again.
+//! snapshot of the machine read after them carries again; and the boot
+//! history ([`Action::LoadHistory`]).
 
 use zbm_platform::System;
+use zbm_platform::event::CancelToken;
 use zbm_types::{DatasetName, Untrusted};
 use zbm_zfs::{Zfs, ZfsError};
 
 use super::App;
-use crate::model::{Action, Environment, Event, Outcome, Pool, SnapshotList};
+use crate::model::{Action, Environment, Event, History, Outcome, Pool, SnapshotList};
 use crate::{auth, changes, read};
 
 /// Whether `action` may change the pools a scan finds: it imports or
@@ -34,14 +36,17 @@ impl App<'_> {
     /// changes of package D ([`Action::is_change`]) whose pool is writable
     /// and whose key is loaded, and what only reads the machine, as the
     /// dry runs of [`Action::Plan`] ([`App::plan`]), the scan of the pools,
-    /// a device's kernel messages and the snapshots of an environment,
-    /// which the lock leaves free.
+    /// a device's kernel messages, the snapshots of an environment and the
+    /// boot history, which the lock leaves free. The history's partition is
+    /// unmounted by `console`'s runner, which the action's token does not
+    /// cancel.
     pub(super) fn quietly(&self, action: &Action, console: System<'_>) -> Vec<Event> {
         match action {
             Action::Plan(planned) => return self.planned(planned, console),
             Action::ScanPools => return self.scan(),
             Action::LoadDeviceLog(device) => return self.device_log(device),
             Action::LoadSnapshots(environment) => return self.load_snapshots(environment),
+            Action::LoadHistory => return self.history(console.runner),
             _ => {}
         }
         // What the lock keeps takes the console, where the PIN is asked;
@@ -128,6 +133,22 @@ impl App<'_> {
     pub(super) fn device_log(&self, device: &Untrusted<String>) -> Vec<Event> {
         let log = read::device_log(self.context.files(), self.context.runner(), device);
         vec![Event::DeviceLogLoaded(log)]
+    }
+
+    /// [`Action::LoadHistory`]: the boots whose logs were saved, read from
+    /// the partition mounted read-only, which `keep`, a runner nothing
+    /// cancels, unmounts; none without `zbm.save_logs`. A read cancelled
+    /// that failed sends nothing: the programs it ran may have failed only
+    /// for being cancelled, and the menu asks again rather than show a
+    /// partition that cannot be read.
+    pub(super) fn history(&self, keep: &dyn zbm_platform::Runner) -> Vec<Event> {
+        let save_logs = self.runtime.boot.save_logs.as_ref();
+        let history = read::history(&self.context, save_logs, keep);
+        let cancelled = self.until.is_some_and(CancelToken::is_cancelled);
+        if cancelled && matches!(history, History::Unavailable { .. }) {
+            return Vec::new();
+        }
+        vec![Event::HistoryLoaded(history)]
     }
 
     /// [`Action::LoadSnapshots`]: every snapshot of `environment`, whose

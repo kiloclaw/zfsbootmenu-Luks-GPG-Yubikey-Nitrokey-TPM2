@@ -85,6 +85,9 @@ pub enum RecordError {
         /// as at the end of a file that ends early.
         column: usize,
     },
+    /// The file could not be read, as when its partition fails.
+    #[error("the record could not be read")]
+    Unread,
 }
 
 impl From<serde_json::Error> for RecordError {

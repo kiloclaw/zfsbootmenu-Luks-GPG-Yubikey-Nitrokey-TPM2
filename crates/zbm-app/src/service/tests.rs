@@ -301,3 +301,80 @@ fn a_volume_opened_as_its_action_was_cancelled_says_it_is_open() {
     assert!(token.is_cancelled());
     assert!(events.ends_with(&opened), "{events:?}");
 }
+
+#[test]
+fn a_history_read_cancelled_once_the_esp_is_mounted_still_unmounts_it() {
+    use zbm_boot::saved_logs::Destination;
+
+    let fake = FakeSystem::new();
+    fake.runner.respond(
+        "lsblk -rnpo NAME,PARTTYPE",
+        0,
+        "/dev/vda1 C12A7328-F81F-11D2-BA4B-00A0C93EC93B\n",
+    );
+    let token = CancelToken::new().unwrap();
+    // Escape is pressed as the mount ends.
+    let pressed = token.clone();
+    fake.runner.first(move |command| {
+        if command.display().starts_with("mount -t vfat -o ro") {
+            pressed.cancel();
+        }
+        None
+    });
+    let settings = BootSettings::default().save_logs(Some(Destination::Esp));
+    let runtime = Runtime::default().with_boot(settings);
+    let service = MachineService::new(
+        App::new(Context::new(fake.system()), &runtime),
+        fake.system(),
+    );
+
+    let events = service.perform(&Action::LoadHistory, &token);
+
+    assert!(token.is_cancelled());
+    assert!(
+        matches!(
+            events.as_slice(),
+            [Event::HistoryLoaded(_), Event::Finished(Outcome::Cancelled)]
+        ),
+        "{events:?}"
+    );
+    let lines = fake.runner.lines();
+    assert_eq!(
+        lines.last().map(String::as_str),
+        Some("umount /run/zbm-saved-logs-read"),
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn a_history_read_whose_mount_escape_killed_sends_no_history() {
+    use zbm_boot::saved_logs::Destination;
+
+    let fake = FakeSystem::new();
+    fake.runner.respond(
+        "lsblk -rnpo NAME,PARTTYPE",
+        0,
+        "/dev/vda1 C12A7328-F81F-11D2-BA4B-00A0C93EC93B\n",
+    );
+    let token = CancelToken::new().unwrap();
+    // Escape is pressed while the mount runs, which kills it.
+    let pressed = token.clone();
+    fake.runner.first(move |command| {
+        if !command.display().starts_with("mount -t vfat -o ro") {
+            return None;
+        }
+        pressed.cancel();
+        Some(Ok(Output::new(Status::from_raw(9), Vec::new())))
+    });
+    let settings = BootSettings::default().save_logs(Some(Destination::Esp));
+    let runtime = Runtime::default().with_boot(settings);
+    let service = MachineService::new(
+        App::new(Context::new(fake.system()), &runtime),
+        fake.system(),
+    );
+
+    let events = service.perform(&Action::LoadHistory, &token);
+
+    // The menu asks again when its Log tab opens.
+    assert_eq!(events, [Event::Finished(Outcome::Cancelled)]);
+}

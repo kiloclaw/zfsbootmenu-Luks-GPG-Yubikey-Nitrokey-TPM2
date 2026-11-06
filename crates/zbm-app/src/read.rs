@@ -310,10 +310,12 @@ pub fn log(files: &dyn Files, base: &Path) -> Log {
 }
 
 mod device_log;
+mod history;
 mod pools;
 mod snapshots;
 
 pub(crate) use device_log::device_log;
+pub(crate) use history::history;
 pub(crate) use pools::{importable, merged, pools};
 pub(crate) use snapshots::{LOADED_LENGTH, snapshot_list, snapshot_summary};
 

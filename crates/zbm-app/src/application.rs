@@ -352,6 +352,7 @@ impl<'a> App<'a> {
             Action::ScanPools => self.scan(),
             Action::LoadDeviceLog(device) => self.device_log(device),
             Action::LoadSnapshots(environment) => self.load_snapshots(environment),
+            Action::LoadHistory => self.history(console.runner),
             change if change.is_change() => self.change(change, &system, true),
             Action::Boot {
                 environment,

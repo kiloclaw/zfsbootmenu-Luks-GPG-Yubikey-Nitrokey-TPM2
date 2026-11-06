@@ -8,8 +8,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 use zbm_app::Encryption;
 
-use super::{health, lists};
+use super::{health, history, lists};
 use crate::menu::format::{age, fit};
+use crate::menu::keymap::Map;
 use crate::menu::model::Model;
 use crate::menu::theme::Role;
 use crate::menu::world::{Environment, Health, Origin, SnapshotInfo};
@@ -261,6 +262,7 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         &text!("fact-kernel"),
         vec![Span::raw(format!("{kernel}{dot}{kernels}"))],
     ));
+    lines.extend(last_boot(model, environment));
     let snapshots = match &environment.newest_snapshot {
         Some(newest) => format!(
             "{}{dot}{}",
@@ -289,6 +291,25 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         command_line(model, environment),
     ));
     lines
+}
+
+/// When the workspace's boot history last saw `environment` loaded, and
+/// with which kernel, from its newest record of it.
+fn last_boot(model: &Model, environment: &Environment) -> Option<Line<'static>> {
+    if model.map != Map::Workspace {
+        return None;
+    }
+    let record = model.history.as_ref()?.last_boot_of(&environment.name)?;
+    let loaded = text!(
+        "fact-last-boot.loaded",
+        when = history::when(record.time),
+        kernel = history::kernel(record)
+    );
+    Some(fact(
+        model,
+        &text!("fact-last-boot"),
+        vec![Span::raw(loaded)],
+    ))
 }
 
 /// The pool of an environment, its health and whether it is writable.

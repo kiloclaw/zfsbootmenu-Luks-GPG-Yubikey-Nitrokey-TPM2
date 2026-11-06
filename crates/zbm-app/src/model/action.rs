@@ -11,7 +11,7 @@ use zbm_types::{
 };
 
 use super::{
-    Change, DeviceLog, ImportOptions, Method, Notice, PackageDiff, Plan, Pool, Snapshot,
+    Change, DeviceLog, History, ImportOptions, Method, Notice, PackageDiff, Plan, Pool, Snapshot,
     SnapshotList, StageState,
 };
 
@@ -158,6 +158,9 @@ pub enum Action {
     /// machine read after it carries them again ([`Snapshot::loaded`]),
     /// until the snapshots of another environment are loaded.
     LoadSnapshots(DatasetName),
+    /// The boots whose logs `zbm.save_logs` kept, which
+    /// [`Event::HistoryLoaded`] brings; with the option off, none is read.
+    LoadHistory,
 }
 
 impl Action {
@@ -167,7 +170,10 @@ impl Action {
     pub fn is_read(&self) -> bool {
         matches!(
             self,
-            Action::ScanPools | Action::LoadDeviceLog(_) | Action::LoadSnapshots(_)
+            Action::ScanPools
+                | Action::LoadDeviceLog(_)
+                | Action::LoadSnapshots(_)
+                | Action::LoadHistory
         )
     }
 
@@ -239,8 +245,8 @@ impl Action {
     /// everything but the default boot, the countdown's or of `bootfs` with
     /// its own kernel and command line, what changes nothing (a diff, a dry
     /// run, the scan of the pools, a device's kernel messages, the snapshots
-    /// of an environment) and a pool
-    /// imported read-only as this host, without a rewind.
+    /// of an environment, the boot history, which mounts the ESP read-only)
+    /// and a pool imported read-only as this host, without a rewind.
     /// Unlocking a volume with its own secret, the recovery shell, which
     /// asks for the PIN itself, and powering off or rebooting stay open.
     pub fn is_kept_by_lock(&self, bootfs: Option<&DatasetName>) -> bool {
@@ -268,7 +274,8 @@ impl Action {
             | Action::Plan(_)
             | Action::ScanPools
             | Action::LoadDeviceLog(_)
-            | Action::LoadSnapshots(_) => false,
+            | Action::LoadSnapshots(_)
+            | Action::LoadHistory => false,
             Action::Import(_, options) => options.is_kept_by_lock(),
             Action::BootSnapshot(..)
             | Action::SetDefaultEnvironment(_)
@@ -384,6 +391,8 @@ pub enum Event {
     /// environment: their column shows none, and the [`Event::Finished`]
     /// after this says why, as [`Outcome::Failed`].
     SnapshotsUnread(DatasetName),
+    /// The boot history [`Action::LoadHistory`] read.
+    HistoryLoaded(History),
     /// A stage of start-up started, named for people.
     StageStarted(String),
     /// A stage of start-up ended.

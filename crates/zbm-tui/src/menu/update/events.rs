@@ -22,6 +22,10 @@ pub(super) fn apply(model: &mut Model, event: Event) -> Vec<Action> {
             super::text::palette_again(model);
         }
         Event::DeviceLogLoaded(log) => model.device_log = Some(log),
+        Event::HistoryLoaded(history) => {
+            model.history = Some(history);
+            model.reading_history = false;
+        }
         Event::SnapshotsLoaded(list) => {
             model.take_loaded(list);
             super::text::palette_again(model);

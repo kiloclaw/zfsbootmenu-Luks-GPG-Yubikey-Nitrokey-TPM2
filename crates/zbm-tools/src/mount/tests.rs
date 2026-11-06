@@ -158,3 +158,25 @@ fn securityfs_mounts_read_only_and_a_failure_is_its_exit_status() {
         Err(32)
     );
 }
+
+#[test]
+fn a_read_only_fat_mount_is_unmounted_by_the_runner_it_is_given() {
+    let mounting = FakeRunner::new();
+    let unmounting = FakeRunner::new();
+    let files = FakeFiles::new();
+    let dir = Path::new("/run/esp");
+
+    let mounted = Mount::new(&mounting, &files)
+        .fat_read_only("/dev/sda1", dir)
+        .unwrap()
+        .quietly()
+        .unmounted_by(&unmounting);
+    assert!(mounted.unmount());
+
+    assert_eq!(
+        mounting.lines(),
+        ["mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /run/esp"]
+    );
+    assert_eq!(unmounting.lines(), ["umount /run/esp"]);
+    assert_eq!(unmounting.calls()[0].get_stdout(), Stream::Null);
+}

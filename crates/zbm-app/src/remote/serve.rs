@@ -181,8 +181,9 @@ fn is_gone(error: &io::Error) -> bool {
 /// volumes one at a time, with their key methods, and only those the
 /// machine has, named as the menu names them; reads the messages of the
 /// disks of the pools it shows alone, and the snapshots of the machine's
-/// boot environments alone. A change such as an export is the service's
-/// to refuse, as the lock keeps it.
+/// boot environments alone; the boot history, which takes nothing from the
+/// menu, is read as on the console. A change such as an export is the
+/// service's to refuse, as the lock keeps it.
 fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
     match action {
         Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_) => {

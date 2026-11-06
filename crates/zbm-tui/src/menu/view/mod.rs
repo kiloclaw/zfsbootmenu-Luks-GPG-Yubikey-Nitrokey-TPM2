@@ -19,6 +19,7 @@ mod device_log;
 mod dialogs;
 mod diff;
 mod health;
+mod history;
 mod lists;
 mod main_view;
 mod packages;
@@ -105,6 +106,8 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             _ => screens::pools(model, frame, area),
         },
         Screen::Recovery => screens::recovery(model, frame, area),
+        // The boot history shows in the workspace alone.
+        Screen::Log if model.map == keymap::Map::Workspace => history::render(model, frame, area),
         Screen::Log => screens::log(model, frame, area),
         Screen::Help(context) => screens::help(model, frame, area, context),
         Screen::Diff => diff::render(model, frame, area),

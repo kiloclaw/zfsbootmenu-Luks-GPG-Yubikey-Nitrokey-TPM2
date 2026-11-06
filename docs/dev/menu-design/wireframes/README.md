@@ -42,6 +42,8 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `workspace-pools` | `3`: the Pools tab |
 | `workspace-attention` | once the scan after the first frame found the pools start-up left alone, one of them another host's: what needs attention, worst first, each with the tab that shows it |
 | `workspace-device-log` | the dialog of `tank` in the Pools tab, then its lost disk `sdb2`: the kernel's messages about it and its disk below the pools, the escape bytes in them drawn as text |
+| `log-history` | `4`: the Log tab with the boot history `zbm.save_logs` kept above the log since start: a measured boot, one saved without a record, one whose record a newer runtime wrote, and one whose kernel's name holds escape bytes, drawn as text |
+| `log-no-history` | `4` without `zbm.save_logs`: the Log tab says no boot is kept, and where the option is documented |
 
 Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. The `-ascii`
 files are the main view and dialogs at 80×25 for terminals without line drawing or UTF-8 (`--theme ascii`). The

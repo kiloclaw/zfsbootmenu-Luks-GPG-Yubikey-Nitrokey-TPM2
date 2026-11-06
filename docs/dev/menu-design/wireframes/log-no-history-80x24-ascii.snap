@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot  2 Snapshots  3 Pools [4 Log]           tank DEGRADED | 3/3 open | ! 1
++ SAVED BOOTS -----------------------------------------------------------------+
+| No boot is kept without zbm.save_logs.                                       |
+| It keeps the last five: see zfsbootmenu(7).                                  |
++------------------------------------------------------------------------------+
++ LOG SINCE START ------------------------------------------------- 2026-10-23 +
+|   info    ZFS 2.4.4 loaded, host ID 00bab10c                                 |
+|   info    imported zroot read-only                                           |
+| ! warning tank is DEGRADED: /dev/sdb2 is missing, 1 of 3 devices             |
+|   info    imported tank read-only                                            |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
++------------------------------------------------------------------------------+
+ : commands   / filter   ? every key
+ : Commands   ! Recovery   x Power   Esc Back   Up/Down Scroll           ? More

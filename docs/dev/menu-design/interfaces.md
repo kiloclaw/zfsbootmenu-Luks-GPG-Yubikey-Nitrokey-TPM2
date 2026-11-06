@@ -48,6 +48,7 @@ stays right when the snapshot changes under it.
 | `Import` | pool, `ImportOptions`: read-only or read/write, the policy (this host, its last host, forced), whether to rewind to the checkpoint, and the pool's identifier when another pool has its name; an imported pool is exported first | main, pools, import problem |
 | `Export` | pool | pools (`Enter` on an imported pool), palette: `zpool export` through the ZFS port, quietly; a busy pool fails with the cause `zpool` gives; the pool of the default environment too, after which the snapshot has no default; kept by the lock; the pools are scanned again after it, so the pool is listed to import |
 | `ScanPools` | — | the menu, once its first frame is drawn, and the palette: the pools that could be imported, which `PoolsScanned` brings; a read (`Action::is_read`), after which the snapshot is not read again, free under the lock |
+| `LoadHistory` | — | the workspace, once its main view is drawn and no countdown runs, and its Log tab when the history did not come: the boots `zbm.save_logs` kept, which `HistoryLoaded` brings; a read, quiet and free under the lock, never sent while the countdown runs; without `zbm.save_logs` the ESP is not read |
 | `LoadDeviceLog` | a disk of a pool, as the pool names it | the workspace's pool dialog: the kernel's messages about it and what it stands on, which `DeviceLogLoaded` brings; a read, quiet and free under the lock; over SSH, refused for a device that is no disk of a pool the machine shows |
 | `Open` | the volume's device, and the name it was opened as before, if it has one | pools: a keyholder opens it, and asks in the unlock dialog (ADR 0016, point 1) |
 | `Unlock` | volume, method, the secret (a `Secret`, never a `String`) | unlock dialog: an answer, which goes to the question asked, not to the machine's queue |
@@ -70,6 +71,7 @@ stays right when the snapshot changes under it.
 | `PoolsScanned` | every pool, imported and not, which replace the snapshot's | the pools view, the workspace; the countdown goes on, as it does not after `Changed` |
 | `DeviceLogLoaded` | the device, the kernel's names of it and of what it stands on (`sda2`, `sda`; none for a device that is no block device the kernel lists or would name, as a link gone with its device), the newest 500 messages about them, untrusted | the workspace's Pools tab, below the pools, until Back; what the classic menu shows does not change |
 | `SnapshotsLoaded` | environment, its snapshots (name, creation, used), newest first; a list longer than half a remote message (`MAX_LENGTH`), on the console too, ends as a failed load that says why | the snapshots view ("reading" until it comes, or until the machine is done with all it was sent; "not read" after a cancel or a failure), the rollback's newer snapshots, the name check of a new snapshot or clone, the palette, the inspector's newest snapshots |
+| `HistoryLoaded` | the history: off (no `zbm.save_logs`), unavailable (why, and the error's code: no ESP, several, no such partition, not mountable), or the saved boots, newest first, each with its name, its files and their sizes, and its record (`boot.json`), none, or why it is not read; every name and text untrusted | the workspace's Log tab, above the log since start, and its inspector's "Last Boot", from the newest record of the environment; what the classic menu shows does not change |
 | `SnapshotsUnread` | environment, whose snapshots a load could not read, before the `Finished` that says why | the snapshots view ("not read", asked again only when its column opens again) |
 | `DiffReady` | the two ends, the changes (path, kind, new name of a rename, a preview of the difference), the packages that changed (name, kind, versions, their changed files) with the package manager, or none without a database | the changes view |
 | `ActionStarted`, `ActionProgress`, `ActionFinished` | the action, progress as text and a fraction where known, the outcome (done, or failed with the error's cause chain and the next steps) | the notification line, the error dialog |
@@ -112,6 +114,23 @@ only by a name the kernel gives disks and partitions, `sdb2` then its disk `sdb`
 other word, as a label's `error`, could be any message's, and names nothing. Messages that name only a port (`ata3.00:`,
 `usb 1-2:`) are not among them, which the panel says. The text is the kernel's, which devices fill: it is drawn through
 `Printable`, an escape byte as `\x1b`.
+
+The boot history is read from the ESP only with `zbm.save_logs` (ADR 0016, point 7); without it the history is off, and
+the Log tab names the option and `zfsbootmenu(7)`. The partition is the one the option names, found as a save finds it,
+mounted read-only (`mount -t vfat -o ro,nosuid,nodev,noexec`) at a mount point of its own, `/run/zbm-saved-logs-read`,
+so a read never meets a save or `zbm debug saved` on the same directory. The mount runs on the action's runner, which
+Escape cancels; the unmount runs on the front end's runner, which nothing cancels, so a read cancelled once the
+partition is mounted still unmounts it, as does a mount that failed but mounted. A read cancelled that failed, as when
+Escape killed the mount or the search for the partition, sends no history, so the Log tab asks again. The kernel refuses
+to mount a partition read-write while it is mounted read-only, so a read-only mount an earlier read left (the menu ended
+during it, or its unmount failed) is unmounted before the next read, which fails when it cannot be, and before a save.
+The read is bounded: the newest 16 boots (`READ_BOOTS`), the first 32 files of each by name (`FILES_READ`), the only
+ones whose size is looked at, records of 64 KiB at most (`BootRecord::MAX_LEN`), checked by size before they are read;
+at those bounds, every character escaped six times, the event stays under a remote message (`MAX_LENGTH`). Directories
+are ordered newest first by their time, then by the number a name taken twice was given (`.10` after `.9`); `.tmp` files
+are left out. A boot without `boot.json` is listed by its name, said to be saved without a record; a record too long, of
+another schema, or not JSON is listed as unreadable with why, which never quotes the record. Over SSH, `LoadHistory` and
+`HistoryLoaded` cross as any action and event, at version 2, and the session serves the read as the console does.
 
 ## What the prototype simplifies
 

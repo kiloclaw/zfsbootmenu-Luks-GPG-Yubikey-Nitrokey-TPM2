@@ -10,6 +10,7 @@ mod action;
 mod devices;
 mod diff;
 mod health;
+mod history;
 mod import;
 mod offer;
 mod packages;
@@ -27,6 +28,7 @@ pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, Unloc
 pub use self::devices::{Device, DeviceErrors, DeviceLog, DeviceState, PoolHost};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Tries, Verdict, worst};
+pub use self::history::{History, Recorded, SavedBoot};
 pub use self::import::{Access, ImportOptions};
 pub use self::offer::Offer;
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};

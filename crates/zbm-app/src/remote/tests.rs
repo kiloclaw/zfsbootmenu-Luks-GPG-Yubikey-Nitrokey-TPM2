@@ -291,3 +291,71 @@ fn an_export_a_devices_messages_and_snapshots_cross_as_they_are() {
     let message = ToMenu::Event(Box::new(unread));
     assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
 }
+
+#[test]
+fn the_boot_history_crosses_as_it_is_read() {
+    use crate::model::{History, Recorded, SavedBoot};
+    use zbm_types::{BootRecord, Untrusted};
+
+    let message = ToSession::Send {
+        action: Action::LoadHistory,
+    };
+    assert_eq!(
+        ToSession::decode(&message.encode().unwrap()).unwrap(),
+        message
+    );
+    let hostile = |text: &str| Untrusted::new(format!("{text}\u{1b}[2J\u{7}"));
+    let record = BootRecord {
+        time: 1_793_246_955,
+        environment: hostile("tank/ROOT/be"),
+        kernel: hostile("/boot/vmlinuz"),
+        devicetree: Some(hostile("/boot/dtb")),
+        ..BootRecord::default()
+    };
+    let boot = |record| SavedBoot {
+        name: hostile("2026-10-23T08-00-00Z"),
+        files: vec![(hostile("boot.json"), 300)],
+        record,
+    };
+    for history in [
+        History::Off,
+        History::Unavailable {
+            why: "no EFI system partition found".to_owned(),
+            code: 621,
+        },
+        History::Saved(vec![
+            boot(Recorded::Read(record)),
+            boot(Recorded::Missing),
+            boot(Recorded::Unreadable(
+                "the record has schema 2, not 1".to_owned(),
+            )),
+        ]),
+    ] {
+        let message = ToMenu::Event(Box::new(Event::HistoryLoaded(history)));
+        assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
+    }
+}
+
+#[test]
+fn the_longest_history_read_fits_in_a_message() {
+    use crate::model::{History, Recorded, SavedBoot};
+    use zbm_boot::saved_logs::{FILES_READ, READ_BOOTS};
+    use zbm_types::{BootRecord, Untrusted};
+
+    // Each record as long as one may be, all of it a character JSON
+    // escapes as six; each file named as long as FAT allows, the same way.
+    let escaped = |len: usize| Untrusted::new("\u{1}".repeat(len));
+    let record = BootRecord {
+        command_line: escaped(BootRecord::MAX_LEN),
+        ..BootRecord::default()
+    };
+    let boot = SavedBoot {
+        name: escaped(255),
+        files: vec![(escaped(255), u64::MAX); FILES_READ],
+        record: Recorded::Read(record),
+    };
+    let history = History::Saved(vec![boot; READ_BOOTS]);
+
+    let message = ToMenu::Event(Box::new(Event::HistoryLoaded(history)));
+    assert!(message.encode().unwrap().len() <= MAX_LENGTH);
+}

@@ -588,3 +588,5 @@ fn a_remote_menu_loads_the_snapshots_of_a_boot_environment_alone() {
     let names: Vec<&str> = list.snapshots.iter().map(|s| s.name.name()).collect();
     assert_eq!(names, ["new", "old"]);
 }
+
+mod history;

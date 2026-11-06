@@ -22,6 +22,7 @@ use std::time::UNIX_EPOCH;
 
 use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Context, Files};
+use zbm_tools::Shown;
 use zbm_tools::devices::Devices;
 use zbm_tools::mount::Mount;
 use zbm_types::BootRecord;
@@ -236,12 +237,19 @@ fn loader_partuuid(context: &Context<'_>) -> Option<String> {
 
 /// Runs `work` with `device` mounted at [`MOUNT_POINT`], and unmounts it
 /// after. The unmount is the only flush of what `work` may have written,
-/// so a failed one is warned about.
+/// so a failed one is warned about. A read-only mount a read of the
+/// history left is unmounted first: while it stays, the kernel refuses to
+/// mount the same partition read-write.
 fn with_mounted<T>(
     context: &Context<'_>,
     device: &str,
     work: impl FnOnce(&Path) -> Result<T, SaveError>,
 ) -> Result<T, SaveError> {
+    if zbm_bootenv::is_mount_point(context.files(), READ_MOUNT_POINT) {
+        let read = Path::new(READ_MOUNT_POINT);
+        let mount = Mount::new(context.runner(), context.files());
+        let _ = mount.unmount(read, Shown::Hidden);
+    }
     let point = Path::new(MOUNT_POINT);
     let _ = context.files().create_dir_all(point);
     let Ok(mounted) = Mount::new(context.runner(), context.files()).fat(device, point) else {
@@ -505,29 +513,39 @@ pub fn list(
         let saved = boots(context.files(), &logs)
             .into_iter()
             .map(|name| {
-                let dir = logs.join(&name);
-                let mut files: Vec<(String, u64)> = context
-                    .files()
-                    .read_dir(&dir)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter_map(|file| file.into_string().ok())
-                    .filter(|file| Path::new(file).extension().is_none_or(|ext| ext != PARTIAL))
-                    .map(|file| {
-                        let size = context
-                            .files()
-                            .metadata(&dir.join(&file))
-                            .map_or(0, |m| m.len);
-                        (file, size)
-                    })
-                    .collect();
-                files.sort();
+                let files = boot_files(context.files(), &logs.join(&name), usize::MAX);
                 SavedBoot { name, files }
             })
             .collect();
         Ok((device.clone(), saved))
     })
 }
+
+/// The first `most` files of the saved boot `dir`, by name, with their
+/// sizes in bytes, but those being written ([`PARTIAL`]). Only the files
+/// kept are looked at for their size.
+fn boot_files(files: &dyn Files, dir: &Path, most: usize) -> Vec<(String, u64)> {
+    let mut names: Vec<String> = files
+        .read_dir(dir)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|file| file.into_string().ok())
+        .filter(|file| Path::new(file).extension().is_none_or(|ext| ext != PARTIAL))
+        .collect();
+    names.sort();
+    names.truncate(most);
+    names
+        .into_iter()
+        .map(|file| {
+            let size = files.metadata(&dir.join(&file)).map_or(0, |m| m.len);
+            (file, size)
+        })
+        .collect()
+}
+
+mod history;
+
+pub use history::{FILES_READ, PastBoot, READ_BOOTS, READ_MOUNT_POINT, history};
 
 #[cfg(test)]
 mod tests;

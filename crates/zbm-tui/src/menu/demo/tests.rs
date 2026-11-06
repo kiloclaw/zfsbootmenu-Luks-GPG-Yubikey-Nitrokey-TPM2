@@ -374,3 +374,29 @@ fn the_whole_machine_crosses_to_a_remote_menu_as_it_is() {
         assert_eq!(ToMenu::decode(&packet).unwrap(), message);
     }
 }
+
+#[test]
+fn the_history_lists_boots_with_and_without_a_record_or_is_off() {
+    use crate::menu::world::{History, Recorded};
+
+    let history = |options: &DemoOptions| {
+        let mut machine = FakeMachine::new(options);
+        match machine.apply(Action::LoadHistory).as_slice() {
+            [Event::HistoryLoaded(history)] => history.clone(),
+            other => panic!("{other:?}"),
+        }
+    };
+
+    let History::Saved(boots) = history(&DemoOptions::default()) else {
+        panic!("no history");
+    };
+    assert_eq!(boots.len(), 4);
+    assert!(matches!(boots[0].record, Recorded::Read(ref record) if record.measured));
+    assert_eq!(boots[1].record, Recorded::Missing);
+    assert!(matches!(boots[2].record, Recorded::Unreadable(_)));
+    let off = DemoOptions {
+        save_logs: false,
+        ..DemoOptions::default()
+    };
+    assert_eq!(history(&off), History::Off);
+}
