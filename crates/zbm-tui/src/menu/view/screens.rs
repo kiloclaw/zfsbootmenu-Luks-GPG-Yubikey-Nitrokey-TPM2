@@ -12,7 +12,7 @@ use crate::menu::format::{age, date, fit, size};
 use crate::menu::keymap::{self, Context};
 use crate::menu::model::{Model, RECOVERY, recovery_tools};
 use crate::menu::theme::{Glyph, Role};
-use crate::menu::world::{Health, Level, StageState, VolumeState};
+use crate::menu::world::{Health, Level, PoolHost, StageState, VolumeState};
 use crate::text::{self, Id, text};
 
 /// Start-up as a checklist (rule 10): each stage with a glyph, and the
@@ -205,6 +205,15 @@ pub(super) fn pools(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     lists::render(model, frame, area, header, &model.pools, rows, empty);
 }
 
+/// The host that used a pool last as its row says it: `host deadbeef`, or
+/// whatever else is known of it.
+fn host_id(host: &PoolHost) -> String {
+    match &host.hostid {
+        Some(hostid) => text!("pool-host", hostid = hostid.to_string()),
+        None => crate::menu::model::host_text(host),
+    }
+}
+
 /// The row of the pool or volume at `index` of the pools view.
 fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> {
     let theme = model.theme;
@@ -216,15 +225,11 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
         } else {
             Role::Warning
         };
-        let mode = match (pool.imported, pool.writable) {
-            (false, _) => text!("pool-not-imported"),
-            (true, true) => text!("pool-read-write"),
-            (true, false) => text!("pool-read-only"),
-        };
+        let mode = crate::menu::model::pool_mode(pool);
         let mut facts = Vec::new();
-        if let Some(hostid) = &pool.foreign_hostid {
+        if let Some(host) = &pool.host {
             facts.push(Span::styled(
-                format!("{}{dot}", text!("pool-host", hostid = hostid.as_str())),
+                format!("{}{dot}", host_id(host)),
                 theme.style(Role::Warning),
             ));
         }
@@ -236,7 +241,8 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
             format!("{:<8}", pool.health.as_str()),
             theme.style(role),
         ));
-        let name = format!("{:<8}{}", text!("pool-label"), pool.name);
+        let name = crate::menu::model::pool_name(pool, model.import_id(pool));
+        let name = format!("{:<8}{name}", text!("pool-label"));
         return Some(lists::row(theme, &name, &[], width, facts));
     }
     let volume = snapshot

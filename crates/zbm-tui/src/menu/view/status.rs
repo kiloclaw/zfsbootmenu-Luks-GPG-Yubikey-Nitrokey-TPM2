@@ -265,7 +265,12 @@ fn facts(model: &Model, short: bool) -> Vec<Part> {
             } else {
                 Role::Warning
             };
-            parts.push((format!("{} {}", pool.name, pool.health.as_str()), role));
+            let state = if pool.imported {
+                pool.health.as_str().to_owned()
+            } else {
+                text!("pool-not-imported")
+            };
+            parts.push((format!("{} {state}", pool.name), role));
         }
         None if short => parts.push((text!("status-pools-ok.short"), Role::Muted)),
         None => parts.push((

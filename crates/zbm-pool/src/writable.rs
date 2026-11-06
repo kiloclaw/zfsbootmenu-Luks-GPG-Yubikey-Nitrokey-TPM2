@@ -129,21 +129,18 @@ pub fn set_rw_pool(
     pool: &PoolName,
     policy: ImportPolicy,
 ) -> Result<(), WritableError> {
-    reimport(
-        context,
-        interaction,
-        state,
-        pool,
-        policy,
-        Access::ReadWrite,
-        Rewind::No,
-    )
+    let import = Import::pool(pool).policy(policy).access(Access::ReadWrite);
+    reimport(context, interaction, state, pool, import)
 }
 
-/// Imports `pool`, which is imported, again with `access`, rewound to its
-/// checkpoint with `rewind`: exports it, then imports it with `policy`, as
-/// the legacy runtime's read/write and read-only imports and its rewind
-/// do. Nothing is done when the pool has `access` already and nothing is
+/// Imports `pool`, which is imported, again as `import`, an import of it,
+/// says: exports it, then imports it with the import's policy, access and
+/// rewind, as the legacy runtime's read/write and read-only imports and
+/// its rewind do, naming it by its identifier (its `guid`, read before the
+/// export), so that a pool that is not imported and has its name is left
+/// alone; by the import's own identifier, or its name, when the `guid`
+/// cannot be read. Nothing
+/// is done when the pool has the access asked already and nothing is
 /// rewound; a rewind exports it whatever its access. Before the export, a
 /// read/write import is refused by the [`READONLY`] property or a degraded
 /// health, and asks the resume question. When the import fails, the pool
@@ -161,16 +158,14 @@ pub fn reimport(
     interaction: &dyn Interaction,
     state: &State<'_>,
     pool: &PoolName,
-    policy: ImportPolicy,
-    access: Access,
-    rewind: Rewind,
+    import: Import<'_>,
 ) -> Result<(), WritableError> {
     zbm_trace::debug!("pool set to {pool}"; %pool);
-    let writes = access == Access::ReadWrite;
+    let writes = import.is_read_write();
     if writes {
         disable_risky_writes(context);
     }
-    if rewind == Rewind::No && is_writable(context.runner(), pool) == writes {
+    if import.rewinds() == Rewind::No && is_writable(context.runner(), pool) == writes {
         return Ok(());
     }
     if writes {
@@ -183,16 +178,20 @@ pub fn reimport(
         }
         let _choice = resume_prompt(context, interaction, state, pool)?;
     }
+    let import = match imported_id(context.runner(), pool) {
+        Some(id) => import.by_id(Some(id)),
+        None => import,
+    };
     export(context.runner(), pool)?;
-    let import = Import::pool(pool).policy(policy);
-    let imported = import_pool(context, state, import.access(access).rewind(rewind));
+    let imported = import_pool(context, state, import);
     zbm_trace::debug!("import_pool: {status}"; status = %i32::from(imported.is_err()));
     if imported.is_err() {
         zbm_trace::warn!(
             "{pool} could not be imported as asked; importing it read-only again";
             %pool
         );
-        if let Err(error) = import_pool(context, state, import.access(Access::ReadOnly)) {
+        let again = import.access(Access::ReadOnly).rewind(Rewind::No);
+        if let Err(error) = import_pool(context, state, again) {
             zbm_trace::error!(
                 "{pool} could not be imported again: {error}";
                 %pool, %error, error_code = %error.code()
@@ -200,6 +199,14 @@ pub fn reimport(
         }
     }
     Ok(imported?)
+}
+
+/// The numeric identifier of `pool`, which is imported: its `guid`.
+fn imported_id(runner: &dyn Runner, pool: &PoolName) -> Option<u64> {
+    ZfsText::new(runner)
+        .pool_value(pool, "guid", Stderr::Hidden)?
+        .parse()
+        .ok()
 }
 
 #[cfg(test)]

@@ -75,8 +75,9 @@ impl Offer {
 
 impl Action {
     /// The kind of the action, which the machine must offer for the menu
-    /// to send it; `None` for a reply to a request, the dry run, and the
-    /// actions of `zluks` alone, which the menu never sends.
+    /// to send it; `None` for a reply to a request, the dry run, the scan
+    /// of the pools, and the actions of `zluks` alone, which the menu never
+    /// sends.
     pub fn offer(&self) -> Option<Offer> {
         Some(match self {
             Action::Boot { .. } => Offer::Boot,
@@ -101,6 +102,7 @@ impl Action {
             | Action::SkipUnlock(_)
             | Action::Answer(_)
             | Action::Plan(_)
+            | Action::ScanPools
             | Action::UnlockAll
             | Action::OpenWithKeyFile { .. }
             | Action::Close(_) => return None,

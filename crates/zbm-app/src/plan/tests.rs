@@ -299,6 +299,7 @@ fn an_import_plans_the_export_and_the_import_and_moves_nothing() {
         access: crate::model::Access::ReadWrite,
         policy: zbm_types::ImportPolicy::Strict,
         rewind: false,
+        id: None,
     };
     let import = Action::Import("tank".parse().unwrap(), options);
 

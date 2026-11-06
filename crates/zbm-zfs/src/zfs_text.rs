@@ -210,7 +210,9 @@ impl<'a> ZfsText<'a> {
     /// Runs `import`: the exit status as the shell reports it, and what
     /// `zpool` printed, its messages included.
     pub fn import(&self, import: Import<'_>) -> (i32, String) {
-        match self.zpool.text(&import.arguments(), Stderr::Merged) {
+        let arguments = import.arguments();
+        let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
+        match self.zpool.text(&arguments, Stderr::Merged) {
             Ok(output) => (output.status.shell_code(), output.stdout_text()),
             Err(error) => (126, error.to_string()),
         }

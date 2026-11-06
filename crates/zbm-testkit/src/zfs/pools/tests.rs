@@ -140,3 +140,21 @@ fn an_exported_pool_can_be_imported() {
 fn names(vdevs: &[Vdev]) -> Vec<&str> {
     vdevs.iter().map(|vdev| vdev.name.get().as_str()).collect()
 }
+
+#[test]
+fn reads_fail_as_planned() {
+    let zfs = FakeZfs::new()
+        .pool("zroot")
+        .foreign("tank", 7, "deadbeef", "other")
+        .failing("status", "no status")
+        .failing("importable", "no scan")
+        .failing("pool_host", "no label");
+
+    let failed = |result: Result<(), ZfsError>| match result {
+        Err(ZfsError::Failed { message, .. }) => message,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(failed(zfs.status().map(drop)), "no status");
+    assert_eq!(failed(zfs.importable().map(drop)), "no scan");
+    assert_eq!(failed(zfs.pool_host(7).map(drop)), "no label");
+}

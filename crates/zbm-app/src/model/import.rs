@@ -28,6 +28,11 @@ pub struct ImportOptions {
     /// Whether the pool is rewound to its checkpoint, which loses every
     /// change made since.
     pub rewind: bool,
+    /// The pool's numeric identifier ([`Pool::id`](super::Pool::id)),
+    /// which names it to `zpool import` when another pool has its name;
+    /// `None`: its name does. The pool keeps its name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<u64>,
 }
 
 impl From<Access> for zbm_zfs::import::Access {
@@ -59,6 +64,7 @@ impl ImportOptions {
             .policy(policy)
             .access(self.access.into())
             .rewind(self.rewinds())
+            .by_id(self.id)
     }
 
     /// Whether the locked menu keeps the import (ADR 0010): one that
@@ -80,6 +86,7 @@ mod tests {
             access: Access::ReadWrite,
             policy: ImportPolicy::Strict,
             rewind: true,
+            id: None,
         };
         assert_eq!(
             rewind.import(&tank, ImportPolicy::Force).arguments(),
@@ -99,6 +106,14 @@ mod tests {
             ["import", "-N", "-o", "readonly=on", "tank"]
         );
         assert_eq!(read_only.rewinds(), zbm_zfs::import::Rewind::No);
+        let by_id = ImportOptions {
+            id: Some(42),
+            ..read_only
+        };
+        assert_eq!(
+            by_id.import(&tank, ImportPolicy::Strict).arguments(),
+            ["import", "-N", "-o", "readonly=on", "42"]
+        );
     }
 
     #[test]
@@ -107,6 +122,7 @@ mod tests {
             access: Access::ReadWrite,
             policy: ImportPolicy::Force,
             rewind: true,
+            id: None,
         };
         let action = super::super::Action::Import("tank".parse().unwrap(), options);
         let text = serde_json::to_string(&action).unwrap();
@@ -117,6 +133,19 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<super::super::Action>(&text).unwrap(),
             action
+        );
+        let by_id = super::super::Action::Import(
+            "tank".parse().unwrap(),
+            ImportOptions {
+                id: Some(7),
+                ..options
+            },
+        );
+        let text = serde_json::to_string(&by_id).unwrap();
+        assert!(text.ends_with(r#""rewind":true,"id":7}]}"#), "{text}");
+        assert_eq!(
+            serde_json::from_str::<super::super::Action>(&text).unwrap(),
+            by_id
         );
     }
 }

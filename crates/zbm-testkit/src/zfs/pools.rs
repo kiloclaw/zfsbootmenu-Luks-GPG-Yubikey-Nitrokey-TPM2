@@ -285,6 +285,19 @@ pub(super) fn list_exported(described: &mut Described, pool: &PoolName, fake: &F
     });
 }
 
+/// Fails as [`FakeZfs::failing`] planned for the read `operation`, which
+/// runs `command`.
+pub(super) fn planned(state: &State, operation: &str, command: &str) -> Result<(), ZfsError> {
+    match state.failures.get(operation) {
+        Some(message) => Err(ZfsError::Failed {
+            command: command.to_owned(),
+            status: 1,
+            message: message.clone(),
+        }),
+        None => Ok(()),
+    }
+}
+
 /// The host of the pool that could be imported with the numeric
 /// identifier `id`, as `zdb -e -C` reads it: the one a test named, or none
 /// recorded.

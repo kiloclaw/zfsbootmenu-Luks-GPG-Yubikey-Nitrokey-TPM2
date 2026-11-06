@@ -209,8 +209,14 @@ pools-none = No Pools
 pool-not-imported = not imported
 pool-read-write = read/write
 pool-read-only = read-only
-# The host ID of another host that last imported the pool.
+# The host ID, or the host name, of another host that last imported the
+# pool.
 pool-host = host { $hostid }
+# The host name and host ID of another host that last imported the pool.
+pool-host-named = host { $hostname } ({ $hostid })
+pool-host-unknown = another host
+# The numeric identifier of a pool that shares its name with another.
+pool-id = id { $id }
 # Before a pool's name in the list, padded to eight columns.
 pool-label = Pool
 volume-label = Volume
@@ -304,7 +310,21 @@ sidebar-rw = rw
 sidebar-not-imported = not imported
 attention-none = nothing
 attention-foreign = { $pool }: host { $hostid }
+# A pool another host used last, whose host could not be read.
+attention-foreign-unknown = { $pool }: another host
 attention-not-imported = { $pool }: not imported
+attention-checkpoint = { $pool }: checkpoint
+# A device of a pool that is missing: its name, then UNAVAIL, REMOVED or
+# FAULTED.
+attention-device = { $pool }: { $device } { $state }
+attention-log-errors = { $count ->
+        [one] { $count } error in the log
+       *[other] { $count } errors in the log
+    }
+attention-log-warnings = { $count ->
+        [one] { $count } warning in the log
+       *[other] { $count } warnings in the log
+    }
 attention-failed = failed
 details-next-steps = NEXT STEPS
 
@@ -395,6 +415,7 @@ palette-edit = Edit the command line of { $environment }
 palette-reset-tries = Give { $environment } Its Boot Tries Back
 palette-boot-clone = Boot a clone of { $snapshot }
 palette-recovery-tools = Recovery tools
+palette-rescan-pools = Rescan the Pools
 
 ## The changes since a snapshot: files and packages.
 
@@ -489,6 +510,7 @@ pool-import-this-host = Import with This Host ID
 pool-force-import = Force the Import
 pool-rewind = Rewind to the Checkpoint
 pool-no-checkpoint = { $pool } has no checkpoint to rewind to.
+pool-shadowed = A pool named { $pool } is imported: export it to import this one.
 import-failed =
     .title = { $pool } Did Not Import
 import-retry = Retry

@@ -16,18 +16,18 @@
 //!
 //! ```text
 //! menu                               session
-//! .{"version":1,"message":"attach"}  + the terminal's input and output
-//!                                    .{"version":1,"message":"attached"}
-//! .{"version":1,"message":"read"}
-//!                                    +{"version":1,"message":{"snapshot"…
+//! .{"version":2,"message":"attach"}  + the terminal's input and output
+//!                                    .{"version":2,"message":"attached"}
+//! .{"version":2,"message":"read"}
+//!                                    +{"version":2,"message":{"snapshot"…
 //!                                    .…}}
-//! .{"version":1,"message":{"send":{"action":…}}}
-//!                                    .{"version":1,"message":{"ask":
+//! .{"version":2,"message":{"send":{"action":…}}}
+//!                                    .{"version":2,"message":{"ask":
 //!                                     {"question":1,"event":…}}}
-//! .{"version":1,"message":{"answer":{"question":1,"action":…}},
+//! .{"version":2,"message":{"answer":{"question":1,"action":…}},
 //!  "secret":9}
 //! (9 bytes)
-//!                                    .{"version":1,"message":"done"}
+//!                                    .{"version":2,"message":"done"}
 //! ```
 //!
 //! What an action asks, as opening a volume asks for its passphrase, comes
@@ -56,7 +56,7 @@ mod serve;
 pub use self::serve::{ATTACH_WAIT, Attached, Served, TAKEN_OVER, attach, serve};
 
 /// The version of the protocol.
-pub const VERSION: u64 = 1;
+pub const VERSION: u64 = 2;
 
 /// The longest message, all its parts together: a snapshot of many
 /// thousands of snapshots fits; a peer cannot make the other side keep

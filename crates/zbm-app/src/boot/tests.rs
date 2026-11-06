@@ -280,8 +280,13 @@ fn pools() -> Vec<model::Pool> {
         health: Health::Online,
         writable: true,
         imported: true,
-        foreign_hostid: None,
-        checkpoint: false,
+        id: None,
+        host: None,
+        checkpoint: Some(false),
+        devices: Vec::new(),
+        status: None,
+        action: None,
+        errors: None,
     }]
 }
 

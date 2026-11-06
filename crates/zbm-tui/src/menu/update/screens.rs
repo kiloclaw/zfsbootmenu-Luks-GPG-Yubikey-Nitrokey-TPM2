@@ -5,7 +5,7 @@ use zbm_types::{ImportPolicy, PoolName, Untrusted};
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent, Tab};
 use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
-use crate::menu::world::{Access, Action, Environment, Outcome, Verdict, Volume};
+use crate::menu::world::{Access, Action, Environment, Outcome, Pool, Verdict, Volume};
 use crate::text::text;
 
 /// What `intent` does on the current screen.
@@ -161,7 +161,7 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Edit => focus(model, name, Screen::CommandLine),
         Intent::SetDefault => return vec![Action::SetDefaultEnvironment(name)],
         Intent::Pools => model.screen = Screen::Pools,
-        Intent::ReadWrite => return vec![read_write(&name.pool())],
+        Intent::ReadWrite => return vec![read_write(model, &name.pool())],
         Intent::Chroot => return vec![Action::Chroot(name.into())],
         Intent::NewSnapshot => {
             let then = super::snapshots::new_snapshot(model, name);
@@ -226,26 +226,43 @@ fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
     let Some(pool) = model.selected_pool().cloned() else {
         return Vec::new();
     };
+    let named = dialogs::Named::of(model, &pool);
     match intent {
         Intent::Primary => dialogs::pool_details(model, &pool),
         Intent::Import => import_choices(model, &pool),
-        Intent::ReadWrite => return vec![read_write(&pool)],
-        Intent::Rewind if !has_checkpoint(model, &pool) => {
+        Intent::ReadWrite if model.is_shadowed(&pool) => shadowed(model, &pool),
+        Intent::ReadWrite => {
+            return vec![dialogs::import(
+                named,
+                Access::ReadWrite,
+                ImportPolicy::Strict,
+            )];
+        }
+        // Unknown, as for a pool that is not imported, the machine checks.
+        Intent::Rewind if pool.checkpoint == Some(false) => {
             model.notification = Some(Outcome::Warning(text!(
                 "pool-no-checkpoint",
-                pool = pool.to_string()
+                pool = pool.name.to_string()
             )));
         }
         Intent::Rewind => {
             let lines = vec![
-                text!("rewind", pool = pool.to_string()),
+                text!("rewind", pool = pool.name.to_string()),
                 text!("rewind.discarded"),
             ];
-            model.dialog = Some(dialogs::confirm(dialogs::rewind(&pool, lines)));
+            model.dialog = Some(dialogs::confirm(dialogs::rewind(named, lines)));
         }
         _ => {}
     }
     Vec::new()
+}
+
+/// Says that `pool` is not imported while a pool of its name is.
+fn shadowed(model: &mut Model, pool: &Pool) {
+    model.notification = Some(Outcome::Warning(text!(
+        "pool-shadowed",
+        pool = pool.name.to_string()
+    )));
 }
 
 /// Opening `volume`: its device, as the mapping it was opened as before,
@@ -259,49 +276,47 @@ fn open(volume: &Volume) -> Action {
     }
 }
 
-/// Whether the snapshot says `pool` has a checkpoint to rewind to.
-fn has_checkpoint(model: &Model, pool: &PoolName) -> bool {
-    model
+/// The read/write import of `pool`, the imported pool of that name, by its
+/// identifier when a pool not imported has the name too.
+fn read_write(model: &Model, pool: &PoolName) -> Action {
+    let imported = model
         .snapshot
         .pools
         .iter()
-        .any(|known| &known.name == pool && known.checkpoint)
-}
-
-/// The read/write import of `pool`.
-fn read_write(pool: &PoolName) -> Action {
-    dialogs::import(pool, Access::ReadWrite, ImportPolicy::Strict)
+        .find(|known| known.imported && &known.name == pool);
+    let named = imported.map_or_else(|| pool.into(), |known| dialogs::Named::of(model, known));
+    dialogs::import(named, Access::ReadWrite, ImportPolicy::Strict)
 }
 
 /// The ways to import `pool`: imported, with the other access, and rewound
 /// to its checkpoint when it has one; not imported, as this host, as the
-/// host that last imported it, or forced.
-fn import_choices(model: &mut Model, pool: &PoolName) {
-    let known = model
-        .snapshot
-        .pools
-        .iter()
-        .find(|known| &known.name == pool);
-    let choices = match known {
-        Some(known) if known.imported => {
-            let mut choices = vec![dialogs::toggle(pool, known.writable)];
-            if known.checkpoint {
-                let lines = vec![
-                    text!("rewind", pool = pool.to_string()),
-                    text!("rewind.discarded"),
-                ];
-                choices.push(Choice {
-                    label: text!("pool-rewind"),
-                    then: dialogs::rewind(pool, lines),
-                });
-            }
-            choices
+/// host that last imported it, or forced, unless a pool of its name is
+/// imported.
+fn import_choices(model: &mut Model, pool: &Pool) {
+    let named = dialogs::Named::of(model, pool);
+    let name = pool.name.to_string();
+    let choices = if pool.imported {
+        let mut choices = vec![dialogs::toggle(named, pool.writable)];
+        if pool.checkpoint == Some(true) {
+            let lines = vec![
+                text!("rewind", pool = name.as_str()),
+                text!("rewind.discarded"),
+            ];
+            choices.push(Choice {
+                label: text!("pool-rewind"),
+                then: dialogs::rewind(named, lines),
+            });
         }
-        _ => vec![
+        choices
+    } else if model.is_shadowed(pool) {
+        shadowed(model, pool);
+        return;
+    } else {
+        vec![
             Choice {
                 label: text!("pool-import-this-host"),
                 then: Then::Act(dialogs::import(
-                    pool,
+                    named,
                     Access::ReadOnly,
                     ImportPolicy::Strict,
                 )),
@@ -309,18 +324,18 @@ fn import_choices(model: &mut Model, pool: &PoolName) {
             Choice {
                 label: text!("pool-import-last-host"),
                 then: Then::Act(dialogs::import(
-                    pool,
+                    named,
                     Access::ReadOnly,
                     ImportPolicy::Hostid,
                 )),
             },
             Choice {
                 label: text!("pool-force-import"),
-                then: dialogs::force_import(pool),
+                then: dialogs::force_import(named),
             },
-        ],
+        ]
     };
-    let title = text!("import-title", pool = pool.to_string());
+    let title = text!("import-title", pool = name.as_str());
     dialogs::choose_offered(model, &title, Vec::new(), choices);
 }
 

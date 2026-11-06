@@ -20,6 +20,7 @@ fn options(access: Access, policy: ImportPolicy, rewind: bool) -> ImportOptions 
         access,
         policy,
         rewind,
+        id: None,
     }
 }
 
@@ -542,3 +543,5 @@ fn a_host_id_that_cannot_be_recorded_still_imports() {
     assert_eq!(import(&machine, &tank(), hostid), Ok(()));
     assert_eq!(state.spl_hostid(), None);
 }
+
+mod ids;

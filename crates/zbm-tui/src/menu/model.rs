@@ -1,11 +1,12 @@
 //! The state of the menu: the snapshot of the machine and everything on the
 //! screen. Nothing in it changes but through [`update`](fn@super::update).
 
-use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
+use zbm_types::{DatasetName, SnapshotName, Untrusted};
 
 mod diff;
 mod list;
 mod naming;
+mod pools;
 mod prompt;
 mod recovery;
 mod sort;
@@ -14,6 +15,7 @@ pub use self::diff::{DiffView, Segment};
 use self::list::keep;
 pub use self::list::{ListState, refilter};
 pub use self::naming::{Make, Naming, is_name_char, timestamp};
+pub(crate) use self::pools::{host_text, pool_mode, pool_name};
 pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
 pub use self::recovery::{RECOVERY, RecoveryTool};
@@ -22,7 +24,11 @@ pub use self::sort::Sort;
 use super::filter::Ranked;
 use super::keymap::{Context, Map, Tab};
 use super::theme::Theme;
-use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout, Volume};
+use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
+
+/// What a refresh keeps selected: the environment and the snapshot named,
+/// and the row of the pools view ([`Model::selected_row`]).
+type Selected = (Option<String>, Option<String>, Option<pools::Row>);
 
 /// The views (`docs/dev/menu-design/information-architecture.md`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -196,6 +202,10 @@ pub struct Model {
     pub countdown: Option<u64>,
     /// Whether start-up finished and the main view opened.
     pub started: bool,
+    /// Whether the menu asked the machine to scan the pools, which it does
+    /// once the main view is drawn and no countdown runs, so that neither
+    /// the first frame nor the boot the countdown ends with waits for it.
+    pub scanned: bool,
     /// The outcome of the last action.
     pub notification: Option<Outcome>,
     /// What start-up is doing that may take a while, until its next event.
@@ -238,6 +248,7 @@ impl Model {
             edited: Vec::new(),
             countdown: None,
             started: false,
+            scanned: false,
             notification: None,
             progress: None,
             working: None,
@@ -266,14 +277,25 @@ impl Model {
             self.screen = Screen::Main;
         }
         // The round's machine opens the main view again, with its own
-        // countdown: the start-up view only noted that start-up ended.
+        // countdown and scan: the start-up view only noted that start-up
+        // ended.
         self.started = false;
+        self.scanned = false;
     }
 
     /// Takes the machine's new `snapshot`, keeping the environment and the
-    /// snapshot selected by name wherever the new lists put them.
+    /// snapshot selected by name, and the pools view's row by what it
+    /// shows, wherever the new lists put them.
     pub fn replace_snapshot(&mut self, snapshot: Snapshot) {
         self.refresh_with(Some(snapshot));
+    }
+
+    /// Takes the `pools` a scan found in place of the snapshot's, keeping
+    /// the selections as [`Model::replace_snapshot`] does.
+    pub(crate) fn replace_pools(&mut self, pools: Vec<super::world::Pool>) {
+        let selected = self.selected_names();
+        self.snapshot.pools = pools;
+        self.refresh_keeping(None, selected);
     }
 
     /// Recomputes the lists after a filter or the sort order changed. The
@@ -291,11 +313,13 @@ impl Model {
         self.refresh_keeping(None, selected);
     }
 
-    /// The names of the selected environment and snapshot.
-    fn selected_names(&self) -> (Option<String>, Option<String>) {
+    /// The names of the selected environment and snapshot, and the
+    /// selected row of the pools view.
+    fn selected_names(&self) -> Selected {
         (
             self.selected_environment().map(|e| e.name.to_string()),
             self.selected_snapshot().map(|s| s.name.name().to_owned()),
+            self.selected_row(),
         )
     }
 
@@ -305,13 +329,10 @@ impl Model {
         self.refresh_keeping(new, selected);
     }
 
-    /// [`Model::refresh_with`], keeping the environment and snapshot named.
-    fn refresh_keeping(
-        &mut self,
-        new: Option<Snapshot>,
-        selected: (Option<String>, Option<String>),
-    ) {
-        let (environment, snapshot) = selected;
+    /// [`Model::refresh_with`], keeping the environment and snapshot named,
+    /// and the row of the pools view.
+    fn refresh_keeping(&mut self, new: Option<Snapshot>, selected: Selected) {
+        let (environment, snapshot, row) = selected;
         if let Some(new) = new {
             self.snapshot = new;
         }
@@ -351,6 +372,7 @@ impl Model {
         refilter(&mut self.kernels, kernels.iter().map(String::as_str));
         let pools = self.pool_rows();
         refilter(&mut self.pools, pools.iter().map(String::as_str));
+        self.keep_row(row);
         recovery::refresh(&mut self.recovery, &self.snapshot);
         if let Some(diff) = &mut self.diff {
             diff.refilter();
@@ -413,32 +435,6 @@ impl Model {
     pub fn selected_snapshot(&self) -> Option<&SnapshotInfo> {
         let snapshots = self.focus_snapshots();
         snapshots.get(self.snapshots.selected_item()?).copied()
-    }
-
-    /// The rows of the pools view: each pool, then each volume.
-    pub fn pool_rows(&self) -> Vec<String> {
-        let pools = self.snapshot.pools.iter().map(|pool| pool.name.to_string());
-        let volumes = self
-            .snapshot
-            .volumes
-            .iter()
-            .map(|volume| volume.name.get().clone());
-        pools.chain(volumes).collect()
-    }
-
-    /// The pool of the selected row of the pools view, if it is a pool.
-    pub fn selected_pool(&self) -> Option<&PoolName> {
-        let row = self.pools.selected_item()?;
-        self.snapshot.pools.get(row).map(|pool| &pool.name)
-    }
-
-    /// The volume of the selected row of the pools view.
-    pub fn selected_volume(&self) -> Option<&Volume> {
-        let row = self
-            .pools
-            .selected_item()?
-            .checked_sub(self.snapshot.pools.len())?;
-        self.snapshot.volumes.get(row)
     }
 
     /// The command line `environment` boots with: the edited one, else its

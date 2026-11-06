@@ -29,7 +29,11 @@ impl Machine for Recorded {
     }
 
     fn apply(&mut self, action: Action) -> Vec<Event> {
+        let read = action.is_read();
         self.applied.push(action);
+        if read {
+            return vec![Event::PoolsScanned(self.snapshot.pools.clone())];
+        }
         vec![Event::Finished(Outcome::Done("done".to_owned()))]
     }
 
@@ -378,4 +382,149 @@ fn the_menu_counts_down_after_a_start_up_view_that_saw_every_stage_end() {
     assert_eq!(session.model().countdown_seconds(), Some(3));
     // The view, which knew no environment, warned of none.
     assert_eq!(session.model().notification, None);
+}
+
+/// An application whose machine counts down to `zroot/ROOT/be`, and whose
+/// scan finds the pool `backup`; it counts its snapshots.
+struct Scanning {
+    snapshot: Snapshot,
+    reads: std::sync::atomic::AtomicUsize,
+}
+
+impl Scanning {
+    fn new() -> Scanning {
+        let environment =
+            crate::menu::demo::FakeMachine::new(&crate::menu::demo::DemoOptions::default())
+                .snapshot()
+                .environments[0]
+                .clone();
+        Scanning {
+            snapshot: Snapshot {
+                timeout: Timeout::Seconds(10),
+                bootfs: Some(environment.name.clone()),
+                environments: vec![environment],
+                offers: Offer::ALL.into_iter().collect(),
+                ..Snapshot::default()
+            },
+            reads: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+}
+
+impl zbm_app::Application for Scanning {
+    fn snapshot(&self) -> Result<Snapshot, zbm_app::AppError> {
+        self.reads
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(self.snapshot.clone())
+    }
+
+    fn read_kernels(&self, _snapshot: &mut Snapshot, _console: zbm_platform::System<'_>) {}
+
+    fn apply(&self, action: &Action, _through: zbm_app::Through<'_>) -> Vec<Event> {
+        assert_eq!(*action, Action::ScanPools);
+        let mut backup = crate::menu::world::Pool::imported(
+            "backup".parse().unwrap(),
+            crate::menu::world::Health::Online,
+        );
+        backup.imported = false;
+        vec![Event::PoolsScanned(vec![backup])]
+    }
+}
+
+#[test]
+fn the_scan_waits_for_the_countdown_to_stop_so_that_its_boot_never_waits() {
+    let fake = fake();
+    let app = Scanning::new();
+    let shells = Shells::default();
+    let stop = || false;
+    let machine = RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run).unwrap();
+    let mut session = Session::on(machine, theme());
+    assert_eq!(app.reads.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+    // The first tick opens the main view, which counts down: nothing is
+    // scanned meanwhile.
+    session.tick(0);
+    session.tick(1000);
+    assert_eq!(session.model().countdown_seconds(), Some(9));
+    assert!(!session.model().scanned);
+    assert!(session.model().snapshot.pools.is_empty());
+
+    // Escape stops the countdown, as the screen says; the next tick scans,
+    // with no snapshot read after it.
+    session.key(Key::Escape);
+    assert_eq!(session.model().countdown, None);
+    session.tick(0);
+    let pools: Vec<&str> = session
+        .model()
+        .snapshot
+        .pools
+        .iter()
+        .map(|pool| pool.name.as_str())
+        .collect();
+    assert_eq!(pools, ["backup"]);
+    assert_eq!(app.reads.load(std::sync::atomic::Ordering::Relaxed), 1);
+    assert!(session.model().scanned);
+    // The scan is the menu's own read: not among the actions asked for.
+    assert!(session.actions.is_empty());
+
+    // It runs once.
+    session.tick(1000);
+    assert_eq!(app.reads.load(std::sync::atomic::Ordering::Relaxed), 1);
+}
+
+#[test]
+fn a_countdown_that_ends_boots_without_scanning() {
+    let fake = fake();
+    let app = Scanning::new();
+    let shells = Shells::default();
+    let stop = || false;
+    let machine = RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run).unwrap();
+    let mut session = Session::on(machine, theme());
+
+    session.tick(0);
+    session.tick(10_000);
+
+    assert!(!session.model().scanned);
+    assert!(matches!(
+        session.actions.as_slice(),
+        [Action::Boot {
+            countdown: true,
+            ..
+        }]
+    ));
+}
+
+#[test]
+fn the_menu_scans_only_once_start_up_is_over_and_again_in_a_new_round() {
+    let options = crate::menu::demo::DemoOptions::default();
+    let mut snapshot = crate::menu::demo::FakeMachine::new(&options)
+        .snapshot()
+        .clone();
+    let recorded = Recorded {
+        snapshot: snapshot.clone(),
+        applied: Vec::new(),
+    };
+    let mut session = Session::on(recorded, theme());
+    // Start-up is not over: no scan.
+    session.tick(0);
+    assert!(!session.model().scanned);
+
+    for stage in &mut snapshot.startup {
+        stage.state = crate::menu::world::StageState::Done;
+    }
+    // No countdown, which would hold the scan back.
+    snapshot.timeout = Timeout::Wait;
+    let mut model = session.into_model();
+    model.begin_round();
+    let recorded = Recorded {
+        snapshot,
+        applied: Vec::new(),
+    };
+    let mut session = Session::with_model(recorded, model);
+    session.tick(0);
+    session.tick(0);
+    assert!(session.model().scanned);
+    let mut model = session.into_model();
+    model.begin_round();
+    assert!(!model.scanned);
 }

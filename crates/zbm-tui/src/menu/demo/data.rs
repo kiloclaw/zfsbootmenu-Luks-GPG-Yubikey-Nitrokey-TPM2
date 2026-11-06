@@ -9,9 +9,9 @@ use zbm_types::{DatasetName, SnapshotName, Untrusted};
 use super::health;
 use super::{DemoOptions, untrusted};
 use crate::menu::world::{
-    CommandLine, Environment, Fallback, Health, Kernel, Keyboard, Level, Log, LogEntry, Method,
-    Offer, Origin, PcrChange, Pool, Snapshot, SnapshotInfo, Stage, StageState, Timeout, Tpm2Seal,
-    Tries, Volume, VolumeState,
+    CommandLine, Device, DeviceErrors, DeviceState, Environment, Fallback, Health, Kernel,
+    Keyboard, Level, Log, LogEntry, Method, Offer, Origin, PcrChange, Pool, PoolHost, Snapshot,
+    SnapshotInfo, Stage, StageState, Timeout, Tpm2Seal, Tries, Volume, VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -44,6 +44,9 @@ pub const HOSTID: &str = "00bab10c";
 /// The host ID that last imported the foreign pool.
 pub const FOREIGN_HOSTID: &str = "deadbeef";
 
+/// The name of the host that last imported the pool of another host.
+const FOREIGN_HOST: &str = "backup-server";
+
 #[allow(
     clippy::unreachable,
     reason = "the names of the demo machine are literals that parse"
@@ -64,14 +67,16 @@ fn snapshot_name(name: &str) -> SnapshotName {
 
 /// The machine at power-on.
 pub fn machine(options: &DemoOptions) -> Snapshot {
-    let mut pools = vec![
-        pool("zroot", Health::Online),
-        pool("tank", Health::Degraded),
-    ];
+    let mut pools = vec![pool("zroot", Health::Online, 1), tank()];
     if options.foreign {
-        let mut foreign = pool(FOREIGN_POOL, Health::Online);
+        let mut foreign = pool(FOREIGN_POOL, Health::Online, 3);
         foreign.imported = false;
-        foreign.foreign_hostid = Some(FOREIGN_HOSTID.to_owned());
+        foreign.checkpoint = None;
+        foreign.host = Some(PoolHost {
+            hostid: FOREIGN_HOSTID.parse().ok(),
+            hostname: Some(untrusted(FOREIGN_HOST)),
+        });
+        foreign.devices = vec![device("sdd", DeviceState::Online, None)];
         pools.push(foreign);
     }
     let fallback = options.failing.then(|| Fallback {
@@ -114,16 +119,79 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
     clippy::unreachable,
     reason = "the names of the demo machine are literals that parse"
 )]
-fn pool(name: &str, health: Health) -> Pool {
+fn pool(name: &str, health: Health, id: u64) -> Pool {
+    let name = name
+        .parse()
+        .unwrap_or_else(|_| unreachable!("demo names are valid"));
     Pool {
-        name: name
-            .parse()
-            .unwrap_or_else(|_| unreachable!("demo names are valid")),
-        health,
-        writable: false,
-        imported: true,
-        foreign_hostid: None,
-        checkpoint: name == "tank",
+        id: Some(id),
+        devices: vec![device("/dev/nvme0n1p2", DeviceState::Online, None)],
+        errors: Some(0),
+        ..Pool::imported(name, health)
+    }
+}
+
+/// The pools start-up left alone with `options.exported`, which the scan
+/// finds: `archive`, which another host used last, and a `tank` that is
+/// not the one imported.
+pub(super) fn exported(options: &DemoOptions) -> Vec<Pool> {
+    if !options.exported {
+        return Vec::new();
+    }
+    let not_imported = |name, id, disk| Pool {
+        imported: false,
+        checkpoint: None,
+        errors: None,
+        devices: vec![Device {
+            errors: None,
+            ..device(disk, DeviceState::Online, None)
+        }],
+        ..pool(name, Health::Online, id)
+    };
+    let mut archive = not_imported("archive", 4, "sde");
+    archive.host = Some(PoolHost {
+        hostid: FOREIGN_HOSTID.parse().ok(),
+        hostname: Some(untrusted(FOREIGN_HOST)),
+    });
+    vec![archive, not_imported("tank", 5, "sdf")]
+}
+
+/// A device without children; a note says why it cannot be used.
+fn device(name: &str, state: DeviceState, note: Option<&str>) -> Device {
+    Device {
+        name: untrusted(name),
+        state: Some(state),
+        errors: Some(DeviceErrors::default()),
+        note: note.map(untrusted),
+        children: Vec::new(),
+    }
+}
+
+/// `tank`: a RAID-Z of three disks, one of them missing, with a
+/// checkpoint.
+fn tank() -> Pool {
+    let raidz = Device {
+        name: untrusted("raidz1-0"),
+        state: Some(DeviceState::Degraded),
+        errors: Some(DeviceErrors::default()),
+        note: None,
+        children: vec![
+            device("/dev/sda2", DeviceState::Online, None),
+            device("/dev/sdb2", DeviceState::Unavailable, Some("cannot open")),
+            device("/dev/sdc2", DeviceState::Online, None),
+        ],
+    };
+    Pool {
+        checkpoint: Some(true),
+        devices: vec![raidz],
+        status: Some(untrusted(
+            "One or more devices could not be opened. Sufficient replicas exist for the pool to \
+             continue functioning in a degraded state.",
+        )),
+        action: Some(untrusted(
+            "Attach the missing device and online it using 'zpool online'.",
+        )),
+        ..pool("tank", Health::Degraded, 2)
     }
 }
 

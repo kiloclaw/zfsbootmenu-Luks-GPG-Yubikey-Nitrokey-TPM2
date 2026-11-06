@@ -15,8 +15,11 @@ use crate::menu::format::fit;
 use crate::menu::keymap::{self, Context, Intent, Map, Tab};
 use crate::menu::model::Model;
 use crate::menu::theme::{Glyph, Role};
-use crate::menu::world::{Environment, Health, Level, Verdict, VolumeState};
+use crate::menu::world::{
+    Device, DeviceState, Environment, Health, Level, Log, Pool, Verdict, VolumeState,
+};
 use crate::text::{self, text};
+use zbm_types::Printable;
 
 /// From this width the sidebar shows.
 const SIDEBAR_FROM: u16 = 110;
@@ -66,49 +69,117 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     main_view::render_detail(model, frame, detail);
 }
 
-/// What needs attention: pools not imported or not healthy, volumes not
-/// open, environments whose checks found something, and the log's
-/// problems.
+/// What needs attention: pools not imported or not healthy, their missing
+/// devices and checkpoints, volumes not open, environments whose checks
+/// found something, and the log's errors, then its warnings.
 fn attention(model: &Model) -> Vec<Item> {
     let snapshot = &model.snapshot;
     let mut items = pool_items(model);
     items.extend(volume_items(model));
     items.extend(snapshot.environments.iter().filter_map(environment_item));
-    let problems = snapshot.log.count(Level::Warning) + snapshot.log.count(Level::Error);
-    if problems > 0 {
+    items.extend(log_items(&snapshot.log));
+    items
+}
+
+/// The log's errors, then its warnings, each counted.
+fn log_items(log: &Log) -> Vec<Item> {
+    let item = |glyph, role, what| Item {
+        glyph,
+        role,
+        what,
+        tab: Tab::Log,
+    };
+    let (errors, warnings) = (log.count(Level::Error), log.count(Level::Warning));
+    let mut items = Vec::new();
+    if errors > 0 {
+        let what = text!("attention-log-errors", count = errors);
+        items.push(item(Glyph::Failed, Role::Danger, what));
+    }
+    if warnings > 0 {
+        let what = text!("attention-log-warnings", count = warnings);
+        items.push(item(Glyph::Warning, Role::Warning, what));
+    }
+    items
+}
+
+/// What needs attention in `pool`: that it is not imported, and by whom it
+/// was last, or its health; each device it lost, the worst first; and its
+/// checkpoint. A device taken offline was meant to be, and its pool says
+/// so.
+fn pool_attention(pool: &Pool) -> Vec<Item> {
+    let warning = |what| Item {
+        glyph: Glyph::Warning,
+        role: Role::Warning,
+        what,
+        tab: Tab::Pools,
+    };
+    let name = pool.name.as_str();
+    let mut items = Vec::new();
+    // A pool another host used last stays foreign when its host could not
+    // be read.
+    let host = pool.host.as_ref().map(|host| {
+        host.hostid.as_ref().map(ToString::to_string).or_else(|| {
+            host.hostname
+                .as_ref()
+                .map(|hostname| hostname.printable().to_string())
+        })
+    });
+    match (host, pool.imported) {
+        (Some(Some(hostid)), false) => items.push(warning(text!(
+            "attention-foreign",
+            pool = name,
+            hostid = hostid
+        ))),
+        (Some(None), false) => items.push(warning(text!("attention-foreign-unknown", pool = name))),
+        (None, false) => items.push(warning(text!("attention-not-imported", pool = name))),
+        (_, true) if pool.health != Health::Online => {
+            items.push(warning(format!("{name} {}", pool.health.as_str())));
+        }
+        _ => {}
+    }
+    for device in pool.missing_devices() {
+        let Some(state) = device.state else {
+            continue;
+        };
+        let what = text!(
+            "attention-device",
+            pool = name,
+            device = device_name(device),
+            state = state.as_str()
+        );
+        items.push(if state == DeviceState::Faulted {
+            Item {
+                glyph: Glyph::Failed,
+                role: Role::Danger,
+                ..warning(what)
+            }
+        } else {
+            warning(what)
+        });
+    }
+    if pool.checkpoint == Some(true) {
         items.push(Item {
-            glyph: Glyph::Warning,
-            role: Role::Warning,
-            what: text!("status-log-problems", count = problems),
-            tab: Tab::Log,
+            role: Role::Muted,
+            ..warning(text!("attention-checkpoint", pool = name))
         });
     }
     items
 }
 
-/// The pools not imported, or not healthy.
+/// `device` as attention names it: the last part of its path, or of the
+/// path it had when ZFS names it by its GUID ([`Device::path`]).
+fn device_name(device: &Device) -> String {
+    let shown = Printable(device.path()).to_string();
+    shown.rsplit('/').next().unwrap_or(&shown).to_owned()
+}
+
+/// What needs attention in the pools, pool by pool.
 fn pool_items(model: &Model) -> Vec<Item> {
     model
         .snapshot
         .pools
         .iter()
-        .filter_map(|pool| {
-            let name = pool.name.as_str();
-            let what = match (&pool.foreign_hostid, pool.imported, pool.health) {
-                (Some(hostid), false, _) => {
-                    text!("attention-foreign", pool = name, hostid = hostid.as_str())
-                }
-                (None, false, _) => text!("attention-not-imported", pool = name),
-                (_, true, Health::Online) => return None,
-                (_, true, health) => format!("{name} {}", health.as_str()),
-            };
-            Some(Item {
-                glyph: Glyph::Warning,
-                role: Role::Warning,
-                what,
-                tab: Tab::Pools,
-            })
-        })
+        .flat_map(pool_attention)
         .collect()
 }
 
@@ -357,3 +428,6 @@ pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
     }
     lines
 }
+
+#[cfg(test)]
+mod tests;

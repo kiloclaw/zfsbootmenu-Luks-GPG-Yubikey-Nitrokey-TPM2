@@ -22,7 +22,9 @@ pub struct Session<M = FakeMachine> {
     model: Option<Model>,
     machine: M,
     /// The actions the menu asked for, in order, without their secrets:
-    /// the session lasts until `kexec`, longer than a secret may.
+    /// the session lasts until `kexec`, longer than a secret may; and
+    /// without what only reads the machine ([`Action::is_read`]), as the
+    /// scan of the pools the menu asks for by itself.
     pub actions: Vec<Action>,
     /// Actions that take the console, waiting for the front end to hand it
     /// over ([`Session::console_action`]).
@@ -97,7 +99,9 @@ impl<M: Machine> Session<M> {
         let (model, actions) = update(model, message);
         self.model = Some(model);
         for action in actions {
-            self.actions.push(recorded(&action));
+            if !action.is_read() {
+                self.actions.push(recorded(&action));
+            }
             if self.machine.needs_console(&action) {
                 self.console.push_back(action);
             } else {

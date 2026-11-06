@@ -124,6 +124,31 @@ fn a_failed_import_or_export_keeps_it_read_only() {
     );
 }
 
+#[test]
+fn the_pool_is_imported_again_by_its_guid_so_that_a_pool_of_its_name_is_left_alone() {
+    let (fake, _log) = machine("off");
+    fake.runner
+        .respond("zpool get -H -o value guid tank", 0, "1234\n");
+    fake.runner
+        .respond("zpool import -N -o readonly=off 1234", 1, "");
+
+    assert!(set_rw(&fake, "tank", ImportPolicy::default()).is_err());
+
+    // Named by its name, `zpool import` refuses a pool that shares it with
+    // one that is not imported; by its guid, it imports it, and imports it
+    // read-only again when the read/write import fails.
+    let lines = fake.runner.lines();
+    assert_eq!(
+        lines[lines.len() - 4..],
+        [
+            "zpool get -H -o value guid tank",
+            "zpool export tank",
+            "zpool import -N -o readonly=off 1234",
+            "zpool import -N -o readonly=on 1234"
+        ]
+    );
+}
+
 /// The answer the tests give to the resume question, and the pools it was
 /// asked about.
 struct Answers {
@@ -202,16 +227,12 @@ fn with_a_suspend_partition_the_resume_question_decides() {
 fn again(fake: &FakeSystem, access: Access, rewind: Rewind) -> Result<(), WritableError> {
     let state = State::new(&fake.files, "/zfsbootmenu");
     let context = Context::new(fake.system());
-    let policy = ImportPolicy::Strict;
-    reimport(
-        &context,
-        &NoInteraction,
-        &state,
-        &name("tank"),
-        policy,
-        access,
-        rewind,
-    )
+    let tank = name("tank");
+    let import = Import::pool(&tank)
+        .policy(ImportPolicy::Strict)
+        .access(access)
+        .rewind(rewind);
+    reimport(&context, &NoInteraction, &state, &tank, import)
 }
 
 #[test]
@@ -227,6 +248,7 @@ fn a_writable_pool_is_imported_read_only_again_without_a_question() {
         fake.runner.lines(),
         [
             "zpool get -H -o value readonly tank",
+            "zpool get -H -o value guid tank",
             "zpool export tank",
             "zpool import -N -o readonly=on tank"
         ]

@@ -430,6 +430,7 @@ mod tests {
                 access: Access::ReadWrite,
                 policy,
                 rewind,
+                id: None,
             };
             verb(&Action::Import("tank".parse().unwrap(), options))
         };

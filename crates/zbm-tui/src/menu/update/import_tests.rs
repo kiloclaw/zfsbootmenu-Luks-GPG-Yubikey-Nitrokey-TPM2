@@ -3,7 +3,7 @@
 //! one that is not as this host, as the host that owns it, or forced.
 
 use pretty_assertions::assert_eq;
-use zbm_types::{ImportPolicy, PoolName};
+use zbm_types::ImportPolicy;
 
 use super::{dialogs, events, screens};
 use crate::menu::caps::Capabilities;
@@ -54,6 +54,7 @@ fn import(pool: &str, access: Access, policy: ImportPolicy, rewind: bool) -> Act
         access,
         policy,
         rewind,
+        id: None,
     };
     Action::Import(pool.parse().unwrap(), options)
 }
@@ -152,12 +153,23 @@ fn the_keys_import_read_write_and_confirm_the_rewind() {
         &zroot.notification,
         Some(Outcome::Warning(text)) if text.contains("zroot has no checkpoint")
     ));
+
+    // Whether `backup`, not imported, has one is not known: the machine
+    // checks once it is imported.
+    let mut backup = select(pools(), "backup");
+    assert_eq!(
+        backup.selected_pool().map(|pool| pool.checkpoint),
+        Some(None)
+    );
+    assert_eq!(screens::intent(&mut backup, Intent::Rewind), []);
+    assert!(matches!(&backup.dialog, Some(Dialog::Confirm { .. })));
 }
 
 #[test]
 fn the_details_of_a_pool_offer_its_imports() {
-    let tank: PoolName = "tank".parse().unwrap();
     let mut model = pools();
+    let tank = model.snapshot.pools[1].clone();
+    assert_eq!(tank.name.as_str(), "tank");
     dialogs::pool_details(&mut model, &tank);
     assert_eq!(
         choices(&model),
@@ -167,7 +179,8 @@ fn the_details_of_a_pool_offer_its_imports() {
         ]
     );
 
-    let backup: PoolName = "backup".parse().unwrap();
+    let backup = model.snapshot.pools[2].clone();
+    assert_eq!(backup.name.as_str(), "backup");
     dialogs::pool_details(&mut model, &backup);
     assert_eq!(
         choices(&model),
@@ -175,5 +188,169 @@ fn the_details_of_a_pool_offer_its_imports() {
             import("backup", Access::ReadOnly, ImportPolicy::Hostid, false),
             import("backup", Access::ReadOnly, ImportPolicy::Force, false),
         ]
+    );
+}
+
+/// The menu on the demo machine once its scan found the pools start-up left
+/// alone: `archive`, of another host, and a `tank` that is not the
+/// imported one.
+fn scanned() -> Model {
+    let options = DemoOptions {
+        exported: true,
+        ..DemoOptions::default()
+    };
+    let mut machine = FakeMachine::new(&options);
+    let mut model = Model::new(machine.snapshot().clone(), Theme::new(Capabilities::FULL));
+    for event in machine.apply(Action::ScanPools) {
+        events::apply(&mut model, event);
+    }
+    model.snapshot.offers = Offer::ALL.into_iter().collect();
+    events::start(&mut model);
+    model.countdown = None;
+    model.screen = Screen::Pools;
+    model
+}
+
+/// `model` with the pool of the identifier `id` selected.
+fn select_id(mut model: Model, id: u64) -> Model {
+    let row = model
+        .snapshot
+        .pools
+        .iter()
+        .position(|pool| pool.id == Some(id))
+        .unwrap();
+    model.pools.selected = row;
+    model
+}
+
+#[test]
+fn the_scan_lists_the_pools_start_up_left_and_their_hosts() {
+    let model = scanned();
+
+    assert_eq!(
+        model.pool_rows()[..4],
+        [
+            "zroot, ONLINE, read-only",
+            "tank (id 2), DEGRADED, read-only",
+            "archive, ONLINE, not imported, host backup-server (deadbeef)",
+            "tank (id 5), ONLINE, not imported",
+        ]
+    );
+    // The details say which of the two it is.
+    let mut other = select_id(model, 5);
+    let pool = other.selected_pool().unwrap().clone();
+    dialogs::pool_details(&mut other, &pool);
+    let Some(Dialog::Choose { lines, .. }) = &other.dialog else {
+        panic!("no details: {:?}", other.dialog);
+    };
+    assert_eq!(lines[0], "tank (id 5): ONLINE · not imported");
+}
+
+#[test]
+fn a_pool_named_like_an_imported_one_is_shown_but_not_offered() {
+    let mut other = select_id(scanned(), 5);
+
+    assert_eq!(screens::intent(&mut other, Intent::Import), []);
+    assert!(other.dialog.is_none());
+    assert!(matches!(
+        &other.notification,
+        Some(Outcome::Warning(text)) if text.contains("A pool named tank is imported")
+    ));
+    assert_eq!(screens::intent(&mut other, Intent::ReadWrite), []);
+    let pool = other.selected_pool().unwrap().clone();
+    dialogs::pool_details(&mut other, &pool);
+    let Some(Dialog::Choose { lines, choices, .. }) = &other.dialog else {
+        panic!("no details: {:?}", other.dialog);
+    };
+    assert!(choices.is_empty());
+    assert!(lines.iter().any(|line| line.contains("export it")));
+}
+
+#[test]
+fn the_imported_pool_of_a_shared_name_is_imported_again_by_its_identifier() {
+    let mut tank = select_id(scanned(), 2);
+    let read_write = screens::intent(&mut tank, Intent::ReadWrite);
+    let mut zroot = select(scanned(), "zroot");
+    let zroot_read_write = screens::intent(&mut zroot, Intent::ReadWrite);
+
+    let by_id = |access, rewind| {
+        let options = ImportOptions {
+            access,
+            policy: ImportPolicy::Strict,
+            rewind,
+            id: Some(2),
+        };
+        Action::Import("tank".parse().unwrap(), options)
+    };
+    assert_eq!(read_write, [by_id(Access::ReadWrite, false)]);
+    screens::intent(&mut tank, Intent::Import);
+    assert_eq!(
+        choices(&tank),
+        [
+            by_id(Access::ReadWrite, false),
+            by_id(Access::ReadWrite, true)
+        ]
+    );
+    // A name no other pool has names its pool.
+    assert_eq!(
+        zroot_read_write,
+        [import(
+            "zroot",
+            Access::ReadWrite,
+            ImportPolicy::Strict,
+            false
+        )]
+    );
+}
+
+#[test]
+fn pools_not_imported_of_one_name_are_each_imported_by_their_identifier() {
+    let mut model = scanned();
+    model
+        .snapshot
+        .pools
+        .retain(|pool| pool.name.as_str() != "tank" || pool.id == Some(5));
+    let mut twin = model.snapshot.pools.last().unwrap().clone();
+    twin.id = Some(6);
+    model.snapshot.pools.push(twin);
+    model.refresh();
+
+    let mut first = select_id(model, 5);
+    screens::intent(&mut first, Intent::Import);
+
+    let ids: Vec<Option<u64>> = choices(&first)
+        .into_iter()
+        .map(|action| match action {
+            Action::Import(_, options) => options.id,
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(ids, [Some(5), Some(5), Some(5)]);
+}
+
+#[test]
+fn the_scan_keeps_the_row_selected_in_the_pools_view() {
+    let options = DemoOptions {
+        exported: true,
+        ..DemoOptions::default()
+    };
+    let mut machine = FakeMachine::new(&options);
+    let mut model = Model::new(machine.snapshot().clone(), Theme::new(Capabilities::FULL));
+    events::start(&mut model);
+    model.screen = Screen::Pools;
+    model.pools.selected = model.snapshot.pools.len();
+    let volume = model.selected_volume().map(|volume| volume.name.clone());
+    assert!(volume.is_some());
+
+    for event in machine.apply(Action::ScanPools) {
+        events::apply(&mut model, event);
+    }
+
+    // The pools the scan found come before the volumes: the volume stays
+    // selected, not the pool now in its row.
+    assert!(model.snapshot.pools.iter().any(|pool| !pool.imported));
+    assert_eq!(
+        model.selected_volume().map(|volume| volume.name.clone()),
+        volume
     );
 }

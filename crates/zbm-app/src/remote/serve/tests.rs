@@ -143,6 +143,29 @@ fn the_menu_reads_the_machine_and_performs_an_action_meanwhile() {
 }
 
 #[test]
+fn a_remote_menu_scans_the_pools_and_gets_them_without_a_snapshot() {
+    let fake = machine();
+    let (ended, messages) = served(&fake, &no_console, &never, |menu| {
+        ToSession::Send {
+            action: Action::ScanPools,
+        }
+        .send(menu, &[])
+        .unwrap();
+        let messages = until_done(menu);
+        ToSession::Detach.send(menu, &[]).unwrap();
+        messages
+    });
+    ended.unwrap();
+    assert_eq!(
+        messages,
+        [
+            ToMenu::Event(Box::new(Event::PoolsScanned(Vec::new()))),
+            ToMenu::Done
+        ]
+    );
+}
+
+#[test]
 fn an_action_that_takes_the_console_runs_on_the_terminal_once_none_runs() {
     let fake = machine();
     // The snapshot waits until the test lets it go.

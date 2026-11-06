@@ -5,14 +5,16 @@
 //!   opened it as, whether it is open, the key methods its tokens offer, and
 //!   the pool on it.
 //! - `pools` prints each imported pool (health, read-only or read/write, a
-//!   checkpoint) and each boot environment (the pool's default, its
-//!   encryption, and its command line with where it was set).
+//!   checkpoint), each pool that could be imported, which it scans for
+//!   (its identifier, and the host that used it last when it is another),
+//!   and each boot environment (the pool's default, its encryption, and
+//!   its command line with where it was set).
 
 use std::path::Path;
 
 use zbm_app::Encryption;
-use zbm_app::model::{Origin, Snapshot, VolumeState};
-use zbm_app::{App, Application as _, Runtime};
+use zbm_app::model::{Action, Origin, Pool, Snapshot, VolumeState};
+use zbm_app::{App, Application as _, Runtime, Seen, Through};
 use zbm_luks::unlocker::{Luks, Settings};
 use zbm_platform::interaction::NoInteraction;
 use zbm_platform::{Context, System};
@@ -60,25 +62,56 @@ fn origin(origin: &Origin) -> String {
     }
 }
 
-/// The lines of `zbm debug pools`.
+/// The line of `pool`, which could be imported: its identifier, and the
+/// host that used it last when it is another.
+fn importable_line(pool: &Pool) -> String {
+    let mut facts = vec!["not imported".to_owned()];
+    facts.extend(pool.id.map(|id| format!("id {id}")));
+    if let Some(host) = &pool.host {
+        let hostid = host
+            .hostid
+            .as_ref()
+            .map_or("?".to_owned(), ToString::to_string);
+        facts.push(match &host.hostname {
+            Some(hostname) => format!("host {hostid} ({})", hostname.printable()),
+            None => format!("host {hostid}"),
+        });
+    }
+    format!(
+        "{}\t{}\t{}",
+        pool.name,
+        pool.health.as_str(),
+        facts.join(", ")
+    )
+}
+
+/// The lines of `zbm debug pools`: the imported pools, then those that
+/// could be imported, then the boot environments.
 pub fn pool_lines(snapshot: &Snapshot) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
-    if snapshot.pools.is_empty() {
+    let (imported, importable): (Vec<&Pool>, Vec<&Pool>) =
+        snapshot.pools.iter().partition(|pool| pool.imported);
+    if imported.is_empty() {
         lines.push("no pool is imported".to_owned());
     }
-    for pool in &snapshot.pools {
+    for pool in imported {
         let mode = if pool.writable {
             "read/write"
         } else {
             "read-only"
         };
-        let checkpoint = if pool.checkpoint { ", checkpoint" } else { "" };
+        let checkpoint = if pool.checkpoint == Some(true) {
+            ", checkpoint"
+        } else {
+            ""
+        };
         lines.push(format!(
             "{}\t{}\t{mode}{checkpoint}",
             pool.name,
             pool.health.as_str()
         ));
     }
+    lines.extend(importable.into_iter().map(importable_line));
     for environment in &snapshot.environments {
         let default = if environment.is_default {
             " (default)"
@@ -117,7 +150,14 @@ pub fn run_in(system: &System<'_>, settings: &Settings, report: &str, io: &mut I
         base: settings.base.clone(),
         ..Runtime::default()
     };
-    let app = App::new(Context::new(*system), &runtime).with_luks(luks);
+    let seen = Seen::new();
+    let app = App::new(Context::new(*system), &runtime)
+        .with_luks(luks)
+        .with_seen(&seen);
+    // The pools that could be imported, which only a scan finds.
+    if report == "pools" {
+        app.apply(&Action::ScanPools, Through::Quietly(*system));
+    }
     let snapshot = match app.snapshot() {
         Ok(snapshot) => snapshot,
         Err(error) => {

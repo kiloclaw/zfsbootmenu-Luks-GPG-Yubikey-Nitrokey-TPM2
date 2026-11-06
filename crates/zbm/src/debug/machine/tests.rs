@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 use zbm_app::model::{
-    CommandLine, Environment, Health, Method, Pool, Snapshot, Volume, VolumeState,
+    CommandLine, Environment, Health, Method, Pool, PoolHost, Snapshot, Volume, VolumeState,
 };
 use zbm_testkit::fakes::FakeSystem;
 use zbm_types::Untrusted;
@@ -23,14 +23,28 @@ fn snapshot() -> Snapshot {
         tries: None,
     };
     Snapshot {
-        pools: vec![Pool {
-            name: "zroot".parse().unwrap(),
-            health: Health::Degraded,
-            writable: false,
-            imported: true,
-            foreign_hostid: None,
-            checkpoint: true,
-        }],
+        pools: vec![
+            Pool {
+                checkpoint: Some(true),
+                ..Pool::imported("zroot".parse().unwrap(), Health::Degraded)
+            },
+            Pool {
+                id: Some(7),
+                imported: false,
+                host: Some(PoolHost {
+                    hostid: Some("deadbeef".parse().unwrap()),
+                    hostname: Some(Untrusted::new("other\u{1b}[2J".to_owned())),
+                }),
+                checkpoint: None,
+                ..Pool::imported("tank".parse().unwrap(), Health::Online)
+            },
+            Pool {
+                id: Some(5),
+                imported: false,
+                checkpoint: None,
+                ..Pool::imported("backup".parse().unwrap(), Health::Degraded)
+            },
+        ],
         environments: vec![
             environment(
                 "zroot/ROOT/void",
@@ -87,11 +101,17 @@ fn pools_and_boot_environments_show_their_state() {
         pool_lines(&snapshot()),
         [
             "zroot\tDEGRADED\tread-only, checkpoint",
+            "tank\tONLINE\tnot imported, id 7, host deadbeef (other\\x1b[2J)",
+            "backup\tDEGRADED\tnot imported, id 5",
             "  zroot/ROOT/void (default)\tunlocked\tcommand line: quiet (from zroot/ROOT)",
             "  zroot/ROOT/old\tnot encrypted\tcommand line: - (default)",
         ]
     );
     assert_eq!(pool_lines(&Snapshot::default()), ["no pool is imported"]);
+    let mut not_imported = snapshot();
+    not_imported.pools.remove(0);
+    not_imported.environments.clear();
+    assert_eq!(pool_lines(&not_imported)[0], "no pool is imported");
     assert_eq!(origin(&Origin::Local), "set here");
 }
 

@@ -70,7 +70,7 @@ fn the_pools_view_lists_pools_then_volumes() {
     let mut model = model();
 
     model.pools.selected = 1;
-    let pool = model.selected_pool().map(ToString::to_string);
+    let pool = model.selected_pool().map(|pool| pool.name.to_string());
     model.pools.selected = 2;
     let volume = model
         .selected_volume()

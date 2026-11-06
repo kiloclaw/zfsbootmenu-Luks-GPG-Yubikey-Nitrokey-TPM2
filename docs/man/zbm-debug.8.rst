@@ -77,7 +77,9 @@ SUBCOMMANDS
 **pools**
 
   Print each imported pool: its health, whether it is imported read/write or read-only, and whether it has a
-  checkpoint. Then each boot environment, indented: whether it is its pool's default (**bootfs**), its encryption
+  checkpoint. Then each pool that could be imported, which it scans every device for as **zpool import** does: its
+  health if it were imported, its numeric identifier, and, when another system used it last, that host's ID and name
+  as **zdb -e -C** reads them. Then each boot environment, indented: whether it is its pool's default (**bootfs**), its encryption
   (**not encrypted**, **locked** or **unlocked**), and the kernel command line it boots with, with where that was set:
   **set here** for its own **org.zfsbootmenu:commandline** property, **from** *dataset* when it inherits the property,
   and **default** when no dataset sets it.

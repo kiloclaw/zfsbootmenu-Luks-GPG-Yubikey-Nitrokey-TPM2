@@ -152,7 +152,8 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
 }
 
 /// The palette's entries that are not about an environment: sealing TPM2
-/// keys again, the views, the recovery shell and power.
+/// keys again, the views, scanning the pools again, the recovery shell and
+/// power.
 fn tool_items(model: &Model) -> Vec<PaletteItem> {
     let item = |label: String, then: Then| PaletteItem { label, then };
     let mut items: Vec<PaletteItem> = model
@@ -178,6 +179,7 @@ fn tool_items(model: &Model) -> Vec<PaletteItem> {
             .map(|(label, screen)| item(text::get(label), Then::Open(screen))),
     );
     let actions = [
+        (id!("palette-rescan-pools"), Action::ScanPools),
         (id!("tool-shell.title"), Action::Shell),
         (id!("power-off"), Action::PowerOff),
         (id!("power-reboot"), Action::Reboot),

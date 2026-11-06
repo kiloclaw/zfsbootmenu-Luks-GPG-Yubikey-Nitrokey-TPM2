@@ -13,8 +13,13 @@ fn a_change_takes_the_console_on_a_read_only_pool_or_a_locked_environment() {
         health: Health::Online,
         writable,
         imported: true,
-        foreign_hostid: None,
-        checkpoint: false,
+        id: None,
+        host: None,
+        checkpoint: Some(false),
+        devices: Vec::new(),
+        status: None,
+        action: None,
+        errors: None,
     };
     let environment = |name: &str, encryption| Environment {
         name: dataset(name),
@@ -29,8 +34,12 @@ fn a_change_takes_the_console_on_a_read_only_pool_or_a_locked_environment() {
         checks: Vec::new(),
         tries: None,
     };
+    // A pool that is not imported and is named like `zroot` is never
+    // written: it leaves `zroot`'s changes quiet.
+    let mut twin = pool("zroot", false);
+    twin.imported = false;
     let machine = Snapshot {
-        pools: vec![pool("zroot", true), pool("tank", false)],
+        pools: vec![pool("zroot", true), pool("tank", false), twin],
         environments: vec![
             environment("zroot/ROOT/void", Encryption::None),
             environment("zroot/ROOT/sealed", Encryption::Locked),
@@ -92,8 +101,13 @@ fn the_diff_of_two_snapshots_takes_the_console_only_for_a_locked_key() {
             health: Health::Online,
             writable: false,
             imported: true,
-            foreign_hostid: None,
-            checkpoint: false,
+            id: None,
+            host: None,
+            checkpoint: Some(false),
+            devices: Vec::new(),
+            status: None,
+            action: None,
+            errors: None,
         }],
         environments: vec![
             environment("tank/ROOT/arch", Encryption::None),

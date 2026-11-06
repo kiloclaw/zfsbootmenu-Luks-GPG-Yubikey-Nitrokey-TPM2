@@ -24,8 +24,8 @@ use zbm_zfs::{Source, Zfs, ZfsError};
 
 use crate::Encryption;
 use crate::model::{
-    CommandLine, Environment, Health, Keyboard, Level, Log, LogEntry, Method, Origin, Pool,
-    SnapshotInfo, Timeout, Volume, VolumeState,
+    CommandLine, Environment, Keyboard, Level, Log, LogEntry, Method, Origin, SnapshotInfo,
+    Timeout, Volume, VolumeState,
 };
 
 /// The property that holds a boot environment's command line.
@@ -50,41 +50,6 @@ fn positions(files: &dyn Files, directory: &Path, name: &str) -> Option<Position
         layout = layout.with_dead_keys(&rules).ok()?;
     }
     Some(layout.positions())
-}
-
-/// The health of a pool, in the four the menu tells apart.
-fn health(health: &zbm_zfs::Health) -> Health {
-    match health {
-        zbm_zfs::Health::Online => Health::Online,
-        zbm_zfs::Health::Degraded => Health::Degraded,
-        zbm_zfs::Health::Faulted | zbm_zfs::Health::Suspended => Health::Faulted,
-        _ => Health::Unavailable,
-    }
-}
-
-/// The imported pools.
-///
-/// # Errors
-///
-/// When `zpool list` fails or prints something unexpected.
-pub fn pools(zfs: &dyn Zfs) -> Result<Vec<Pool>, ZfsError> {
-    Ok(zfs
-        .pools()?
-        .into_iter()
-        .map(|pool| {
-            let checkpoint = zfs
-                .pool_property(&pool.name, "checkpoint")
-                .is_ok_and(|property| property.value().is_some());
-            Pool {
-                health: health(&pool.health),
-                writable: !pool.read_only,
-                imported: true,
-                foreign_hostid: None,
-                checkpoint,
-                name: pool.name,
-            }
-        })
-        .collect())
 }
 
 /// Where a property was set, as the menu says it.
@@ -189,12 +154,14 @@ fn token_method(kind: &str, has_pin: bool) -> Option<Method> {
 }
 
 /// The LUKS volumes the session finds: each with its mapping when
-/// ZFSBootMenu opened it, whether it is open, the methods its tokens offer
-/// (the passphrase last) and the pools on it.
+/// ZFSBootMenu opened it, whether it is open, or skipped by the user in
+/// this boot (`luks-skipped`), the methods its tokens offer (the
+/// passphrase last) and the pools on it.
 pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
     let context = *session.context();
     let settings = session.settings();
-    let mappings = session.mappings().read().unwrap_or_default();
+    let store = session.mappings();
+    let mappings = store.read().unwrap_or_default();
     session
         .discover_devices()
         .into_iter()
@@ -226,6 +193,8 @@ pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
                 ),
                 state: if open {
                     VolumeState::Open
+                } else if store.is_skipped(&device) {
+                    VolumeState::Skipped
                 } else {
                     VolumeState::Locked
                 },
@@ -336,6 +305,10 @@ pub fn log(files: &dyn Files, base: &Path) -> Log {
         .collect();
     Log { entries }
 }
+
+mod pools;
+
+pub(crate) use pools::{importable, merged, pools};
 
 #[cfg(test)]
 pub(crate) mod tests;

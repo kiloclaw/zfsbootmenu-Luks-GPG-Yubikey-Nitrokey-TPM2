@@ -163,11 +163,27 @@ fn back(model: &mut Model) {
     }
 }
 
-/// Time passed: the countdown runs, and when it ends boots the selection:
-/// the default environment, the one asked for once, or the fallback of a
-/// default that used up its boot tries. It boots only environments, and
-/// never asks: nobody may be there.
+/// Time passed: the countdown runs, as start-up's dialog's does; and the
+/// first time after the main view opened with no countdown running, the
+/// menu asks the machine to scan the pools, which the views list once it
+/// answers. While the countdown runs, nothing is scanned: the boot it ends
+/// with would wait for the scan, and Escape would cancel the scan instead
+/// of stopping the countdown.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
+    let mut actions = count_down(model, ms);
+    let counting = model.countdown.is_some();
+    if actions.is_empty() && model.started && !counting && !model.scanned {
+        model.scanned = true;
+        actions.push(Action::ScanPools);
+    }
+    actions
+}
+
+/// The countdown runs, and when it ends boots the selection: the default
+/// environment, the one asked for once, or the fallback of a default that
+/// used up its boot tries. It boots only environments, and never asks:
+/// nobody may be there.
+fn count_down(model: &mut Model, ms: u64) -> Vec<Action> {
     if let Some(ran) = &mut model.working {
         *ran = ran.saturating_add(ms);
     }

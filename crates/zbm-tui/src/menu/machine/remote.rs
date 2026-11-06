@@ -85,12 +85,16 @@ impl<'s> RemoteMachine<'s> {
         Ok(machine)
     }
 
-    /// Keeps a snapshot the session sent: it waits for the user, as the
-    /// countdown does not run again.
+    /// Keeps a snapshot the session sent, which waits for the user, as the
+    /// countdown does not run again, and the pools a scan found.
     fn keep(&mut self, event: &mut Event) {
-        if let Event::Changed(snapshot) = event {
-            snapshot.timeout = Timeout::Wait;
-            self.snapshot = snapshot.clone();
+        match event {
+            Event::Changed(snapshot) => {
+                snapshot.timeout = Timeout::Wait;
+                self.snapshot = snapshot.clone();
+            }
+            Event::PoolsScanned(pools) => self.snapshot.pools.clone_from(pools),
+            _ => {}
         }
     }
 

@@ -162,6 +162,7 @@ fn an_import_toggles_the_access_rewinds_and_imports_a_foreign_pool() {
             access,
             policy,
             rewind,
+            id: None,
         };
         Action::Import(pool.parse().unwrap(), options)
     };
@@ -189,7 +190,8 @@ fn an_import_toggles_the_access_rewinds_and_imports_a_foreign_pool() {
 
     let events = machine.apply(import("tank", Access::ReadWrite, strict, true));
     assert_eq!(said(events), "tank rewound to its checkpoint");
-    assert!(pool(&machine, "tank").writable && !pool(&machine, "tank").checkpoint);
+    assert!(pool(&machine, "tank").writable);
+    assert_eq!(pool(&machine, "tank").checkpoint, Some(false));
     let events = machine.apply(import("tank", Access::ReadWrite, strict, true));
     assert_eq!(said(events), "tank has no checkpoint");
 

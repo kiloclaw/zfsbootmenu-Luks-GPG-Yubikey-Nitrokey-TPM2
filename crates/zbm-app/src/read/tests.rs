@@ -33,40 +33,6 @@ impl Interaction for NoPrompts {
 }
 
 #[test]
-fn pools_say_their_health_mode_and_checkpoint() {
-    let zfs = FakeZfs::new()
-        .pool("tank")
-        .pool("zroot")
-        .health("tank", zbm_zfs::Health::Suspended)
-        .read_only("tank")
-        .pool_setting("zroot", "checkpoint", "524288");
-
-    let pools = pools(&zfs).unwrap();
-
-    let summary: Vec<(&str, Health, bool, bool)> = pools
-        .iter()
-        .map(|pool| {
-            (
-                pool.name.as_str(),
-                pool.health,
-                pool.writable,
-                pool.checkpoint,
-            )
-        })
-        .collect();
-    assert_eq!(
-        summary,
-        [
-            ("tank", Health::Faulted, false, false),
-            ("zroot", Health::Online, true, true),
-        ]
-    );
-    assert!(pools.iter().all(|pool| pool.imported));
-    assert_eq!(health(&zbm_zfs::Health::Removed), Health::Unavailable);
-    assert_eq!(health(&zbm_zfs::Health::Degraded), Health::Degraded);
-}
-
-#[test]
 fn environments_carry_their_command_line_and_where_it_was_set() {
     let zfs = FakeZfs::new()
         .pool("zroot")
@@ -135,7 +101,7 @@ fn volumes_say_their_mapping_state_and_methods() {
     fake.runner.respond(
         "blkid -c /dev/null -o device -t TYPE=crypto_LUKS",
         0,
-        "/dev/vda2\n/dev/vdb\n",
+        "/dev/vda2\n/dev/vdb\n/dev/vdc\n",
     );
     fake.runner.respond(
         "cryptsetup luksDump --dump-json-metadata /dev/vda2",
@@ -145,8 +111,10 @@ fn volumes_say_their_mapping_state_and_methods() {
     fake.files
         .block_device("/dev/vda2")
         .block_device("/dev/vdb")
+        .block_device("/dev/vdc")
         .file("/sys/class/block/vda2/holders/dm-0", "")
-        .file("/zfsbootmenu/luks-mappings", "zroot-a\t/dev/vda2\t\n");
+        .file("/zfsbootmenu/luks-mappings", "zroot-a\t/dev/vda2\t\n")
+        .file("/zfsbootmenu/luks-skipped", "/dev/vdc\n");
     let settings = Settings::new("/zfsbootmenu");
     let session = Unlocker::new(Luks {
         context: fake.context(),
@@ -156,8 +124,9 @@ fn volumes_say_their_mapping_state_and_methods() {
 
     let volumes = volumes(&session);
 
-    assert_eq!(volumes.len(), 2);
+    assert_eq!(volumes.len(), 3);
     let (vda2, vdb) = (&volumes[0], &volumes[1]);
+    assert_eq!(volumes[2].state, VolumeState::Skipped);
     assert_eq!(
         (vda2.name.get().as_str(), vda2.device.get().as_str()),
         ("zroot-a", "/dev/vda2")

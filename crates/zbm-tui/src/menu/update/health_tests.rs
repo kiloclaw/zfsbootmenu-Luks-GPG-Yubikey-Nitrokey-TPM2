@@ -145,7 +145,8 @@ fn a_default_that_used_up_its_tries_never_boots_on_its_own_again() {
             "{text}"
         );
         assert!(!text.contains("Booting"), "{text}");
-        assert_eq!(actions, Vec::new());
+        // Only the scan of the pools, which boots nothing.
+        assert_eq!(actions, [Action::ScanPools]);
     }
 }
 

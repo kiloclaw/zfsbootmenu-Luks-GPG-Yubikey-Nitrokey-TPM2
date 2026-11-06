@@ -191,6 +191,7 @@ fn the_lock_keeps_all_but_the_default_boot_and_what_changes_nothing() {
             access,
             policy,
             rewind,
+            id: None,
         };
         Action::Import(pool.clone(), options).is_kept_by_lock(bootfs)
     };
@@ -295,6 +296,17 @@ fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
                 !offers.contains(&kind),
                 "{kind:?}: {events:?}"
             );
+        }
+        // What only reads has no kind, and is performed whatever is offered.
+        for action in [Action::ScanPools] {
+            assert!(action.is_read() && action.offer().is_none());
+            for through in [
+                Through::Quietly(fake.system()),
+                Through::Console(fake.system(), &NoShell),
+            ] {
+                let events = app.apply(&action, through);
+                assert_ne!(events, unavailable(&action), "{action:?}");
+            }
         }
     }
 }

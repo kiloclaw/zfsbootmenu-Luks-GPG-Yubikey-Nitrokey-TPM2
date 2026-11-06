@@ -15,6 +15,11 @@
 //!   A read/write import or a rewind then follows as for an imported
 //!   pool, with its checks, under the options' policy.
 //!
+//! A pool that shares its name with another is named to `zpool import` by
+//! its identifier ([`ImportOptions::id`]), and, under
+//! [`ImportPolicy::Hostid`], imported with the host ID its configuration
+//! records; one named like an imported pool that is another is refused.
+//!
 //! The menu sends every import on the console ([`Action::needs_console`]),
 //! so it is never cancelled between the export and the import.
 //!
@@ -23,11 +28,12 @@
 
 use zbm_platform::{Context, Runner};
 use zbm_pool::ImportSettings;
+use zbm_pool::hostid;
 use zbm_pool::import::{import_pool, imported_pools, match_hostid};
 use zbm_pool::writable::{is_writable, reimport};
 use zbm_tools::console::ConsoleInteraction;
 use zbm_types::{ImportPolicy, PoolName};
-use zbm_zfs::{Stderr, ZfsChange, ZfsText};
+use zbm_zfs::{Stderr, Zfs as _, ZfsChange, ZfsCli, ZfsText};
 
 use super::needs::OnMachine;
 use super::{Changes, Failure, done};
@@ -63,9 +69,26 @@ impl Changes<'_, '_> {
     }
 }
 
-/// Whether `pool` is imported.
-fn is_imported(runner: &dyn Runner, pool: &PoolName) -> bool {
-    imported_pools(runner).contains(pool)
+/// Whether `pool` is imported, as the pool whose identifier is `id` when
+/// given.
+///
+/// # Errors
+///
+/// When a pool of that name is imported that is another one.
+fn is_imported(runner: &dyn Runner, pool: &PoolName, id: Option<u64>) -> Result<bool, Vec<String>> {
+    if !imported_pools(runner).contains(pool) {
+        return Ok(false);
+    }
+    let Some(id) = id else {
+        return Ok(true);
+    };
+    let guid = ZfsText::new(runner).pool_value(pool, "guid", Stderr::Hidden);
+    if guid.is_some_and(|guid| guid == id.to_string()) {
+        return Ok(true);
+    }
+    Err(vec![format!(
+        "another pool named {pool} is imported: export it first"
+    )])
 }
 
 /// Whether `pool`, imported, has a checkpoint to rewind to: its
@@ -106,10 +129,10 @@ pub(super) fn import(
     if !machine.asks {
         return Err(vec![format!("importing {pool} takes the console")]);
     }
-    let policy = if is_imported(machine.system.runner, pool) {
+    let policy = if is_imported(machine.system.runner, pool, options.id)? {
         machine.settings.import_policy
     } else {
-        first(machine, pool, options.policy)?;
+        first(machine, pool, options)?;
         if is_read_only(options) {
             return Ok(());
         }
@@ -118,22 +141,33 @@ pub(super) fn import(
     again(machine, pool, options, policy)
 }
 
-/// Imports `pool`, which is not imported, read-only under `policy`. Under
-/// [`ImportPolicy::Hostid`], when that fails, it is imported with the host
-/// ID of the host that last imported it, which is recorded for the boot,
-/// as start-up does.
+/// Imports `pool`, which is not imported, read-only under the policy of
+/// `options`, by its identifier when they give it. Under
+/// [`ImportPolicy::Hostid`], when that fails, a pool named by its name is
+/// imported with the host ID of the host that last imported it, which is
+/// recorded for the boot, as start-up does.
 fn first(
     machine: &OnMachine<'_, '_>,
     pool: &PoolName,
-    policy: ImportPolicy,
+    options: ImportOptions,
 ) -> Result<(), Vec<String>> {
     let context = Context::new(*machine.system);
-    let import = ImportOptions::default().import(pool, policy);
+    let policy = options.policy;
+    let import = read_only(options).import(pool, policy);
     let Err(error) = import_pool(&context, machine.state, import) else {
         return Ok(());
     };
     if policy != ImportPolicy::Hostid {
         return Err(causes(&error));
+    }
+    // Trying the pool by its name finds the host ID; one named by its
+    // identifier has the host ID its configuration records.
+    if let Some(id) = options.id {
+        return adopted(machine, &context, pool, options, id).map_err(|why| {
+            let mut causes = causes(&error);
+            causes.extend(why);
+            causes
+        });
     }
     let settings = ImportSettings {
         policy: ImportPolicy::Hostid,
@@ -147,7 +181,7 @@ fn first(
             Ok(())
         }
         // Its probe imports the pool read-only when nothing refuses it.
-        None if is_imported(context.runner(), pool) => Ok(()),
+        None if is_imported(context.runner(), pool, None) == Ok(true) => Ok(()),
         None => {
             let mut why = causes(&error);
             why.push(format!(
@@ -156,6 +190,38 @@ fn first(
             Err(why)
         }
     }
+}
+
+/// Imports `pool`, which is not imported and whose identifier is `id`,
+/// read-only with the host ID its configuration records (`zdb -e -C`),
+/// which is recorded for the boot, as start-up records the host ID it
+/// matched.
+fn adopted(
+    machine: &OnMachine<'_, '_>,
+    context: &Context<'_>,
+    pool: &PoolName,
+    options: ImportOptions,
+    id: u64,
+) -> Result<(), Vec<String>> {
+    let zfs = ZfsCli::new(context.runner());
+    let Some(hostid) = zfs.pool_host(id).ok().and_then(|host| host.hostid) else {
+        return Err(vec![format!(
+            "the host ID that last imported {pool} could not be read"
+        )]);
+    };
+    hostid::write(context.files(), &hostid).map_err(|error| causes(&error))?;
+    let import = read_only(options).import(pool, ImportPolicy::Hostid);
+    import_pool(context, machine.state, import).map_err(|error| {
+        let mut why = causes(&error);
+        why.push(format!(
+            "the host ID that last imported {pool} did not import it either"
+        ));
+        why
+    })?;
+    if let Err(error) = machine.state.set_spl_hostid(hostid.as_str()) {
+        tracing::warn!(%error, %pool, "recording the host ID of the pool's host");
+    }
+    Ok(())
 }
 
 /// Exports `pool`, which is imported, and imports it again with
@@ -172,16 +238,8 @@ fn again(
     }
     let context = Context::new(*machine.system);
     let interaction = ConsoleInteraction::new(*machine.system);
-    reimport(
-        &context,
-        &interaction,
-        machine.state,
-        pool,
-        policy,
-        options.access.into(),
-        options.rewinds(),
-    )
-    .map_err(|error| causes(&error))
+    let import = options.import(pool, policy);
+    reimport(&context, &interaction, machine.state, pool, import).map_err(|error| causes(&error))
 }
 
 /// The steps of importing `pool` with `options` on the machine, which is
@@ -194,7 +252,8 @@ fn again(
 ///
 /// # Errors
 ///
-/// The rewind of an imported pool with no checkpoint.
+/// The rewind of an imported pool with no checkpoint, and the import of a
+/// pool named like an imported one that is another.
 pub(super) fn steps(
     machine: &OnMachine<'_, '_>,
     pool: &PoolName,
@@ -202,7 +261,7 @@ pub(super) fn steps(
 ) -> Result<Vec<Step>, Vec<String>> {
     let runner = machine.system.runner;
     let mut steps = Vec::new();
-    let policy = if is_imported(runner, pool) {
+    let policy = if is_imported(runner, pool, options.id)? {
         if options.rewind && !has_checkpoint(runner, pool) {
             return Err(no_checkpoint(pool));
         }

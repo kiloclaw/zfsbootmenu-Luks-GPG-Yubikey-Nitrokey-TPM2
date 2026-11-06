@@ -17,8 +17,8 @@ use zbm_platform::secret::Secret;
 use zbm_types::Untrusted;
 
 use crate::menu::world::{
-    Access, Action, Event, ImportOptions, Method, Notice, Outcome, Snapshot, StageState, Volume,
-    VolumeState,
+    Access, Action, Event, ImportOptions, Method, Notice, Outcome, Pool, Snapshot, StageState,
+    Volume, VolumeState,
 };
 
 /// What the demo machine has.
@@ -48,6 +48,9 @@ pub struct DemoOptions {
     /// (ADR 0007), for the usability sessions to compare with the current
     /// one.
     pub workspace: bool,
+    /// Pools start-up leaves alone, which the menu's scan finds: one of
+    /// another host, and one named like an imported pool.
+    pub exported: bool,
 }
 
 impl Default for DemoOptions {
@@ -61,6 +64,7 @@ impl Default for DemoOptions {
             next_boot: false,
             tpm_changed: false,
             workspace: false,
+            exported: false,
         }
     }
 }
@@ -86,6 +90,8 @@ pub struct FakeMachine {
     import_asked: bool,
     /// The paths restored from snapshots, which no longer differ.
     restored: Vec<Untrusted<String>>,
+    /// The pools the scan finds besides those of the snapshot.
+    exported: Vec<Pool>,
 }
 
 impl FakeMachine {
@@ -97,6 +103,7 @@ impl FakeMachine {
             pin_failures: 0,
             import_asked: false,
             restored: Vec::new(),
+            exported: data::exported(options),
         }
     }
 
@@ -199,6 +206,7 @@ impl FakeMachine {
                 vec![self.changed()]
             }
             Action::Import(pool, options) => self.import(&pool, options),
+            Action::ScanPools => self.scan(),
             Action::Shell => leave("Opening the recovery shell"),
             Action::Reboot => leave("Rebooting"),
             Action::PowerOff => leave("Powering off"),
@@ -213,6 +221,17 @@ impl FakeMachine {
             Action::RestoreFiles { snapshot, paths } => self.restore(&snapshot, paths),
             other => storage::apply(&mut self.snapshot, other),
         }
+    }
+
+    /// The scan of the pools: those of the snapshot, and those start-up left
+    /// alone, which it lists from now on.
+    fn scan(&mut self) -> Vec<Event> {
+        for pool in &self.exported {
+            if !self.snapshot.pools.iter().any(|known| known.id == pool.id) {
+                self.snapshot.pools.push(pool.clone());
+            }
+        }
+        vec![Event::PoolsScanned(self.snapshot.pools.clone())]
     }
 
     /// Restores `paths` from `snapshot`, after a safety snapshot; the diff
@@ -375,7 +394,7 @@ impl FakeMachine {
             .snapshot
             .pools
             .iter_mut()
-            .find(|pool| &pool.name == name)
+            .find(|pool| &pool.name == name && options.id.is_none_or(|id| pool.id == Some(id)))
         else {
             return Vec::new();
         };
@@ -384,7 +403,7 @@ impl FakeMachine {
             return vec![self.changed(), Event::Finished(outcome)];
         }
         let policy = options.policy;
-        if pool.foreign_hostid.is_some() && policy == zbm_types::ImportPolicy::Strict {
+        if pool.host.is_some() && policy == zbm_types::ImportPolicy::Strict {
             return vec![Event::Finished(Outcome::Failed {
                 what: format!("{name} did not import"),
                 why: vec![format!(

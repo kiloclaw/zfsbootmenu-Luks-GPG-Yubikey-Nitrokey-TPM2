@@ -15,7 +15,7 @@ use std::time::Duration;
 use zbm_app::service::MachineService;
 use zbm_app::service::asker::Asker;
 use zbm_app::session::{self, Handover};
-use zbm_app::{App, BootSettings, Recovery, Runtime};
+use zbm_app::{App, BootSettings, Recovery, Runtime, Seen};
 use zbm_config::args::{Args as _, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
@@ -122,9 +122,12 @@ impl Menu for Terminal<'_, '_> {
             settings: &luks_settings,
             interaction: &asker,
         };
+        // What the menu's scans of the pools find, for as long as it runs.
+        let seen = Seen::new();
         let app = App::new(Context::new(self.system), &runtime)
             .with_keyholders(&keyholders)
-            .with_luks(luks);
+            .with_luks(luks)
+            .with_seen(&seen);
         let (signals, handover) = (self.signals, self.handover);
         let stop = || {
             signals.is_some_and(|signals| is_taken_over(signals.received()))

@@ -192,8 +192,8 @@ impl FakeZfs {
         self
     }
 
-    /// Makes the change `operation`, such as `rollback`, fail with
-    /// `message`.
+    /// Makes the change `operation`, such as `rollback`, or the read
+    /// `status`, `importable` or `pool_host`, fail with `message`.
     #[must_use]
     pub fn failing(self, operation: &str, message: &str) -> FakeZfs {
         self.state
@@ -294,17 +294,23 @@ impl Zfs for FakeZfs {
 
     fn status(&self) -> Result<Vec<PoolStatus>, ZfsError> {
         self.record("status".to_owned());
-        Ok(pools::status(&self.state.borrow()))
+        let state = self.state.borrow();
+        pools::planned(&state, "status", "zpool status -p -P")?;
+        Ok(pools::status(&state))
     }
 
     fn importable(&self) -> Result<Vec<Importable>, ZfsError> {
         self.record("importable".to_owned());
-        Ok(self.state.borrow().described.importable.clone())
+        let state = self.state.borrow();
+        pools::planned(&state, "importable", "zpool import")?;
+        Ok(state.described.importable.clone())
     }
 
     fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError> {
         self.record(format!("pool_host {id}"));
-        pools::pool_host(&self.state.borrow(), id)
+        let state = self.state.borrow();
+        pools::planned(&state, "pool_host", &format!("zdb -e -C {id}"))?;
+        pools::pool_host(&state, id)
     }
 
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {

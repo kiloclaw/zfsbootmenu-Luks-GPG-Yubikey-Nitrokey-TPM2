@@ -91,9 +91,10 @@ impl<'a> MachineService<'a> {
     }
 
     /// Performs `action`, its programs cancelled by `token`, then reads the
-    /// machine again, as the action may have changed it: the new snapshot
-    /// comes first, the action's events after it, the last saying how it
-    /// ended. A cancelled action ends as [`Outcome::Cancelled`].
+    /// machine again, as the action may have changed it, unless it only
+    /// read it ([`Action::is_read`]): the new snapshot comes first, the
+    /// action's events after it, the last saying how it ended. A cancelled
+    /// action ends as [`Outcome::Cancelled`].
     pub fn perform(&self, action: &Action, token: &CancelToken) -> Vec<Event> {
         let runner = CancellingRunner::new(self.app.runner(), token.clone());
         let luks_runner = self
@@ -114,7 +115,9 @@ impl<'a> MachineService<'a> {
             }
             events.push(Event::Finished(Outcome::Cancelled));
         }
-        if let Some(snapshot) = self.read() {
+        if !action.is_read()
+            && let Some(snapshot) = self.read()
+        {
             events.insert(0, Event::Changed(snapshot));
         }
         events

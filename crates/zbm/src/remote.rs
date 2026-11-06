@@ -17,7 +17,7 @@ use zbm_app::remote::{self, Served};
 use zbm_app::service::MachineService;
 use zbm_app::service::asker::Asker;
 use zbm_app::session::Handover;
-use zbm_app::{App, Application as _, BootSettings, Recovery, Runtime, Through};
+use zbm_app::{App, Application as _, BootSettings, Recovery, Runtime, Seen, Through};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::{Luks, Presence};
@@ -149,9 +149,13 @@ impl Menu for RemoteMenu<'_, '_> {
             settings: &luks_settings,
             interaction: &asker,
         };
+        // What this menu's scans of the pools find, for as long as it is
+        // served.
+        let seen = Seen::new();
         let app = App::new(Context::new(self.system), &runtime)
             .with_keyholders(&keyholders)
-            .with_luks(luks);
+            .with_luks(luks)
+            .with_seen(&seen);
         let system = self.system;
         let console = |action: &Action| app.apply(action, Through::Console(system, recovery));
         let (handover, until) = (self.handover, self.until);

@@ -258,8 +258,8 @@ pub(super) fn reimport(
 
 fn rewind(snapshot: &mut Snapshot, pool: &PoolName) -> Outcome {
     match snapshot.pools.iter_mut().find(|p| &p.name == pool) {
-        Some(found) if found.checkpoint => {
-            found.checkpoint = false;
+        Some(found) if found.checkpoint == Some(true) => {
+            found.checkpoint = Some(false);
             found.writable = true;
             Outcome::Done(format!("{pool} rewound to its checkpoint"))
         }

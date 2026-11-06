@@ -15,6 +15,8 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             model.replace_snapshot(snapshot);
             start(model);
         }
+        // The countdown goes on.
+        Event::PoolsScanned(pools) => model.replace_pools(pools),
         Event::UnlockRequested {
             volume,
             method,

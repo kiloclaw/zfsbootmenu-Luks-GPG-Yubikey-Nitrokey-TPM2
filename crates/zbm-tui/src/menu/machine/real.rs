@@ -86,6 +86,20 @@ impl<'a, 'r> RealMachine<'a, 'r> {
         }
     }
 
+    /// Keeps what `event` says of the machine: a snapshot read after an
+    /// action, which waits for the user, as the countdown does not run
+    /// again; the pools a scan found, which leave the countdown alone.
+    fn keep(&mut self, event: &mut Event) {
+        match event {
+            Event::Changed(snapshot) => {
+                snapshot.timeout = Timeout::Wait;
+                self.snapshot = snapshot.clone();
+            }
+            Event::PoolsScanned(pools) => self.snapshot.pools.clone_from(pools),
+            _ => {}
+        }
+    }
+
     /// The events the service sent: a snapshot read after an action waits
     /// for the user, as the countdown does not run again.
     fn reports(&mut self) -> Vec<Event> {
@@ -109,10 +123,7 @@ impl<'a, 'r> RealMachine<'a, 'r> {
                     continue;
                 }
             };
-            if let Event::Changed(snapshot) = &mut event {
-                snapshot.timeout = Timeout::Wait;
-                self.snapshot = snapshot.clone();
-            }
+            self.keep(&mut event);
             events.push(event);
         }
         if !events.is_empty() && (self.stop)() {
@@ -160,7 +171,9 @@ impl Machine for RealMachine<'_, '_> {
     }
 
     /// Performs `action`, then reads the machine again, as the action may
-    /// have changed it. The recovery shell ends the menu, as in the legacy
+    /// have changed it, unless it only read it ([`Action::is_read`]): what
+    /// it read comes as its own event. The recovery shell ends the menu, as
+    /// in the legacy
     /// menu: the program that ran it opens the shell, and imports the pools
     /// the shell made importable before it runs the menu again.
     fn apply(&mut self, action: Action) -> Vec<Event> {
@@ -188,9 +201,14 @@ impl Machine for RealMachine<'_, '_> {
             Through::Console(self.console, self.recovery)
         };
         let mut events = self.app.apply(&action, through);
+        for event in &mut events {
+            self.keep(event);
+        }
         if (self.stop)() {
             events.push(Event::Leaving(String::new()));
-        } else if let Ok(snapshot) = read(self.app, self.console, Countdown::Skip) {
+        } else if !action.is_read()
+            && let Ok(snapshot) = read(self.app, self.console, Countdown::Skip)
+        {
             self.snapshot = snapshot.clone();
             events.insert(0, Event::Changed(snapshot));
         }

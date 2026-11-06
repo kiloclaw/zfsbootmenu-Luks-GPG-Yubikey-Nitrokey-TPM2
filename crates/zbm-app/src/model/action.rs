@@ -10,7 +10,7 @@ use zbm_types::{
     Answer, DatasetName, DevicePath, FilesystemName, MappingName, PoolName, SnapshotName, Untrusted,
 };
 
-use super::{Change, ImportOptions, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
+use super::{Change, ImportOptions, Method, Notice, PackageDiff, Plan, Pool, Snapshot, StageState};
 
 /// What the name of the safety snapshot restoring files takes first starts
 /// with: `<environment>@before-restore-<UTC time>`, the time as a new
@@ -138,9 +138,20 @@ pub enum Action {
     /// What a change would do, step by step, without doing it: the dry
     /// run, which [`Event::Planned`] brings.
     Plan(Box<Action>),
+    /// Look for the pools that could be imported, on every device, which
+    /// can take seconds: [`Event::PoolsScanned`] brings them with the
+    /// imported ones, and the snapshots read after it list them.
+    ScanPools,
 }
 
 impl Action {
+    /// Whether the action only reads the machine, which it leaves as it
+    /// was: what it reads comes in its own event, and the snapshot is not
+    /// read again after it.
+    pub fn is_read(&self) -> bool {
+        matches!(self, Action::ScanPools)
+    }
+
     /// Whether the action answers what the machine asked
     /// ([`Event::UnlockRequested`], [`Event::Asked`]): it goes to the
     /// question's reply, as the action that asked waits for it.
@@ -229,7 +240,8 @@ impl Action {
             | Action::FirmwareSetup
             | Action::Reboot
             | Action::PowerOff
-            | Action::Plan(_) => false,
+            | Action::Plan(_)
+            | Action::ScanPools => false,
             Action::Import(_, options) => options.is_kept_by_lock(),
             Action::BootSnapshot(..)
             | Action::SetDefaultEnvironment(_)
@@ -289,7 +301,7 @@ impl Action {
             && snapshot
                 .pools
                 .iter()
-                .any(|known| known.name == pool && !known.writable);
+                .any(|known| known.imported && known.name == pool && !known.writable);
         let locked = snapshot.environments.iter().any(|known| {
             known.name.as_str() == environment.as_str()
                 && known.encryption == super::Encryption::Locked
@@ -332,6 +344,10 @@ impl Action {
 pub enum Event {
     /// The snapshot changed.
     Changed(Snapshot),
+    /// What [`Action::ScanPools`] found: every pool, those imported and
+    /// those that could be imported, which replace the snapshot's. The
+    /// countdown goes on.
+    PoolsScanned(Vec<Pool>),
     /// A stage of start-up started, named for people.
     StageStarted(String),
     /// A stage of start-up ended.

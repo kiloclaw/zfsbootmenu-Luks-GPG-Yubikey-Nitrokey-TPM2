@@ -282,12 +282,31 @@ menu also restores files from a snapshot, which the legacy menu did not.
 - **Now:** the menu's import of an imported pool is read-only or read/write again, or the rewind, confirmed by the
   pool's name and refused when the pool has no checkpoint; each exports the pool and imports it under
   `zbm.import_policy`, with the property, degraded and hibernation checks of before for read/write, and a failed import
-  imports the pool read-only again. A pool that is not imported is imported read-only as this host, as the host that
+  imports the pool read-only again. The import after the export names the pool by its `guid`, read before the export,
+  so that a pool that is not imported and has its name is not in the way; `set_rw_pool` of the hook library does the
+  same. A pool that is not imported is imported read-only as this host, as the host that
   last imported it, whose host ID is then recorded for the boot as start-up records it, or forced; a read/write import
   or a rewind then exports it and imports it again, with the same checks. Every import takes the console, and the
   locked menu keeps every one but a read-only import as this host.
 - **Why:** one action says how a pool is imported, and a failed import tries to import the pool read-only again
   instead of leaving it exported; the pool stays exported only when that import fails too.
+
+### The menu lists the pools that could be imported
+
+- **Before:** the pool screen listed the imported pools (`zpool list`) and previewed `zpool status -v`; a pool that
+  was not imported was not shown, nor the host that used it last, and two pools of one name could not be told apart.
+- **Now:** once its first frame is drawn, the menu scans for the pools that could be imported (`zpool import`, which
+  looks at every device) and lists them after the imported ones, each with its identifier; for one that another system
+  used last, `zdb -e -C` reads that host's ID and name, and only for it. The scan waits for the countdown to be
+  stopped, so that the boot the countdown ends with never waits for it; it runs again after an import, opening a
+  volume or a chroot, and from the palette (Rescan the Pools), and the snapshots read in between list what it found.
+  Each imported pool carries its devices from one `zpool status`, their states kept apart (UNAVAIL, REMOVED, FAULTED,
+  OFFLINE), with their error counts. A pool that shares its name with another is imported by its identifier, which its
+  row shows, and, as the host that last imported it, with the host ID its configuration records; one named like an
+  imported pool is shown but not offered for import. `zbm debug pools` scans too, and lists the pools that could be
+  imported after the imported ones.
+- **Why:** a pool that did not import, or a missing disk, is what the menu is opened for; the scan reads the labels of
+  every disk, which takes seconds, so it runs once the menu shows and not with every snapshot.
 
 ### Clones leave encryption properties out
 

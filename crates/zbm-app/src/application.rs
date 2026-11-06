@@ -21,7 +21,7 @@ use crate::auth::{self, Authority};
 use crate::keyholder::Keyholders;
 use crate::model::{Action, Encryption, Event, Keyboard, Offer, Outcome, Snapshot};
 use crate::volumes::Volumes;
-use crate::{AppError, SnapshotError, boot, changes, read};
+use crate::{AppError, SnapshotError, boot, read};
 
 /// Where the image keeps its keyboard layouts.
 pub const LAYOUTS: &str = "/usr/share/zfsbootmenu/layouts";
@@ -164,6 +164,9 @@ pub struct App<'a> {
     keyholders: Option<&'a dyn Keyholders>,
     /// What cancels the action performed, which ends its keyholder.
     until: Option<&'a CancelToken>,
+    /// What the front end keeps between reads: the pools the last scan
+    /// found.
+    seen: Option<&'a Seen>,
 }
 
 impl<'a> App<'a> {
@@ -176,6 +179,17 @@ impl<'a> App<'a> {
             authority: auth::process(),
             keyholders: None,
             until: None,
+            seen: None,
+        }
+    }
+
+    /// With `seen` keeping what the scan of the pools finds, which every
+    /// snapshot lists then.
+    #[must_use]
+    pub fn with_seen(self, seen: &'a Seen) -> App<'a> {
+        App {
+            seen: Some(seen),
+            ..self
         }
     }
 
@@ -335,6 +349,7 @@ impl<'a> App<'a> {
             Action::FirmwareSetup => boot::firmware_setup(&system, &pools()),
             Action::BootSnapshot(_, target) => self.boot_clone(action, target, &system, recovery),
             Action::Chroot(filesystem) => self.chroot(action, filesystem, &system),
+            Action::ScanPools => self.scan(),
             change if change.is_change() => self.change(change, &system, true),
             Action::Boot {
                 environment,
@@ -433,49 +448,6 @@ impl<'a> App<'a> {
         vec![Event::Finished(outcome)]
     }
 
-    /// Applies `action` without taking the console: the volumes', the
-    /// changes of package D ([`Action::is_change`]) whose pool is writable
-    /// and whose key is loaded, and the dry runs of [`Action::Plan`]
-    /// ([`App::plan`]).
-    fn quietly(&self, action: &Action, console: System<'_>) -> Vec<Event> {
-        if let Action::Plan(planned) = action {
-            return self.planned(planned, console);
-        }
-        // What the lock keeps takes the console, where the PIN is asked;
-        // a menu that thought it open is told.
-        let state = zbm_state::State::new(console.files, &self.runtime.base);
-        let bootfs: Option<DatasetName> = state.bootfs().and_then(|name| name.parse().ok());
-        if action.is_kept_by_lock(bootfs.as_ref()) && self.is_menu_locked(console.files) {
-            return auth::refused();
-        }
-        if !action.is_change() {
-            return self.alone(action);
-        }
-        let system = console.with_runner(self.context.runner());
-        self.change(action, &system, false)
-    }
-
-    /// Performs the change `action` on `system`, asking on its console
-    /// when `asks`.
-    fn change(&self, action: &Action, system: &System<'_>, asks: bool) -> Vec<Event> {
-        let state = zbm_state::State::new(system.files, &self.runtime.base);
-        let zfs = zbm_zfs::ZfsCli::new(system.runner);
-        let mut needs = changes::OnMachine {
-            system,
-            state: &state,
-            settings: &self.runtime.boot,
-            import: &self.runtime.import,
-            asks,
-        };
-        let mut changes = changes::Changes {
-            zfs: &zfs,
-            needs: &mut needs,
-        };
-        changes
-            .perform(action)
-            .unwrap_or_else(|| self.alone(action))
-    }
-
     /// The kinds of action the application performs on the machine of
     /// `files`: the boot, a snapshot's too, the changes of package D
     /// ([`Action::is_change`]), the default kernel, restoring files and the
@@ -548,7 +520,7 @@ impl Application for App<'_> {
         let bootfs = state.bootfs().and_then(|name| name.parse().ok());
         Ok(Snapshot {
             startup: read::startup(&state),
-            pools: read::pools(&zfs).map_err(SnapshotError::from)?,
+            pools: self.pools(&zfs).map_err(SnapshotError::from)?,
             environments: read::environments(&zfs).map_err(SnapshotError::from)?,
             volumes: self.volumes(),
             timeout: read::timeout(&self.runtime.options),
@@ -577,13 +549,25 @@ impl Application for App<'_> {
         }
     }
 
+    /// Applies `action`, then, when it may have imported, exported or
+    /// opened what holds a pool, scans the pools again for the snapshots
+    /// read after it.
     fn apply(&self, action: &Action, through: Through<'_>) -> Vec<Event> {
-        match through {
+        let events = match through {
             Through::Quietly(console) => self.quietly(action, console),
             Through::Console(console, recovery) => self.on_console(action, console, recovery),
+        };
+        if reads::may_move_pools(action) {
+            self.rescan();
         }
+        events
     }
 }
+
+mod reads;
+mod seen;
+
+pub use seen::Seen;
 
 #[cfg(test)]
 mod tests;

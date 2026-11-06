@@ -21,6 +21,8 @@ enum Step {
     Ctrl(char),
     /// Time passes until start-up is over or a dialog opens.
     Start,
+    /// A moment passes.
+    Tick,
     Code(Key),
     Text(&'static str),
 }
@@ -77,19 +79,31 @@ fn workspace() -> DemoOptions {
 }
 
 /// The wireframes of the workspace: the Boot tab, and the kernels column
-/// it goes into.
+/// it goes into; and what needs attention once the scan, which waits for a
+/// key to stop the countdown, found the pools start-up left alone, one of
+/// them another host's.
 fn workspace_wireframes() -> Vec<Wireframe> {
-    use Step::{Char, Code};
+    use Step::{Char, Code, Tick};
     let frame = |name, keys| Wireframe {
         name,
         options: workspace(),
         ticks: 50,
         keys,
     };
+    let exported = DemoOptions {
+        exported: true,
+        ..workspace()
+    };
     vec![
         frame("workspace", &[]),
         frame("workspace-kernels", &[Code(Key::Down), Char('l')]),
         frame("workspace-pools", &[Char('3')]),
+        Wireframe {
+            name: "workspace-attention",
+            options: exported,
+            ticks: 50,
+            keys: &[Code(Key::Escape), Tick],
+        },
     ]
 }
 
@@ -277,6 +291,7 @@ fn play(wireframe: &Wireframe, capabilities: Capabilities) -> Session {
             Step::Char(c) => session.key(Key::Char(c)),
             Step::Ctrl(c) => session.press(KeyPress::new(Key::Char(c)).with_ctrl()),
             Step::Start => session.start(),
+            Step::Tick => session.tick(0),
             Step::Code(key) => session.key(key),
             Step::Text(text) => session.type_text(text),
         }

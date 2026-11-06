@@ -168,6 +168,29 @@ fn an_action_performed_in_place_reads_the_machine_first() {
 }
 
 #[test]
+fn what_only_reads_is_not_followed_by_a_snapshot() {
+    let fake = machine();
+    fake.runner.respond_program("zpool", 0, "");
+    let runtime = Runtime::default();
+    let service = MachineService::new(
+        App::new(Context::new(fake.system()), &runtime),
+        fake.system(),
+    );
+    let token = CancelToken::new().unwrap();
+
+    let events = service.perform(&Action::ScanPools, &token);
+
+    assert_eq!(events, [Event::PoolsScanned(Vec::new())]);
+    let listed = fake
+        .runner
+        .lines()
+        .iter()
+        .filter(|line| line.starts_with("zfs list"))
+        .count();
+    assert_eq!(listed, 0, "{:?}", fake.runner.lines());
+}
+
+#[test]
 fn the_worker_ends_when_the_front_end_is_gone_while_it_works() {
     let fake = machine();
     let started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));

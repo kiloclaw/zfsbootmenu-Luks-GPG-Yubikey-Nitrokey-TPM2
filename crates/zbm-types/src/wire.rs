@@ -10,7 +10,7 @@ use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::{
-    Answer, DatasetName, DevicePath, FilesystemName, ImportPolicy, MappingName, PoolName,
+    Answer, DatasetName, DevicePath, FilesystemName, HostId, ImportPolicy, MappingName, PoolName,
     SnapshotName, Untrusted,
 };
 
@@ -56,7 +56,8 @@ as_text!(
     FilesystemName,
     DevicePath,
     MappingName,
-    ImportPolicy
+    ImportPolicy,
+    HostId
 );
 
 impl Serialize for Answer {
@@ -116,6 +117,7 @@ mod tests {
         round_trip(&"/dev/sda2".parse::<DevicePath>().unwrap());
         round_trip(&"root".parse::<MappingName>().unwrap());
         round_trip(&ImportPolicy::default());
+        round_trip(&"deadbeef".parse::<HostId>().unwrap());
         round_trip(&Answer::Escape);
         round_trip(&Untrusted::new("vmlinuz-6.1".to_owned()));
         for bad in ["\"\"", "\"/absolute\"", "3", "\"zroot//x\""] {
@@ -124,5 +126,6 @@ mod tests {
         assert!(serde_json::from_str::<MappingName>("\"-x\"").is_err());
         assert!(serde_json::from_str::<FilesystemName>("\"zroot@a@b\"").is_err());
         assert!(serde_json::from_str::<Answer>("\"maybe\"").is_err());
+        assert!(serde_json::from_str::<HostId>("\"host\"").is_err());
     }
 }

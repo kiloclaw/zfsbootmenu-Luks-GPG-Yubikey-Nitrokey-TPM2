@@ -7,6 +7,7 @@
 //! ROADMAP.md fills them from the real one.
 
 mod action;
+mod devices;
 mod diff;
 mod health;
 mod import;
@@ -22,6 +23,7 @@ use zbm_types::Untrusted;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
+pub use self::devices::{Device, DeviceErrors, DeviceState, PoolHost};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Tries, Verdict, worst};
 pub use self::import::{Access, ImportOptions};
@@ -145,18 +147,66 @@ impl Health {
 /// A pool.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Pool {
-    /// Its name.
+    /// Its name, which a pool not imported may share with another.
     pub name: PoolName,
+    /// Its numeric identifier, the GUID `zpool import` lists, which tells
+    /// it from a pool of the same name; `None` when unknown.
+    pub id: Option<u64>,
     /// Its health.
     pub health: Health,
     /// Whether it is imported read/write.
     pub writable: bool,
     /// Whether it is imported.
     pub imported: bool,
-    /// The host ID it was last imported by, when it is another host's.
-    pub foreign_hostid: Option<String>,
-    /// Whether it has a checkpoint to rewind to.
-    pub checkpoint: bool,
+    /// The host that used it last, when it is another system, which has to
+    /// be named or forced to import it; `None` for a pool this host can
+    /// import as it is.
+    pub host: Option<PoolHost>,
+    /// Whether it has a checkpoint to rewind to; `None` when unknown, as
+    /// for a pool not imported.
+    pub checkpoint: Option<bool>,
+    /// Its top-level devices and the devices below them, in the order
+    /// `zpool status` prints them; none when they could not be read.
+    pub devices: Vec<Device>,
+    /// What is wrong with it, in the words of `zpool` (`status:`).
+    pub status: Option<Untrusted<String>>,
+    /// What to do about it, in the words of `zpool` (`action:`).
+    pub action: Option<Untrusted<String>>,
+    /// The number of data errors; `None` when `zpool` does not say, as for
+    /// a pool not imported.
+    pub errors: Option<u64>,
+}
+
+impl Pool {
+    /// An imported pool of `name` with `health`, read-only, with no
+    /// checkpoint, nothing more known of it.
+    pub fn imported(name: PoolName, health: Health) -> Pool {
+        Pool {
+            name,
+            id: None,
+            health,
+            writable: false,
+            imported: true,
+            host: None,
+            checkpoint: Some(false),
+            devices: Vec::new(),
+            status: None,
+            action: None,
+            errors: None,
+        }
+    }
+
+    /// Its devices that are faulted, unavailable or removed, the worst
+    /// first, those as bad in the order `zpool status` prints them: a
+    /// group before the devices below it.
+    pub fn missing_devices(&self) -> Vec<&Device> {
+        let mut found = Vec::new();
+        for device in &self.devices {
+            device.collect_missing(&mut found);
+        }
+        found.sort_by_key(|device| std::cmp::Reverse(device.state));
+        found
+    }
 }
 
 /// A boot environment.
@@ -362,13 +412,15 @@ pub enum Level {
     Error,
 }
 
-/// The pool with the worst health, if any is not online.
+/// The pool that most needs attention, if any does: an imported pool that
+/// is not online, the least healthy; else a pool that is not imported, the
+/// least healthy, which no boot environment comes from.
 pub fn worst_pool(snapshot: &Snapshot) -> Option<&Pool> {
     snapshot
         .pools
         .iter()
-        .filter(|pool| pool.health != Health::Online)
-        .max_by_key(|pool| pool.health)
+        .filter(|pool| pool.health != Health::Online || !pool.imported)
+        .max_by_key(|pool| (pool.imported, pool.health))
 }
 
 #[cfg(test)]
@@ -377,14 +429,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     fn pool(name: &str, health: Health) -> Pool {
-        Pool {
-            name: name.parse().unwrap(),
-            health,
-            writable: false,
-            imported: true,
-            foreign_hostid: None,
-            checkpoint: false,
-        }
+        Pool::imported(name.parse().unwrap(), health)
     }
 
     #[test]
@@ -400,6 +445,25 @@ mod tests {
 
         assert_eq!(worst_pool(&snapshot).map(|p| p.name.as_str()), Some("b"));
         assert_eq!(worst_pool(&Snapshot::default()), None);
+        let mut exported = pool("d", Health::Online);
+        exported.imported = false;
+        let mut faulted = exported.clone();
+        faulted.health = Health::Faulted;
+        let mut snapshot = Snapshot {
+            pools: vec![pool("a", Health::Online), exported],
+            ..Snapshot::default()
+        };
+        assert_eq!(worst_pool(&snapshot).map(|p| p.name.as_str()), Some("d"));
+        snapshot.pools.push(pool("e", Health::Degraded));
+        assert_eq!(worst_pool(&snapshot).map(|p| p.name.as_str()), Some("e"));
+        // A pool that is not imported, however broken, does not hide an
+        // imported one that is not online.
+        snapshot.pools.push(faulted);
+        assert_eq!(worst_pool(&snapshot).map(|p| p.name.as_str()), Some("e"));
+        snapshot.pools.push(pool("f", Health::Faulted));
+        assert_eq!(worst_pool(&snapshot).map(|p| p.name.as_str()), Some("f"));
+        snapshot.pools.retain(|pool| !pool.imported);
+        assert_eq!(worst_pool(&snapshot).map(|p| p.name.as_str()), Some("d"));
         assert_eq!(Health::Unavailable.as_str(), "UNAVAIL");
     }
 

@@ -58,7 +58,7 @@ pub fn import_pool(
     );
     zbm_trace::debug!("{output}"; output = %output.trim_end_matches('\n'));
     Err(PoolError::Import {
-        target: import.pool_argument().to_owned(),
+        target: import.pool_argument(),
         status: code,
     })
 }

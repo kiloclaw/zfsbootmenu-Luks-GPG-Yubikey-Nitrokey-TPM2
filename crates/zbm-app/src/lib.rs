@@ -35,7 +35,7 @@ pub mod steps;
 mod volumes;
 pub mod wire;
 
-pub use application::{App, Application, LAYOUTS, Runtime, Through};
+pub use application::{App, Application, LAYOUTS, Runtime, Seen, Through};
 pub use boot::kernel_version;
 pub use model::Encryption;
 pub use read::stage_name;

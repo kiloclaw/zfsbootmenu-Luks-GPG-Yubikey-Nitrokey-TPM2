@@ -156,7 +156,7 @@ fn an_answer_carries_its_secret_as_a_packet_of_its_own() {
 #[test]
 fn a_secret_of_another_length_is_refused() {
     let (menu, session) = Connection::pair().unwrap();
-    menu.send(b".{\"version\":1,\"message\":{\"send\":{\"action\":\"Shell\"}},\"secret\":4}")
+    menu.send(b".{\"version\":2,\"message\":{\"send\":{\"action\":\"Shell\"}},\"secret\":4}")
         .unwrap();
     menu.send(b"12").unwrap();
     let error = ToSession::receive(&session, WAIT).unwrap_err();
@@ -173,24 +173,24 @@ fn what_is_not_of_the_protocol_is_refused() {
     // Another version, no part, JSON of nothing here, a name its parser
     // refuses.
     assert_eq!(
-        refused(b".{\"version\":2,\"message\":\"read\"}"),
+        refused(b".{\"version\":1,\"message\":\"read\"}"),
         io::ErrorKind::InvalidData
     );
     assert_eq!(
-        refused(b"?{\"version\":1,\"message\":\"read\"}"),
+        refused(b"?{\"version\":2,\"message\":\"read\"}"),
         io::ErrorKind::InvalidData
     );
     assert_eq!(
-        refused(b".{\"version\":1,\"message\":\"dance\"}"),
+        refused(b".{\"version\":2,\"message\":\"dance\"}"),
         io::ErrorKind::InvalidData
     );
-    let bad_name = b".{\"version\":1,\"message\":{\"send\":{\"action\":\
+    let bad_name = b".{\"version\":2,\"message\":{\"send\":{\"action\":\
                      {\"SetDefaultEnvironment\":\"zroot//x\"}}}}";
     assert_eq!(refused(bad_name), io::ErrorKind::InvalidData);
 
     // The same, decoded alone.
-    assert!(ToSession::decode(b".{\"version\":1,\"message\":\"cancel\"}").is_ok());
-    assert!(ToSession::decode(b"+{\"version\":1,\"message\":\"cancel\"}").is_err());
+    assert!(ToSession::decode(b".{\"version\":2,\"message\":\"cancel\"}").is_ok());
+    assert!(ToSession::decode(b"+{\"version\":2,\"message\":\"cancel\"}").is_err());
     assert!(ToSession::decode(b"").is_err());
     let encoded = ToMenu::Refused("no".to_owned()).encode().unwrap();
     assert_eq!(
@@ -203,7 +203,7 @@ fn what_is_not_of_the_protocol_is_refused() {
 #[test]
 fn a_menu_that_goes_mid_message_is_gone() {
     let (menu, session) = Connection::pair().unwrap();
-    menu.send(b"+{\"version\":1,").unwrap();
+    menu.send(b"+{\"version\":2,").unwrap();
     drop(menu);
     let error = ToSession::receive(&session, WAIT).unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::UnexpectedEof);

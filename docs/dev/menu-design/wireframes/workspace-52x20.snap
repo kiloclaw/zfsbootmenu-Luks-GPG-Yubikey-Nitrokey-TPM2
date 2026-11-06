@@ -1,7 +1,7 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 4
+ [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 6
  Booting zroot/ROOT/void in 10 s.
 ┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐
 │ ▶ zroot/ROOT/void              default  6.12.9_1 │

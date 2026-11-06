@@ -4,8 +4,10 @@ use zbm_types::{Answer, ImportPolicy, PoolName};
 
 use super::screens;
 use crate::menu::keymap::{Input, Intent};
-use crate::menu::model::{Asking, Choice, Dialog, Make, Model, Naming, Then, is_name_char};
-use crate::menu::world::{Access, Action, ImportOptions, Outcome};
+use crate::menu::model::{
+    Asking, Choice, Dialog, Make, Model, Naming, Then, host_text, is_name_char,
+};
+use crate::menu::world::{Access, Action, ImportOptions, Outcome, Pool};
 use crate::text::text;
 
 /// A choice dialog.
@@ -58,44 +60,90 @@ pub(super) fn confirm(then: Then) -> Dialog {
     }
 }
 
+/// A pool as an import names it: by its name, and by its identifier when
+/// another pool has that name.
+#[derive(Clone, Copy)]
+pub(super) struct Named<'p> {
+    /// Its name.
+    pub name: &'p PoolName,
+    /// Its identifier, when the name does not tell it from another.
+    pub id: Option<u64>,
+}
+
+impl<'p> From<&'p PoolName> for Named<'p> {
+    /// A pool its name tells apart.
+    fn from(name: &'p PoolName) -> Named<'p> {
+        Named { name, id: None }
+    }
+}
+
+impl<'p> Named<'p> {
+    /// `pool`, as the menu of `model` names it to import it.
+    pub(super) fn of(model: &Model, pool: &'p Pool) -> Named<'p> {
+        Named {
+            name: &pool.name,
+            id: model.import_id(pool),
+        }
+    }
+
+    /// The import of the pool with `options`, which name it by its
+    /// identifier when it has one.
+    fn import(self, options: ImportOptions) -> Action {
+        Action::Import(
+            self.name.clone(),
+            ImportOptions {
+                id: self.id,
+                ..options
+            },
+        )
+    }
+}
+
 /// The import of `pool` with `access` and `policy`, without a rewind. An
 /// imported pool is imported again under `zbm.import_policy`, whatever
 /// `policy` says.
-pub(super) fn import(pool: &PoolName, access: Access, policy: ImportPolicy) -> Action {
-    let options = ImportOptions {
+pub(super) fn import<'p>(
+    pool: impl Into<Named<'p>>,
+    access: Access,
+    policy: ImportPolicy,
+) -> Action {
+    pool.into().import(ImportOptions {
         access,
         policy,
-        rewind: false,
-    };
-    Action::Import(pool.clone(), options)
+        ..ImportOptions::default()
+    })
 }
 
 /// The confirmation of the rewind of `pool` to its checkpoint, which
 /// imports it read/write, as the legacy menu's rewind did.
-pub(super) fn rewind(pool: &PoolName, lines: Vec<String>) -> Then {
+pub(super) fn rewind<'p>(pool: impl Into<Named<'p>>, lines: Vec<String>) -> Then {
+    let pool = pool.into();
     let options = ImportOptions {
         access: Access::ReadWrite,
         policy: ImportPolicy::Strict,
         rewind: true,
+        id: None,
     };
     Then::Confirm {
-        action: Action::Import(pool.clone(), options),
-        title: text!("rewind.title", pool = pool.to_string()),
+        action: pool.import(options),
+        title: text!("rewind.title", pool = pool.name.to_string()),
         lines,
-        name: pool.to_string(),
+        name: pool.name.to_string(),
     }
 }
 
 /// The confirmation of a forced import.
-pub(super) fn force_import(pool: &PoolName) -> Then {
+pub(super) fn force_import<'p>(pool: impl Into<Named<'p>>) -> Then {
+    let pool = pool.into();
+    let name = pool.name.to_string();
     Then::Confirm {
         action: import(pool, Access::ReadOnly, ImportPolicy::Force),
-        title: text!("force-import.title", pool = pool.to_string()),
+        title: text!("force-import.title", pool = name.as_str()),
         lines: vec![
-            text!("force-import", pool = pool.to_string()),
+            text!("force-import", pool = name.as_str()),
             text!("force-import.risk"),
         ],
-        name: pool.to_string(),
+        name,
     }
 }
 
@@ -129,38 +177,40 @@ pub(super) fn power(model: &mut Model) {
     choose_offered(model, &text!("power-title"), Vec::new(), choices);
 }
 
-/// The details of a pool, with what the machine offers to do to it.
-pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
-    let Some(pool) = model.snapshot.pools.iter().find(|pool| &pool.name == name) else {
-        return;
-    };
-    let mode = if pool.writable {
-        text!("pool-read-write")
-    } else {
-        text!("pool-read-only")
-    };
-    let mut lines = vec![format!("{name}: {} · {mode}", pool.health.as_str())];
-    if let Some(hostid) = &pool.foreign_hostid {
-        lines.push(text!("pool-last-host", hostid = hostid.as_str()));
+/// The details of `pool`, with what the machine offers to do to it; one
+/// named like an imported pool that is another says why it is not
+/// imported.
+pub(super) fn pool_details(model: &mut Model, pool: &Pool) {
+    let name = &pool.name;
+    let mode = crate::menu::model::pool_mode(pool);
+    let shown = crate::menu::model::pool_name(pool, model.import_id(pool));
+    let mut lines = vec![format!("{shown}: {} · {mode}", pool.health.as_str())];
+    if let Some(host) = &pool.host {
+        lines.push(match &host.hostid {
+            Some(hostid) => text!("pool-last-host", hostid = hostid.to_string()),
+            None => host_text(host),
+        });
     }
+    let named = Named::of(model, pool);
     let mut choices = Vec::new();
     if pool.imported {
-        choices.push(toggle(name, pool.writable));
-    }
-    if !pool.imported {
+        choices.push(toggle(named, pool.writable));
+    } else if model.is_shadowed(pool) {
+        lines.push(text!("pool-shadowed", pool = name.to_string()));
+    } else {
         choices.push(Choice {
             label: text!("pool-import-last-host"),
-            then: Then::Act(import(name, Access::ReadOnly, ImportPolicy::Hostid)),
+            then: Then::Act(import(named, Access::ReadOnly, ImportPolicy::Hostid)),
         });
         choices.push(Choice {
             label: text!("pool-force-import"),
-            then: force_import(name),
+            then: force_import(named),
         });
     }
-    if pool.checkpoint {
+    if pool.checkpoint == Some(true) {
         choices.push(Choice {
             label: text!("pool-rewind"),
-            then: rewind(name, vec![text!("rewind", pool = name.to_string())]),
+            then: rewind(named, vec![text!("rewind", pool = name.to_string())]),
         });
     }
     let choices = super::offers::offered(model, choices);
@@ -171,10 +221,10 @@ pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
     ));
 }
 
-/// The import of `name`, imported, with the other access: read-only when
+/// The import of `pool`, imported, with the other access: read-only when
 /// it is `writable`, read/write when not, as the legacy menu's `w` toggled
 /// it.
-pub(super) fn toggle(name: &PoolName, writable: bool) -> Choice {
+pub(super) fn toggle<'p>(pool: impl Into<Named<'p>>, writable: bool) -> Choice {
     let (label, access) = if writable {
         (text!("pool-import-read-only"), Access::ReadOnly)
     } else {
@@ -182,7 +232,7 @@ pub(super) fn toggle(name: &PoolName, writable: bool) -> Choice {
     };
     Choice {
         label,
-        then: Then::Act(import(name, access, ImportPolicy::Strict)),
+        then: Then::Act(import(pool, access, ImportPolicy::Strict)),
     }
 }
 

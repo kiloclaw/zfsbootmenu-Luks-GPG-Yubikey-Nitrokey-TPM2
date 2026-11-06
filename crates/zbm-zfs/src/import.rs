@@ -47,6 +47,8 @@ pub enum Rewind {
 /// assert_eq!(import.arguments(), args);
 /// let all = ["import", "-N", "-o", "readonly=on", "-a"];
 /// assert_eq!(Import::all().arguments(), all);
+/// let by_id = ["import", "-N", "-o", "readonly=on", "7"];
+/// assert_eq!(Import::pool(&tank).by_id(Some(7)).arguments(), by_id);
 /// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Import<'a> {
@@ -54,6 +56,7 @@ pub struct Import<'a> {
     policy: ImportPolicy,
     access: Access,
     rewind: Rewind,
+    id: Option<u64>,
 }
 
 impl<'a> Import<'a> {
@@ -97,6 +100,21 @@ impl<'a> Import<'a> {
         self
     }
 
+    /// The same import of one pool, named by its numeric identifier `id`
+    /// when given, as `zpool import` lists it, which finds it among pools
+    /// of the same name; the pool keeps its name. An import of every pool
+    /// ignores it.
+    #[must_use]
+    pub fn by_id(mut self, id: Option<u64>) -> Import<'a> {
+        self.id = id;
+        self
+    }
+
+    /// Whether it imports the pool read/write.
+    pub fn is_read_write(self) -> bool {
+        self.access == Access::ReadWrite
+    }
+
     /// The pools it imports.
     pub fn imports(self) -> Target<'a> {
         self.target
@@ -137,18 +155,20 @@ impl<'a> Import<'a> {
         }
     }
 
-    /// The pool argument: the pool, or `-a`.
-    pub fn pool_argument(self) -> &'a str {
-        match self.target {
-            Target::Pool(pool) => pool.as_str(),
-            Target::All => "-a",
+    /// The pool argument: the pool's numeric identifier when given, else
+    /// its name, or `-a`.
+    pub fn pool_argument(self) -> String {
+        match (self.target, self.id) {
+            (Target::Pool(_), Some(id)) => id.to_string(),
+            (Target::Pool(pool), None) => pool.as_str().to_owned(),
+            (Target::All, _) => "-a".to_owned(),
         }
     }
 
     /// The arguments of `zpool` for this import.
-    pub fn arguments(self) -> Vec<&'a str> {
-        let mut args = vec!["import"];
-        args.extend(self.options());
+    pub fn arguments(self) -> Vec<String> {
+        let mut args = vec!["import".to_owned()];
+        args.extend(self.options().into_iter().map(str::to_owned));
         args.push(self.pool_argument());
         args
     }

@@ -13,7 +13,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                                    ││                                                │
 │                                                                    ││ CHECKS                                         │
 │                                                                    ││   √ Kernel and initramfs: 6.12.9_1 with its i… │
-│                        ┌ COMMANDS ─────────────────────────────────────────────── 57 of 427 ┐.4 for 6.12.9_1         │
+│                        ┌ COMMANDS ─────────────────────────────────────────────── 57 of 428 ┐.4 for 6.12.9_1         │
 │                        │ : 2026-09                                                          │ZFS reads every enable… │
 │                        │ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-09-30_daily        │point / and canmount=n… │
 │                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-29_daily        │the pool is free        │

@@ -9,6 +9,7 @@ fn import(access: Access, rewind: bool) -> Action {
         access,
         policy: zbm_types::ImportPolicy::Strict,
         rewind,
+        id: None,
     };
     Action::Import("tank".parse().unwrap(), options)
 }
@@ -29,6 +30,7 @@ fn an_import_asks_the_machine_and_says_how_the_pool_is_imported() {
             access,
             policy: zbm_types::ImportPolicy::Strict,
             rewind,
+            id: None,
         };
         assert_eq!(needs.asked, [format!("import tank {options:?}")]);
     }
