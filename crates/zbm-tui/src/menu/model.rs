@@ -15,7 +15,7 @@ pub use self::diff::{DiffView, Segment};
 use self::list::keep;
 pub use self::list::{ListState, refilter};
 pub use self::naming::{Make, Naming, is_name_char, timestamp};
-pub(crate) use self::pools::{host_text, pool_mode, pool_name};
+pub(crate) use self::pools::{disk_name, host_text, pool_mode, pool_name};
 pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
 pub use self::recovery::{RECOVERY, RecoveryTool};
@@ -24,7 +24,7 @@ pub use self::sort::Sort;
 use super::filter::Ranked;
 use super::keymap::{Context, Map, Tab};
 use super::theme::Theme;
-use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
+use super::world::{Action, DeviceLog, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
 
 /// What a refresh keeps selected: the environment and the snapshot named,
 /// and the row of the pools view ([`Model::selected_row`]).
@@ -221,6 +221,9 @@ pub struct Model {
     pub scroll: usize,
     /// The differences view, when open.
     pub diff: Option<DiffView>,
+    /// The kernel's messages about a device of a pool, which the
+    /// workspace's Pools tab shows below the pools until Back.
+    pub device_log: Option<DeviceLog>,
     /// The keyboard layout typing is translated into, as an index of the
     /// snapshot's layouts: 0 is the console's own.
     pub layout: usize,
@@ -256,6 +259,7 @@ impl Model {
             keys: 0,
             scroll: 0,
             diff: None,
+            device_log: None,
             layout: 0,
             map: Map::Classic,
             snapshot,

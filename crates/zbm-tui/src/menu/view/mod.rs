@@ -15,6 +15,7 @@ use super::theme::{Glyph, Role};
 use super::world::Outcome;
 use crate::text::text;
 
+mod device_log;
 mod dialogs;
 mod diff;
 mod health;
@@ -98,7 +99,11 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         Screen::Snapshots => screens::snapshots(model, frame, area),
         Screen::Kernels => screens::kernels(model, frame, area),
         Screen::CommandLine => screens::command_line(model, frame, area),
-        Screen::Pools => screens::pools(model, frame, area),
+        // A device's kernel messages show in the workspace alone.
+        Screen::Pools => match (&model.device_log, model.map) {
+            (Some(log), keymap::Map::Workspace) => device_log::render(model, log, frame, area),
+            _ => screens::pools(model, frame, area),
+        },
         Screen::Recovery => screens::recovery(model, frame, area),
         Screen::Log => screens::log(model, frame, area),
         Screen::Help(context) => screens::help(model, frame, area, context),

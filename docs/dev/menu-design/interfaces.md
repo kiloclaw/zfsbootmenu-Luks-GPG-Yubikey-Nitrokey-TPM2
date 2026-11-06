@@ -45,7 +45,9 @@ stays right when the snapshot changes under it.
 | `Reseal` | volume | re-seal alert, palette |
 | `Chroot` | environment or snapshot | main, snapshots |
 | `Import` | pool, `ImportOptions`: read-only or read/write, the policy (this host, its last host, forced), whether to rewind to the checkpoint, and the pool's identifier when another pool has its name; an imported pool is exported first | main, pools, import problem |
+| `Export` | pool | pools (`Enter` on an imported pool), palette: `zpool export` through the ZFS port, quietly; a busy pool fails with the cause `zpool` gives; the pool of the default environment too, after which the snapshot has no default; kept by the lock; the pools are scanned again after it, so the pool is listed to import |
 | `ScanPools` | — | the menu, once its first frame is drawn, and the palette: the pools that could be imported, which `PoolsScanned` brings; a read (`Action::is_read`), after which the snapshot is not read again, free under the lock |
+| `LoadDeviceLog` | a disk of a pool, as the pool names it | the workspace's pool dialog: the kernel's messages about it and what it stands on, which `DeviceLogLoaded` brings; a read, quiet and free under the lock; over SSH, refused for a device that is no disk of a pool the machine shows |
 | `Open` | the volume's device, and the name it was opened as before, if it has one | pools: a keyholder opens it, and asks in the unlock dialog (ADR 0016, point 1) |
 | `Unlock` | volume, method, the secret (a `Secret`, never a `String`) | unlock dialog: an answer, which goes to the question asked, not to the machine's queue |
 | `SkipUnlock` | volume | unlock dialog: an answer, as `Unlock` |
@@ -65,6 +67,7 @@ stays right when the snapshot changes under it.
 | `ImportProblem` | pool, the reason, the choices that apply | the import problem dialog (the `Operator` port of `zbm-pool`) |
 | `SnapshotChanged` | the new `Snapshot` | every view redraws |
 | `PoolsScanned` | every pool, imported and not, which replace the snapshot's | the pools view, the workspace; the countdown goes on, as it does not after `Changed` |
+| `DeviceLogLoaded` | the device, the kernel's names of it and of what it stands on (`sda2`, `sda`; none for a device that is no block device the kernel lists or would name, as a link gone with its device), the newest 500 messages about them, untrusted | the workspace's Pools tab, below the pools, until Back; what the classic menu shows does not change |
 | `SnapshotsLoaded` | environment, the snapshots (name, creation, used, referenced) | the snapshots view |
 | `DiffReady` | the two ends, the changes (path, kind, new name of a rename, a preview of the difference), the packages that changed (name, kind, versions, their changed files) with the package manager, or none without a database | the changes view |
 | `ActionStarted`, `ActionProgress`, `ActionFinished` | the action, progress as text and a fraction where known, the outcome (done, or failed with the error's cause chain and the next steps) | the notification line, the error dialog |
@@ -80,6 +83,17 @@ any action and event; the protocol is at version 2 (`zbm_app::remote::VERSION`) 
 hosts and identifiers. What needs attention (the devices a pool lost, worst first, its checkpoint, the log's errors
 and warnings apart) is drawn in the workspace only until UI10c; a device taken offline is shown in its pool, not
 listed there.
+
+A device's messages are read from `/dev/kmsg` (`dmesg` where it cannot be read): those the kernel tagged with the
+numbers of the device or of what it stands on (`DEVICE=b8:18`), and those whose text names one of them as a word, so
+`sda` is not `sda1`. The device is resolved through `/sys/class/block`: a partition stands on its disk, a mapping on its
+slaves, and a name that is empty, `.` or `..` or holds a `/` is refused. A pool not imported names its devices without
+the directory `zpool import` found them in (`virtio-d0` for `/dev/disk/by-id/virtio-d0`), which are searched in its
+order; a path that leads outside `/dev`, as a file's, leads to no device. A device the kernel no longer lists is known
+only by a name the kernel gives disks and partitions, `sdb2` then its disk `sdb`, whose messages say why it went; any
+other word, as a label's `error`, could be any message's, and names nothing. Messages that name only a port (`ata3.00:`,
+`usb 1-2:`) are not among them, which the panel says. The text is the kernel's, which devices fill: it is drawn through
+`Printable`, an escape byte as `\x1b`.
 
 ## What the prototype simplifies
 

@@ -3,22 +3,27 @@
 //! last scan found, and the scan itself ([`Action::ScanPools`]), which
 //! looks at every device and so runs only when asked, and again after an
 //! action that may have imported or exported a pool, or opened what holds
-//! one.
+//! one; and a device's kernel messages ([`Action::LoadDeviceLog`]).
 
 use zbm_platform::System;
-use zbm_types::DatasetName;
+use zbm_types::{DatasetName, Untrusted};
 use zbm_zfs::{Zfs, ZfsError};
 
 use super::App;
 use crate::model::{Action, Event, Pool};
 use crate::{auth, changes, read};
 
-/// Whether `action` may change the pools a scan finds: it imports a pool,
-/// opens a volume that may hold one, or opens a shell that may.
+/// Whether `action` may change the pools a scan finds: it imports or
+/// exports a pool, opens a volume that may hold one, or opens a shell that
+/// may.
 pub(super) fn may_move_pools(action: &Action) -> bool {
     matches!(
         action,
-        Action::Import(..) | Action::Open { .. } | Action::UnlockAll | Action::Chroot(_)
+        Action::Import(..)
+            | Action::Export(_)
+            | Action::Open { .. }
+            | Action::UnlockAll
+            | Action::Chroot(_)
     )
 }
 
@@ -26,12 +31,13 @@ impl App<'_> {
     /// Applies `action` without taking the console: the volumes', the
     /// changes of package D ([`Action::is_change`]) whose pool is writable
     /// and whose key is loaded, and what only reads the machine, as the
-    /// dry runs of [`Action::Plan`] ([`App::plan`]) and the scan of the
-    /// pools, which the lock leaves free.
+    /// dry runs of [`Action::Plan`] ([`App::plan`]), the scan of the pools
+    /// and a device's kernel messages, which the lock leaves free.
     pub(super) fn quietly(&self, action: &Action, console: System<'_>) -> Vec<Event> {
         match action {
             Action::Plan(planned) => return self.planned(planned, console),
             Action::ScanPools => return self.scan(),
+            Action::LoadDeviceLog(device) => return self.device_log(device),
             _ => {}
         }
         // What the lock keeps takes the console, where the PIN is asked;
@@ -111,6 +117,20 @@ impl App<'_> {
                 Vec::new()
             }
         }
+    }
+
+    /// [`Action::LoadDeviceLog`]: the kernel's messages about `device` and
+    /// what it stands on, which write nothing on the console.
+    pub(super) fn device_log(&self, device: &Untrusted<String>) -> Vec<Event> {
+        let log = read::device_log(self.context.files(), self.context.runner(), device);
+        vec![Event::DeviceLogLoaded(log)]
+    }
+
+    /// The pools of the snapshot, as [`App::pools`] reads them; none when
+    /// `zpool list` fails.
+    pub(crate) fn known_pools(&self) -> Vec<Pool> {
+        let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
+        self.pools(&zfs).unwrap_or_default()
     }
 
     /// Scans the pools again for the snapshots read after an action that

@@ -151,3 +151,43 @@ fn the_log_s_errors_and_warnings_are_counted_apart() {
     );
     assert_eq!(attention_count(&model), 2);
 }
+
+/// The workspace's Pools tab with `log` loaded, at 80×24.
+fn pools_tab(log: crate::menu::world::DeviceLog, map: Map) -> String {
+    let mut model = model(Vec::new(), Vec::new());
+    model.map = map;
+    model.screen = crate::menu::model::Screen::Pools;
+    model.device_log = Some(log);
+    crate::menu::view::tests::screen(&model, 80, 24)
+}
+
+#[test]
+fn a_devices_messages_show_in_the_workspace_alone_and_say_why_there_are_none() {
+    let untrusted = |text: &str| Untrusted::new(text.to_owned());
+    let log = crate::menu::world::DeviceLog {
+        device: untrusted("/dev/sdb2"),
+        names: vec![untrusted("sdb2"), untrusted("sdb")],
+        lines: vec![untrusted("[ 1.0] sdb: \u{1b}]0;owned\u{7}")],
+    };
+
+    let shown = pools_tab(log.clone(), Map::Workspace);
+    assert!(shown.contains("sdb: \\x1b]0;owned\\x07"), "{shown}");
+    assert!(!shown.contains('\u{1b}'));
+    assert!(shown.contains("name only a port"), "{shown}");
+    // The classic menu shows nothing new.
+    let classic = pools_tab(log.clone(), Map::Classic);
+    assert!(!classic.contains("owned"), "{classic}");
+
+    let quiet = crate::menu::world::DeviceLog {
+        lines: Vec::new(),
+        ..log.clone()
+    };
+    assert!(pools_tab(quiet, Map::Workspace).contains("No kernel message names sdb2, sdb."));
+    let unknown = crate::menu::world::DeviceLog {
+        names: Vec::new(),
+        lines: Vec::new(),
+        ..log
+    };
+    let shown = pools_tab(unknown, Map::Workspace);
+    assert!(shown.contains("lists no block device /dev/sdb2"), "{shown}");
+}

@@ -416,6 +416,7 @@ palette-reset-tries = Give { $environment } Its Boot Tries Back
 palette-boot-clone = Boot a clone of { $snapshot }
 palette-recovery-tools = Recovery tools
 palette-rescan-pools = Rescan the Pools
+palette-export = Export { $pool }
 
 ## The changes since a snapshot: files and packages.
 
@@ -511,6 +512,15 @@ pool-force-import = Force the Import
 pool-rewind = Rewind to the Checkpoint
 pool-no-checkpoint = { $pool } has no checkpoint to rewind to.
 pool-shadowed = A pool named { $pool } is imported: export it to import this one.
+pool-export = Export
+pool-device-messages = Kernel Messages of { $device }
+
+## A device's kernel messages, in the workspace's Pools tab.
+
+device-log-title = Kernel messages of { $device }
+device-log-unknown = The kernel lists no block device { $device }.
+device-log-none = No kernel message names { $names }.
+device-log-ports = Messages that name only a port, as ata3.00 or usb 1-2 do, are not shown.
 import-failed =
     .title = { $pool } Did Not Import
 import-retry = Retry

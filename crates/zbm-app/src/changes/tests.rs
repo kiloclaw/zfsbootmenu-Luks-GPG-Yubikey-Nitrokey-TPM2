@@ -590,5 +590,6 @@ fn removed_and_created_paths_are_named_as_such() {
 }
 
 mod console;
+mod export;
 mod import;
 mod kernels_and_files;

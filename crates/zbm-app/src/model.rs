@@ -23,7 +23,7 @@ use zbm_types::Untrusted;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
-pub use self::devices::{Device, DeviceErrors, DeviceState, PoolHost};
+pub use self::devices::{Device, DeviceErrors, DeviceLog, DeviceState, PoolHost};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Tries, Verdict, worst};
 pub use self::import::{Access, ImportOptions};

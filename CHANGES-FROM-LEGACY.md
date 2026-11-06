@@ -308,6 +308,21 @@ menu also restores files from a snapshot, which the legacy menu did not.
 - **Why:** a pool that did not import, or a missing disk, is what the menu is opened for; the scan reads the labels of
   every disk, which takes seconds, so it runs once the menu shows and not with every snapshot.
 
+### The menu exports a pool, and shows a disk's kernel messages
+
+- **Before:** the menu exported a pool only on its way to something else: before `kexec`, around `set_rw_pool` and
+  `set_ro_pool`, before a reboot and when LUKS volumes were closed (`export_pool`); a user could not export one. The
+  kernel log was the recovery shell's (`dmesg`).
+- **Now:** the dialog of an imported pool (`Enter` on it) and the palette offer Export: `zpool export` through the
+  ZFS port, with nothing written on the console; a busy pool fails with the reason `zpool` gives. The pool of the
+  default environment may be exported too, after which the menu has no default. The locked menu asks for the PIN
+  first. The pools are scanned again after it, so the pool is listed to import. In the workspace, the same dialog
+  lists each disk of the pool; choosing one shows below the pools the kernel's messages that name it, the disk of a
+  partition or the devices below a mapping, or that the kernel tagged with one of them, without a PIN under the lock.
+  Messages that name only a port, as `ata3.00:` does, are not among them, and the panel says so.
+- **Why:** a pool imported by mistake, or one to hand to another machine, can be let go without a shell; and why a
+  disk went missing is in the kernel's messages about it.
+
 ### Clones leave encryption properties out
 
 - **Before:** a clone was given every property set on its environment, `keylocation` and `keyformat` included, which

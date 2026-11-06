@@ -9,9 +9,9 @@ use zbm_types::{DatasetName, SnapshotName, Untrusted};
 use super::health;
 use super::{DemoOptions, untrusted};
 use crate::menu::world::{
-    CommandLine, Device, DeviceErrors, DeviceState, Environment, Fallback, Health, Kernel,
-    Keyboard, Level, Log, LogEntry, Method, Offer, Origin, PcrChange, Pool, PoolHost, Snapshot,
-    SnapshotInfo, Stage, StageState, Timeout, Tpm2Seal, Tries, Volume, VolumeState,
+    CommandLine, Device, DeviceErrors, DeviceLog, DeviceState, Environment, Fallback, Health,
+    Kernel, Keyboard, Level, Log, LogEntry, Method, Offer, Origin, PcrChange, Pool, PoolHost,
+    Snapshot, SnapshotInfo, Stage, StageState, Timeout, Tpm2Seal, Tries, Volume, VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -387,5 +387,35 @@ fn log() -> Log {
             ),
             entry(Level::Info, "imported tank read-only"),
         ],
+    }
+}
+
+/// The kernel's messages about `device` on the demo machine: the disk
+/// `tank` lost, `/dev/sdb2`, failed before it went (the lines of its
+/// port, `ata3.00`, name no disk and are not among them), and one of its
+/// messages, as a USB serial may, holds an escape sequence; the others
+/// are quiet. Another path is no block device.
+pub(super) fn device_log(device: &Untrusted<String>) -> DeviceLog {
+    let path = device.get().as_str();
+    let name = path.strip_prefix("/dev/").unwrap_or(path);
+    let quiet = ["nvme0n1p2", "sda2", "sdc2", "sdd", "sde", "sdf"];
+    let (names, lines): (Vec<&str>, &[&str]) = match name {
+        "sdb2" => (
+            vec!["sdb2", "sdb"],
+            &[
+                "[    2.104511] sd 1:0:0:0: [sdb] 976773168 512-byte logical blocks",
+                "[    2.118203]  sdb: sdb1 sdb2",
+                "[   41.620355] I/O error, dev sdb, sector 2048 op 0x0:(READ)",
+                "[   41.903846] sd 1:0:0:0: [sdb] Product: \u{1b}[2JDisk\u{7}",
+                "[   42.511027] sd 1:0:0:0: [sdb] Synchronizing SCSI cache",
+            ],
+        ),
+        _ if quiet.contains(&name) => (vec![name], &[]),
+        _ => (Vec::new(), &[]),
+    };
+    DeviceLog {
+        device: device.clone(),
+        names: names.iter().map(|name| untrusted(name)).collect(),
+        lines: lines.iter().map(|line| untrusted(line)).collect(),
     }
 }

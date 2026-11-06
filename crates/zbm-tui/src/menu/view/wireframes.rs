@@ -79,9 +79,10 @@ fn workspace() -> DemoOptions {
 }
 
 /// The wireframes of the workspace: the Boot tab, and the kernels column
-/// it goes into; and what needs attention once the scan, which waits for a
+/// it goes into; what needs attention once the scan, which waits for a
 /// key to stop the countdown, found the pools start-up left alone, one of
-/// them another host's.
+/// them another host's; and the kernel's messages about the disk `tank`
+/// lost, chosen in its pool's dialog.
 fn workspace_wireframes() -> Vec<Wireframe> {
     use Step::{Char, Code, Tick};
     let frame = |name, keys| Wireframe {
@@ -104,6 +105,19 @@ fn workspace_wireframes() -> Vec<Wireframe> {
             ticks: 50,
             keys: &[Code(Key::Escape), Tick],
         },
+        frame(
+            "workspace-device-log",
+            &[
+                Char('3'),
+                Code(Key::Down),
+                Code(Key::Enter),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Enter),
+            ],
+        ),
     ]
 }
 

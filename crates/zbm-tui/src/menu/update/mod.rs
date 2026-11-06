@@ -54,6 +54,11 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
             Vec::new()
         }
     };
+    // A device's messages belong to the Pools tab: leaving it, but for its
+    // help, closes them, and those read once it is left are not shown.
+    if !matches!(model.screen, Screen::Pools | Screen::Help(_)) {
+        model.device_log = None;
+    }
     let actions = offers::only_offered(&mut model, actions);
     (model, actions)
 }
@@ -142,10 +147,12 @@ fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
     Some(Vec::new())
 }
 
-/// Back one step: clear the main view's filter, or return to the main view
-/// (help returns to the view it was opened from).
+/// Back one step: clear the main view's filter, close a device's kernel
+/// messages, or return to the main view (help returns to the view it was
+/// opened from).
 fn back(model: &mut Model) {
     match model.screen {
+        Screen::Pools if model.device_log.is_some() => model.device_log = None,
         Screen::Main => {
             model.environments.filter.clear();
             model.refresh();

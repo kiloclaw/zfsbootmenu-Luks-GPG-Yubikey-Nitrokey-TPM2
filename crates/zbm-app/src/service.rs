@@ -29,7 +29,7 @@ use zbm_platform::event::{CancelToken, MailSender, Mailbox, Reply, spawn_scoped_
 use zbm_platform::{CancellingRunner, Runner, System};
 
 use self::asker::Asker;
-use crate::model::{Action, Event, Outcome, Snapshot, UnlockOutcome, Volume};
+use crate::model::{Action, Event, Outcome, Pool, Snapshot, UnlockOutcome, Volume};
 use crate::{App, Application as _, Through};
 
 /// What the service sends back.
@@ -134,6 +134,13 @@ impl<'a> MachineService<'a> {
     /// The machine's LUKS volumes as the menu shows them, read alone.
     pub(crate) fn volumes(&self) -> Vec<Volume> {
         self.app.volumes()
+    }
+
+    /// The machine's pools as the menu shows them, the imported ones and
+    /// those the last scan found, read alone: no kernel is read, and no
+    /// device scanned.
+    pub(crate) fn pools(&self) -> Vec<Pool> {
+        self.app.known_pools()
     }
 
     /// Starts the service on a worker in `scope`, which ends when the handle

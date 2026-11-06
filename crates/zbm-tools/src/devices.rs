@@ -1,7 +1,8 @@
 //! Probing block devices: `blkid` (with no cache, `-c /dev/null`, so it
 //! always reads the devices), and their sizes and partition types from the
 //! kernel (`/sys/class/block`) and udev (`/run/udev/data`), as `lsblk`
-//! reads them, which runs only where those cannot be read (ROADMAP.md CD2).
+//! reads them, which runs only where those cannot be read (ROADMAP.md CD2);
+//! and the devices a device stands on ([`Devices::stack`]).
 //!
 //! Each probe returns what the program printed without its final newlines,
 //! as the shell's `$(...)` does, and an empty answer when the program fails.
@@ -14,6 +15,10 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use zbm_platform::{Command, Files, Input, Runner, Stream};
+
+mod stack;
+
+pub use stack::BlockDevice;
 
 /// Whether the vdev `device` is `target` or a partition of it: `/dev/dm-3`
 /// or `/dev/dm-3p1` for `/dev/dm-3`.

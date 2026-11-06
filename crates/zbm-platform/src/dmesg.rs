@@ -1,6 +1,7 @@
 //! Reading the kernel log back: all of it, as `dmesg` prints it, for saved
 //! logs and reports ([`kernel_log`]), and ZFSBootMenu's messages of some
-//! levels, for the recovery shell ([`read_logs`]).
+//! levels, for the recovery shell ([`read_logs`]); and the messages about
+//! some block devices, for the menu ([`device_lines`]).
 //!
 //! The records are read from `/dev/kmsg` (ROADMAP.md CD2), without running
 //! `dmesg`. Where that cannot be read, `dmesg` is: util-linux `dmesg`
@@ -141,17 +142,35 @@ pub struct Record {
     pub micros: u64,
     /// The text, with the kernel's `\xNN` escapes undone.
     pub text: String,
+    /// The device the kernel tagged it with (`DEVICE=` in its dictionary):
+    /// `b8:1` for the block device whose numbers are 8:1, `+pci:0000:00:05.0`
+    /// for one of another subsystem; `None` without one.
+    pub device: Option<String>,
 }
 
 /// The records in `raw`, what `/dev/kmsg` gave: a line each, after which
-/// lines that start with a space hold its dictionary (`KEY=value`), which
-/// is left out, as are lines that are no record.
+/// lines that start with a space hold its dictionary (`KEY=value`), of
+/// which the device is kept; lines that are no record are left out, with
+/// their dictionaries.
 pub fn records(raw: &[u8]) -> Vec<Record> {
-    String::from_utf8_lossy(raw)
-        .split('\n')
-        .filter(|line| !line.starts_with(' '))
-        .filter_map(record)
-        .collect()
+    let text = String::from_utf8_lossy(raw);
+    let mut found: Vec<Record> = Vec::new();
+    // Whether the last line that is no dictionary was a record.
+    let mut is_kept = false;
+    for line in text.split('\n') {
+        let Some(entry) = line.strip_prefix(' ') else {
+            let read = record(line);
+            is_kept = read.is_some();
+            found.extend(read);
+            continue;
+        };
+        if let (true, Some(device), Some(last)) =
+            (is_kept, entry.strip_prefix("DEVICE="), found.last_mut())
+        {
+            last.device = Some(unescape(device));
+        }
+    }
+    found
 }
 
 /// The record of one line of `/dev/kmsg`.
@@ -166,6 +185,7 @@ fn record(line: &str) -> Option<Record> {
         level: u8::try_from(priority & 7).ok()?,
         micros,
         text: unescape(text),
+        device: None,
     })
 }
 
@@ -206,15 +226,72 @@ pub fn read_records(files: &dyn Files) -> std::io::Result<Vec<Record>> {
 pub fn format_records(records: &[Record]) -> String {
     let mut text = String::new();
     for record in records {
-        let _ = writeln!(
-            text,
-            "[{:5}.{:06}] {}",
-            record.micros / 1_000_000,
-            record.micros % 1_000_000,
-            record.text
-        );
+        let _ = writeln!(text, "{}", format_record(record));
     }
     text
+}
+
+/// `record` as `dmesg` prints it, without the newline.
+fn format_record(record: &Record) -> String {
+    format!(
+        "[{:5}.{:06}] {}",
+        record.micros / 1_000_000,
+        record.micros % 1_000_000,
+        record.text
+    )
+}
+
+/// Whether `text` names `name` as a word: what comes before and after it,
+/// if anything, is no letter, digit or `_`. So `[sda]` and `sda:` name
+/// `sda`, but `sda1` does not, nor `nvme0n1p2` the disk `nvme0n1`. Nothing
+/// names an empty name.
+pub fn names(text: &str, name: &str) -> bool {
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    !name.is_empty()
+        && text.match_indices(name).any(|(start, _)| {
+            let before = text.get(..start).and_then(|head| head.chars().next_back());
+            let after = text
+                .get(start + name.len()..)
+                .and_then(|tail| tail.chars().next());
+            !before.is_some_and(is_word) && !after.is_some_and(is_word)
+        })
+}
+
+/// Whether `record` is about one of the block devices the kernel names
+/// `names`, such as `sda1`, and whose numbers are `numbers`, such as
+/// `8:1`: the kernel tagged it with one of them (`DEVICE=b8:1`), or its
+/// text names one of them as a word ([`names`]).
+pub fn is_about(record: &Record, names: &[&str], numbers: &[&str]) -> bool {
+    let tagged = record
+        .device
+        .as_deref()
+        .and_then(|device| device.strip_prefix('b'))
+        .is_some_and(|device| numbers.contains(&device));
+    tagged || names.iter().any(|name| self::names(&record.text, name))
+}
+
+/// The lines of the kernel log about the block devices `names` of the
+/// numbers `numbers` ([`is_about`]), oldest first, as `dmesg` prints them.
+/// `dmesg`, which `runner` runs, reads the log when `/dev/kmsg` cannot be
+/// read, and its lines carry no tag: only the names select them then.
+pub fn device_lines(
+    files: &dyn Files,
+    runner: &dyn Runner,
+    names: &[&str],
+    numbers: &[&str],
+) -> Vec<String> {
+    if let Ok(records) = read_records(files) {
+        return records
+            .iter()
+            .filter(|record| is_about(record, names, numbers))
+            .map(format_record)
+            .collect();
+    }
+    kernel_log(files, runner)
+        .lines()
+        .filter(|line| names.iter().any(|name| self::names(line, name)))
+        .map(str::to_owned)
+        .collect()
 }
 
 /// The kernel log as `dmesg` prints it, with its timestamps; empty when it

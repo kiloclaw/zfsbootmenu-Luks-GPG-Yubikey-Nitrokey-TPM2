@@ -13,13 +13,12 @@ use ratatui::widgets::Paragraph;
 use super::{lists, main_view};
 use crate::menu::format::fit;
 use crate::menu::keymap::{self, Context, Intent, Map, Tab};
-use crate::menu::model::Model;
+use crate::menu::model::{Model, disk_name};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{
     Device, DeviceState, Environment, Health, Level, Log, Pool, Verdict, VolumeState,
 };
 use crate::text::{self, text};
-use zbm_types::Printable;
 
 /// From this width the sidebar shows.
 const SIDEBAR_FROM: u16 = 110;
@@ -169,8 +168,7 @@ fn pool_attention(pool: &Pool) -> Vec<Item> {
 /// `device` as attention names it: the last part of its path, or of the
 /// path it had when ZFS names it by its GUID ([`Device::path`]).
 fn device_name(device: &Device) -> String {
-    let shown = Printable(device.path()).to_string();
-    shown.rsplit('/').next().unwrap_or(&shown).to_owned()
+    disk_name(device.path())
 }
 
 /// What needs attention in the pools, pool by pool.

@@ -2,7 +2,9 @@
 
 use super::dialogs::import;
 use crate::menu::model::{Asking, Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
-use crate::menu::world::{Access, Action, Event, Outcome, Stage, StageState, UnlockOutcome};
+use crate::menu::world::{
+    Access, Action, Event, Outcome, Snapshot, Stage, StageState, UnlockOutcome,
+};
 use crate::text::text;
 use zbm_types::ImportPolicy;
 
@@ -11,12 +13,10 @@ pub(super) fn apply(model: &mut Model, event: Event) {
     model.progress = None;
     match event {
         Event::Progress(what) => model.progress = Some(what),
-        Event::Changed(snapshot) => {
-            model.replace_snapshot(snapshot);
-            start(model);
-        }
+        Event::Changed(snapshot) => changed(model, snapshot),
         // The countdown goes on.
         Event::PoolsScanned(pools) => model.replace_pools(pools),
+        Event::DeviceLogLoaded(log) => model.device_log = Some(log),
         Event::UnlockRequested {
             volume,
             method,
@@ -64,6 +64,14 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             model.notification = Some(unlocked(&volume, outcome));
         }
     }
+}
+
+/// The machine changed: its new `snapshot`. A device's messages were read
+/// before, as an export of its pool shows: they close.
+fn changed(model: &mut Model, snapshot: Snapshot) {
+    model.device_log = None;
+    model.replace_snapshot(snapshot);
+    start(model);
 }
 
 /// Opens the differences `view`, keeping the selection and the segment of

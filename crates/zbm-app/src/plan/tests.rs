@@ -61,6 +61,27 @@ fn a_snapshot_plans_its_command_and_takes_nothing() {
 }
 
 #[test]
+fn an_export_plans_its_command_and_exports_nothing() {
+    let fake = machine("off");
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let app = App::new(Context::new(fake.system()), &runtime);
+
+    let plan = app
+        .plan(&Action::Export("tank".parse().unwrap()), fake.system())
+        .unwrap();
+
+    assert_eq!(
+        plan.steps,
+        [Step {
+            kind: StepKind::Export("tank".parse().unwrap()),
+            command: Some("zpool export tank".into()),
+        }]
+    );
+    assert!(matches!(plan.outcome, Outcome::Done(_)), "{plan:?}");
+    assert!(changes(&fake).is_empty(), "{:?}", changes(&fake));
+}
+
+#[test]
 fn a_read_only_pool_plans_its_import_first() {
     let fake = machine("on");
     let settings = BootSettings::default();

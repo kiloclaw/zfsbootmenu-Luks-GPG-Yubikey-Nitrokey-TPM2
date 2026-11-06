@@ -200,3 +200,136 @@ fn what_may_import_a_pool_or_open_its_devices_scans_again() {
     )));
     assert!(!may_move_pools(&Action::ScanPools));
 }
+
+#[test]
+fn an_export_scans_again_and_the_pool_is_listed_to_import() {
+    let fake = machine();
+    let runtime = Runtime::default();
+    let seen = Seen::new();
+    let app = App::new(Context::new(fake.system()), &runtime).with_seen(&seen);
+    let export = Action::Export("tank".parse().unwrap());
+    assert!(may_move_pools(&export));
+
+    let events = app.apply(&export, Through::Quietly(fake.system()));
+
+    assert!(
+        matches!(
+            events.last(),
+            Some(Event::Finished(crate::model::Outcome::Done(_)))
+        ),
+        "{events:?}"
+    );
+    assert_eq!(ran(&fake, "zpool export tank"), 1);
+    assert_eq!(ran(&fake, "zpool import"), 1);
+    let pools = app.snapshot().unwrap().pools;
+    assert!(
+        pools
+            .iter()
+            .any(|pool| pool.name.as_str() == "tank" && !pool.imported),
+        "{pools:?}"
+    );
+}
+
+#[test]
+fn the_locked_menu_exports_only_once_the_pin_is_typed() {
+    let fake = machine();
+    fake.files.file("/zfsbootmenu/bootfs", "tank/ROOT/be\n");
+    let runtime = Runtime::default();
+    let authority = Authority::new(auth::Lock::On("hash".to_owned()));
+    let app = App::new(Context::new(fake.system()), &runtime).with_authority(&authority);
+    // The pool of the default environment, which the lock keeps.
+    let export = Action::Export("tank".parse().unwrap());
+
+    let refused = app.apply(&export, Through::Quietly(fake.system()));
+    assert_eq!(refused, auth::refused());
+    assert_eq!(ran(&fake, "zpool export tank"), 0);
+
+    let (client, keyholder) = zbm_sys::socket::Connection::pair().unwrap();
+    fake.console.secret(b"correct horse");
+    let runner = &fake.runner;
+    let events = std::thread::scope(|scope| {
+        zbm_platform::event::spawn_scoped_traced(scope, move || {
+            let _ = crate::keyholder::serve(
+                &keyholder,
+                runner,
+                |_, _| Vec::new(),
+                |pin| pin.expose() == b"correct horse",
+            );
+        });
+        let keyholders = crate::keyholder::tests::Given::new(client);
+        let recovery = super::super::tests::NoShell;
+        let events = app
+            .with_keyholders(&keyholders)
+            .apply(&export, Through::Console(fake.system(), &recovery));
+        drop(keyholders);
+        events
+    });
+
+    assert_ne!(events, auth::refused());
+    assert!(fake.console.output_text().contains(auth::LOCKED_PROMPT));
+    assert_eq!(ran(&fake, "zpool export tank"), 1);
+}
+
+#[test]
+fn a_devices_messages_are_read_under_the_lock_without_a_pin() {
+    let fake = machine();
+    fake.files.file("/zfsbootmenu/bootfs", "tank/ROOT/be\n");
+    fake.files.file("/sys/class/block/vdb/dev", "252:16\n");
+    fake.files.block_device("/dev/vdb");
+    fake.files
+        .file("/dev/kmsg", "3,1,1000000,-;vdb: I/O error\n");
+    let runtime = Runtime::default();
+    let authority = Authority::new(auth::Lock::On("hash".to_owned()));
+    let app = App::new(Context::new(fake.system()), &runtime).with_authority(&authority);
+    let device = zbm_types::Untrusted::new("vdb".to_owned());
+
+    for through in [
+        Through::Quietly(fake.system()),
+        Through::Console(fake.system(), &super::super::tests::NoShell),
+    ] {
+        let events = app.apply(&Action::LoadDeviceLog(device.clone()), through);
+        let [Event::DeviceLogLoaded(log)] = events.as_slice() else {
+            panic!("{events:?}");
+        };
+        assert_eq!(log.lines.len(), 1, "{log:?}");
+    }
+    assert!(!fake.console.output_text().contains(auth::LOCKED_PROMPT));
+    assert!(!may_move_pools(&Action::LoadDeviceLog(device)));
+}
+
+#[test]
+fn the_snapshot_has_no_default_once_its_pool_is_exported() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use zbm_platform::{Output, Status};
+
+    let fake = FakeSystem::new();
+    // The state file names the default; the export leaves it.
+    fake.files.file("/zfsbootmenu/bootfs", "tank/ROOT/be\n");
+    let exported = Arc::new(AtomicBool::new(false));
+    let seen = Arc::clone(&exported);
+    // `tank` is imported until `zpool export tank` runs.
+    fake.runner.on(move |command| {
+        let line = command.display();
+        if line == "zpool export tank" {
+            seen.store(true, Ordering::SeqCst);
+        }
+        let listed = line == "zpool list -H -p -o name,health,readonly,bootfs,guid"
+            && !seen.load(Ordering::SeqCst);
+        let row = b"tank\tONLINE\toff\ttank/ROOT/be\t7\n";
+        listed.then(|| Ok(Output::new(Status::exited(0), row)))
+    });
+    fake.runner.respond("zfs version -j", 1, "");
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "");
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let bootfs = |app: &App<'_>| app.snapshot().unwrap().bootfs.map(|name| name.to_string());
+
+    assert_eq!(bootfs(&app).as_deref(), Some("tank/ROOT/be"));
+    let export = Action::Export("tank".parse().unwrap());
+    app.apply(&export, Through::Quietly(fake.system()));
+
+    assert!(exported.load(Ordering::SeqCst));
+    assert_eq!(bootfs(&app), None);
+}

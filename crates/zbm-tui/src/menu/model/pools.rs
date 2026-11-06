@@ -4,7 +4,7 @@
 //! could be imported may share a name, and are told apart by their
 //! identifiers.
 
-use zbm_types::PoolName;
+use zbm_types::{PoolName, Printable};
 
 use super::Model;
 use crate::menu::world::{Pool, PoolHost, Volume};
@@ -26,6 +26,13 @@ pub(crate) fn host_text(host: &PoolHost) -> String {
         (None, Some(hostid)) => text!("pool-host", hostid = hostid),
         (None, None) => text!("pool-host-unknown"),
     }
+}
+
+/// The last part of the path `path` of a device, drawn printable: `sdb2`
+/// for `/dev/sdb2`.
+pub(crate) fn disk_name(path: &str) -> String {
+    let shown = Printable(path).to_string();
+    shown.rsplit('/').next().unwrap_or(&shown).to_owned()
 }
 
 /// The name of `pool` as the menu shows it: with its identifier `id`

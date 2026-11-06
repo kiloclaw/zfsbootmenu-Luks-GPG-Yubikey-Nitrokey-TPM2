@@ -3,7 +3,8 @@
 //! [`MachineService`], those that take it on the terminal. What an action
 //! asks goes to the menu, whose answer goes to the question's reply. The
 //! session opens only a volume of the machine as it reads it, as the menu
-//! names it, and none in the ways of `zluks` alone.
+//! names it, and none in the ways of `zluks` alone; it reads the kernel's
+//! messages only about a device of a pool it shows.
 
 use std::io;
 use std::os::fd::{AsFd as _, OwnedFd};
@@ -178,7 +179,9 @@ fn is_gone(error: &io::Error) -> bool {
 /// Why the session does not perform `action` for a remote menu, if it
 /// does not: an answer goes as one ([`ToSession::Answer`]); the menu opens
 /// volumes one at a time, with their key methods, and only those the
-/// machine has, named as the menu names them.
+/// machine has, named as the menu names them; and reads the messages of the
+/// disks of the pools it shows alone. A change such as an export is the
+/// service's to refuse, as the lock keeps it.
 fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
     match action {
         Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_) => {
@@ -198,6 +201,11 @@ fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
                         .is_none_or(|name| name.as_str() == volume.name.get())
             });
             (!known).then(|| "the machine has no such volume".to_owned())
+        }
+        Action::LoadDeviceLog(device) => {
+            let pools = served.service.pools();
+            let known = pools.iter().any(|pool| pool.has_disk(device.get()));
+            (!known).then(|| "no pool of the machine has such a device".to_owned())
         }
         _ => None,
     }

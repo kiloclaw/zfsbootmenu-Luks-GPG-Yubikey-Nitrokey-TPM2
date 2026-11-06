@@ -35,6 +35,8 @@ pub enum Offer {
     Chroot,
     /// Importing a pool, again or for the first time.
     Import,
+    /// Exporting a pool.
+    Export,
     /// Opening a LUKS volume.
     OpenVolume,
     /// Sealing a volume's TPM2 key again.
@@ -51,7 +53,7 @@ pub enum Offer {
 
 impl Offer {
     /// Every kind, in order.
-    pub const ALL: [Offer; 18] = [
+    pub const ALL: [Offer; 19] = [
         Offer::Boot,
         Offer::BootSnapshot,
         Offer::SetDefaultEnvironment,
@@ -64,6 +66,7 @@ impl Offer {
         Offer::RestoreFiles,
         Offer::Chroot,
         Offer::Import,
+        Offer::Export,
         Offer::OpenVolume,
         Offer::Reseal,
         Offer::ResetBootTries,
@@ -75,9 +78,9 @@ impl Offer {
 
 impl Action {
     /// The kind of the action, which the machine must offer for the menu
-    /// to send it; `None` for a reply to a request, the dry run, the scan
-    /// of the pools, and the actions of `zluks` alone, which the menu never
-    /// sends.
+    /// to send it; `None` for a reply to a request, the dry run, what only
+    /// reads the machine ([`Action::is_read`]), and the actions of `zluks`
+    /// alone, which the menu never sends.
     pub fn offer(&self) -> Option<Offer> {
         Some(match self {
             Action::Boot { .. } => Offer::Boot,
@@ -94,6 +97,7 @@ impl Action {
             Action::Reseal(_) => Offer::Reseal,
             Action::Chroot(_) => Offer::Chroot,
             Action::Import(..) => Offer::Import,
+            Action::Export(_) => Offer::Export,
             Action::Open { .. } => Offer::OpenVolume,
             Action::Shell => Offer::Shell,
             Action::FirmwareSetup => Offer::FirmwareSetup,
@@ -103,6 +107,7 @@ impl Action {
             | Action::Answer(_)
             | Action::Plan(_)
             | Action::ScanPools
+            | Action::LoadDeviceLog(_)
             | Action::UnlockAll
             | Action::OpenWithKeyFile { .. }
             | Action::Close(_) => return None,

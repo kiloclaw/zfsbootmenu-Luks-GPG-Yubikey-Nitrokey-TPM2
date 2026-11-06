@@ -11,7 +11,7 @@ use crate::menu::demo::{DemoOptions, FakeMachine};
 use crate::menu::keymap::Intent;
 use crate::menu::model::{Choice, Dialog, Model, Screen, Then};
 use crate::menu::theme::Theme;
-use crate::menu::world::{Access, Action, ImportOptions, Offer, Outcome};
+use crate::menu::world::{Access, Action, Event, ImportOptions, Offer, Outcome};
 
 /// The menu on the demo machine, offering everything, on the pools view:
 /// `zroot` imported read-only, `tank` read/write with a checkpoint, and
@@ -166,18 +166,31 @@ fn the_keys_import_read_write_and_confirm_the_rewind() {
 }
 
 #[test]
-fn the_details_of_a_pool_offer_its_imports() {
+fn the_details_of_a_pool_offer_its_imports_and_its_export() {
     let mut model = pools();
     let tank = model.snapshot.pools[1].clone();
     assert_eq!(tank.name.as_str(), "tank");
     dialogs::pool_details(&mut model, &tank);
-    assert_eq!(
-        choices(&model),
-        [
-            import("tank", Access::ReadOnly, ImportPolicy::Strict, false),
-            import("tank", Access::ReadWrite, ImportPolicy::Strict, true),
-        ]
-    );
+    let tank_choices = [
+        import("tank", Access::ReadOnly, ImportPolicy::Strict, false),
+        Action::Export("tank".parse().unwrap()),
+        import("tank", Access::ReadWrite, ImportPolicy::Strict, true),
+    ];
+    assert_eq!(choices(&model), tank_choices);
+
+    // The workspace offers each disk's kernel messages too, by the path
+    // the pool names it by.
+    model.map = crate::menu::keymap::Map::Workspace;
+    dialogs::pool_details(&mut model, &tank);
+    let device = |path: &str| Action::LoadDeviceLog(zbm_types::Untrusted::new(path.to_owned()));
+    let mut workspace = tank_choices.to_vec();
+    workspace.extend(["/dev/sda2", "/dev/sdb2", "/dev/sdc2"].map(device));
+    assert_eq!(choices(&model), workspace);
+    // Without the export offered, the rest stays.
+    model.snapshot.offers.remove(&Offer::Export);
+    dialogs::pool_details(&mut model, &tank);
+    assert!(!choices(&model).contains(&Action::Export("tank".parse().unwrap())));
+    model.map = crate::menu::keymap::Map::Classic;
 
     let backup = model.snapshot.pools[2].clone();
     assert_eq!(backup.name.as_str(), "backup");
@@ -353,4 +366,61 @@ fn the_scan_keeps_the_row_selected_in_the_pools_view() {
         model.selected_volume().map(|volume| volume.name.clone()),
         volume
     );
+}
+
+#[test]
+fn a_devices_messages_open_on_the_pools_view_and_back_closes_them_first() {
+    use zbm_display::keys::{Key, KeyPress};
+    let mut model = pools();
+    model.map = crate::menu::keymap::Map::Workspace;
+    let log = crate::menu::world::DeviceLog {
+        device: zbm_types::Untrusted::new("/dev/sdb2".to_owned()),
+        ..crate::menu::world::DeviceLog::default()
+    };
+
+    events::apply(&mut model, Event::DeviceLogLoaded(log.clone()));
+    assert_eq!(model.device_log, Some(log));
+    let escape = KeyPress::new(Key::Escape);
+    assert_eq!(super::key_press(&mut model, escape), []);
+    assert_eq!(
+        (model.device_log.is_none(), model.screen),
+        (true, Screen::Pools)
+    );
+    let _ = super::key_press(&mut model, escape);
+    assert_eq!(model.screen, Screen::Main);
+}
+
+#[test]
+fn a_devices_messages_close_when_the_tab_is_left_or_the_machine_changes() {
+    use super::Message;
+    use zbm_display::keys::{Key, KeyPress};
+    let mut model = pools();
+    model.map = crate::menu::keymap::Map::Workspace;
+    let log = crate::menu::world::DeviceLog {
+        device: zbm_types::Untrusted::new("/dev/sdb2".to_owned()),
+        ..crate::menu::world::DeviceLog::default()
+    };
+    let loaded = |model: Model| {
+        let event = Message::Event(Box::new(Event::DeviceLogLoaded(log.clone())));
+        super::update(model, event).0
+    };
+    let key =
+        |model: Model, c: char| super::update(model, Message::Key(KeyPress::new(Key::Char(c)))).0;
+
+    // To the Boot tab and back: the messages do not come back.
+    let mut model = key(key(loaded(model), '1'), '3');
+    assert_eq!(
+        (model.screen, model.device_log.as_ref()),
+        (Screen::Pools, None)
+    );
+    // Read once the tab is left: not shown.
+    model.screen = Screen::Main;
+    let mut model = loaded(model);
+    assert_eq!(model.device_log, None);
+    // The machine changed, as when the pool is exported.
+    model.screen = Screen::Pools;
+    let model = loaded(model);
+    let snapshot = model.snapshot.clone();
+    let model = super::update(model, Message::Event(Box::new(Event::Changed(snapshot)))).0;
+    assert_eq!(model.device_log, None);
 }

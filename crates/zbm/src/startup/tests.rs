@@ -321,6 +321,17 @@ fn conf() -> Conf {
     Conf::parse(&options.conf("/zfsbootmenu"))
 }
 
+/// What `zpool list -j` prints of `tank`, imported, its default
+/// `tank/ROOT/void`.
+const LISTED: &str = r#"
+{"output_version": {"command": "zpool list", "vers_major": 0, "vers_minor": 1},
+"pools": {"tank": {"name": "tank", "type": "POOL", "state": "ONLINE", "pool_guid": "7",
+"properties": {
+  "health": {"value": "ONLINE", "source": {"type": "NONE", "data": "-"}},
+  "readonly": {"value": "off", "source": {"type": "NONE", "data": "-"}},
+  "bootfs": {"value": "tank/ROOT/void", "source": {"type": "LOCAL", "data": "-"}},
+  "guid": {"value": "7", "source": {"type": "NONE", "data": "-"}}}}}}"#;
+
 /// A machine with one pool, `tank`, and a terminal that can run the menu.
 fn machine() -> FakeSystem {
     let fake = FakeSystem::new();
@@ -328,6 +339,12 @@ fn machine() -> FakeSystem {
     runner.respond("zpool list -H -o name", 0, "tank\n");
     runner.respond("zpool list -H -o name,health", 0, "tank\tONLINE\n");
     runner.respond("zpool list -H -o bootfs --", 0, "tank/ROOT/void\n");
+    // The pools the menu lists: `tank` imported, its default on it.
+    runner.respond(
+        "zpool list -j -p -o name,health,readonly,bootfs,guid",
+        0,
+        LISTED,
+    );
     fake.files.dir("/libexec/hooks/early-setup.d");
     fake.environment.set("TERM", "linux");
     fake

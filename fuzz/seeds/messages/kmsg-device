@@ -1,0 +1,8 @@
+3,10,5000000,-;I/O error, dev sdb, sector 2048
+ SUBSYSTEM=block
+ DEVICE=b8:16
+6,11,5100000,-;EXT4-fs (sdb2): \x1b]0;owned\x07
+3,12,5200000,-;ata3.00: failed command: READ FPDMA QUEUED
+6,13,5300000,-;sd 0:0:0:0: [sda] attached ésdb
+no record
+ DEVICE=b8:16

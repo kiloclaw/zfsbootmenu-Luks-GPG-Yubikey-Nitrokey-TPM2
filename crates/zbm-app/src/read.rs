@@ -306,8 +306,10 @@ pub fn log(files: &dyn Files, base: &Path) -> Log {
     Log { entries }
 }
 
+mod device_log;
 mod pools;
 
+pub(crate) use device_log::device_log;
 pub(crate) use pools::{importable, merged, pools};
 
 #[cfg(test)]

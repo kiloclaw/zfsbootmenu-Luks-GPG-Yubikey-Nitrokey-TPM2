@@ -2117,6 +2117,7 @@ dependencies = [
  "zbm-startup",
  "zbm-state",
  "zbm-testkit",
+ "zbm-tools",
  "zbm-trace",
  "zbm-tui",
  "zbm-types",

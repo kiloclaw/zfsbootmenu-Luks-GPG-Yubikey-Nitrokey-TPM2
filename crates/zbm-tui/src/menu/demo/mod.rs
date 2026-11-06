@@ -207,6 +207,9 @@ impl FakeMachine {
             }
             Action::Import(pool, options) => self.import(&pool, options),
             Action::ScanPools => self.scan(),
+            Action::LoadDeviceLog(device) => {
+                vec![Event::DeviceLogLoaded(data::device_log(&device))]
+            }
             Action::Shell => leave("Opening the recovery shell"),
             Action::Reboot => leave("Rebooting"),
             Action::PowerOff => leave("Powering off"),

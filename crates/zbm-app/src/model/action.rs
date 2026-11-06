@@ -10,7 +10,9 @@ use zbm_types::{
     Answer, DatasetName, DevicePath, FilesystemName, MappingName, PoolName, SnapshotName, Untrusted,
 };
 
-use super::{Change, ImportOptions, Method, Notice, PackageDiff, Plan, Pool, Snapshot, StageState};
+use super::{
+    Change, DeviceLog, ImportOptions, Method, Notice, PackageDiff, Plan, Pool, Snapshot, StageState,
+};
 
 /// What the name of the safety snapshot restoring files takes first starts
 /// with: `<environment>@before-restore-<UTC time>`, the time as a new
@@ -83,6 +85,10 @@ pub enum Action {
     /// imported again; one that is not is imported read-only first, then
     /// again like one that is (ADR 0016, point 3).
     Import(PoolName, ImportOptions),
+    /// Export an imported pool, which a scan then finds to import again.
+    /// The pool of the default environment may be exported too: the
+    /// snapshot read after it has no default.
+    Export(PoolName),
     /// Unlock a volume with a method and, for typed methods, a secret.
     Unlock {
         /// The volume.
@@ -142,6 +148,10 @@ pub enum Action {
     /// can take seconds: [`Event::PoolsScanned`] brings them with the
     /// imported ones, and the snapshots read after it list them.
     ScanPools,
+    /// The kernel's messages about a device of a pool, as the pool names
+    /// it, and about those it stands on: [`Event::DeviceLogLoaded`] brings
+    /// them.
+    LoadDeviceLog(Untrusted<String>),
 }
 
 impl Action {
@@ -149,7 +159,7 @@ impl Action {
     /// was: what it reads comes in its own event, and the snapshot is not
     /// read again after it.
     pub fn is_read(&self) -> bool {
-        matches!(self, Action::ScanPools)
+        matches!(self, Action::ScanPools | Action::LoadDeviceLog(_))
     }
 
     /// Whether the action answers what the machine asked
@@ -181,15 +191,16 @@ impl Action {
         )
     }
 
-    /// Whether the action is a change of package D: an import, or a change
-    /// of an environment or its snapshots, which imports the pool
-    /// read/write first unless it is the diff of two snapshots
-    /// ([`Action::needs_writable_pool`]), and loads the environment's key
-    /// where it needs it.
+    /// Whether the action is a change of package D: an import or an
+    /// export, or a change of an environment or its snapshots, which
+    /// imports the pool read/write first unless it is the diff of two
+    /// snapshots ([`Action::needs_writable_pool`]), and loads the
+    /// environment's key where it needs it.
     pub fn is_change(&self) -> bool {
         matches!(
             self,
             Action::Import(..)
+                | Action::Export(_)
                 | Action::SetDefaultEnvironment(_)
                 | Action::SetDefaultKernel(..)
                 | Action::InheritDefaultKernel(_)
@@ -205,17 +216,21 @@ impl Action {
 
     /// Whether the change writes its pool, which it imports read/write
     /// first: every change but the diff of two snapshots, which reads
-    /// them, and an import, which is how the pool is imported; and the
-    /// boot of a snapshot, which clones it first.
+    /// them, an import, which is how the pool is imported, and an export;
+    /// and the boot of a snapshot, which clones it first.
     pub fn needs_writable_pool(&self) -> bool {
-        matches!(self, Action::BootSnapshot(..))
-            || (self.is_change() && !matches!(self, Action::Diff(_, Some(_)) | Action::Import(..)))
+        let is_pool = matches!(
+            self,
+            Action::Diff(_, Some(_)) | Action::Import(..) | Action::Export(_)
+        );
+        matches!(self, Action::BootSnapshot(..)) || (self.is_change() && !is_pool)
     }
 
     /// Whether the locked menu keeps the action (ROADMAP.md SE9, ADR 0010):
     /// everything but the default boot, the countdown's or of `bootfs` with
     /// its own kernel and command line, what changes nothing (a diff, a dry
-    /// run) and a pool imported read-only as this host, without a rewind.
+    /// run, the scan of the pools, a device's kernel messages) and a pool
+    /// imported read-only as this host, without a rewind.
     /// Unlocking a volume with its own secret, the recovery shell, which
     /// asks for the PIN itself, and powering off or rebooting stay open.
     pub fn is_kept_by_lock(&self, bootfs: Option<&DatasetName>) -> bool {
@@ -241,7 +256,8 @@ impl Action {
             | Action::Reboot
             | Action::PowerOff
             | Action::Plan(_)
-            | Action::ScanPools => false,
+            | Action::ScanPools
+            | Action::LoadDeviceLog(_) => false,
             Action::Import(_, options) => options.is_kept_by_lock(),
             Action::BootSnapshot(..)
             | Action::SetDefaultEnvironment(_)
@@ -253,6 +269,7 @@ impl Action {
             | Action::CloneAndPromote(..)
             | Action::Duplicate(..)
             | Action::RestoreFiles { .. }
+            | Action::Export(_)
             | Action::ResetBootTries(_)
             | Action::Reseal(_)
             | Action::Chroot(_)
@@ -348,6 +365,8 @@ pub enum Event {
     /// those that could be imported, which replace the snapshot's. The
     /// countdown goes on.
     PoolsScanned(Vec<Pool>),
+    /// What [`Action::LoadDeviceLog`] found.
+    DeviceLogLoaded(DeviceLog),
     /// A stage of start-up started, named for people.
     StageStarted(String),
     /// A stage of start-up ended.

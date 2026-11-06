@@ -350,6 +350,7 @@ impl<'a> App<'a> {
             Action::BootSnapshot(_, target) => self.boot_clone(action, target, &system, recovery),
             Action::Chroot(filesystem) => self.chroot(action, filesystem, &system),
             Action::ScanPools => self.scan(),
+            Action::LoadDeviceLog(device) => self.device_log(device),
             change if change.is_change() => self.change(change, &system, true),
             Action::Boot {
                 environment,
@@ -450,11 +451,11 @@ impl<'a> App<'a> {
 
     /// The kinds of action the application performs on the machine of
     /// `files`: the boot, a snapshot's too, the changes of package D
-    /// ([`Action::is_change`]), the default kernel, restoring files and the
-    /// import among them, the recovery shell, the chroot when the image
-    /// has `zfs-chroot`, the power actions, and opening a volume with a
-    /// LUKS session in an image with `cryptsetup`. The others have no use
-    /// case yet, and end as [`unavailable`].
+    /// ([`Action::is_change`]), the default kernel, restoring files, the
+    /// import and the export among them, the recovery shell, the chroot
+    /// when the image has `zfs-chroot`, the power actions, and opening a
+    /// volume with a LUKS session in an image with `cryptsetup`. The others
+    /// have no use case yet, and end as [`unavailable`].
     fn offers(&self, files: &dyn zbm_platform::Files) -> std::collections::BTreeSet<Offer> {
         let chroot = files.exists(Path::new(ZFS_CHROOT)).then_some(Offer::Chroot);
         let open = self
@@ -473,6 +474,7 @@ impl<'a> App<'a> {
             Offer::Diff,
             Offer::RestoreFiles,
             Offer::Import,
+            Offer::Export,
             Offer::Shell,
             Offer::FirmwareSetup,
             Offer::Power,
@@ -517,10 +519,20 @@ impl Application for App<'_> {
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |time| time.as_secs());
         let state = zbm_state::State::new(files, &self.runtime.base);
-        let bootfs = state.bootfs().and_then(|name| name.parse().ok());
+        let pools = self.pools(&zfs).map_err(SnapshotError::from)?;
+        // The default stands on an imported pool: none once it is exported.
+        let bootfs = state
+            .bootfs()
+            .and_then(|name| name.parse::<DatasetName>().ok())
+            .filter(|bootfs| {
+                let pool = bootfs.pool();
+                pools
+                    .iter()
+                    .any(|known| known.imported && known.name == pool)
+            });
         Ok(Snapshot {
             startup: read::startup(&state),
-            pools: self.pools(&zfs).map_err(SnapshotError::from)?,
+            pools,
             environments: read::environments(&zfs).map_err(SnapshotError::from)?,
             volumes: self.volumes(),
             timeout: read::timeout(&self.runtime.options),

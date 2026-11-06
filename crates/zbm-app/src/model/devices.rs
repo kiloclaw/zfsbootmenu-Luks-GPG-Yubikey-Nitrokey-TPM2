@@ -103,6 +103,17 @@ impl Device {
         was.unwrap_or(self.name.get())
     }
 
+    /// Adds this device, when nothing is below it, or the devices below
+    /// it that nothing is below, to `found`.
+    fn collect_disks<'d>(&'d self, found: &mut Vec<&'d Device>) {
+        if self.children.is_empty() {
+            found.push(self);
+        }
+        for child in &self.children {
+            child.collect_disks(found);
+        }
+    }
+
     /// Adds this device, when it is missing, then the missing devices
     /// below it, to `found`.
     pub(super) fn collect_missing<'d>(&'d self, found: &mut Vec<&'d Device>) {
@@ -113,6 +124,48 @@ impl Device {
             child.collect_missing(found);
         }
     }
+}
+
+impl super::Pool {
+    /// Its disks: the devices nothing is below, such as partitions and
+    /// files, without the groups such as `mirror-0` that hold them, in the
+    /// order `zpool status` prints them.
+    pub fn disks(&self) -> Vec<&Device> {
+        let mut found = Vec::new();
+        for device in &self.devices {
+            device.collect_disks(&mut found);
+        }
+        found
+    }
+
+    /// Whether `device` is one of its disks, by its name or by the path it
+    /// had ([`Device::path`]).
+    pub(crate) fn has_disk(&self, device: &str) -> bool {
+        self.disks()
+            .iter()
+            .any(|disk| disk.name.get() == device || disk.path() == device)
+    }
+}
+
+/// The kernel's messages about a device of a pool
+/// ([`Action::LoadDeviceLog`](super::Action::LoadDeviceLog)): those that
+/// name it or a device it stands on, the disk of a partition and the
+/// devices below a mapping, as the kernel names them, or that the kernel
+/// tagged with one of them. A message that names only a port, as
+/// `ata3.00:` and `usb 1-2:` do, is not among them.
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DeviceLog {
+    /// The device, as the pool names it.
+    pub device: Untrusted<String>,
+    /// The kernel's names of it and of those it stands on, `sda2` then
+    /// `sda`. A device the kernel no longer lists is its name and its
+    /// disk's, when the kernel names disks and partitions so (`sdb2`,
+    /// `sdb`); empty for any other, as a link of `/dev/disk/by-id` gone
+    /// with its device, or a file.
+    pub names: Vec<Untrusted<String>>,
+    /// The messages, oldest first, as `dmesg` prints them; the newest of
+    /// them when there are many.
+    pub lines: Vec<Untrusted<String>>,
 }
 
 #[cfg(test)]

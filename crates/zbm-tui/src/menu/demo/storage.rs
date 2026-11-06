@@ -44,6 +44,7 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
         | Action::Duplicate(name, new)
         | Action::CloneAndPromote(name, new) => copy(snapshot, &name, &new),
         Action::ResetBootTries(name) => reset_tries(snapshot, &name),
+        Action::Export(pool) => export(snapshot, &pool),
         _ => return Vec::new(),
     };
     vec![Event::Changed(snapshot.clone()), Event::Finished(outcome)]
@@ -265,6 +266,31 @@ fn rewind(snapshot: &mut Snapshot, pool: &PoolName) -> Outcome {
         }
         _ => Outcome::Warning(format!("{pool} has no checkpoint")),
     }
+}
+
+/// Exports `pool`, which a scan finds then: its environments go, and the
+/// default with them when it was one of them.
+fn export(snapshot: &mut Snapshot, pool: &PoolName) -> Outcome {
+    let Some(found) = snapshot
+        .pools
+        .iter_mut()
+        .find(|known| known.imported && &known.name == pool)
+    else {
+        return Outcome::Warning(format!("{pool} is not imported"));
+    };
+    found.imported = false;
+    found.writable = false;
+    snapshot
+        .environments
+        .retain(|environment| &environment.name.pool() != pool);
+    if snapshot
+        .bootfs
+        .as_ref()
+        .is_some_and(|bootfs| &bootfs.pool() == pool)
+    {
+        snapshot.bootfs = None;
+    }
+    Outcome::Done(format!("{pool} is exported"))
 }
 
 /// The boot environment of the foreign pool, once it is imported.

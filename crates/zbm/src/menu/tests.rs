@@ -5,6 +5,7 @@
 )]
 
 use zbm_config::args::ZbmArgs;
+use zbm_platform::exec::{Output, Status};
 use zbm_state::State;
 use zbm_testkit::fakes::FakeSystem;
 
@@ -74,6 +75,17 @@ fn the_menu_runs_on_the_machine_and_says_why_it_could_not() {
     assert!(!error.is_empty());
 }
 
+/// What `zpool list -j` prints of `tank`, imported, its default
+/// `tank/ROOT/void`.
+const LISTED: &str = r#"
+{"output_version": {"command": "zpool list", "vers_major": 0, "vers_minor": 1},
+"pools": {"tank": {"name": "tank", "type": "POOL", "state": "ONLINE", "pool_guid": "7",
+"properties": {
+  "health": {"value": "ONLINE", "source": {"type": "NONE", "data": "-"}},
+  "readonly": {"value": "off", "source": {"type": "NONE", "data": "-"}},
+  "bootfs": {"value": "tank/ROOT/void", "source": {"type": "LOCAL", "data": "-"}},
+  "guid": {"value": "7", "source": {"type": "NONE", "data": "-"}}}}}}"#;
+
 /// A menu that checks that it counts down, then ends.
 fn counting(machine: RealMachine<'_, '_>) -> io::Result<String> {
     let snapshot = machine.snapshot();
@@ -101,6 +113,11 @@ fn the_menu_counts_down_only_at_the_end_of_start_up_with_a_chosen_environment() 
     State::new(&fake.files, "/zfsbootmenu")
         .set_bootfs("tank/ROOT/void")
         .unwrap();
+    // Its pool is imported: a default on a pool that is not is none.
+    fake.runner.first(|command| {
+        let listed = command.display() == "zpool list -j -p -o name,health,readonly,bootfs,guid";
+        listed.then(|| Ok(Output::new(Status::exited(0), LISTED.as_bytes())))
+    });
     assert_eq!(
         menu(
             fake.system(),

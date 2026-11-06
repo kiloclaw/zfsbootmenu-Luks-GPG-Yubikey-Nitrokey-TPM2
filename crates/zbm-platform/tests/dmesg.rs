@@ -13,8 +13,8 @@ use std::path::Path;
 
 use zbm_platform::Files as _;
 use zbm_platform::dmesg::{
-    Record, filter_raw, filtered_command, format_records, kernel_log, raw_prefixes, read_logs,
-    read_logs_with_dmesg, records, strip_timestamps,
+    Record, device_lines, filter_raw, filtered_command, format_records, is_about, kernel_log,
+    names, raw_prefixes, read_logs, read_logs_with_dmesg, records, strip_timestamps,
 };
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 use zbm_testkit::{FakeRunner, TempDir, parity};
@@ -177,6 +177,7 @@ fn records_are_read_from_kmsg_with_their_escapes_undone() {
             level: 3,
             micros: 2_000_001,
             text: "ZFSBootMenu: broken\tpool".to_owned(),
+            device: None,
         }
     );
     assert_eq!(
@@ -221,4 +222,91 @@ fn the_log_comes_from_kmsg_and_from_dmesg_without_it() {
     );
     assert_eq!(read_logs(&fake.system(), "debug").unwrap(), "\n");
     assert!(read_logs(&fake.system(), "").is_err());
+}
+
+/// The kernel's records about `sdb` and its partition `sdb2`: one tagged
+/// with the disk's numbers and naming none, one naming the partition with
+/// an escape character in it, one naming the port alone, and those of
+/// other disks.
+const DEVICES: &str = "3,10,5000000,-;I/O error, dev sdb, sector 2048\n\
+    \x20SUBSYSTEM=block\n\
+    \x20DEVICE=b8:16\n\
+    4,11,5100000,-;Buffer I/O error on device\n\
+    \x20DEVICE=b8:16\n\
+    6,12,5200000,-;EXT4-fs (sdb2): \\x1b[31mred\\x1b[0m\n\
+    3,13,5300000,-;ata3.00: failed command: READ FPDMA QUEUED\n\
+    6,14,5400000,-;sd 2:0:0:0: [sdb1] attached\n\
+    6,15,5500000,-;nvme0n1p2: unknown partition table\n\
+    6,16,5600000,-;tagged elsewhere\n\
+    \x20DEVICE=b8:0\n\
+    no record\n\
+    \x20DEVICE=b8:16\n";
+
+#[test]
+fn a_devices_lines_are_those_naming_it_as_a_word_or_tagged_with_its_numbers() {
+    let read = records(DEVICES.as_bytes());
+    let devices: Vec<Option<&str>> = read.iter().map(|record| record.device.as_deref()).collect();
+    // The dictionary of a line that is no record is no record's.
+    assert_eq!(
+        devices,
+        [
+            Some("b8:16"),
+            Some("b8:16"),
+            None,
+            None,
+            None,
+            None,
+            Some("b8:0")
+        ]
+    );
+    let about: Vec<&str> = read
+        .iter()
+        .filter(|record| is_about(record, &["sdb2", "sdb"], &["8:18", "8:16"]))
+        .map(|record| record.text.as_str())
+        .collect();
+    // The ESC byte is the kernel's text, which whoever draws it makes
+    // harmless; `ata3.00` names a port, not the disk.
+    assert_eq!(
+        about,
+        [
+            "I/O error, dev sdb, sector 2048",
+            "Buffer I/O error on device",
+            "EXT4-fs (sdb2): \u{1b}[31mred\u{1b}[0m",
+        ]
+    );
+    for (text, name, named) in [
+        ("[sda] ready", "sda", true),
+        ("sda: sda1 sda2", "sda", true),
+        ("sda1: ready", "sda", false),
+        ("nvme0n1p2 ready", "nvme0n1", false),
+        ("of dm-0.", "dm-0", true),
+        ("dm-01", "dm-0", false),
+        ("ésda", "sda", false),
+        ("anything", "", false),
+    ] {
+        assert_eq!(names(text, name), named, "{text:?} {name:?}");
+    }
+}
+
+#[test]
+fn a_devices_lines_come_from_kmsg_and_from_dmesg_by_name_without_it() {
+    let fake = zbm_testkit::fakes::FakeSystem::new();
+    fake.files.file("/dev/kmsg", DEVICES);
+    assert_eq!(
+        device_lines(&fake.files, &fake.runner, &["sdb1"], &["8:17"]),
+        ["[    5.400000] sd 2:0:0:0: [sdb1] attached"]
+    );
+    assert!(device_lines(&fake.files, &fake.runner, &["sdc"], &["8:32"]).is_empty());
+
+    fake.files
+        .fail("/dev/kmsg", std::io::ErrorKind::PermissionDenied);
+    fake.runner.respond(
+        "dmesg",
+        0,
+        "[ 5.0] I/O error, dev sdb, sector 2048\n[ 5.1] sdb1: ready\n",
+    );
+    assert_eq!(
+        device_lines(&fake.files, &fake.runner, &["sdb"], &["8:16"]),
+        ["[ 5.0] I/O error, dev sdb, sector 2048"]
+    );
 }

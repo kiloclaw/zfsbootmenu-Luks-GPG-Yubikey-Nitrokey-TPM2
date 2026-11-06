@@ -146,6 +146,12 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
             ));
         }
     }
+    for pool in model.snapshot.pools.iter().filter(|pool| pool.imported) {
+        items.push(item(
+            text!("palette-export", pool = pool.name.to_string()),
+            Then::Act(Action::Export(pool.name.clone())),
+        ));
+    }
     items.extend(tool_items(model));
     items.retain(|item| super::offers::is_offered(model, &item.then));
     items

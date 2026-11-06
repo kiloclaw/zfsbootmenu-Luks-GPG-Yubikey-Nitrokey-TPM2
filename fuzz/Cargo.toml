@@ -35,6 +35,7 @@ zbm-startup = { path = "../crates/zbm-startup" }
 zbm-platform = { path = "../crates/zbm-platform" }
 zbm-state = { path = "../crates/zbm-state" }
 zbm-testkit = { path = "../crates/zbm-testkit" }
+zbm-tools = { path = "../crates/zbm-tools" }
 zbm-trace = { path = "../crates/zbm-trace" }
 zbm-tui = { path = "../crates/zbm-tui" }
 zbm-types = { path = "../crates/zbm-types" }

@@ -1,9 +1,11 @@
 //! What ZFSBootMenu's own processes leave for each other (input I11 of
-//! docs/dev/threat-model.md): crash reports, the kernel log they read back,
-//! the state files of `/zfsbootmenu` (finished stages, the active menu, the
-//! default boot environment, degraded pools, the command line override, the
-//! console's process, the console that handed the display back, and its
-//! layout), and the saved command line. Only ZFSBootMenu writes them, but
+//! docs/dev/threat-model.md): crash reports, the kernel log they read back
+//! and a device's messages the menu picks from it, by the names of the
+//! device a pool's label gives, the state files of
+//! `/zfsbootmenu` (finished stages, the active menu, the default boot
+//! environment, degraded pools, the command line override, the console's
+//! process, the console that handed the display back, and its layout),
+//! and the saved command line. Only ZFSBootMenu writes them, but
 //! hooks (I6) can, so reading them may not panic or hang. Also the messages
 //! on the session's and the console's sockets (I17), a remote menu's among
 //! them, which a root login can send, on the client channel between the
@@ -33,8 +35,30 @@ const STATE: [&str; 8] = [
 fuzz_target!(|data: &[u8]| {
     let text = String::from_utf8_lossy(data);
     let _ = zbm_trace::crash::Report::parse(&text);
+    // The kernel's messages about a device, which the menu draws: the
+    // filter on names and numbers takes any text without a panic, and
+    // nothing names an empty name.
+    let words: Vec<&str> = text.split_whitespace().take(4).collect();
     for record in zbm_platform::dmesg::records(data) {
         assert!(record.level <= 7, "{record:?}");
+        let _ = zbm_platform::dmesg::is_about(&record, &words, &["8:16"]);
+        assert!(!zbm_platform::dmesg::names(&record.text, ""));
+        for word in &words {
+            let _ = zbm_platform::dmesg::names(&record.text, word);
+        }
+    }
+    // The same words as a pool's label names its devices, on a machine
+    // whose kernel lists none: a lost device's names are entries of
+    // `/sys/class/block`, never a path.
+    let (runner, files) = (zbm_testkit::FakeRunner::new(), FakeFiles::new());
+    let devices = zbm_tools::devices::Devices::new(&runner, &files);
+    for word in &words {
+        for found in devices.stack(word) {
+            assert!(
+                !found.name.is_empty() && !found.name.contains('/'),
+                "{found:?}"
+            );
+        }
     }
     let _ = zbm_console::screen::zoom::Zoom::parse(&text);
     let _ = zbm_display::layout::compile::split(&text);

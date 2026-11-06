@@ -206,6 +206,49 @@ fn an_import_toggles_the_access_rewinds_and_imports_a_foreign_pool() {
 }
 
 #[test]
+fn an_export_leaves_the_pool_to_import_and_its_environments_go() {
+    let mut machine = FakeMachine::new(&DemoOptions::default());
+    let zroot: zbm_types::PoolName = "zroot".parse().unwrap();
+
+    let events = machine.apply(Action::Export(zroot.clone()));
+
+    let done = Some(Event::Finished(Outcome::Done(
+        "zroot is exported".to_owned(),
+    )));
+    assert_eq!(events.last(), done.as_ref());
+    let snapshot = machine.snapshot();
+    let pool = snapshot.pools.iter().find(|p| p.name == zroot).unwrap();
+    assert!(!pool.imported && !pool.writable);
+    assert!(snapshot.environments.iter().all(|e| e.name.pool() != zroot));
+    // The default was on it: there is none now.
+    assert_eq!(snapshot.bootfs, None);
+    let again = machine.apply(Action::Export(zroot));
+    assert!(matches!(
+        again.last(),
+        Some(Event::Finished(Outcome::Warning(_)))
+    ));
+}
+
+#[test]
+fn the_lost_disk_has_kernel_messages_and_the_others_none() {
+    let mut machine = FakeMachine::new(&DemoOptions::default());
+    let log = |machine: &mut FakeMachine, path: &str| {
+        let device = Untrusted::new(path.to_owned());
+        match machine.apply(Action::LoadDeviceLog(device)).as_slice() {
+            [Event::DeviceLogLoaded(log)] => log.clone(),
+            other => panic!("{other:?}"),
+        }
+    };
+
+    let lost = log(&mut machine, "/dev/sdb2");
+    assert_eq!(lost.names.len(), 2);
+    assert!(lost.lines.iter().any(|line| line.get().contains('\u{1b}')));
+    let quiet = log(&mut machine, "/dev/sda2");
+    assert!(quiet.lines.is_empty() && quiet.names.len() == 1);
+    assert!(log(&mut machine, "/tmp/file").names.is_empty());
+}
+
+#[test]
 fn leaving_actions_end_the_menu() {
     let mut machine = FakeMachine::new(&DemoOptions::default());
 

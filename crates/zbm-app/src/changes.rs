@@ -21,7 +21,8 @@
 //!   each path into the environment mounted read/write ([`restore`]);
 //! - an import of a pool, read-only or read/write, under a policy, rewound
 //!   to its checkpoint or not: `zpool export`, when it is imported, then
-//!   `zpool import` ([`import`]).
+//!   `zpool import` ([`import`]);
+//! - an export of a pool: `zpool export` ([`pools`]).
 //!
 //! What a change needs besides ZFS ([`Needs`]) comes from the console when
 //! the change may ask for something ([`Action::needs_console_on`]), and
@@ -29,6 +30,7 @@
 
 mod import;
 mod needs;
+mod pools;
 mod restore;
 
 pub(crate) use needs::{Needs, OnMachine, Planning};
@@ -109,6 +111,7 @@ impl Changes<'_, '_> {
             Action::Diff(from, to) => self.diff(from, to.as_ref()),
             Action::RestoreFiles { snapshot, paths } => self.restore(snapshot, paths),
             Action::Import(pool, options) => self.import(pool, *options),
+            Action::Export(pool) => self.export(pool),
             _ => return None,
         };
         Some(result.unwrap_or_else(|failure| vec![failure.into_event()]))

@@ -44,7 +44,7 @@ fn the_snapshot_reads_the_machine_and_what_the_runtime_holds() {
 }
 
 /// A recovery that opens no shell.
-struct NoShell;
+pub(super) struct NoShell;
 
 impl Recovery for NoShell {
     fn unlock_late(&self) -> Result<(), zbm_boot::BootError> {
@@ -243,6 +243,7 @@ fn of_kind(kind: model::Offer) -> Action {
         },
         Offer::Chroot => Action::Chroot(environment.into()),
         Offer::Import => Action::Import(environment.pool(), model::ImportOptions::default()),
+        Offer::Export => Action::Export(environment.pool()),
         Offer::OpenVolume => Action::Open {
             device: "/dev/sda2".to_owned(),
             name: None,
@@ -298,7 +299,8 @@ fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
             );
         }
         // What only reads has no kind, and is performed whatever is offered.
-        for action in [Action::ScanPools] {
+        let device = zbm_types::Untrusted::new("/dev/sda2".to_owned());
+        for action in [Action::ScanPools, Action::LoadDeviceLog(device)] {
             assert!(action.is_read() && action.offer().is_none());
             for through in [
                 Through::Quietly(fake.system()),

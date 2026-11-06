@@ -253,3 +253,27 @@ fn a_message_encodes_without_its_secret() {
         }
     );
 }
+
+#[test]
+fn an_export_and_a_devices_messages_cross_as_they_are() {
+    let device = zbm_types::Untrusted::new("/dev/sda2".to_owned());
+    for action in [
+        Action::Export("tank".parse().unwrap()),
+        Action::LoadDeviceLog(device.clone()),
+    ] {
+        let message = ToSession::Send { action };
+        assert_eq!(
+            ToSession::decode(&message.encode().unwrap()).unwrap(),
+            message
+        );
+    }
+    let log = crate::model::DeviceLog {
+        device,
+        names: vec![zbm_types::Untrusted::new("sda2".to_owned())],
+        lines: vec![zbm_types::Untrusted::new(
+            "[ 1.0] sda2: \u{1b}[2J".to_owned(),
+        )],
+    };
+    let message = ToMenu::Event(Box::new(Event::DeviceLogLoaded(log)));
+    assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
+}

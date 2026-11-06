@@ -30,6 +30,7 @@ const APP: &[Offer] = &[
     Offer::Diff,
     Offer::RestoreFiles,
     Offer::Import,
+    Offer::Export,
     Offer::Shell,
     Offer::FirmwareSetup,
     Offer::Power,

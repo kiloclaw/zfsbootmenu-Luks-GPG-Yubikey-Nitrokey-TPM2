@@ -478,3 +478,71 @@ fn an_answer_reaches_only_the_question_asked_now() {
         Ok(Action::SkipUnlock(_))
     ));
 }
+
+/// What the session answers a remote menu that sends `action`.
+fn answered(fake: &FakeSystem, action: Action) -> Vec<ToMenu> {
+    let (ended, messages) = served(fake, &no_console, &never, |menu| {
+        ToSession::Send { action }.send(menu, &[]).unwrap();
+        let messages = until_done(menu);
+        ToSession::Detach.send(menu, &[]).unwrap();
+        messages
+    });
+    ended.unwrap();
+    messages
+}
+
+#[test]
+fn a_remote_menu_reads_the_messages_of_a_pools_disk_alone() {
+    let fake = machine();
+    fake.runner.respond("zfs version -j", 1, "");
+    fake.runner.respond(
+        "zpool list -H -p -o name,health,readonly,bootfs,guid",
+        0,
+        "tank\tONLINE\toff\t-\t7\n",
+    );
+    fake.runner.respond(
+        "zpool status -p -P",
+        0,
+        "  pool: tank\n state: ONLINE\nconfig:\n\n\tNAME STATE READ WRITE CKSUM\n\
+         \ttank ONLINE 0 0 0\n\t  /dev/sda2 ONLINE 0 0 0\n\nerrors: No known data errors\n",
+    );
+    let device = |name: &str| Action::LoadDeviceLog(zbm_types::Untrusted::new(name.to_owned()));
+
+    // Any other device, or a path the kernel could read, is refused.
+    for refused in ["/dev/sdb", "../../etc/shadow"] {
+        let messages = answered(&fake, device(refused));
+        let [ToMenu::Event(event), ToMenu::Done] = messages.as_slice() else {
+            panic!("{messages:?}");
+        };
+        let Event::Finished(Outcome::Failed { why, .. }) = &**event else {
+            panic!("{event:?}");
+        };
+        assert_eq!(why, &["no pool of the machine has such a device"]);
+    }
+    // A disk of a pool: its messages, and no snapshot after them.
+    let messages = answered(&fake, device("/dev/sda2"));
+    let [ToMenu::Event(event), ToMenu::Done] = messages.as_slice() else {
+        panic!("{messages:?}");
+    };
+    assert!(
+        matches!(&**event, Event::DeviceLogLoaded(log) if log.device.get() == "/dev/sda2"),
+        "{event:?}"
+    );
+    // An export is a change, which the session refuses no more than another.
+    assert_eq!(
+        refusal_of(&fake, &Action::Export("tank".parse().unwrap())),
+        None
+    );
+}
+
+/// Why the session refuses `action` on `fake`, if it does.
+fn refusal_of(fake: &FakeSystem, action: &Action) -> Option<String> {
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let served = Served {
+        service: MachineService::new(app, fake.system()),
+        console: &no_console,
+        stop: &never,
+    };
+    refusal(&served, action)
+}
