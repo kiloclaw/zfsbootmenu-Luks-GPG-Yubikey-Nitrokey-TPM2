@@ -14,7 +14,6 @@ use super::lists;
 use crate::menu::format::{capitalised, fit};
 use crate::menu::model::{Choice, Dialog, Model, Naming, Then};
 use crate::menu::theme::{Glyph, Role, Theme};
-use crate::menu::update::palette_items;
 use crate::menu::world::Action;
 use crate::text::text;
 
@@ -382,7 +381,7 @@ fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         return;
     };
     let theme = model.theme;
-    let items = palette_items(model);
+    let items = &palette.items;
     let height = area.height.saturating_sub(2).min(16);
     let width = area.width.saturating_sub(4).min(70);
     let rect = centred(theme, frame, area, (width, height));

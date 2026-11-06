@@ -365,7 +365,8 @@ fn environment(name: &str, encryption: model::Encryption) -> model::Environment 
             value: zbm_types::Untrusted::default(),
             origin: model::Origin::Default,
         },
-        snapshots: Vec::new(),
+        snapshot_count: 0,
+        newest_snapshot: None,
         checks: Vec::new(),
         tries: None,
     }

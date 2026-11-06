@@ -190,6 +190,12 @@ sort-creation = creation
 sort-size = size
 snapshots-none = No Snapshots
     .text = Press n to take one.
+# The snapshots column before its snapshots came: the machine lists them,
+# or it did not, as Esc stopped it.
+snapshots-reading = Reading the Snapshots...
+    .text = The machine lists them; Esc stops it.
+snapshots-not-read = Snapshots Not Read
+    .text = Open the snapshots again to read them.
 # What labels the default kernel, and the default environment.
 label-default = default
 kernels-title = Kernels

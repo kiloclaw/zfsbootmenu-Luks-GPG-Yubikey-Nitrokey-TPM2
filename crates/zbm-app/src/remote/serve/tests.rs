@@ -546,3 +546,45 @@ fn refusal_of(fake: &FakeSystem, action: &Action) -> Option<String> {
     };
     refusal(&served, action)
 }
+
+#[test]
+fn a_remote_menu_loads_the_snapshots_of_a_boot_environment_alone() {
+    let fake = machine();
+    fake.runner.respond("zfs version -j", 1, "");
+    let listing = |name: &str| {
+        format!("zfs list -H -p -t filesystem -o name,mountpoint,canmount,keystatus -r {name}")
+    };
+    fake.runner.respond(
+        &listing("tank/ROOT/be"),
+        0,
+        "tank/ROOT/be\t/\tnoauto\t-\ntank/ROOT/be/home\t/home\ton\t-\n",
+    );
+    fake.runner
+        .respond(&listing("tank/ROOT"), 0, "tank/ROOT\tnone\ton\t-\n");
+    fake.runner.respond(
+        "zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation tank/ROOT/be",
+        0,
+        "tank/ROOT/be@old\t100\t4096\ntank/ROOT/be@new\t200\t0\n",
+    );
+    let load = |name: &str| Action::LoadSnapshots(name.parse().unwrap());
+
+    // A dataset that is no boot environment, or that does not exist.
+    for refused in ["tank/ROOT", "tank/ROOT/be/home", "tank/gone"] {
+        assert_eq!(
+            refusal_of(&fake, &load(refused)).as_deref(),
+            Some("the machine has no such boot environment"),
+            "{refused}"
+        );
+    }
+    // A boot environment: its snapshots, newest first, and no snapshot of
+    // the machine after them.
+    let messages = answered(&fake, load("tank/ROOT/be"));
+    let [ToMenu::Event(event), ToMenu::Done] = messages.as_slice() else {
+        panic!("{messages:?}");
+    };
+    let Event::SnapshotsLoaded(list) = &**event else {
+        panic!("{event:?}");
+    };
+    let names: Vec<&str> = list.snapshots.iter().map(|s| s.name.name()).collect();
+    assert_eq!(names, ["new", "old"]);
+}

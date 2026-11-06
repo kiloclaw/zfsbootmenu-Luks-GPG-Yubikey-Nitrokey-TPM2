@@ -962,7 +962,10 @@ Open:
 
 6. **When the legacy runtime goes.** Proposed: one release with the Rust runtime as the default and the legacy one
    selectable, then removal (RL1, RL2); no beta in which the legacy image is the reference.
-7. **Nucleo or its matcher:** decided by the 10,000-snapshot test (UI10).
+7. **Nucleo or its matcher:** decided by the 10,000-snapshot test (UI10). In process (UI10b-4, `cargo run --release
+   -p zbm-tui --example snapshots`, at 120×40), the matcher alone on one thread keeps every key within a frame at
+   10,000 snapshots: a filter key 1.4 ms (worst 4.8), a page down 0.3, the snapshots opened 1.7, the palette opened
+   10.5 and a key in it 1.3; peak memory 19 MB. That points to the matcher; the VM pool of B5 is still to measure.
 8. **The key map:** proposed, the workspace keys of UI13 (`j` `k` `h` `l` and the arrows to move, numbered tabs, one
    letter per action, `:` for the command line), with the classic `MOD+key` aliases of the `fzf` menu; this changes
    rule 1 of `docs/dev/menu-design/keymap.md`, which gave `j` and `k` to actions; the map in full is in

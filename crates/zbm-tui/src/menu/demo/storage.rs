@@ -1,8 +1,10 @@
-//! What the demo machine does to its pools, environments and snapshots.
+//! What the demo machine does to its pools, environments and snapshots;
+//! the snapshots are kept apart from the machine's snapshot ([`Lists`]).
 
 use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
 use super::data::NOW;
+use super::snapshots::Lists;
 use super::untrusted;
 use crate::menu::world::{
     Access, Action, CommandLine, Environment, Event, ImportOptions, Origin, Outcome, Snapshot,
@@ -10,7 +12,7 @@ use crate::menu::world::{
 };
 
 /// Applies an action on storage, and says what happened.
-pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
+pub(super) fn apply(snapshot: &mut Snapshot, lists: &mut Lists, action: Action) -> Vec<Event> {
     let outcome = match action {
         Action::Boot {
             environment,
@@ -38,8 +40,8 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
         Action::SetDefaultEnvironment(name) => set_default(snapshot, &name),
         Action::SetDefaultKernel(name, version) => set_kernel(snapshot, &name, Some(&version)),
         Action::InheritDefaultKernel(name) => set_kernel(snapshot, &name, None),
-        Action::CreateSnapshot(name) => create(snapshot, &name),
-        Action::Rollback(target) => rollback(snapshot, &target),
+        Action::CreateSnapshot(name) => create(snapshot, lists, &name),
+        Action::Rollback(target) => rollback(snapshot, lists, &target),
         Action::Clone(name, new)
         | Action::Duplicate(name, new)
         | Action::CloneAndPromote(name, new) => copy(snapshot, &name, &new),
@@ -47,6 +49,7 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
         Action::Export(pool) => export(snapshot, &pool),
         _ => return Vec::new(),
     };
+    lists.show(snapshot);
     vec![Event::Changed(snapshot.clone()), Event::Finished(outcome)]
 }
 
@@ -121,20 +124,25 @@ fn set_kernel(
     Outcome::Done(format!("{what}{note}"))
 }
 
-fn create(snapshot: &mut Snapshot, snapshot_name: &SnapshotName) -> Outcome {
+/// Takes `snapshot_name`; one that exists fails as `zfs snapshot` does,
+/// with its message.
+fn create(snapshot: &mut Snapshot, lists: &mut Lists, snapshot_name: &SnapshotName) -> Outcome {
     let name = snapshot_name.dataset();
     let note = make_writable(snapshot, &name.pool());
-    let Some(environment) = environment(snapshot, name) else {
+    if environment(snapshot, name).is_none() {
         return Outcome::Warning(format!("{name} is gone"));
-    };
-    if environment
-        .snapshots
-        .iter()
-        .any(|s| &s.name == snapshot_name)
-    {
-        return Outcome::Warning(format!("{snapshot_name} exists"));
     }
-    environment.snapshots.insert(
+    let own = lists.of_mut(name);
+    if own.iter().any(|s| &s.name == snapshot_name) {
+        return Outcome::Failed {
+            what: format!("unable to take {snapshot_name}"),
+            why: vec![format!(
+                "cannot create snapshot '{snapshot_name}': dataset already exists"
+            )],
+            next: Vec::new(),
+        };
+    }
+    own.insert(
         0,
         SnapshotInfo {
             name: snapshot_name.clone(),
@@ -145,22 +153,18 @@ fn create(snapshot: &mut Snapshot, snapshot_name: &SnapshotName) -> Outcome {
     Outcome::Done(format!("{snapshot_name} created{note}"))
 }
 
-fn rollback(snapshot: &mut Snapshot, target: &SnapshotName) -> Outcome {
+fn rollback(snapshot: &mut Snapshot, lists: &mut Lists, target: &SnapshotName) -> Outcome {
     let name = target.dataset().clone();
-    let Some(environment) = environment(snapshot, &name) else {
+    if environment(snapshot, &name).is_none() {
         return Outcome::Warning(format!("{name} is gone"));
-    };
-    let Some(created) = environment
-        .snapshots
-        .iter()
-        .find(|s| &s.name == target)
-        .map(|s| s.created)
-    else {
+    }
+    let own = lists.of_mut(&name);
+    let Some(created) = own.iter().find(|s| &s.name == target).map(|s| s.created) else {
         return Outcome::Warning(format!("{target} is gone"));
     };
-    let before = environment.snapshots.len();
-    environment.snapshots.retain(|s| s.created <= created);
-    let destroyed = before - environment.snapshots.len();
+    let before = own.len();
+    own.retain(|s| s.created <= created);
+    let destroyed = before - own.len();
     Outcome::Done(format!(
         "{name} rolled back to {}; {destroyed} newer snapshots destroyed",
         target.name()
@@ -189,7 +193,8 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, new: &DatasetName) -> Outc
         name: new.clone(),
         is_default: false,
         command_line,
-        snapshots: Vec::new(),
+        snapshot_count: 0,
+        newest_snapshot: None,
         tries: None,
         ..source
     });
@@ -198,14 +203,21 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, new: &DatasetName) -> Outc
 
 /// Restores `count` paths from `from` into its environment: the pool is
 /// imported read/write and a safety snapshot taken first.
-pub(super) fn restore(snapshot: &mut Snapshot, from: &SnapshotName, count: usize) -> Outcome {
+pub(super) fn restore(
+    snapshot: &mut Snapshot,
+    lists: &mut Lists,
+    from: &SnapshotName,
+    count: usize,
+) -> Outcome {
     let environment = from.dataset();
     let note = make_writable(snapshot, &environment.pool());
     let Some(safety) = restore_snapshot(environment, snapshot.now) else {
         return Outcome::Warning(format!("no safety snapshot for {environment}"));
     };
     let files = if count == 1 { "file" } else { "files" };
-    match create(snapshot, &safety) {
+    let outcome = create(snapshot, lists, &safety);
+    lists.show(snapshot);
+    match outcome {
         Outcome::Done(_) => Outcome::Done(format!(
             "{count} {files} of {environment} restored from {}{note}; @{} undoes it",
             from.name(),
@@ -307,7 +319,8 @@ pub(super) fn add_backup_environment(snapshot: &mut Snapshot, pool: &PoolName) {
     snapshot.environments.push(Environment {
         name,
         is_default: true,
-        snapshots: Vec::new(),
+        snapshot_count: 0,
+        newest_snapshot: None,
         tries: None,
         command_line: CommandLine {
             value: untrusted("quiet"),

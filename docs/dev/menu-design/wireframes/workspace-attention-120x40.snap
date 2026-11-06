@@ -29,10 +29,10 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ × debian: 1 problem    ││                                                  ││                                        │
 │   1 Boot               ││                                                  ││ NEWEST SNAPSHOTS                       │
 │ ! 1 warning in the log ││                                                  ││   pre-upgrade                 12 h ago │
-│   4 Log                ││                                                  ││   autosnap_2026-10-22_daily    1 d ago │
-│                        ││                                                  ││   autosnap_2026-10-21_daily    2 d ago │
-│                        ││                                                  ││   autosnap_2026-10-20_daily    3 d ago │
-│                        ││                                                  ││   autosnap_2026-10-19_daily    4 d ago │
+│   4 Log                ││                                                  ││                                        │
+│                        ││                                                  ││                                        │
+│                        ││                                                  ││                                        │
+│                        ││                                                  ││                                        │
 │                        ││                                                  ││                                        │
 │                        ││                                                  ││                                        │
 │                        ││                                                  ││                                        │

@@ -16,13 +16,14 @@ loads them and an event delivers them.
 | `startup` | the stages of start-up, each pending, running, done, failed with its reason, or skipped | `zbm-startup` |
 | `timeout` | the countdown: seconds, or none (wait), or skip (boot at once) | `zbm-config` |
 | `pools` | name, identifier, health, read-only or read/write, whether imported, the host (ID and name) that used it last when another system did, whether it has a checkpoint (unknown when not imported), its devices as a tree with their states (online, degraded, offline, removed, unavailable, faulted), error counts and notes, and what `zpool` says is wrong and what to do; the imported pools from `zpool list` and one `zpool status`, those that could be imported from the last scan (`ScanPools`) | `zbm-zfs` |
-| `environments` | name, pool, default or not, encryption (none, locked, unlocked), kernels with the default marked, the command line with its origin, the number of snapshots and the newest, the checks of whether it will boot (name, verdict, what was found, the fix), its boot tries left of the total | `zbm-boot`, `zbm-kcl`, `zbm-zfs` |
+| `environments` | name, pool, default or not, encryption (none, locked, unlocked), kernels with the default marked, the command line with its origin, the number of its own snapshots and the newest (one `zfs list -t snapshot -d 1` each, nothing more kept), the checks of whether it will boot (name, verdict, what was found, the fix), its boot tries left of the total | `zbm-boot`, `zbm-kcl`, `zbm-zfs` |
 | `fallback` | when the default used up its boot tries: which, after how many, and the last environment that marked a boot good, which boots instead; without one, nothing boots on its own | `zbm-boot`, an EFI variable |
 | `next_boot` | the environment the running system asked to boot once | an EFI variable |
 | `volumes` | LUKS volumes: name, device, state (locked, open, failed, skipped), the key methods that apply, the pool it holds, the PCRs its TPM2 key is sealed to and those that changed since, with what the event log says | `zbm-luks`, `zbm-crypt` |
 | `keyboard` | the layouts typing can be translated into, the console's own first, and whether keys come from the machine's keyboard or a serial terminal | `zbm-config` |
 | `log` | the warnings and errors since start, counted apart | `zbm-trace` |
 | `offers` | the kinds of action the machine performs now (`Offer`): the menu shows and sends only these, and a key of another kind says so in the status line (ADR 0016, point 2); none when not given | `zbm-app` |
+| `loaded` | every snapshot (name, creation, used) of the column open: the environment whose snapshots `LoadSnapshots` read last, read again with each snapshot of the machine; none until a column opens, or once its environment is gone | `zbm-zfs` |
 
 ## Actions
 
@@ -35,7 +36,7 @@ stays right when the snapshot changes under it.
 | `BootSnapshot` | snapshot, the new environment's name | snapshots, palette: the snapshot cloned under that name, as `Clone` does, then booted |
 | `SetDefaultEnvironment` | environment | main |
 | `SetDefaultKernel`, `InheritDefaultKernel` | environment, kernel | kernels |
-| `LoadSnapshots` | environment, sort order | snapshots |
+| `LoadSnapshots` | environment | snapshots, as its column opens or its tab's key is pressed on it, and again when a snapshot of the machine came without them after a cancel, not after a failure: every snapshot of the environment, which `SnapshotsLoaded` brings; a read, quiet and free under the lock, never sent while the countdown runs or once the environment is gone; over SSH, refused for a dataset that is no boot environment of the machine |
 | `CreateSnapshot` | environment, name | main, snapshots |
 | `Rollback` | snapshot, whether to take a safety snapshot first | snapshots |
 | `Clone`, `CloneAndPromote`, `Duplicate` | snapshot, new name | snapshots |
@@ -68,7 +69,8 @@ stays right when the snapshot changes under it.
 | `SnapshotChanged` | the new `Snapshot` | every view redraws |
 | `PoolsScanned` | every pool, imported and not, which replace the snapshot's | the pools view, the workspace; the countdown goes on, as it does not after `Changed` |
 | `DeviceLogLoaded` | the device, the kernel's names of it and of what it stands on (`sda2`, `sda`; none for a device that is no block device the kernel lists or would name, as a link gone with its device), the newest 500 messages about them, untrusted | the workspace's Pools tab, below the pools, until Back; what the classic menu shows does not change |
-| `SnapshotsLoaded` | environment, the snapshots (name, creation, used, referenced) | the snapshots view |
+| `SnapshotsLoaded` | environment, its snapshots (name, creation, used), newest first; a list longer than half a remote message (`MAX_LENGTH`), on the console too, ends as a failed load that says why | the snapshots view ("reading" until it comes, or until the machine is done with all it was sent; "not read" after a cancel or a failure), the rollback's newer snapshots, the name check of a new snapshot or clone, the palette, the inspector's newest snapshots |
+| `SnapshotsUnread` | environment, whose snapshots a load could not read, before the `Finished` that says why | the snapshots view ("not read", asked again only when its column opens again) |
 | `DiffReady` | the two ends, the changes (path, kind, new name of a rename, a preview of the difference), the packages that changed (name, kind, versions, their changed files) with the package manager, or none without a database | the changes view |
 | `ActionStarted`, `ActionProgress`, `ActionFinished` | the action, progress as text and a fraction where known, the outcome (done, or failed with the error's cause chain and the next steps) | the notification line, the error dialog |
 | `LogLoaded` | the log entries | the log view |
@@ -83,6 +85,22 @@ any action and event; the protocol is at version 2 (`zbm_app::remote::VERSION`) 
 hosts and identifiers. What needs attention (the devices a pool lost, worst first, its checkpoint, the log's errors
 and warnings apart) is drawn in the workspace only until UI10c; a device taken offline is shown in its pool, not
 listed there.
+
+The snapshots of an environment are read when its column opens (ADR 0016, point 6): `LoadSnapshots` records the
+column in the front end's `Seen`, in place of the last one, and each snapshot of the machine read after it carries
+its list again in `loaded`, so that what the menu shows of it, the rollback's newer snapshots among them, never comes
+from an older read. At start, and in every snapshot, each environment has only its count of snapshots and its newest,
+from one listing of its own snapshots (`zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation`), which
+replaces the two listings of it and its descendants. The menu sorts a list once, as it comes or when the order
+changes, ranks it again only when it, the focus or the filter changed, builds the rows of the lines shown alone, and
+makes the palette's entries as it opens and when the machine sends snapshots, not on each key. The palette finds the
+snapshots read, and a name is known to be taken only among those: a snapshot of a column never opened is refused by
+`zfs`, whose message the error says. Each snapshot of the machine lists the column's environment once: its count and
+newest come from its list. Over SSH, `LoadSnapshots`, `SnapshotsLoaded` and `SnapshotsUnread` cross as any action and
+event, at version 2: no release has shipped version 2 yet, and both ends ship in one image, whose versions must be
+equal.
+The measures of `cargo run --release -p zbm-tui --example snapshots` (B5, in process) are in ROADMAP.md's
+decision 7.
 
 A device's messages are read from `/dev/kmsg` (`dmesg` where it cannot be read): those the kernel tagged with the
 numbers of the device or of what it stands on (`DEVICE=b8:18`), and those whose text names one of them as a word, so
@@ -99,9 +117,8 @@ other word, as a label's `error`, could be any message's, and names nothing. Mes
 
 `menu::world` follows these lists with a few shortcuts that R4 does not take:
 
-- the snapshot holds every snapshot of every environment and the log entries, so there is no `LoadSnapshots`,
-  `LoadLog`, `SnapshotsLoaded` or `LogLoaded`; the performance test of R5 (10,000 snapshots) is where loading on
-  demand earns its place;
+- the snapshot holds the log entries, so there is no `LoadLog` or `LogLoaded`; the snapshots are loaded on demand,
+  as the machine loads them (`LoadSnapshots`, ADR 0016 point 6), from lists the fake machine keeps apart;
 - one `Changed` event stands for `SnapshotChanged` and the stage events, and `Finished` with an outcome for
   `ActionStarted`, `ActionProgress` and `ActionFinished`: the fake machine answers at once;
 - the import problem is answered with `Import` and a policy rather than `AnswerImportProblem`, and `UnlockRequested`

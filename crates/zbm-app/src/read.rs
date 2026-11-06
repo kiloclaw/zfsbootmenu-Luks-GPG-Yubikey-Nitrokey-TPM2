@@ -4,9 +4,10 @@
 //!
 //! What the runtime cannot read yet stays empty: the kernels of a boot
 //! environment, its checks and boot tries arrive with R5 and port package
-//! C; the stages of start-up arrive as events (R4.2). The snapshots of
-//! each environment are read with it, two listings each; the performance
-//! test of R5 step 7 decides whether they load on demand instead.
+//! C; the stages of start-up arrive as events (R4.2). Of the snapshots of
+//! each environment, the snapshot keeps the count and the newest, from one
+//! listing; the snapshots themselves are read when their column opens
+//! ([`snapshot_list`], ADR 0016 point 6).
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -24,8 +25,8 @@ use zbm_zfs::{Source, Zfs, ZfsError};
 
 use crate::Encryption;
 use crate::model::{
-    CommandLine, Environment, Keyboard, Level, Log, LogEntry, Method, Origin, SnapshotInfo,
-    Timeout, Volume, VolumeState,
+    CommandLine, Environment, Keyboard, Level, Log, LogEntry, Method, Origin, Timeout, Volume,
+    VolumeState,
 };
 
 /// The property that holds a boot environment's command line.
@@ -81,36 +82,34 @@ fn command_line(zfs: &dyn Zfs, dataset: &DatasetName) -> CommandLine {
     }
 }
 
-/// The snapshots of `environment` itself, newest first, with the space
-/// each holds; none when they cannot be listed.
-fn snapshots(zfs: &dyn Zfs, environment: &DatasetName) -> Vec<SnapshotInfo> {
-    let listed = zfs.snapshots(environment).unwrap_or_default();
-    let space: std::collections::BTreeMap<_, _> = zfs
-        .snapshot_space(environment)
+/// Whether `dataset` is a boot environment: a filesystem mounted at `/`
+/// that can be mounted.
+fn is_boot_filesystem(dataset: &zbm_zfs::Dataset) -> bool {
+    dataset.value("mountpoint") == Some("/") && dataset.value("canmount") != Some("off")
+}
+
+/// Whether `name` is a boot environment of the machine; not when it cannot
+/// be listed.
+pub(crate) fn is_environment(zfs: &dyn Zfs, name: &DatasetName) -> bool {
+    zfs.filesystems(Some(name), PROPERTIES)
         .unwrap_or_default()
-        .into_iter()
-        .collect();
-    let mut found: Vec<SnapshotInfo> = listed
-        .into_iter()
-        .filter(|snapshot| snapshot.name.dataset() == environment)
-        .map(|snapshot| SnapshotInfo {
-            used: space.get(&snapshot.name).copied().unwrap_or_default(),
-            created: snapshot.creation,
-            name: snapshot.name,
-        })
-        .collect();
-    found.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created));
-    found
+        .iter()
+        .any(|dataset| dataset.name == *name && is_boot_filesystem(dataset))
 }
 
 /// The boot environments: filesystems mounted at `/` that can be mounted,
-/// each with whether it is its pool's `bootfs`, its encryption and its
-/// command line.
+/// each with whether it is its pool's `bootfs`, its encryption, its
+/// command line, and the count of its snapshots with the newest; but
+/// those of `unsummed`, which are neither listed nor counted, as its
+/// caller lists them whole, and counts them from that list.
 ///
 /// # Errors
 ///
 /// When `zfs list` or `zpool list` fails or prints something unexpected.
-pub fn environments(zfs: &dyn Zfs) -> Result<Vec<Environment>, ZfsError> {
+pub(crate) fn environments(
+    zfs: &dyn Zfs,
+    unsummed: Option<&DatasetName>,
+) -> Result<Vec<Environment>, ZfsError> {
     let defaults: BTreeSet<DatasetName> = zfs
         .pools()?
         .into_iter()
@@ -119,21 +118,25 @@ pub fn environments(zfs: &dyn Zfs) -> Result<Vec<Environment>, ZfsError> {
     Ok(zfs
         .filesystems(None, PROPERTIES)?
         .into_iter()
-        .filter(|dataset| {
-            dataset.value("mountpoint") == Some("/") && dataset.value("canmount") != Some("off")
-        })
+        .filter(is_boot_filesystem)
         .map(|dataset| {
             let encryption = match dataset.value("keystatus") {
                 None => Encryption::None,
                 Some("available") => Encryption::Unlocked,
                 Some(_) => Encryption::Locked,
             };
+            let (snapshot_count, newest_snapshot) = if unsummed == Some(&dataset.name) {
+                (0, None)
+            } else {
+                snapshot_summary(zfs, &dataset.name)
+            };
             Environment {
                 is_default: defaults.contains(&dataset.name),
                 encryption,
                 kernels: Vec::new(),
                 command_line: command_line(zfs, &dataset.name),
-                snapshots: snapshots(zfs, &dataset.name),
+                snapshot_count,
+                newest_snapshot,
                 checks: Vec::new(),
                 tries: None,
                 name: dataset.name,
@@ -308,9 +311,11 @@ pub fn log(files: &dyn Files, base: &Path) -> Log {
 
 mod device_log;
 mod pools;
+mod snapshots;
 
 pub(crate) use device_log::device_log;
 pub(crate) use pools::{importable, merged, pools};
+pub(crate) use snapshots::{LOADED_LENGTH, snapshot_list, snapshot_summary};
 
 #[cfg(test)]
 pub(crate) mod tests;

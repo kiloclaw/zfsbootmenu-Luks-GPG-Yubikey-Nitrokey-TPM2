@@ -12,7 +12,7 @@ use super::{health, lists};
 use crate::menu::format::{age, fit};
 use crate::menu::model::Model;
 use crate::menu::theme::Role;
-use crate::menu::world::{Environment, Health, Origin};
+use crate::menu::world::{Environment, Health, Origin, SnapshotInfo};
 use crate::text::text;
 
 /// From this width the inspector is to the right of the list.
@@ -190,11 +190,29 @@ fn kernel_lines(model: &Model, environment: &Environment, width: usize) -> Vec<L
 /// How many snapshots the tall pane lists.
 const NEWEST: usize = 5;
 
-/// When the pane is tall: the newest snapshots, their ages right-aligned.
+/// The [`NEWEST`] snapshots of `snapshots`, newest first, without
+/// sorting them all.
+fn newest_of(snapshots: &[SnapshotInfo]) -> Vec<&SnapshotInfo> {
+    let mut newest: Vec<&SnapshotInfo> = Vec::with_capacity(NEWEST + 1);
+    for snapshot in snapshots {
+        let at = newest.partition_point(|kept| kept.created >= snapshot.created);
+        if at < NEWEST {
+            newest.insert(at, snapshot);
+            newest.truncate(NEWEST);
+        }
+    }
+    newest
+}
+
+/// When the pane is tall: the newest snapshots, their ages right-aligned:
+/// those read, else the newest alone, which every snapshot of the machine
+/// holds.
 fn snapshot_lines(model: &Model, environment: &Environment, width: usize) -> Vec<Line<'static>> {
     let theme = model.theme;
-    let mut newest: Vec<_> = environment.snapshots.iter().collect();
-    newest.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created));
+    let newest = match model.loaded_snapshots(&environment.name) {
+        Some(loaded) => newest_of(loaded),
+        None => environment.newest_snapshot.iter().collect(),
+    };
     let mut lines = vec![Line::styled(
         text!("details-newest-snapshots"),
         theme.style(Role::Header),
@@ -243,10 +261,10 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         &text!("fact-kernel"),
         vec![Span::raw(format!("{kernel}{dot}{kernels}"))],
     ));
-    let snapshots = match environment.snapshots.iter().max_by_key(|s| s.created) {
+    let snapshots = match &environment.newest_snapshot {
         Some(newest) => format!(
             "{}{dot}{}",
-            environment.snapshots.len(),
+            environment.snapshot_count,
             text!(
                 "fact-snapshots.newest",
                 snapshot = newest.name.name(),

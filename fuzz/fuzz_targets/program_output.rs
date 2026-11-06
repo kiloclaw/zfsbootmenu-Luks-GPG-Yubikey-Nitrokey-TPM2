@@ -25,6 +25,7 @@ fuzz_target!(|data: &[u8]| {
     let _ = text::pools(&text);
     let _ = text::datasets(&text, &["mountpoint", "canmount"]);
     let _ = text::snapshots(&text);
+    let _ = text::own_snapshots(&text);
     let _ = text::properties(&text);
     let _ = text::version(&text);
     let _ = text::status(&text);

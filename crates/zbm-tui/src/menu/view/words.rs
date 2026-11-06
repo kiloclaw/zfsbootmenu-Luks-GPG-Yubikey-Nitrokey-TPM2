@@ -5,10 +5,10 @@
 use ratatui::text::Line;
 use zbm_types::Printable;
 
-use super::{health, main_view, question, unlock};
+use super::{health, main_view, question, screens, unlock};
 use crate::menu::format::{age, size};
 use crate::menu::keymap;
-use crate::menu::model::{Asking, Dialog, Model, Naming, RECOVERY, Screen, Segment};
+use crate::menu::model::{Asking, Column, Dialog, Model, Naming, RECOVERY, Screen, Segment};
 use crate::menu::world::{Level, Outcome, StageState};
 use crate::text::{self, text};
 
@@ -84,7 +84,7 @@ pub(crate) fn rows(model: &Model) -> (Vec<String>, bool) {
     match model.screen {
         Screen::Startup => (startup(model), false),
         Screen::Main => (environments(model), true),
-        Screen::Snapshots => (snapshots(model), true),
+        Screen::Snapshots => (snapshots(model), model.column() == Column::Loaded),
         Screen::Kernels => (kernels(model), true),
         Screen::CommandLine => {
             let editor = model.editor.as_ref();
@@ -159,8 +159,12 @@ fn environments(model: &Model) -> Vec<String> {
     })
 }
 
-/// The snapshots of the focused environment: name, age and size.
+/// The snapshots of the focused environment: name, age and size; while
+/// they are not read, what their column says instead.
 fn snapshots(model: &Model) -> Vec<String> {
+    if let Some((title, detail)) = screens::unread(model) {
+        return vec![format!("{title}: {detail}")];
+    }
     let snapshots = model.focus_snapshots();
     in_order(&model.snapshots.matches, |index| {
         let snapshot = snapshots.get(index)?;
@@ -324,7 +328,7 @@ fn asked(asking: &Asking) -> Said {
 /// The command palette, when it is open: what it found.
 fn palette(model: &Model) -> Option<Said> {
     let palette = model.palette.as_ref()?;
-    let items = crate::menu::update::palette_items(model);
+    let items = &palette.items;
     Some(Said {
         title: text!("palette-title"),
         lines: vec![palette.query.clone()],

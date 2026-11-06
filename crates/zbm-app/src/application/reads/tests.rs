@@ -333,3 +333,5 @@ fn the_snapshot_has_no_default_once_its_pool_is_exported() {
     assert!(exported.load(Ordering::SeqCst));
     assert_eq!(bootfs(&app), None);
 }
+
+mod snapshots;

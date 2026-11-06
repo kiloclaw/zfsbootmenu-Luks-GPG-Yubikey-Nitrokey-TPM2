@@ -158,7 +158,7 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
             model.screen = screen;
             model.scroll = 0;
         }
-        Then::Focus(environment, screen) => screens::focus(model, environment, screen),
+        Then::Focus(environment, screen) => return screens::focus(model, environment, screen),
     }
     Vec::new()
 }
@@ -382,15 +382,24 @@ fn confirmed(
     Vec::new()
 }
 
-/// Whether the menu knows `name` as an environment or a snapshot.
+/// Whether the menu knows `name` as an environment, or as a snapshot of
+/// those read: a snapshot of a column never opened is not known, and zfs
+/// refuses its name, saying why.
 fn is_taken(model: &Model, name: &str) -> bool {
-    model.snapshot.environments.iter().any(|environment| {
-        environment.name.as_str() == name
-            || environment
-                .snapshots
-                .iter()
-                .any(|snapshot| snapshot.name.to_string() == name)
-    })
+    let is_snapshot = name.parse::<zbm_types::SnapshotName>().is_ok_and(|name| {
+        model
+            .snapshot
+            .loaded
+            .iter()
+            .flat_map(|list| list.snapshots.iter())
+            .any(|snapshot| snapshot.name == name)
+    });
+    is_snapshot
+        || model
+            .snapshot
+            .environments
+            .iter()
+            .any(|environment| environment.name.as_str() == name)
 }
 
 /// The name dialog: only the characters a name may have are typed, and

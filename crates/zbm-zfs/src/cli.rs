@@ -12,7 +12,8 @@ use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::change::ZfsChange;
 use crate::model::{
-    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, Version,
+    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, SnapshotSpace,
+    Version,
 };
 use crate::port::{Zfs, ZfsError};
 use crate::{json, text};
@@ -306,7 +307,7 @@ impl Zfs for ZfsCli<'_> {
         }
     }
 
-    fn snapshot_space(&self, dataset: &DatasetName) -> Result<Vec<(SnapshotName, u64)>, ZfsError> {
+    fn own_snapshots(&self, dataset: &DatasetName) -> Result<Vec<SnapshotSpace>, ZfsError> {
         let args = [
             "list",
             "-H",
@@ -314,12 +315,15 @@ impl Zfs for ZfsCli<'_> {
             "-t",
             "snapshot",
             "-o",
-            "name,used",
-            "-r",
+            "name,creation,used",
+            "-d",
+            "1",
+            "-s",
+            "creation",
             dataset.as_str(),
         ];
         let output = self.run("zfs", &args)?;
-        text::snapshot_space(&output).map_err(|error| ZfsError::Output {
+        text::own_snapshots(&output).map_err(|error| ZfsError::Output {
             command: format!("zfs {}", args.join(" ")),
             detail: error.to_string(),
         })

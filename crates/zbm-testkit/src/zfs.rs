@@ -28,7 +28,7 @@ use std::collections::BTreeMap;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 use zbm_zfs::{
     Dataset, Difference, Health, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot,
-    Source, Version, Zfs, ZfsError,
+    SnapshotSpace, Source, Version, Zfs, ZfsError,
 };
 
 mod changes;
@@ -428,13 +428,26 @@ impl Zfs for FakeZfs {
             .collect())
     }
 
-    /// Every snapshot holds 4 KiB of its own.
-    fn snapshot_space(&self, dataset: &DatasetName) -> Result<Vec<(SnapshotName, u64)>, ZfsError> {
-        Ok(self
-            .snapshots(dataset)?
-            .into_iter()
-            .map(|snapshot| (snapshot.name, 4096))
-            .collect())
+    /// Every snapshot holds 4 KiB of its own; those taken in the same
+    /// second are in the order of their names.
+    fn own_snapshots(&self, dataset: &DatasetName) -> Result<Vec<SnapshotSpace>, ZfsError> {
+        self.record(format!("own_snapshots {dataset}"));
+        let state = self.state.borrow();
+        if !state.datasets.contains_key(dataset) {
+            return Err(ZfsError::Missing(dataset.to_string()));
+        }
+        let mut own: Vec<SnapshotSpace> = state
+            .snapshots
+            .iter()
+            .filter(|(snapshot, _)| snapshot.dataset() == dataset)
+            .map(|(name, creation)| SnapshotSpace {
+                name: name.clone(),
+                creation: *creation,
+                used: 4096,
+            })
+            .collect();
+        own.sort_by_key(|snapshot| snapshot.creation);
+        Ok(own)
     }
 
     fn property(&self, dataset: &DatasetName, property: &str) -> Result<Property, ZfsError> {

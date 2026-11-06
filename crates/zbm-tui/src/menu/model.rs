@@ -9,6 +9,7 @@ mod naming;
 mod pools;
 mod prompt;
 mod recovery;
+mod snapshots;
 mod sort;
 
 pub use self::diff::{DiffView, Segment};
@@ -19,12 +20,13 @@ pub(crate) use self::pools::{disk_name, host_text, pool_mode, pool_name};
 pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
 pub use self::recovery::{RECOVERY, RecoveryTool};
+pub(crate) use self::snapshots::Column;
 pub use self::sort::Sort;
 
 use super::filter::Ranked;
 use super::keymap::{Context, Map, Tab};
 use super::theme::Theme;
-use super::world::{Action, DeviceLog, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
+use super::world::{Action, DeviceLog, Environment, Outcome, Snapshot, Timeout};
 
 /// What a refresh keeps selected: the environment and the snapshot named,
 /// and the row of the pools view ([`Model::selected_row`]).
@@ -149,8 +151,11 @@ pub struct Editor {
 pub struct Palette {
     /// The query.
     pub query: String,
-    /// What it matches, best first, as indexes of
-    /// [`palette_items`](super::update::palette_items).
+    /// What it finds, made when it opens
+    /// ([`palette_items`](super::update::palette_items)) and again when
+    /// the machine sends a snapshot or snapshots, not on each key.
+    pub items: Vec<PaletteItem>,
+    /// What it matches, best first, as indexes of `items`.
     pub matches: Vec<Ranked>,
     /// The selection in `matches`.
     pub selected: usize,
@@ -184,6 +189,19 @@ pub struct Model {
     pub environments: ListState,
     /// The snapshots of [`Model::focus`].
     pub snapshots: ListState,
+    /// The environment whose snapshots the menu asked for, and the machine
+    /// has not sent yet: its column says it reads them.
+    pub reading: Option<DatasetName>,
+    /// The environment whose snapshots the machine could not read: a
+    /// change does not ask for them again, as that would fail again;
+    /// opening their column does.
+    pub unread: Option<DatasetName>,
+    /// How many times the lists of snapshots read changed: their load,
+    /// and their sort.
+    generation: u64,
+    /// What the snapshots' matches were ranked from, which a refresh ranks
+    /// again only when it changed.
+    ranked: Option<snapshots::Ranked>,
     /// Snapshots marked for a diff.
     pub marked: Vec<SnapshotName>,
     /// The kernels of [`Model::focus`].
@@ -233,7 +251,8 @@ pub struct Model {
 
 impl Model {
     /// The menu for `snapshot`: on the start-up view while start-up runs.
-    pub fn new(snapshot: Snapshot, theme: Theme) -> Model {
+    pub fn new(mut snapshot: Snapshot, theme: Theme) -> Model {
+        snapshots::sort_lists(&mut snapshot.loaded, Sort::Name);
         let mut model = Model {
             screen: Screen::Startup,
             theme,
@@ -242,6 +261,10 @@ impl Model {
             editor: None,
             environments: ListState::default(),
             snapshots: ListState::default(),
+            reading: None,
+            unread: None,
+            generation: 0,
+            ranked: None,
             marked: Vec::new(),
             kernels: ListState::default(),
             pools: ListState::default(),
@@ -276,6 +299,7 @@ impl Model {
         self.dialog = None;
         self.progress = None;
         self.working = None;
+        self.reading = None;
         self.countdown = None;
         if self.started {
             self.screen = Screen::Main;
@@ -314,6 +338,8 @@ impl Model {
     pub fn set_sort(&mut self, sort: Sort) {
         let selected = self.selected_names();
         self.sort = sort;
+        snapshots::sort_lists(&mut self.snapshot.loaded, sort);
+        self.generation = self.generation.wrapping_add(1);
         self.refresh_keeping(None, selected);
     }
 
@@ -337,7 +363,11 @@ impl Model {
     /// and the row of the pools view.
     fn refresh_keeping(&mut self, new: Option<Snapshot>, selected: Selected) {
         let (environment, snapshot, row) = selected;
-        if let Some(new) = new {
+        if let Some(mut new) = new {
+            snapshots::sort_lists(&mut new.loaded, self.sort);
+            if new.loaded != self.snapshot.loaded {
+                self.generation = self.generation.wrapping_add(1);
+            }
             self.snapshot = new;
         }
         let names = self.environment_order();
@@ -356,13 +386,7 @@ impl Model {
             environment,
             |e| e.name.to_string(),
         );
-        let snapshots: Vec<String> = self
-            .focus_snapshots()
-            .iter()
-            .map(|info| info.name.name().to_owned())
-            .collect();
-        refilter(&mut self.snapshots, snapshots.iter().map(String::as_str));
-        keep(&mut self.snapshots, &snapshots, snapshot, Clone::clone);
+        self.rank_snapshots(snapshot);
         let kernels: Vec<String> = self
             .focused()
             .map(|environment| {
@@ -419,26 +443,6 @@ impl Model {
             .environments
             .iter()
             .find(|environment| &environment.name == focus)
-    }
-
-    /// The snapshots of the focused environment, in the sort order.
-    pub fn focus_snapshots(&self) -> Vec<&SnapshotInfo> {
-        let mut snapshots: Vec<&SnapshotInfo> = self
-            .focused()
-            .map(|environment| environment.snapshots.iter().collect())
-            .unwrap_or_default();
-        match self.sort {
-            Sort::Name => snapshots.sort_by(|a, b| a.name.name().cmp(b.name.name())),
-            Sort::Creation => snapshots.sort_by_key(|s| std::cmp::Reverse(s.created)),
-            Sort::Size => snapshots.sort_by_key(|s| std::cmp::Reverse(s.used)),
-        }
-        snapshots
-    }
-
-    /// The selected snapshot.
-    pub fn selected_snapshot(&self) -> Option<&SnapshotInfo> {
-        let snapshots = self.focus_snapshots();
-        snapshots.get(self.snapshots.selected_item()?).copied()
     }
 
     /// The command line `environment` boots with: the edited one, else its

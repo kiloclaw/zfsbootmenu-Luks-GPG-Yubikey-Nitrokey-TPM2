@@ -175,6 +175,17 @@ pub struct Snapshot {
     pub creation: u64,
 }
 
+/// A snapshot, when it was taken and the space it holds on its own.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SnapshotSpace {
+    /// Its name.
+    pub name: SnapshotName,
+    /// When it was taken, in seconds since 1970.
+    pub creation: u64,
+    /// The space only it holds (`used`), in bytes.
+    pub used: u64,
+}
+
 /// What happened to a path between a snapshot and what `zfs diff` compares
 /// it with: the first column of `zfs diff -H`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

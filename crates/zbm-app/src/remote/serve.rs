@@ -179,9 +179,10 @@ fn is_gone(error: &io::Error) -> bool {
 /// Why the session does not perform `action` for a remote menu, if it
 /// does not: an answer goes as one ([`ToSession::Answer`]); the menu opens
 /// volumes one at a time, with their key methods, and only those the
-/// machine has, named as the menu names them; and reads the messages of the
-/// disks of the pools it shows alone. A change such as an export is the
-/// service's to refuse, as the lock keeps it.
+/// machine has, named as the menu names them; reads the messages of the
+/// disks of the pools it shows alone, and the snapshots of the machine's
+/// boot environments alone. A change such as an export is the service's
+/// to refuse, as the lock keeps it.
 fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
     match action {
         Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_) => {
@@ -207,6 +208,8 @@ fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
             let known = pools.iter().any(|pool| pool.has_disk(device.get()));
             (!known).then(|| "no pool of the machine has such a device".to_owned())
         }
+        Action::LoadSnapshots(environment) => (!served.service.is_environment(environment))
+            .then(|| "the machine has no such boot environment".to_owned()),
         _ => None,
     }
 }

@@ -143,12 +143,44 @@ fn copies_and_rollbacks_change_the_storage() {
         .iter()
         .map(|e| e.name.to_string())
         .collect();
-    let void = &machine.snapshot().environments[0];
+    let void = machine.snapshot().environments[0].name.clone();
+    let loaded = machine.apply(Action::LoadSnapshots(void.clone()));
 
     assert!(names.contains(&"zroot/ROOT/void_NEW".to_owned()));
-    let target = void.snapshots.iter().find(|s| s.name == snapshot).unwrap();
-    assert!(void.snapshots.iter().all(|s| s.created <= target.created));
+    let [Event::SnapshotsLoaded(list)] = loaded.as_slice() else {
+        panic!("{loaded:?}");
+    };
+    let target = list.snapshots.iter().find(|s| s.name == snapshot).unwrap();
+    assert!(list.snapshots.iter().all(|s| s.created <= target.created));
+    assert_eq!(
+        machine.snapshot().environments[0].snapshot_count,
+        list.snapshots.len()
+    );
     assert!(machine.snapshot().pools[0].writable);
+    // The snapshots of the machine carry the column loaded last, while its
+    // environment is there.
+    assert_eq!(machine.snapshot().loaded, std::slice::from_ref(list));
+    let gone = machine.apply(Action::Export("zroot".parse().unwrap()));
+    let Some(Event::Changed(exported)) = gone.first() else {
+        panic!("{gone:?}");
+    };
+    assert!(exported.loaded.is_empty());
+}
+
+#[test]
+fn a_snapshot_whose_name_is_taken_fails_as_zfs_says() {
+    let mut machine = FakeMachine::new(&DemoOptions::default());
+    let taken: zbm_types::SnapshotName = "tank/ROOT/arch@2026-10-01".parse().unwrap();
+
+    let events = machine.apply(Action::CreateSnapshot(taken));
+
+    let Some(Event::Finished(Outcome::Failed { why, .. })) = events.last() else {
+        panic!("{events:?}");
+    };
+    assert_eq!(
+        why,
+        &["cannot create snapshot 'tank/ROOT/arch@2026-10-01': dataset already exists"]
+    );
 }
 
 #[test]

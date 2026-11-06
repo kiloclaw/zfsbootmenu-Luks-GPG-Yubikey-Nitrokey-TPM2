@@ -19,7 +19,7 @@ use pretty_assertions::assert_eq;
 use zbm_platform::exec::{Command, Input, Output, Runner, Status, SystemRunner};
 use zbm_testkit::{FakeRunner, TempDir};
 use zbm_types::{DatasetName, PoolName, SnapshotName};
-use zbm_zfs::{DiffChange, Format, Source, Zfs, ZfsCli, ZfsError};
+use zbm_zfs::{DiffChange, Format, SnapshotSpace, Source, Zfs, ZfsCli, ZfsError};
 
 fn dataset(text: &str) -> DatasetName {
     text.parse().unwrap()
@@ -267,7 +267,7 @@ fn a_failed_send_fails_the_copy() {
 }
 
 #[test]
-fn own_properties_in_json_and_the_space_of_snapshots() {
+fn own_properties_in_json_and_the_own_snapshots_with_their_space() {
     let runner = FakeRunner::new();
     runner.respond(
         "zfs get -j -p -o name,property,value,source -s local,received all fixture/ROOT/void",
@@ -277,11 +277,15 @@ fn own_properties_in_json_and_the_space_of_snapshots() {
             "compression":{"value":"zstd","source":{"type":"RECEIVED","data":"-"}}}}}}"#,
     );
     runner.respond(
-        "zfs list -H -p -t snapshot -o name,used -r fixture/ROOT",
+        "zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation fixture/ROOT/void",
         0,
-        "fixture/ROOT/void@a\t4096\nfixture/ROOT/void@b\t0\n",
+        "fixture/ROOT/void@a\t1700000000\t4096\nfixture/ROOT/void@b\t1700000001\t0\n",
     );
-    runner.respond("zfs list -H -p -t snapshot -o name,used -r bad", 0, "x\n");
+    runner.respond(
+        "zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation bad",
+        0,
+        "x\n",
+    );
     runner.respond(
         "zfs get -j -p -o name,property,value,source creation fixture/ROOT/void@a",
         0,
@@ -296,16 +300,24 @@ fn own_properties_in_json_and_the_space_of_snapshots() {
     assert_eq!(own[0].1.source, Source::Received);
     assert_eq!(own[1].1.value, "/");
 
-    let space = zfs.snapshot_space(&dataset("fixture/ROOT")).unwrap();
+    let own = zfs.own_snapshots(&dataset("fixture/ROOT/void")).unwrap();
     assert_eq!(
-        space,
+        own,
         [
-            (snapshot("fixture/ROOT/void@a"), 4096),
-            (snapshot("fixture/ROOT/void@b"), 0)
+            SnapshotSpace {
+                name: snapshot("fixture/ROOT/void@a"),
+                creation: 1_700_000_000,
+                used: 4096
+            },
+            SnapshotSpace {
+                name: snapshot("fixture/ROOT/void@b"),
+                creation: 1_700_000_001,
+                used: 0
+            }
         ]
     );
     assert!(matches!(
-        zfs.snapshot_space(&dataset("bad")),
+        zfs.own_snapshots(&dataset("bad")),
         Err(ZfsError::Output { .. })
     ));
     let creation = zfs

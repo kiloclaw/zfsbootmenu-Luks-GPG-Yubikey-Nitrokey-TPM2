@@ -57,15 +57,34 @@ pub(super) fn filter(model: &mut Model, input: Input) -> Vec<Action> {
     }
 }
 
-/// Opens the command palette.
+/// Opens the command palette, with what it finds now.
 pub(super) fn open_palette(model: &mut Model) {
     let items = palette_items(model);
     let matches = crate::menu::filter::rank(items.iter().map(|item| item.label.as_str()), "");
     model.palette = Some(Palette {
         query: String::new(),
+        items,
         matches,
         selected: 0,
     });
+}
+
+/// Makes what the open palette finds again, as the machine sent a
+/// snapshot, its pools or snapshots, keeping the query; the selection
+/// stays in range.
+pub(super) fn palette_again(model: &mut Model) {
+    if model.palette.is_none() {
+        return;
+    }
+    let items = palette_items(model);
+    if let Some(palette) = &mut model.palette {
+        palette.matches =
+            crate::menu::filter::rank(items.iter().map(|item| item.label.as_str()), &palette.query);
+        palette.items = items;
+        palette.selected = palette
+            .selected
+            .min(palette.matches.len().saturating_sub(1));
+    }
 }
 
 /// The command palette.
@@ -73,10 +92,9 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
     let Some(mut palette) = model.palette.take() else {
         return Vec::new();
     };
-    let items = palette_items(model);
     if edit(&mut palette.query, input).is_none() {
-        palette.matches =
-            crate::menu::filter::rank(items.iter().map(|item| item.label.as_str()), &palette.query);
+        let labels = palette.items.iter().map(|item| item.label.as_str());
+        palette.matches = crate::menu::filter::rank(labels, &palette.query);
         palette.selected = 0;
         model.palette = Some(palette);
         return Vec::new();
@@ -88,7 +106,7 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
             let chosen = palette
                 .matches
                 .get(palette.selected)
-                .and_then(|r| items.get(r.index));
+                .and_then(|r| palette.items.get(r.index));
             // A boot from here is checked as from the lists: it may not boot.
             return match chosen.map(|item| item.then.clone()) {
                 Some(Then::Act(boot @ Action::Boot { .. })) => super::screens::guarded(model, boot),
@@ -104,8 +122,9 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
     Vec::new()
 }
 
-/// Everything the command palette finds: environments, their kernels and
-/// snapshots, and the actions of every view the machine offers.
+/// Everything the command palette finds: environments, their kernels, the
+/// snapshots read so far, and the actions of every view the machine
+/// offers.
 pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     let item = |label: String, then: Then| PaletteItem { label, then };
     let mut items = Vec::new();
@@ -139,7 +158,14 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
                 Then::Act(Action::ResetBootTries(name.clone())),
             ));
         }
-        for snapshot in &environment.snapshots {
+        // Newest first, whatever the order of their column.
+        let mut loaded: Vec<_> = model
+            .loaded_snapshots(name)
+            .unwrap_or_default()
+            .iter()
+            .collect();
+        loaded.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created));
+        for snapshot in loaded {
             items.push(item(
                 text!("palette-boot-clone", snapshot = snapshot.name.to_string()),
                 super::snapshots::boot_clone(model, &snapshot.name),

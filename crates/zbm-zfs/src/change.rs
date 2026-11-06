@@ -11,7 +11,8 @@ use std::fmt;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::model::{
-    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, Version,
+    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, SnapshotSpace,
+    Version,
 };
 use crate::port::{Zfs, ZfsError};
 
@@ -227,8 +228,8 @@ impl Zfs for DryRun<'_> {
         self.real.snapshots(dataset)
     }
 
-    fn snapshot_space(&self, dataset: &DatasetName) -> Result<Vec<(SnapshotName, u64)>, ZfsError> {
-        self.real.snapshot_space(dataset)
+    fn own_snapshots(&self, dataset: &DatasetName) -> Result<Vec<SnapshotSpace>, ZfsError> {
+        self.real.own_snapshots(dataset)
     }
 
     fn property(&self, dataset: &DatasetName, property: &str) -> Result<Property, ZfsError> {

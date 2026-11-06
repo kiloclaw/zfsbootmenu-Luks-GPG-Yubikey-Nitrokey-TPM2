@@ -171,8 +171,8 @@ fn a_dry_run_reads_what_the_real_port_reads() {
         format!("{:?}", cli.snapshots(&root)),
     );
     same(
-        format!("{:?}", dry.snapshot_space(&root)),
-        format!("{:?}", cli.snapshot_space(&root)),
+        format!("{:?}", dry.own_snapshots(&root)),
+        format!("{:?}", cli.own_snapshots(&root)),
     );
     same(
         format!("{:?}", dry.snapshot_property(&snapshot(), "creation")),

@@ -10,7 +10,7 @@ use zbm_types::Printable;
 use super::lists;
 use crate::menu::format::{age, date, fit, size};
 use crate::menu::keymap::{self, Context};
-use crate::menu::model::{Model, RECOVERY, recovery_tools};
+use crate::menu::model::{Column, Model, RECOVERY, recovery_tools};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Level, PoolHost, StageState, VolumeState};
 use crate::text::{self, Id, text};
@@ -54,14 +54,33 @@ pub(super) fn startup(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
-/// The snapshots of the focused environment: name, then age and size.
+/// What the snapshots column says while its snapshots are not there: its
+/// title and what to do; `None` once they are read.
+pub(super) fn unread(model: &Model) -> Option<(String, String)> {
+    match model.column() {
+        Column::Loaded => None,
+        Column::Reading => Some((text!("snapshots-reading"), text!("snapshots-reading.text"))),
+        Column::NotRead => Some((
+            text!("snapshots-not-read"),
+            text!("snapshots-not-read.text"),
+        )),
+    }
+}
+
+/// The snapshots of the focused environment: name, then age and size;
+/// while they are read, or when they are not, the column says so.
 pub(super) fn snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let snapshots = model.focus_snapshots();
     let width = lists::row_width(area).saturating_sub(2);
+    // Ten thousand snapshots: the rows of those shown alone.
+    let window = lists::window(&model.snapshots, area);
+    let first = window.start;
     let rows = model
         .snapshots
         .matches
+        .get(window)
+        .unwrap_or_default()
         .iter()
         .filter_map(|ranked| {
             let snapshot = snapshots.get(ranked.index)?;
@@ -93,10 +112,17 @@ pub(super) fn snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         })
         .collect();
     let header = text!("snapshots-by", order = text::get(model.sort.id()));
-    let (title, hint) = (text!("snapshots-none"), text!("snapshots-none.text"));
+    let (title, hint) =
+        unread(model).unwrap_or_else(|| (text!("snapshots-none"), text!("snapshots-none.text")));
     let empty = (title.as_str(), hint.as_str());
-    let total = (header.as_str(), snapshots.len());
-    lists::render(model, frame, area, total, &model.snapshots, rows, empty);
+    // Until they come, the count is the one the machine read with it.
+    let count = match model.column() {
+        Column::Loaded => snapshots.len(),
+        _ => model.focused().map_or(0, |e| e.snapshot_count),
+    };
+    let total = (header.as_str(), count);
+    let rows = (first, rows);
+    lists::render_window(model, frame, area, total, &model.snapshots, rows, empty);
 }
 
 /// The kernels of the focused environment, the default labelled.

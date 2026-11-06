@@ -255,11 +255,12 @@ fn a_message_encodes_without_its_secret() {
 }
 
 #[test]
-fn an_export_and_a_devices_messages_cross_as_they_are() {
+fn an_export_a_devices_messages_and_snapshots_cross_as_they_are() {
     let device = zbm_types::Untrusted::new("/dev/sda2".to_owned());
     for action in [
         Action::Export("tank".parse().unwrap()),
         Action::LoadDeviceLog(device.clone()),
+        Action::LoadSnapshots("tank/ROOT/be".parse().unwrap()),
     ] {
         let message = ToSession::Send { action };
         assert_eq!(
@@ -275,5 +276,18 @@ fn an_export_and_a_devices_messages_cross_as_they_are() {
         )],
     };
     let message = ToMenu::Event(Box::new(Event::DeviceLogLoaded(log)));
+    assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
+    let list = crate::model::SnapshotList {
+        environment: "tank/ROOT/be".parse().unwrap(),
+        snapshots: vec![crate::model::SnapshotInfo {
+            name: "tank/ROOT/be@new".parse().unwrap(),
+            created: 200,
+            used: 4096,
+        }],
+    };
+    let message = ToMenu::Event(Box::new(Event::SnapshotsLoaded(list)));
+    assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
+    let unread = Event::SnapshotsUnread("tank/ROOT/be".parse().unwrap());
+    let message = ToMenu::Event(Box::new(unread));
     assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
 }

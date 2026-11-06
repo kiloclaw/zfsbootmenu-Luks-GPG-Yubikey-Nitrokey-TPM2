@@ -351,6 +351,7 @@ impl<'a> App<'a> {
             Action::Chroot(filesystem) => self.chroot(action, filesystem, &system),
             Action::ScanPools => self.scan(),
             Action::LoadDeviceLog(device) => self.device_log(device),
+            Action::LoadSnapshots(environment) => self.load_snapshots(environment),
             change if change.is_change() => self.change(change, &system, true),
             Action::Boot {
                 environment,
@@ -530,10 +531,12 @@ impl Application for App<'_> {
                     .iter()
                     .any(|known| known.imported && known.name == pool)
             });
+        let (environments, loaded) = self.environments(&zfs).map_err(SnapshotError::from)?;
         Ok(Snapshot {
             startup: read::startup(&state),
             pools,
-            environments: read::environments(&zfs).map_err(SnapshotError::from)?,
+            loaded,
+            environments,
             volumes: self.volumes(),
             timeout: read::timeout(&self.runtime.options),
             log: read::log(files, &self.runtime.base),

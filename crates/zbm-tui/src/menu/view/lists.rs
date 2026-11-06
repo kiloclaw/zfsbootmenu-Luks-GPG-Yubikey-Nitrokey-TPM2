@@ -73,13 +73,45 @@ pub(super) fn render(
     model: &Model,
     frame: &mut Frame<'_>,
     area: Rect,
-    (header, total): (&str, usize),
+    total: (&str, usize),
     state: &ListState,
     rows: Vec<Line<'static>>,
     empty: Empty<'_>,
 ) {
+    render_window(model, frame, area, total, state, (0, rows), empty);
+}
+
+/// Whether the search field of `state` shows.
+fn is_searching(state: &ListState) -> bool {
+    state.filtering || !state.filter.is_empty()
+}
+
+/// The matches of `state` that a group drawn in `area` shows, as the list
+/// scrolls to keep the selection at its bottom: a long list builds the
+/// rows of these alone ([`render_window`]).
+pub(super) fn window(state: &ListState, area: Rect) -> std::ops::Range<usize> {
+    let inner = Block::bordered()
+        .padding(Padding::horizontal(1))
+        .inner(area);
+    let height = inner.height.saturating_sub(u16::from(is_searching(state)));
+    let height = usize::from(height).max(1);
+    let first = (state.selected + 1).saturating_sub(height);
+    first..(first + height).min(state.matches.len())
+}
+
+/// [`render`], with `rows` the rows of the matches from `first` on alone,
+/// as [`window`] gives them.
+pub(super) fn render_window(
+    model: &Model,
+    frame: &mut Frame<'_>,
+    area: Rect,
+    (header, total): (&str, usize),
+    state: &ListState,
+    (first, rows): (usize, Vec<Line<'static>>),
+    empty: Empty<'_>,
+) {
     let theme = model.theme;
-    let searching = state.filtering || !state.filter.is_empty();
+    let searching = is_searching(state);
     let count = if searching {
         text!("list-count-of", shown = state.matches.len(), total = total)
     } else {
@@ -110,7 +142,8 @@ pub(super) fn render(
         .highlight_symbol(Line::from(format!("{} ", theme.glyph(Glyph::Selected))))
         .highlight_spacing(HighlightSpacing::Always)
         .highlight_style(theme.style(Role::Selected));
-    let mut widget = WidgetState::default().with_selected(Some(state.selected));
+    let selected = state.selected.saturating_sub(first);
+    let mut widget = WidgetState::default().with_selected(Some(selected));
     frame.render_stateful_widget(list, list_area, &mut widget);
 }
 

@@ -14,13 +14,14 @@ mod import;
 mod offer;
 mod packages;
 mod plan;
+mod snapshots;
 mod time;
 mod unlock;
 
 use std::collections::BTreeSet;
 
 use zbm_types::Untrusted;
-use zbm_types::{DatasetName, PoolName, SnapshotName};
+use zbm_types::{DatasetName, PoolName};
 
 pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
 pub use self::devices::{Device, DeviceErrors, DeviceLog, DeviceState, PoolHost};
@@ -30,6 +31,7 @@ pub use self::import::{Access, ImportOptions};
 pub use self::offer::Offer;
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};
 pub use self::plan::{Plan, Step, StepKind};
+pub use self::snapshots::{SnapshotInfo, SnapshotList};
 pub use self::time::{restore_snapshot, timestamp};
 pub use self::unlock::{Keyboard, Notice, PcrChange, Tpm2Seal, pcr_name};
 
@@ -79,6 +81,12 @@ pub struct Snapshot {
     /// sends only these ([`Snapshot::is_offered`]). None by default.
     #[serde(default)]
     pub offers: BTreeSet<Offer>,
+    /// The snapshots of the columns open, every one of them, read again
+    /// with the environments: those of the environment whose snapshots
+    /// were loaded last ([`Action::LoadSnapshots`]). None until a column
+    /// opens.
+    #[serde(default)]
+    pub loaded: Vec<SnapshotList>,
 }
 
 /// One stage of start-up.
@@ -222,9 +230,12 @@ pub struct Environment {
     pub kernels: Vec<Kernel>,
     /// Its command line.
     pub command_line: CommandLine,
-    /// Its snapshots, newest first; loaded on demand in R5 (see
-    /// `docs/dev/menu-design/interfaces.md`), held in full by the prototype.
-    pub snapshots: Vec<SnapshotInfo>,
+    /// How many snapshots it has of its own, its descendants' left out:
+    /// the snapshots themselves are read when its column opens
+    /// ([`Action::LoadSnapshots`]).
+    pub snapshot_count: usize,
+    /// Its newest snapshot, if it has one.
+    pub newest_snapshot: Option<SnapshotInfo>,
     /// Whether it will boot: the checks, empty when none ran.
     pub checks: Vec<Check>,
     /// Its boot counting, when `zbm.boot_tries` is set.
@@ -269,17 +280,6 @@ pub enum Origin {
     Inherited(DatasetName),
     /// Nowhere: the default.
     Default,
-}
-
-/// A snapshot of a boot environment.
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct SnapshotInfo {
-    /// Its name.
-    pub name: SnapshotName,
-    /// When it was taken, in seconds since the epoch.
-    pub created: u64,
-    /// The space only it holds, in bytes.
-    pub used: u64,
 }
 
 /// A LUKS volume.
@@ -487,7 +487,8 @@ mod tests {
                 value: Untrusted::default(),
                 origin: Origin::Default,
             },
-            snapshots: Vec::new(),
+            snapshot_count: 0,
+            newest_snapshot: None,
             checks: Vec::new(),
             tries: None,
         };

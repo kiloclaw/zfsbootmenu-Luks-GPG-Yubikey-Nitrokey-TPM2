@@ -102,19 +102,34 @@ fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
     dialogs::choose_offered(model, &title, lines, choices);
 }
 
-/// The confirmation of a rollback: what is lost, and the name to type.
+/// Asks the machine for the snapshots of the focused environment, which
+/// its column shows once they come; never while the countdown runs, as
+/// the boot it ends with would wait for them, and Escape would cancel
+/// their load instead of stopping it; nor once the environment is gone,
+/// as after its pool's export.
+pub(super) fn load(model: &mut Model) -> Vec<Action> {
+    let Some(environment) = model.focused().map(|e| e.name.clone()) else {
+        return Vec::new();
+    };
+    if model.countdown.is_some() {
+        return Vec::new();
+    }
+    model.reading = Some(environment.clone());
+    model.unread = None;
+    vec![Action::LoadSnapshots(environment)]
+}
+
+/// The confirmation of a rollback: what is lost, from the snapshots read
+/// with the last snapshot of the machine or after it, and the name to
+/// type.
 fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
     let environment = snapshot.name.dataset();
     let newer: Vec<&SnapshotInfo> = model
-        .focused()
-        .map(|focused| {
-            focused
-                .snapshots
-                .iter()
-                .filter(|s| s.created > snapshot.created)
-                .collect()
-        })
-        .unwrap_or_default();
+        .loaded_snapshots(environment)
+        .unwrap_or_default()
+        .iter()
+        .filter(|s| s.created > snapshot.created)
+        .collect();
     let environment_name = environment.to_string();
     let mut lines = vec![text!(
         "rollback",

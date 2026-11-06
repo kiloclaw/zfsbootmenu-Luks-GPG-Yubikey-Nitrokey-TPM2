@@ -108,6 +108,7 @@ impl Action {
             | Action::Plan(_)
             | Action::ScanPools
             | Action::LoadDeviceLog(_)
+            | Action::LoadSnapshots(_)
             | Action::UnlockAll
             | Action::OpenWithKeyFile { .. }
             | Action::Close(_) => return None,

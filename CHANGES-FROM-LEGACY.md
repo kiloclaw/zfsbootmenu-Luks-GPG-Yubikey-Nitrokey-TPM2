@@ -230,12 +230,30 @@ menu also restores files from a snapshot, which the legacy menu did not.
   console over, as for a boot, and the hibernation question and passphrase prompts are those of before.
 - **Why:** the usual change needs no question, and the menu shows the result where it shows everything else.
 
+### Snapshots are read when their view opens
+
+- **Before:** the snapshot screen ran `zfs list -t snapshot -H -o name -S <sort>` for its environment each time it
+  opened.
+- **Now:** at start, and after each change, the menu reads only each environment's count of snapshots and its newest,
+  which the details show, from one `zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation` of the
+  environment (its descendants' snapshots left out). The snapshots view asks for every snapshot of its environment
+  as it opens, and says "Reading the Snapshots..." until they come; after Esc stops the read, it says the snapshots
+  are not read, and opening the view again, or the next change, reads them. A read that fails says why once: only
+  opening the view again reads them then. While the countdown runs nothing is read for it. Once read, they are read again with each change, so that the rollback's count of the snapshots it destroys
+  is never from an older read. The palette finds the snapshots read so far, and a new name is known to be taken only
+  among them: a snapshot of a view never opened is refused by `zfs`, whose message the error shows. An environment
+  with more snapshots than a menu over SSH can be sent (some 70,000) ends in an error that says so, on the console
+  too, so that both menus show the same.
+- **Why:** with thousands of snapshots, reading them all for every environment at start and after every change
+  slowed the menu down; ten thousand now open, filter and scroll within a frame.
+
 ### New names are typed in a dialog
 
 - **Before:** `New boot environment name` or `New snapshot name` on the console, filled with `<environment>_NEW` or
   the time (`%Y-%m-%d-%H%M%S`); characters outside `[a-zA-Z0-9-_.:]` were removed after Enter, with a message.
 - **Now:** a dialog with the same name filled in, which only takes those characters, and refuses a name the menu knows
-  already. The time of a snapshot's name is in UTC, as the image has no time zone.
+  already: an environment's, or a snapshot's of those read. The time of a snapshot's name is in UTC, as the image has
+  no time zone.
 - **Why:** the name is part of the action, and what can be typed is what can be used.
 
 ### A snapshot boots as a new clone under a chosen name

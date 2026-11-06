@@ -61,12 +61,20 @@ fn machine(offers: &[Offer]) -> (Snapshot, Event) {
         ..DemoOptions::default()
     };
     let mut demo = FakeMachine::new(&options);
+    // The snapshots of the environment the menu selects: the fallback of
+    // the default, which used up its tries.
+    let selected = demo
+        .snapshot()
+        .fallback
+        .as_ref()
+        .and_then(|f| f.target.clone());
+    demo.apply(Action::LoadSnapshots(selected.unwrap()));
     let mut snapshot = demo.snapshot().clone();
     for stage in &mut snapshot.startup {
         stage.state = StageState::Done;
     }
     snapshot.offers = offers.iter().copied().collect();
-    let from = snapshot.environments[0].snapshots[0].name.clone();
+    let from = snapshot.loaded[0].snapshots[0].name.clone();
     let diff = demo.apply(Action::Diff(from, None)).remove(0);
     (snapshot, diff)
 }
@@ -86,7 +94,9 @@ fn menu((snapshot, diff): &(Snapshot, Event), map: Map, place: Place) -> Model {
             screens::focus(&mut model, name, Screen::Kernels);
             model.kernels.selected = row;
         }
-        (Place::Snapshots, Some(name)) => screens::focus(&mut model, name, Screen::Snapshots),
+        (Place::Snapshots, Some(name)) => {
+            screens::focus(&mut model, name, Screen::Snapshots);
+        }
         (Place::Pools(row), _) => {
             model.screen = Screen::Pools;
             model.pools.selected = row;
@@ -443,10 +453,10 @@ fn enter_on_a_snapshot_is_refused_and_hidden_when_none_of_its_actions_is_offered
 #[test]
 fn files_are_restored_only_from_a_diff_against_the_live_filesystem() {
     let (snapshot, _) = machine(APP);
-    let environment = &snapshot.environments[0];
+    let loaded = &snapshot.loaded[0];
     let (old, new) = (
-        environment.snapshots[0].name.clone(),
-        environment.snapshots[1].name.clone(),
+        loaded.snapshots[0].name.clone(),
+        loaded.snapshots[1].name.clone(),
     );
     let mut demo = FakeMachine::new(&DemoOptions {
         snapshots: 3,

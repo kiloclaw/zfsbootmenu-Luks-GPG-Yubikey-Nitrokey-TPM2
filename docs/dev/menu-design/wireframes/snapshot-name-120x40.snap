@@ -25,10 +25,10 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                             │ Name: zroot/ROOT/void@2026-10-23-080000                  │                             │
 │                             │                                                          │                             │
 │                             │                                   [ Cancel ]  [ Create ] │                    12 h ago │
-│                             └──────────────────────────────────────────────────────────┘-22_daily            1 d ago │
-│                                                                    ││   autosnap_2026-10-21_daily            2 d ago │
-│                                                                    ││   autosnap_2026-10-20_daily            3 d ago │
-│                                                                    ││   autosnap_2026-10-19_daily            4 d ago │
+│                             └──────────────────────────────────────────────────────────┘                             │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
 │                                                                    ││                                                │
 │                                                                    ││                                                │
 │                                                                    ││                                                │

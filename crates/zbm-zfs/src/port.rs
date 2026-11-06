@@ -7,7 +7,8 @@
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::model::{
-    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, Version,
+    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, SnapshotSpace,
+    Version,
 };
 
 /// Why a ZFS operation failed.
@@ -161,14 +162,16 @@ pub trait Zfs {
     /// [`ZfsError`]s when `zfs list` fails.
     fn snapshots(&self, dataset: &DatasetName) -> Result<Vec<Snapshot>, ZfsError>;
 
-    /// The space each snapshot of `dataset` and its descendants holds on
-    /// its own (`used`), in bytes.
+    /// The snapshots of `dataset` itself, not those of its descendants,
+    /// oldest first, each with the space it holds on its own (`zfs list -H
+    /// -p -t snapshot -o name,creation,used -d 1 -s creation`): one
+    /// listing, which is all that the snapshots of a boot environment cost.
     ///
     /// # Errors
     ///
     /// [`ZfsError::Missing`] when `dataset` does not exist, and other
-    /// [`ZfsError`]s when `zfs list` fails.
-    fn snapshot_space(&self, dataset: &DatasetName) -> Result<Vec<(SnapshotName, u64)>, ZfsError>;
+    /// [`ZfsError`]s when `zfs list` fails or prints something unexpected.
+    fn own_snapshots(&self, dataset: &DatasetName) -> Result<Vec<SnapshotSpace>, ZfsError>;
 
     /// A property of `dataset`, with its source.
     ///

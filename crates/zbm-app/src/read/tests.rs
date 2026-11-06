@@ -57,7 +57,7 @@ fn environments_carry_their_command_line_and_where_it_was_set() {
         .snapshot("zroot/ROOT/arch@new", 200)
         .snapshot("zroot/ROOT@all", 150);
 
-    let environments = environments(&zfs).unwrap();
+    let environments = environments(&zfs, None).unwrap();
 
     let names: Vec<&str> = environments.iter().map(|be| be.name.as_str()).collect();
     assert_eq!(names, ["zroot/ROOT/arch", "zroot/ROOT/void"]);
@@ -72,13 +72,15 @@ fn environments_carry_their_command_line_and_where_it_was_set() {
         void.command_line.origin,
         Origin::Inherited("zroot/ROOT".parse().unwrap())
     );
-    assert!(void.kernels.is_empty() && void.snapshots.is_empty());
-    let taken: Vec<(String, u64)> = arch
-        .snapshots
-        .iter()
-        .map(|snapshot| (snapshot.name.name().to_owned(), snapshot.used))
-        .collect();
-    assert_eq!(taken, [("new".to_owned(), 4096), ("old".to_owned(), 4096)]);
+    assert!(void.kernels.is_empty() && void.snapshot_count == 0);
+    assert!(void.newest_snapshot.is_none());
+    assert_eq!(arch.snapshot_count, 2);
+    let newest = arch.newest_snapshot.as_ref().unwrap();
+    assert_eq!((newest.name.name(), newest.used), ("new", 4096));
+    assert!(is_environment(&zfs, &"zroot/ROOT/arch".parse().unwrap()));
+    assert!(!is_environment(&zfs, &"zroot/ROOT/old".parse().unwrap()));
+    assert!(!is_environment(&zfs, &"zroot/ROOT".parse().unwrap()));
+    assert!(!is_environment(&zfs, &"zroot/ROOT/gone".parse().unwrap()));
     let none = command_line(&zfs, &"zroot/ROOT/gone".parse().unwrap());
     assert_eq!(
         (none.value.get().as_str(), none.origin),
@@ -267,7 +269,7 @@ fn unset_and_default_properties_have_the_default_origin() {
         &[("mountpoint", "/"), ("keystatus", "unavailable")],
     );
 
-    let environments = environments(&zfs).unwrap();
+    let environments = environments(&zfs, None).unwrap();
 
     assert_eq!(environments[0].encryption, Encryption::Locked);
     assert_eq!(environments[0].command_line.origin, Origin::Default);

@@ -77,6 +77,20 @@ fn listings_cover_a_subtree() {
 }
 
 #[test]
+fn own_snapshots_leave_the_descendants_out_oldest_first() {
+    let zfs = machine()
+        .snapshot("zroot/ROOT@b", 300)
+        .snapshot("zroot/ROOT@a", 200);
+
+    let own = zfs.own_snapshots(&dataset("zroot/ROOT")).unwrap();
+    let names: Vec<&str> = own.iter().map(|snapshot| snapshot.name.name()).collect();
+    assert_eq!(names, ["a", "b"]);
+    assert_eq!(own[0].used, 4096);
+    assert!(zfs.own_snapshots(&dataset("zroot/none")).is_err());
+    assert!(zfs.calls().contains(&"own_snapshots zroot/ROOT".to_owned()));
+}
+
+#[test]
 fn missing_datasets_and_another_release() {
     let zfs = FakeZfs::default().release("zfs-2.2.7", "").pool("zroot");
     let none = dataset("zroot/none");

@@ -18,7 +18,8 @@ fn snapshot() -> Snapshot {
             value: Untrusted::new(line.to_owned()),
             origin,
         },
-        snapshots: Vec::new(),
+        snapshot_count: 0,
+        newest_snapshot: None,
         checks: Vec::new(),
         tries: None,
     };

@@ -365,8 +365,20 @@ fn a_failed_import_shows_what_to_do_next() {
 }
 
 #[test]
-fn the_palette_finds_a_snapshot_among_hundreds() {
+fn the_palette_finds_a_snapshot_among_hundreds_once_they_are_read() {
     let mut session = started();
+    // Before the snapshots are read, the palette does not know them.
+    session.key(Key::Char(':'));
+    session.type_text("2026-08-31");
+    let palette = session.model().palette.as_ref().unwrap();
+    assert!(palette.matches.iter().all(|ranked| {
+        !palette.items[ranked.index]
+            .label
+            .contains("autosnap_2026-08-31")
+    }));
+    session.key(Key::Escape);
+    session.key(Key::Char('s'));
+    session.key(Key::Escape);
 
     session.key(Key::Char(':'));
     session.type_text("2026-08-31");

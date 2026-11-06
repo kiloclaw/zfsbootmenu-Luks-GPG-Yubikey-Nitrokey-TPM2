@@ -218,7 +218,7 @@ fn the_menu_draws_and_counts_while_an_action_runs_and_escape_cancels_it() {
     };
     let mut session = Session::on(machine, theme());
     session.start();
-    let snapshots = session.model().snapshot.environments[0].snapshots.len();
+    let snapshots = session.model().snapshot.environments[0].snapshot_count;
     session.key(Key::Char('s'));
     session.key(Key::Char('n'));
     session.key(Key::Enter);
@@ -248,7 +248,7 @@ fn the_menu_draws_and_counts_while_an_action_runs_and_escape_cancels_it() {
     for _ in 0..60 {
         session.tick(1000);
     }
-    let taken = session.model().snapshot.environments[0].snapshots.len();
+    let taken = session.model().snapshot.environments[0].snapshot_count;
     assert_eq!(taken, snapshots, "the cancelled snapshot was taken");
 }
 

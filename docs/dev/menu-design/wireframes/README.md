@@ -8,10 +8,10 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | Name | What it shows |
 | --- | --- |
 | `startup` | start-up with its stages |
-| `main` | the navigation bar, the countdown banner, the boot environments and the inspector |
+| `main` | the navigation bar, the countdown banner, the boot environments and the inspector, which knows each environment's count of snapshots and its newest until its snapshots are read |
 | `main-filter` | the search field, filtered by `ta` |
 | `kernels` | the kernels of the default environment |
-| `snapshots` | 400 snapshots, newest first |
+| `snapshots` | 400 snapshots, newest first, read when the view opened |
 | `snapshot-actions` | the action sheet of a snapshot |
 | `rollback-confirm` | the rollback alert, its button disabled until the name is typed |
 | `command-line` | the command line edited for one boot |
@@ -19,7 +19,7 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `unlock-pin` | a TPM2 PIN asked at start-up, two digits typed and not shown |
 | `import-problem` | a pool of another host, and what can be done |
 | `import-failed` | the error after a plain retry: what failed, why, what next |
-| `palette` | the command palette finding snapshots by date |
+| `palette` | the command palette finding snapshots by date, once the snapshots view read them |
 | `recovery` | the recovery tools |
 | `log` | the log since start |
 | `help` | help for the main view, which scrolls |

@@ -4,8 +4,11 @@ use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine};
 
+/// The menu on the demo machine, the snapshots of the default
+/// environment read.
 fn model() -> Model {
-    let machine = FakeMachine::new(&DemoOptions::default());
+    let mut machine = FakeMachine::new(&DemoOptions::default());
+    machine.apply(Action::LoadSnapshots("zroot/ROOT/void".parse().unwrap()));
     Model::new(machine.snapshot().clone(), Theme::new(Capabilities::FULL))
 }
 
@@ -35,9 +38,9 @@ fn snapshots_sort_by_name_creation_or_size() {
     let mut model = model();
     model.focus = Some("zroot/ROOT/void".parse().unwrap());
 
-    model.sort = Sort::Creation;
+    model.set_sort(Sort::Creation);
     let newest = model.focus_snapshots()[0].name.name().to_owned();
-    model.sort = Sort::Size;
+    model.set_sort(Sort::Size);
     let largest = model.focus_snapshots()[0].name.name().to_owned();
 
     assert_eq!(newest, "pre-upgrade");
@@ -109,4 +112,26 @@ fn the_context_follows_the_focus() {
         next: Vec::new(),
     });
     assert_eq!(model.context(), Context::Choose);
+}
+
+#[test]
+fn snapshots_are_ranked_again_only_when_their_list_changed() {
+    let mut model = model();
+    model.focus = Some("zroot/ROOT/void".parse().unwrap());
+    model.snapshots.filter = "pre".to_owned();
+    model.refresh();
+    let ranked = model.ranked.clone();
+    assert_eq!(model.snapshots.matches.len(), 1);
+
+    // The same lists, sent again with the machine: nothing to rank.
+    model.replace_snapshot(model.snapshot.clone());
+    assert_eq!(model.ranked, ranked);
+    // Another list, or another filter, is ranked.
+    let mut changed = model.snapshot.clone();
+    changed.loaded[0].snapshots.truncate(10);
+    model.replace_snapshot(changed);
+    assert_ne!(model.ranked, ranked);
+    model.snapshots.filter.clear();
+    model.refresh();
+    assert_eq!(model.snapshots.matches.len(), 10);
 }

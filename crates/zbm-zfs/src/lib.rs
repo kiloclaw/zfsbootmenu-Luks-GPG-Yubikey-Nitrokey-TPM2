@@ -37,7 +37,7 @@ pub use cli::{Format, ZfsCli};
 
 pub use model::{
     Dataset, DiffChange, Difference, Health, Importable, Pool, PoolHost, PoolStatus, Property,
-    Snapshot, Source, Vdev, VdevClass, VdevErrors, VdevKind, Version,
+    Snapshot, SnapshotSpace, Source, Vdev, VdevClass, VdevErrors, VdevKind, Version,
 };
 pub use port::{ZFS_CODES, Zfs, ZfsError};
 pub use zfs_text::{ZfsName, ZfsText};

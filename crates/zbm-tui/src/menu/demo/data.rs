@@ -1,7 +1,8 @@
 //! The demo machine (`docs/dev/menu-design/usability.md`, "Setup"): two
 //! pools, four boot environments with their kernels, 400 snapshots on the
-//! default one, three LUKS volumes, a `DEGRADED` pool and, on request, a
-//! pool of another host.
+//! default one, kept apart from the snapshot as the machine keeps them,
+//! three LUKS volumes, a `DEGRADED` pool and, on request, a pool of another
+//! host.
 
 use zbm_app::Encryption;
 use zbm_types::{DatasetName, SnapshotName, Untrusted};
@@ -11,7 +12,8 @@ use super::{DemoOptions, untrusted};
 use crate::menu::world::{
     CommandLine, Device, DeviceErrors, DeviceLog, DeviceState, Environment, Fallback, Health,
     Kernel, Keyboard, Level, Log, LogEntry, Method, Offer, Origin, PcrChange, Pool, PoolHost,
-    Snapshot, SnapshotInfo, Stage, StageState, Timeout, Tpm2Seal, Tries, Volume, VolumeState,
+    Snapshot, SnapshotInfo, SnapshotList, Stage, StageState, Timeout, Tpm2Seal, Tries, Volume,
+    VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -84,7 +86,7 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         attempts: 3,
         target: Some(dataset("zroot/ROOT/ubuntu")),
     });
-    Snapshot {
+    let mut snapshot = Snapshot {
         next_boot: options.next_boot.then(|| dataset("tank/ROOT/arch")),
         fallback,
         bootfs: Some(dataset("zroot/ROOT/void")),
@@ -112,7 +114,27 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         menu_locked: false,
         // The demo answers every action.
         offers: Offer::ALL.into_iter().collect(),
-    }
+        loaded: Vec::new(),
+    };
+    super::snapshots::Lists::new(snapshots(options)).show(&mut snapshot);
+    snapshot
+}
+
+/// The snapshots of each environment at power-on, newest first: those the
+/// machine sends when a column opens.
+pub fn snapshots(options: &DemoOptions) -> Vec<SnapshotList> {
+    let list = |name: &str, snapshots| SnapshotList {
+        environment: dataset(name),
+        snapshots,
+    };
+    vec![
+        list(
+            "zroot/ROOT/void",
+            many_snapshots("zroot/ROOT/void", options.snapshots),
+        ),
+        list("zroot/ROOT/ubuntu", few_snapshots("zroot/ROOT/ubuntu")),
+        list("tank/ROOT/arch", few_snapshots("tank/ROOT/arch")),
+    ]
 }
 
 #[allow(
@@ -227,17 +249,17 @@ fn with_health(mut environment: Environment, options: &DemoOptions) -> Environme
 }
 
 fn environments(options: &DemoOptions) -> Vec<Environment> {
-    let environment =
-        |name: &str, is_default, encryption, kernels, command_line, snapshots| Environment {
-            name: dataset(name),
-            is_default,
-            encryption,
-            kernels,
-            command_line,
-            snapshots,
-            checks: Vec::new(),
-            tries: None,
-        };
+    let environment = |name: &str, is_default, encryption, kernels, command_line| Environment {
+        name: dataset(name),
+        is_default,
+        encryption,
+        kernels,
+        command_line,
+        snapshot_count: 0,
+        newest_snapshot: None,
+        checks: Vec::new(),
+        tries: None,
+    };
     vec![
         environment(
             "zroot/ROOT/void",
@@ -245,7 +267,6 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
             Encryption::Unlocked,
             kernels(&["6.12.9_1", "6.12.8_1", "6.8.0_1"], None),
             inherited("quiet loglevel=4", "zroot/ROOT"),
-            many_snapshots("zroot/ROOT/void", options.snapshots),
         ),
         environment(
             "zroot/ROOT/ubuntu",
@@ -260,7 +281,6 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
                 Some("6.8.0-47-generic"),
             ),
             inherited("quiet loglevel=4", "zroot/ROOT"),
-            few_snapshots("zroot/ROOT/ubuntu"),
         ),
         environment(
             "tank/ROOT/arch",
@@ -271,7 +291,6 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
                 value: untrusted("rw quiet splash"),
                 origin: Origin::Local,
             },
-            few_snapshots("tank/ROOT/arch"),
         ),
         environment(
             "tank/ROOT/debian",
@@ -282,7 +301,6 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
                 value: Untrusted::default(),
                 origin: Origin::Default,
             },
-            Vec::new(),
         ),
     ]
 }

@@ -6,7 +6,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ ▶ zroot/ROOT/void                                          default  6.12.9_1 │
 │   tank/ROOT/arch                                   1 warning  6.11.5-arch1-1 │
 │   tank/ROOT/debian                                 1 problem  6.1.0-26-amd64 │
-│   z┌ COMMANDS ─────────────────────────────────────────────── 57 of 430 ┐ric │
+│   z┌ COMMANDS ─────────────────────────────────────────────── 55 of 426 ┐ric │
 │    │ : 2026-09                                                          │    │
 │    │ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-09-30_daily        │    │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-29_daily        │    │

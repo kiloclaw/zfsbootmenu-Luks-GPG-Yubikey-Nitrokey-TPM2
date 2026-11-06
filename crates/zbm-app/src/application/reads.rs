@@ -3,14 +3,16 @@
 //! last scan found, and the scan itself ([`Action::ScanPools`]), which
 //! looks at every device and so runs only when asked, and again after an
 //! action that may have imported or exported a pool, or opened what holds
-//! one; and a device's kernel messages ([`Action::LoadDeviceLog`]).
+//! one; a device's kernel messages ([`Action::LoadDeviceLog`]); and the
+//! snapshots of an environment ([`Action::LoadSnapshots`]), which every
+//! snapshot of the machine read after them carries again.
 
 use zbm_platform::System;
 use zbm_types::{DatasetName, Untrusted};
 use zbm_zfs::{Zfs, ZfsError};
 
 use super::App;
-use crate::model::{Action, Event, Pool};
+use crate::model::{Action, Environment, Event, Outcome, Pool, SnapshotList};
 use crate::{auth, changes, read};
 
 /// Whether `action` may change the pools a scan finds: it imports or
@@ -31,13 +33,15 @@ impl App<'_> {
     /// Applies `action` without taking the console: the volumes', the
     /// changes of package D ([`Action::is_change`]) whose pool is writable
     /// and whose key is loaded, and what only reads the machine, as the
-    /// dry runs of [`Action::Plan`] ([`App::plan`]), the scan of the pools
-    /// and a device's kernel messages, which the lock leaves free.
+    /// dry runs of [`Action::Plan`] ([`App::plan`]), the scan of the pools,
+    /// a device's kernel messages and the snapshots of an environment,
+    /// which the lock leaves free.
     pub(super) fn quietly(&self, action: &Action, console: System<'_>) -> Vec<Event> {
         match action {
             Action::Plan(planned) => return self.planned(planned, console),
             Action::ScanPools => return self.scan(),
             Action::LoadDeviceLog(device) => return self.device_log(device),
+            Action::LoadSnapshots(environment) => return self.load_snapshots(environment),
             _ => {}
         }
         // What the lock keeps takes the console, where the PIN is asked;
@@ -124,6 +128,60 @@ impl App<'_> {
     pub(super) fn device_log(&self, device: &Untrusted<String>) -> Vec<Event> {
         let log = read::device_log(self.context.files(), self.context.runner(), device);
         vec![Event::DeviceLogLoaded(log)]
+    }
+
+    /// [`Action::LoadSnapshots`]: every snapshot of `environment`, whose
+    /// column the snapshots read from now on carry, in place of the last
+    /// one loaded. A load that fails says so, and why, and closes the
+    /// column.
+    pub(super) fn load_snapshots(&self, environment: &DatasetName) -> Vec<Event> {
+        let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
+        let read = read::snapshot_list(&zfs, environment, read::LOADED_LENGTH);
+        if let Some(seen) = self.seen {
+            seen.open_column(read.is_ok().then(|| environment.clone()));
+        }
+        match read {
+            Ok(list) => vec![Event::SnapshotsLoaded(list)],
+            Err(why) => vec![
+                Event::SnapshotsUnread(environment.clone()),
+                Event::Finished(Outcome::Failed {
+                    what: format!("unable to read the snapshots of {environment}"),
+                    why: vec![why],
+                    next: vec!["list them in the recovery shell: zfs list -t snapshot".to_owned()],
+                }),
+            ],
+        }
+    }
+
+    /// The boot environments of a snapshot, and the snapshots of the
+    /// column open: none when no column is open, or its environment is
+    /// gone, or they cannot be read again. The column's environment is
+    /// listed once, its count and newest taken from its list.
+    pub(super) fn environments(
+        &self,
+        zfs: &dyn Zfs,
+    ) -> Result<(Vec<Environment>, Vec<SnapshotList>), ZfsError> {
+        let column = self.seen.and_then(super::Seen::column);
+        let mut environments = read::environments(zfs, column.as_ref())?;
+        let open =
+            column.and_then(|column| environments.iter_mut().find(|known| known.name == column));
+        let Some(environment) = open else {
+            return Ok((environments, Vec::new()));
+        };
+        let Ok(list) = read::snapshot_list(zfs, &environment.name, read::LOADED_LENGTH) else {
+            (environment.snapshot_count, environment.newest_snapshot) =
+                read::snapshot_summary(zfs, &environment.name);
+            return Ok((environments, Vec::new()));
+        };
+        environment.snapshot_count = list.snapshots.len();
+        environment.newest_snapshot = list.snapshots.first().cloned();
+        let loaded = vec![list];
+        Ok((environments, loaded))
+    }
+
+    /// Whether `name` is a boot environment of the machine.
+    pub(crate) fn is_environment(&self, name: &DatasetName) -> bool {
+        read::is_environment(&zbm_zfs::ZfsCli::new(self.context.runner()), name)
     }
 
     /// The pools of the snapshot, as [`App::pools`] reads them; none when

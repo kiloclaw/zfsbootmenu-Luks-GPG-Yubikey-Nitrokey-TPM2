@@ -1,6 +1,7 @@
 //! What the machine's events do to the menu.
 
 use super::dialogs::import;
+use crate::menu::keymap::Tab;
 use crate::menu::model::{Asking, Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
 use crate::menu::world::{
     Access, Action, Event, Outcome, Snapshot, Stage, StageState, UnlockOutcome,
@@ -8,15 +9,24 @@ use crate::menu::world::{
 use crate::text::text;
 use zbm_types::ImportPolicy;
 
-/// Applies an event.
-pub(super) fn apply(model: &mut Model, event: Event) {
+/// Applies an event; the actions it asks for: the snapshots of the column
+/// open, when a snapshot of the machine came without them.
+pub(super) fn apply(model: &mut Model, event: Event) -> Vec<Action> {
     model.progress = None;
     match event {
         Event::Progress(what) => model.progress = Some(what),
-        Event::Changed(snapshot) => changed(model, snapshot),
+        Event::Changed(snapshot) => return changed(model, snapshot),
         // The countdown goes on.
-        Event::PoolsScanned(pools) => model.replace_pools(pools),
+        Event::PoolsScanned(pools) => {
+            model.replace_pools(pools);
+            super::text::palette_again(model);
+        }
         Event::DeviceLogLoaded(log) => model.device_log = Some(log),
+        Event::SnapshotsLoaded(list) => {
+            model.take_loaded(list);
+            super::text::palette_again(model);
+        }
+        Event::SnapshotsUnread(environment) => model.not_readable(environment),
         Event::UnlockRequested {
             volume,
             method,
@@ -31,13 +41,7 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             let left = seconds.map(|seconds| seconds.saturating_mul(1000));
             model.dialog = Some(Dialog::Question(Asking { question, left }));
         }
-        Event::ResealOffered(volume) => {
-            if let Some(then) = super::unlock::reseal(model, &volume)
-                && super::offers::is_offered(model, &then)
-            {
-                model.dialog = Some(super::dialogs::confirm(then));
-            }
-        }
+        Event::ResealOffered(volume) => reseal_offered(model, &volume),
         Event::ImportProblem { pool, reason } => import_problem(model, &pool, reason),
         Event::DiffReady {
             from,
@@ -45,10 +49,7 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             changes,
             packages,
         } => diff_ready(model, DiffView::new((from, to), changes, packages)),
-        Event::Finished(outcome) => {
-            super::show_failure(model, &outcome);
-            model.notification = Some(outcome);
-        }
+        Event::Finished(outcome) => finished(model, outcome),
         Event::Leaving(why) => model.leaving = Some(why),
         // Answered otherwise, or the action that asked ended: unanswered.
         Event::Withdrawn => {
@@ -64,14 +65,40 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             model.notification = Some(unlocked(&volume, outcome));
         }
     }
+    Vec::new()
+}
+
+/// The machine offers to seal the TPM2 key of `volume` again: the
+/// confirmation opens, when it offers that.
+fn reseal_offered(model: &mut Model, volume: &str) {
+    if let Some(then) = super::unlock::reseal(model, volume)
+        && super::offers::is_offered(model, &then)
+    {
+        model.dialog = Some(super::dialogs::confirm(then));
+    }
+}
+
+/// An action ended with `outcome`, which the notification line says, and
+/// a dialog when it failed.
+fn finished(model: &mut Model, outcome: Outcome) {
+    super::show_failure(model, &outcome);
+    model.notification = Some(outcome);
 }
 
 /// The machine changed: its new `snapshot`. A device's messages were read
-/// before, as an export of its pool shows: they close.
-fn changed(model: &mut Model, snapshot: Snapshot) {
+/// before, as an export of its pool shows: they close. The snapshots of
+/// the column open come with it; when they do not, as after a load that
+/// was cancelled, the machine is asked for them again
+/// ([`Model::needs_load`]).
+fn changed(model: &mut Model, snapshot: Snapshot) -> Vec<Action> {
     model.device_log = None;
     model.replace_snapshot(snapshot);
     start(model);
+    super::text::palette_again(model);
+    if model.tab() == Tab::Snapshots && model.needs_load() {
+        return super::snapshots::load(model);
+    }
+    Vec::new()
 }
 
 /// Opens the differences `view`, keeping the selection and the segment of

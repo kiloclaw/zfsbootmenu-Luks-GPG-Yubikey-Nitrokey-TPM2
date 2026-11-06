@@ -143,6 +143,11 @@ impl<'a> MachineService<'a> {
         self.app.known_pools()
     }
 
+    /// Whether `name` is a boot environment of the machine, read alone.
+    pub(crate) fn is_environment(&self, name: &zbm_types::DatasetName) -> bool {
+        self.app.is_environment(name)
+    }
+
     /// Starts the service on a worker in `scope`, which ends when the handle
     /// is dropped and the action it performs ended.
     ///

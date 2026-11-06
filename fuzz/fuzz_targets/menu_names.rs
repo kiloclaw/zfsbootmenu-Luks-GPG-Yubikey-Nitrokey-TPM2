@@ -3,10 +3,10 @@
 //! programs supply (A2, A3) reaches the screen. The input, split at its
 //! newlines, gives the kernel versions, the command line, the LUKS volumes'
 //! names and devices, the names and notes of the pools' devices, the name
-//! of the host that used a pool not imported, and the log; every screen is
-//! drawn with them, the workspace's too, at one of three sizes that the
-//! first byte picks. Drawing may not panic, and no cell may hold a
-//! character that acts on a terminal.
+//! of the host that used a pool not imported, and the log; with the demo's
+//! snapshots read, every screen is drawn with them, the workspace's too,
+//! at one of three sizes that the first byte picks. Drawing may not panic,
+//! and no cell may hold a character that acts on a terminal.
 
 #![no_main]
 
@@ -17,7 +17,7 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::demo::DemoOptions;
-use zbm_tui::menu::demo::data::machine;
+use zbm_tui::menu::demo::data::{machine, snapshots};
 use zbm_tui::menu::keymap::Map;
 use zbm_tui::menu::model::{Editor, Model, Screen};
 use zbm_tui::menu::theme::Theme;
@@ -40,10 +40,16 @@ const SCREENS: [Screen; 7] = [
     Screen::Log,
 ];
 
-/// The demo's machine: made once.
+/// The demo's machine, the snapshots of every environment read: made
+/// once.
 fn demo() -> &'static Snapshot {
     static DEMO: OnceLock<Snapshot> = OnceLock::new();
-    DEMO.get_or_init(|| machine(&DemoOptions::default()))
+    DEMO.get_or_init(|| {
+        let options = DemoOptions::default();
+        let mut snapshot = machine(&options);
+        snapshot.loaded = snapshots(&options);
+        snapshot
+    })
 }
 
 /// Draws `model` at `width` by `height`, and checks every cell.

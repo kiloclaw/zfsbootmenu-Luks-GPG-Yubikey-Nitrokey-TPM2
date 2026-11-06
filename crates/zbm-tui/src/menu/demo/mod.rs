@@ -9,6 +9,7 @@ pub mod data;
 mod health;
 mod keyboard;
 mod session;
+mod snapshots;
 mod storage;
 
 pub use crate::menu::session::Session;
@@ -92,6 +93,9 @@ pub struct FakeMachine {
     restored: Vec<Untrusted<String>>,
     /// The pools the scan finds besides those of the snapshot.
     exported: Vec<Pool>,
+    /// The snapshots of each environment, which the snapshot holds only
+    /// for the column open.
+    lists: snapshots::Lists,
 }
 
 impl FakeMachine {
@@ -104,6 +108,7 @@ impl FakeMachine {
             import_asked: false,
             restored: Vec::new(),
             exported: data::exported(options),
+            lists: snapshots::Lists::new(data::snapshots(options)),
         }
     }
 
@@ -210,6 +215,7 @@ impl FakeMachine {
             Action::LoadDeviceLog(device) => {
                 vec![Event::DeviceLogLoaded(data::device_log(&device))]
             }
+            Action::LoadSnapshots(environment) => self.lists.load(environment, &mut self.snapshot),
             Action::Shell => leave("Opening the recovery shell"),
             Action::Reboot => leave("Rebooting"),
             Action::PowerOff => leave("Powering off"),
@@ -222,7 +228,7 @@ impl FakeMachine {
             }],
             Action::Reseal(volume) => self.reseal(&volume),
             Action::RestoreFiles { snapshot, paths } => self.restore(&snapshot, paths),
-            other => storage::apply(&mut self.snapshot, other),
+            other => storage::apply(&mut self.snapshot, &mut self.lists, other),
         }
     }
 
@@ -244,7 +250,7 @@ impl FakeMachine {
         snapshot: &zbm_types::SnapshotName,
         paths: Vec<Untrusted<String>>,
     ) -> Vec<Event> {
-        let outcome = storage::restore(&mut self.snapshot, snapshot, paths.len());
+        let outcome = storage::restore(&mut self.snapshot, &mut self.lists, snapshot, paths.len());
         self.restored.extend(paths);
         vec![
             Event::Changed(self.snapshot.clone()),

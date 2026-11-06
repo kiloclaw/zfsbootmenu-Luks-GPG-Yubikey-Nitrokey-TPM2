@@ -4,7 +4,9 @@ use zbm_types::{ImportPolicy, PoolName, Untrusted};
 
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent, Tab};
-use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
+use crate::menu::model::{
+    Choice, Column, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then,
+};
 use crate::menu::world::{Access, Action, Environment, Outcome, Pool, Verdict, Volume};
 use crate::text::text;
 
@@ -86,10 +88,16 @@ pub(super) fn guarded(model: &mut Model, action: Action) -> Vec<Action> {
     Vec::new()
 }
 
-/// Opens `screen` on `environment`: its snapshots, kernels or command line.
-pub(super) fn focus(model: &mut Model, environment: zbm_types::DatasetName, screen: Screen) {
+/// Opens `screen` on `environment`: its snapshots, which the machine is
+/// asked for, its kernels or its command line.
+pub(super) fn focus(
+    model: &mut Model,
+    environment: zbm_types::DatasetName,
+    screen: Screen,
+) -> Vec<Action> {
     model.focus = Some(environment);
     model.snapshots = ListState::default();
+    model.rank_again();
     model.kernels = ListState::default();
     model.marked.clear();
     model.refresh();
@@ -109,12 +117,16 @@ pub(super) fn focus(model: &mut Model, environment: zbm_types::DatasetName, scre
         });
     }
     model.screen = screen;
+    if screen == Screen::Snapshots {
+        return super::snapshots::load(model);
+    }
+    Vec::new()
 }
 
 /// Opens the workspace's `tab`: the snapshots are those of the environment
-/// the snapshots or kernels show, else of the selected one; without one
-/// the tab stays.
-pub(super) fn open_tab(model: &mut Model, tab: Tab) {
+/// the snapshots or kernels show, else of the selected one, which the
+/// machine is asked for; without one the tab stays.
+pub(super) fn open_tab(model: &mut Model, tab: Tab) -> Vec<Action> {
     match tab {
         Tab::Boot => {
             model.screen = Screen::Main;
@@ -131,10 +143,13 @@ pub(super) fn open_tab(model: &mut Model, tab: Tab) {
                     .selected_environment()
                     .map(|environment| environment.name.clone())
             });
-            if let Some(name) = environment
-                && model.tab() != Tab::Snapshots
-            {
-                focus(model, name, Screen::Snapshots);
+            if model.tab() == Tab::Snapshots {
+                // On the tab, its key reads the snapshots not read.
+                if model.column() == Column::NotRead {
+                    return super::snapshots::load(model);
+                }
+            } else if let Some(name) = environment {
+                return focus(model, name, Screen::Snapshots);
             }
         }
         Tab::Pools => model.screen = Screen::Pools,
@@ -143,6 +158,7 @@ pub(super) fn open_tab(model: &mut Model, tab: Tab) {
             model.scroll = 0;
         }
     }
+    Vec::new()
 }
 
 /// The main view.
@@ -156,9 +172,9 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
             let action = boot(model, &environment, None);
             return guarded(model, action);
         }
-        Intent::Kernels => focus(model, name, Screen::Kernels),
-        Intent::Snapshots => focus(model, name, Screen::Snapshots),
-        Intent::Edit => focus(model, name, Screen::CommandLine),
+        Intent::Kernels => return focus(model, name, Screen::Kernels),
+        Intent::Snapshots => return focus(model, name, Screen::Snapshots),
+        Intent::Edit => return focus(model, name, Screen::CommandLine),
         Intent::SetDefault => return vec![Action::SetDefaultEnvironment(name)],
         Intent::Pools => model.screen = Screen::Pools,
         Intent::ReadWrite => return vec![read_write(model, &name.pool())],
@@ -203,11 +219,11 @@ fn kernels(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::SetDefault => vec![Action::SetDefaultKernel(name, kernel.version)],
         Intent::InheritDefault => vec![Action::InheritDefaultKernel(name)],
         Intent::Edit => {
-            focus(model, name, Screen::CommandLine);
+            let actions = focus(model, name, Screen::CommandLine);
             if let Some(editor) = &mut model.editor {
                 editor.kernel = Some(kernel.version);
             }
-            Vec::new()
+            actions
         }
         _ => Vec::new(),
     }

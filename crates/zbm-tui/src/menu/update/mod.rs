@@ -1,7 +1,8 @@
 //! What a message does to the menu: `update(model, message) -> (model,
 //! actions)`, pure and deterministic. Key presses go through the key map of
 //! the focused element; machine events change the snapshot or open
-//! dialogs; ticks run the countdown.
+//! dialogs, and may ask for the snapshots of the column open again; ticks
+//! run the countdown.
 
 use zbm_display::keys::{Key, KeyPress};
 
@@ -45,12 +46,12 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
             actions
         }
         Message::Tick(ms) => tick(&mut model, ms),
-        Message::Event(event) => {
-            events::apply(&mut model, *event);
-            Vec::new()
-        }
+        Message::Event(event) => events::apply(&mut model, *event),
         Message::Busy(busy) => {
             model.working = busy.then(|| model.working.unwrap_or(0));
+            if !busy {
+                model.not_loaded();
+            }
             Vec::new()
         }
     };
@@ -126,9 +127,9 @@ fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
         Intent::Power => dialogs::power(model),
         Intent::Redraw => {}
         Intent::Back => back(model),
-        Intent::Tab(tab) => screens::open_tab(model, tab),
-        Intent::NextTab => screens::open_tab(model, model.tab().next()),
-        Intent::PreviousTab => screens::open_tab(model, model.tab().previous()),
+        Intent::Tab(tab) => return Some(screens::open_tab(model, tab)),
+        Intent::NextTab => return Some(screens::open_tab(model, model.tab().next())),
+        Intent::PreviousTab => return Some(screens::open_tab(model, model.tab().previous())),
         Intent::Filter => {
             if let Some(list) = model.list_mut() {
                 list.filtering = true;
@@ -235,6 +236,8 @@ mod import_tests;
 mod offers_tests;
 #[cfg(test)]
 mod question_tests;
+#[cfg(test)]
+mod snapshot_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

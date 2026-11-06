@@ -220,7 +220,12 @@ fn first_wireframes() -> Vec<Wireframe> {
             50,
             &[Code(Key::Enter)],
         ),
-        frame("palette", plain(), 50, &[Char(':'), Text("2026-09")]),
+        frame(
+            "palette",
+            plain(),
+            50,
+            &[Char('s'), Code(Key::Escape), Char(':'), Text("2026-09")],
+        ),
         frame("recovery", plain(), 50, &[Char('!')]),
         frame("log", plain(), 50, &[Char('l')]),
         frame("help", plain(), 50, &[Char('?')]),
