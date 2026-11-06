@@ -221,3 +221,237 @@ fn a_menu_that_is_taken_over_is_told_and_one_that_goes_ends_its_service() {
     });
     assert_eq!(ended.unwrap_err().kind(), io::ErrorKind::InvalidData);
 }
+
+/// Serves the menu at the other end of `menu` with a LUKS session whose
+/// person is over SSH (`remote`) or not, its keyholder on a thread of its
+/// own, the volumes of `crate::volumes::tests::machine`, while `client`
+/// runs; what `client` returned, and how the volumes were opened.
+fn served_with_volumes<T>(remote: bool, client: impl FnOnce(&Connection) -> T) -> (T, String) {
+    use zbm_luks::device::OpenCheck;
+    use zbm_luks::unlocker::{Luks, Presence, Settings};
+
+    let fake = crate::volumes::tests::machine();
+    fake.files.dir("/zfsbootmenu");
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "");
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let mut settings = Settings::new("/zfsbootmenu");
+    settings.open_check = OpenCheck::Markers("/fake/holders".into());
+    if remote {
+        settings.presence = Presence::Remote;
+    }
+    let asker = crate::service::asker::Asker::new(&fake.clock);
+    let (to_keyholder, keyholder) = Connection::pair().unwrap();
+    let keyholders = crate::keyholder::tests::Given::new(to_keyholder);
+    let luks = Luks {
+        context: fake.context(),
+        settings: &settings,
+        interaction: &asker,
+    };
+    let app = App::new(Context::new(fake.system()), &runtime)
+        .with_keyholders(&keyholders)
+        .with_luks(luks);
+    let served = Served {
+        service: MachineService::new(app, fake.system()).with_asker(&asker),
+        console: &no_console,
+        stop: &never,
+    };
+    let (menu, session) = Connection::pair().unwrap();
+    let result = std::thread::scope(|scope| {
+        // The keyholder opens the volume as its client asked, as
+        // `zbm unlock serve` does.
+        spawn_scoped_traced(scope, || {
+            let run = |interaction: &dyn zbm_platform::interaction::Interaction,
+                       request: &crate::keyholder::UnlockRequest| {
+                let mut settings = settings.clone();
+                if request.remote {
+                    settings.presence = Presence::Remote;
+                }
+                let luks = Luks {
+                    context: fake.context(),
+                    settings: &settings,
+                    interaction,
+                };
+                crate::Volumes::new(luks).apply(&request.action)
+            };
+            let _ = crate::keyholder::serve(&keyholder, &fake.runner, run, |_| false);
+        });
+        let serving = spawn_scoped_traced(scope, || serve(&session, &served));
+        let result = client(&menu);
+        drop(menu);
+        serving.join().unwrap().unwrap();
+        // A keyholder never started ends with its client.
+        drop(crate::keyholder::Keyholders::start(&keyholders));
+        result
+    });
+    let unlocked = fake
+        .files
+        .text("/zfsbootmenu/luks-unlocked")
+        .unwrap_or_default();
+    (result, unlocked)
+}
+
+/// The volume the menu opens, as its snapshot lists it.
+fn open_locked() -> Action {
+    Action::Open {
+        device: "/dev/sdb2".to_owned(),
+        name: None,
+    }
+}
+
+/// Opens [`open_locked`] with the passphrase `pw`, answered as the menu
+/// answers; what the session sent until the action was done.
+fn open_with_passphrase(menu: &Connection) -> Vec<ToMenu> {
+    ToSession::Send {
+        action: open_locked(),
+    }
+    .send(menu, &[])
+    .unwrap();
+    let mut messages = Vec::new();
+    let question = loop {
+        let message = next(menu);
+        let asked = match &message {
+            ToMenu::Ask { question, event } if matches!(**event, Event::UnlockRequested { .. }) => {
+                Some(*question)
+            }
+            _ => None,
+        };
+        messages.push(message);
+        if let Some(question) = asked {
+            break question;
+        }
+    };
+    let answer = |secret: &[u8]| Action::Unlock {
+        volume: "/dev/sdb2".to_owned(),
+        method: crate::model::Method::Passphrase,
+        secret: Some(Arc::new(zbm_platform::Secret::copy_from(secret))),
+    };
+    // An answer to another question, as one withdrawn meanwhile, goes to
+    // nobody: the question asked waits on.
+    let stale = ToSession::Answer {
+        question: question + 1,
+        action: answer(b"wrong"),
+    };
+    stale.send(menu, &[]).unwrap();
+    let action = answer(b"pw");
+    ToSession::Answer { question, action }
+        .send(menu, &[])
+        .unwrap();
+    messages.extend(until_done(menu));
+    ToSession::Detach.send(menu, &[]).unwrap();
+    messages
+}
+
+#[test]
+fn a_passphrase_typed_over_ssh_opens_the_volume_but_not_the_lock() {
+    for remote in [true, false] {
+        let (messages, unlocked) = served_with_volumes(remote, open_with_passphrase);
+
+        assert!(
+            messages.iter().any(|message| matches!(
+                message,
+                ToMenu::Event(event) if matches!(**event, Event::Finished(Outcome::Done(_)))
+            )),
+            "{messages:?}"
+        );
+        // Over SSH it is recorded as remote: the locked menu's gate and the
+        // recovery shell stay shut; at the machine, it is attended.
+        let how = if remote { "remote" } else { "attended" };
+        assert!(unlocked.ends_with(&format!("\t{how}\n")), "{unlocked:?}");
+        let files = zbm_testkit::fakes::FakeFiles::new();
+        files.file("/zfsbootmenu/luks-unlocked", &unlocked);
+        let state = zbm_state::State::new(&files, "/zfsbootmenu");
+        assert_eq!(state.has_attended_unlock(), !remote);
+    }
+}
+
+#[test]
+fn the_session_opens_only_a_volume_its_snapshot_lists_and_one_at_a_time() {
+    let refused = |action: Action| {
+        let (messages, _) = served_with_volumes(true, |menu| {
+            ToSession::Send { action }.send(menu, &[]).unwrap();
+            let messages = until_done(menu);
+            ToSession::Detach.send(menu, &[]).unwrap();
+            messages
+        });
+        match messages.as_slice() {
+            [ToMenu::Event(event), ToMenu::Done] => match &**event {
+                Event::Finished(Outcome::Failed { why, .. }) => why.join(" "),
+                other => panic!("{other:?}"),
+            },
+            other => panic!("{other:?}"),
+        }
+    };
+    let open = |device: &str, name: Option<&str>| Action::Open {
+        device: device.to_owned(),
+        name: name.map(|name| name.parse().unwrap()),
+    };
+
+    assert_eq!(
+        refused(open("/dev/sdz9", None)),
+        "the machine has no such volume"
+    );
+    // Listed by its device, so opened under no other name.
+    assert_eq!(
+        refused(open("/dev/sdb2", Some("evil"))),
+        "the machine has no such volume"
+    );
+    assert_eq!(
+        refused(Action::UnlockAll),
+        "the menu opens one volume at a time"
+    );
+    assert_eq!(
+        refused(Action::SkipUnlock("/dev/sdb2".to_owned())),
+        "an answer goes with the question it answers"
+    );
+}
+
+#[test]
+fn an_answer_to_nothing_asked_goes_to_nobody() {
+    let fake = machine();
+    let (ended, read) = served(&fake, &no_console, &never, |menu| {
+        let answer = ToSession::Answer {
+            question: 1,
+            action: Action::Answer(zbm_types::Answer::Continue),
+        };
+        answer.send(menu, &[]).unwrap();
+        // Nothing comes of it: the next message answers the next request.
+        ToSession::Read.send(menu, &[]).unwrap();
+        let read = next(menu);
+        ToSession::Detach.send(menu, &[]).unwrap();
+        read
+    });
+    ended.unwrap();
+    assert!(matches!(read, ToMenu::Snapshot(_)), "{read:?}");
+}
+
+#[test]
+fn an_answer_reaches_only_the_question_asked_now() {
+    use zbm_platform::event::{NoAnswer, reply};
+
+    let mut asked = Asked::default();
+    let (first, _first_awaiting) = reply();
+    assert_eq!(asked.ask(first), 1);
+    // The first is withdrawn as the device came; the next is asked at once.
+    asked.withdraw();
+    let (second, awaiting) = reply();
+    assert_eq!(asked.ask(second), 2);
+
+    // The answer the menu sent to the first goes to nobody.
+    asked.answer(1, Action::Answer(zbm_types::Answer::Continue));
+    assert!(matches!(
+        awaiting.wait(Some(Duration::ZERO)),
+        Err(NoAnswer::NotYet)
+    ));
+    // Not an answer: nobody.
+    asked.answer(2, Action::UnlockAll);
+    assert!(matches!(
+        awaiting.wait(Some(Duration::ZERO)),
+        Err(NoAnswer::NotYet)
+    ));
+    asked.answer(2, Action::SkipUnlock("/dev/sdb2".to_owned()));
+    assert!(matches!(
+        awaiting.wait(Some(Duration::ZERO)),
+        Ok(Action::SkipUnlock(_))
+    ));
+}

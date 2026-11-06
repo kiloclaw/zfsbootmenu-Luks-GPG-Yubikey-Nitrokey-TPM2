@@ -22,7 +22,7 @@ pub use self::sort::Sort;
 use super::filter::Ranked;
 use super::keymap::{Context, Map, Tab};
 use super::theme::Theme;
-use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
+use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout, Volume};
 
 /// The views (`docs/dev/menu-design/information-architecture.md`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -432,16 +432,13 @@ impl Model {
         self.snapshot.pools.get(row).map(|pool| &pool.name)
     }
 
-    /// The name of the volume of the selected row of the pools view.
-    pub fn selected_volume(&self) -> Option<&str> {
+    /// The volume of the selected row of the pools view.
+    pub fn selected_volume(&self) -> Option<&Volume> {
         let row = self
             .pools
             .selected_item()?
             .checked_sub(self.snapshot.pools.len())?;
-        self.snapshot
-            .volumes
-            .get(row)
-            .map(|volume| volume.name.get().as_str())
+        self.snapshot.volumes.get(row)
     }
 
     /// The command line `environment` boots with: the edited one, else its

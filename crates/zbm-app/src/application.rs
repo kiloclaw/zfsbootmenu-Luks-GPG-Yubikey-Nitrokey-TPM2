@@ -10,6 +10,7 @@ use zbm_boot::Recovery;
 use zbm_config::args::ZbmArgs;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::Luks;
+use zbm_platform::event::CancelToken;
 use zbm_platform::{Context, System};
 use zbm_pool::ImportSettings;
 
@@ -17,9 +18,10 @@ use zbm_tools::programs::ZFS_CHROOT;
 use zbm_types::{DatasetName, FilesystemName};
 
 use crate::auth::{self, Authority};
-use crate::keyholder::{self, Keyholders, UnlockRequest};
+use crate::keyholder::Keyholders;
 use crate::model::{Action, Encryption, Event, Keyboard, Offer, Outcome, Snapshot};
-use crate::{AppError, SnapshotError, boot, changes, read, volumes};
+use crate::volumes::Volumes;
+use crate::{AppError, SnapshotError, boot, changes, read};
 
 /// Where the image keeps its keyboard layouts.
 pub const LAYOUTS: &str = "/usr/share/zfsbootmenu/layouts";
@@ -136,59 +138,6 @@ pub trait Application {
     fn apply(&self, action: &Action, through: Through<'_>) -> Vec<Event>;
 }
 
-/// The actions of the LUKS volumes alone, which need no more than a LUKS
-/// session: `zbm luks` and start-up's unlocking.
-#[derive(Clone, Copy)]
-pub struct Volumes<'a> {
-    luks: Luks<'a>,
-    keyholders: Option<&'a dyn Keyholders>,
-}
-
-impl<'a> Volumes<'a> {
-    /// The volumes of the LUKS session `luks`, opened in this process.
-    pub fn new(luks: Luks<'a>) -> Volumes<'a> {
-        Volumes {
-            luks,
-            keyholders: None,
-        }
-    }
-
-    /// The same volumes, opened by a keyholder of `keyholders` (ADR 0002,
-    /// zone Z1) and in this process only when none can start.
-    #[must_use]
-    pub fn through(self, keyholders: &'a dyn Keyholders) -> Volumes<'a> {
-        Volumes {
-            keyholders: Some(keyholders),
-            ..self
-        }
-    }
-
-    /// The LUKS session the volumes are of.
-    pub fn luks(&self) -> Luks<'a> {
-        self.luks
-    }
-
-    /// Applies `action`, which ends as failed unless it is one of the
-    /// volumes'.
-    pub fn apply(&self, action: &Action) -> Vec<Event> {
-        if let Some(keyholders) = self.keyholders
-            && keyholder::is_unlocking(action)
-        {
-            let request = UnlockRequest {
-                action: action.clone(),
-                retry: self.luks.settings.retry,
-            };
-            match keyholder::unlock(keyholders, self.luks.interaction, &request) {
-                Ok(events) => return events,
-                Err(error) => {
-                    tracing::error!(%error, "no keyholder started, so this process unlocks");
-                }
-            }
-        }
-        volumes::perform(self.luks, action).unwrap_or_else(|| unavailable(action))
-    }
-}
-
 /// The end of an action the runtime cannot perform yet.
 pub(crate) fn unavailable(action: &Action) -> Vec<Event> {
     vec![Event::Finished(Outcome::Failed {
@@ -213,6 +162,8 @@ pub struct App<'a> {
     authority: &'a Authority,
     /// What checks a PIN; without them, what the lock keeps is refused.
     keyholders: Option<&'a dyn Keyholders>,
+    /// What cancels the action performed, which ends its keyholder.
+    until: Option<&'a CancelToken>,
 }
 
 impl<'a> App<'a> {
@@ -224,6 +175,7 @@ impl<'a> App<'a> {
             luks: None,
             authority: auth::process(),
             keyholders: None,
+            until: None,
         }
     }
 
@@ -311,13 +263,50 @@ impl<'a> App<'a> {
         self.context.runner()
     }
 
-    /// Performs `action` with nothing but the application's own ports: the
-    /// actions of the LUKS volumes; the others end as failed.
-    pub(crate) fn alone(&self, action: &Action) -> Vec<Event> {
-        match self.luks {
-            Some(luks) => Volumes::new(luks).apply(action),
-            None => unavailable(action),
+    /// The runner of the LUKS session's context, with a session.
+    pub(crate) fn luks_runner(&self) -> Option<&dyn zbm_platform::Runner> {
+        self.luks.as_ref().map(|luks| luks.context.runner())
+    }
+
+    /// The application whose action `until` cancels: `runner` runs the
+    /// programs of its context, `luks_runner` those of its LUKS session,
+    /// and a keyholder that opens a volume ends at once.
+    pub(crate) fn cancelled_by<'b>(
+        &self,
+        until: &'b CancelToken,
+        runner: &'b dyn zbm_platform::Runner,
+        luks_runner: Option<&'b dyn zbm_platform::Runner>,
+    ) -> App<'b>
+    where
+        'a: 'b,
+    {
+        let luks = self.luks.map(|luks| match luks_runner {
+            Some(runner) => Luks {
+                context: luks.context.with_runner(runner),
+                ..luks
+            },
+            None => luks,
+        });
+        App {
+            luks,
+            until: Some(until),
+            ..self.with_runner(runner)
         }
+    }
+
+    /// Performs `action` with nothing but the application's own ports: the
+    /// actions of the LUKS volumes, which a keyholder performs when the
+    /// application has them; the others end as failed.
+    pub(crate) fn alone(&self, action: &Action) -> Vec<Event> {
+        let Some(luks) = self.luks else {
+            return unavailable(action);
+        };
+        let volumes = Volumes::new(luks);
+        match self.keyholders {
+            Some(keyholders) => volumes.through(keyholders).until(self.until),
+            None => volumes,
+        }
+        .apply(action)
     }
 
     /// Applies `action`, one that may take the console
@@ -491,10 +480,15 @@ impl<'a> App<'a> {
     /// `files`: the boot, a snapshot's too, the changes of package D
     /// ([`Action::is_change`]), the default kernel, restoring files and the
     /// import among them, the recovery shell, the chroot when the image
-    /// has `zfs-chroot`, and the power actions. The others have no use
+    /// has `zfs-chroot`, the power actions, and opening a volume with a
+    /// LUKS session in an image with `cryptsetup`. The others have no use
     /// case yet, and end as [`unavailable`].
-    fn offers(files: &dyn zbm_platform::Files) -> std::collections::BTreeSet<Offer> {
+    fn offers(&self, files: &dyn zbm_platform::Files) -> std::collections::BTreeSet<Offer> {
         let chroot = files.exists(Path::new(ZFS_CHROOT)).then_some(Offer::Chroot);
+        let open = self
+            .luks
+            .filter(|luks| luks.context.command_exists("cryptsetup"))
+            .map(|_| Offer::OpenVolume);
         [
             Offer::Boot,
             Offer::BootSnapshot,
@@ -513,7 +507,15 @@ impl<'a> App<'a> {
         ]
         .into_iter()
         .chain(chroot)
+        .chain(open)
         .collect()
+    }
+
+    /// The LUKS volumes of the session, when the application has one.
+    pub(crate) fn volumes(&self) -> Vec<crate::model::Volume> {
+        self.luks
+            .map(|luks| read::volumes(&zbm_luks::unlocker::Unlocker::new(luks)))
+            .unwrap_or_default()
     }
 
     /// The keyboard layouts secrets can be typed with, and whether keys
@@ -548,17 +550,14 @@ impl Application for App<'_> {
             startup: read::startup(&state),
             pools: read::pools(&zfs).map_err(SnapshotError::from)?,
             environments: read::environments(&zfs).map_err(SnapshotError::from)?,
-            volumes: self
-                .luks
-                .map(|luks| read::volumes(&zbm_luks::unlocker::Unlocker::new(luks)))
-                .unwrap_or_default(),
+            volumes: self.volumes(),
             timeout: read::timeout(&self.runtime.options),
             log: read::log(files, &self.runtime.base),
             keyboard: self.keyboard(),
             now,
             bootfs,
             menu_locked: self.is_menu_locked(files),
-            offers: App::offers(files),
+            offers: self.offers(files),
             ..Snapshot::default()
         })
     }

@@ -18,8 +18,9 @@ use crate::model::{Action, Event};
 use crate::wire::{message, text};
 
 /// What a client asks the keyholder, first and once: the action, one of
-/// those that open volumes, and whether volumes that appeared late are
-/// retried (`LUKS_RETRY`).
+/// those that open volumes, whether volumes that appeared late are retried
+/// (`LUKS_RETRY`), and whether the person who answers is in a menu over
+/// SSH.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnlockRequest {
     /// [`Action::UnlockAll`], [`Action::Open`] or
@@ -27,6 +28,10 @@ pub struct UnlockRequest {
     pub action: Action,
     /// Whether this run retries the volumes that appeared late.
     pub retry: bool,
+    /// Whether the person who answers is in a menu over SSH: what they
+    /// open is recorded as opened remotely, not by a person at the
+    /// machine ([`zbm_luks::unlocker::Presence::Remote`]).
+    pub remote: bool,
 }
 
 /// What the keyholder asks for a secret, as
@@ -207,7 +212,7 @@ impl UnlockRequest {
             }),
             _ => return None,
         };
-        Some(json!({"unlock": action, "retry": self.retry}))
+        Some(json!({"unlock": action, "retry": self.retry, "remote": self.remote}))
     }
 
     /// The request in `object`.
@@ -237,6 +242,7 @@ impl UnlockRequest {
         Some(UnlockRequest {
             action,
             retry: flag(object, "retry")?,
+            remote: flag(object, "remote")?,
         })
     }
 }

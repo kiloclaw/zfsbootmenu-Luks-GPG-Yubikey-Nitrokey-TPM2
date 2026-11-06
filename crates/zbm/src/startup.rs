@@ -22,8 +22,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use zbm_app::model::{Action, Event, Method, Question, Snapshot, Stage, StageState, UnlockOutcome};
+use zbm_app::model::{Action, Event, Question, Snapshot, Stage, StageState, UnlockOutcome};
 use zbm_app::prompt::retry_delay;
+use zbm_app::service::asker::Dialogs;
 use zbm_app::session::{self, Handover, SessionSocket};
 use zbm_app::{App, BootError, Recovery, Runtime, Volumes};
 use zbm_config::conf::Conf;
@@ -54,10 +55,6 @@ use zbm_types::{DatasetName, PoolName};
 
 use crate::menu::{InSession, SESSION_TAKEOVER};
 
-/// How long a question waits when nothing says, as the console prompts
-/// wait: 30 seconds.
-const DEFAULT_DELAY: i64 = 30;
-
 /// How often a dialog that waits for something else, a device or another
 /// program, looks at it, on the system's clock.
 const CHECK_POLL: Duration = Duration::from_millis(50);
@@ -81,11 +78,8 @@ pub struct MenuFront<'a> {
     state: State<'a>,
     /// The settings of LUKS unlocking.
     luks: Settings,
-    /// What unlocking said went wrong since the last request: why the next
-    /// one asks.
-    refused: Mutex<Vec<String>>,
-    /// The method the last request asked for.
-    last: Mutex<Option<Method>>,
+    /// What the unlock dialogs keep from one request to the next.
+    dialogs: Dialogs,
     /// The keyholders that unlock the volumes; `None`: this process does.
     keyholders: Option<ProcessKeyholders>,
 }
@@ -108,8 +102,7 @@ impl<'a> MenuFront<'a> {
             quiet,
             state,
             luks,
-            refused: Mutex::new(Vec::new()),
-            last: Mutex::new(None),
+            dialogs: Dialogs::default(),
             keyholders: None,
         }
     }
@@ -186,15 +179,7 @@ impl<'a> MenuFront<'a> {
     /// once, below 0: never), as the console's timed prompts do. Without the
     /// view, start-up stops waiting.
     fn timed(&self, question: Question, delay: i64) -> Answer {
-        if delay == 0 {
-            return Answer::Continue;
-        }
-        let seconds = u64::try_from(delay).ok();
-        match self.answer(Event::Asked { question, seconds }, None) {
-            Some(Action::Answer(answer)) => answer,
-            Some(_) => Answer::Continue,
-            None => Answer::Escape,
-        }
+        Dialogs::timed(self, question, delay)
     }
 
     /// Runs `run` with the console: the view gives it up first, and takes
@@ -334,7 +319,7 @@ impl Operator for MenuFront<'_> {
 
     fn unsupported_features(&self, advice: &str) {
         let advice = advice.to_owned();
-        let _ = self.timed(Question::Unsupported { advice }, DEFAULT_DELAY);
+        let _ = self.timed(Question::Unsupported { advice }, Dialogs::DEFAULT_DELAY);
     }
 
     fn emergency_shell(&self, message: &str) {

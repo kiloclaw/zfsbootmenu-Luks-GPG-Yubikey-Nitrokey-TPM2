@@ -13,7 +13,11 @@
 //!
 //! Actions that take the console stay with the front end, which gives the
 //! console to them ([`Through::Console`]); the service applies the others
-//! [`Through::Quietly`].
+//! [`Through::Quietly`]. What an action asks, as opening a volume asks for
+//! its secret, comes with a reply the front end answers directly
+//! ([`Report::Ask`], [`asker`]).
+
+pub mod asker;
 
 use std::collections::VecDeque;
 use std::io;
@@ -21,10 +25,11 @@ use std::os::fd::{AsFd, BorrowedFd};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread::Scope;
 
-use zbm_platform::event::{CancelToken, MailSender, Mailbox, spawn_scoped_traced};
-use zbm_platform::{CancellingRunner, System};
+use zbm_platform::event::{CancelToken, MailSender, Mailbox, Reply, spawn_scoped_traced};
+use zbm_platform::{CancellingRunner, Runner, System};
 
-use crate::model::{Action, Event, Outcome, Snapshot};
+use self::asker::Asker;
+use crate::model::{Action, Event, Outcome, Snapshot, UnlockOutcome, Volume};
 use crate::{App, Application as _, Through};
 
 /// What the service sends back.
@@ -33,6 +38,18 @@ pub enum Report {
     /// Something happened while performing the action; boxed, as a
     /// snapshot is large.
     Event(Box<Event>),
+    /// The action asks: the dialog `event` opens, whose answer, an
+    /// [`Action::is_answer`], goes to `reply`, not to the service, whose
+    /// worker waits for it.
+    Ask {
+        /// What is asked.
+        event: Box<Event>,
+        /// Where the answer goes.
+        reply: Reply<Action>,
+    },
+    /// The question asked last was answered otherwise, as by the device it
+    /// waited for, or ended with its action: its dialog closes.
+    Withdraw,
     /// The action ended; its last event said how.
     Done,
 }
@@ -43,18 +60,34 @@ struct Request {
     token: CancelToken,
 }
 
-/// The machine as a service: the application, and the front end's whole
-/// system, whose console the service leaves alone.
+/// The machine as a service: the application, the front end's whole
+/// system, whose console the service leaves alone, and what asks the front
+/// end what the application's LUKS session asks.
 #[derive(Clone, Copy)]
 pub struct MachineService<'a> {
     app: App<'a>,
     console: System<'a>,
+    asker: Option<&'a Asker<'a>>,
 }
 
 impl<'a> MachineService<'a> {
     /// The service of `app`, on `console`, the front end's whole system.
     pub fn new(app: App<'a>, console: System<'a>) -> MachineService<'a> {
-        MachineService { app, console }
+        MachineService {
+            app,
+            console,
+            asker: None,
+        }
+    }
+
+    /// The same service, whose worker asks the front end through `asker`,
+    /// the interaction of the application's LUKS session.
+    #[must_use]
+    pub fn with_asker(self, asker: &'a Asker<'a>) -> MachineService<'a> {
+        MachineService {
+            asker: Some(asker),
+            ..self
+        }
     }
 
     /// Performs `action`, its programs cancelled by `token`, then reads the
@@ -63,13 +96,19 @@ impl<'a> MachineService<'a> {
     /// ended. A cancelled action ends as [`Outcome::Cancelled`].
     pub fn perform(&self, action: &Action, token: &CancelToken) -> Vec<Event> {
         let runner = CancellingRunner::new(self.app.runner(), token.clone());
-        let app = self.app.with_runner(&runner);
+        let luks_runner = self
+            .app
+            .luks_runner()
+            .map(|inner| CancellingRunner::new(inner, token.clone()));
+        let luks_runner = luks_runner.as_ref().map(|runner| runner as &dyn Runner);
+        let app = self.app.cancelled_by(token, &runner, luks_runner);
         let mut events = if token.is_cancelled() {
             Vec::new()
         } else {
             app.apply(action, Through::Quietly(self.console))
         };
-        if token.is_cancelled() {
+        // A volume opened meanwhile stays open, and says so.
+        if token.is_cancelled() && !has_opened(&events) {
             if matches!(events.last(), Some(Event::Finished(_))) {
                 events.pop();
             }
@@ -89,6 +128,11 @@ impl<'a> MachineService<'a> {
         Some(snapshot)
     }
 
+    /// The machine's LUKS volumes as the menu shows them, read alone.
+    pub(crate) fn volumes(&self) -> Vec<Volume> {
+        self.app.volumes()
+    }
+
     /// Starts the service on a worker in `scope`, which ends when the handle
     /// is dropped and the action it performs ended.
     ///
@@ -102,7 +146,15 @@ impl<'a> MachineService<'a> {
         let reports = Mailbox::new()?;
         let (requests, inbox) = channel();
         let sender = reports.sender();
-        spawn_scoped_traced(scope, move || self.serve(&inbox, &sender));
+        if let Some(asker) = self.asker {
+            asker.attach(reports.sender());
+        }
+        spawn_scoped_traced(scope, move || {
+            self.serve(&inbox, &sender);
+            if let Some(asker) = self.asker {
+                asker.detach();
+            }
+        });
         Ok(ServiceHandle {
             requests,
             reports,
@@ -114,7 +166,14 @@ impl<'a> MachineService<'a> {
     fn serve(&self, inbox: &Receiver<Request>, reports: &MailSender<Report>) {
         let _span = tracing::info_span!("service").entered();
         while let Ok(request) = inbox.recv() {
-            for event in self.perform(&request.action, &request.token) {
+            if let Some(asker) = self.asker {
+                asker.performing(&request.action, &request.token);
+            }
+            let events = self.perform(&request.action, &request.token);
+            if let Some(asker) = self.asker {
+                asker.performed();
+            }
+            for event in events {
                 if reports.send(Report::Event(Box::new(event))).is_err() {
                     return;
                 }
@@ -124,6 +183,19 @@ impl<'a> MachineService<'a> {
             }
         }
     }
+}
+
+/// Whether `events` say a volume was opened.
+fn has_opened(events: &[Event]) -> bool {
+    events.iter().any(|event| {
+        matches!(
+            event,
+            Event::UnlockFinished {
+                outcome: UnlockOutcome::Opened,
+                ..
+            }
+        )
+    })
 }
 
 /// The front end's side of a [`MachineService`].

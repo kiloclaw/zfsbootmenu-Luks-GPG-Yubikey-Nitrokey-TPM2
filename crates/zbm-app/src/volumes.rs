@@ -13,9 +13,12 @@ use zbm_luks::LuksError;
 use zbm_luks::device::resolve_device;
 use zbm_luks::mappings::{Mapping, Origin};
 use zbm_luks::unlock::methods::{Refusal, Registry};
-use zbm_luks::unlocker::{Luks, Unlocker};
+use zbm_luks::unlocker::{Luks, Presence, Unlocker};
+use zbm_platform::event::CancelToken;
 use zbm_types::{DevicePath, MappingName};
 
+use crate::application::unavailable as not_here;
+use crate::keyholder::{self, Keyholders, UnlockRequest};
 use crate::model::{Action, Event, Outcome, UnlockOutcome};
 
 /// Why a LUKS action fails at once in an image without `cryptsetup`.
@@ -75,6 +78,70 @@ fn skipped(session: &Unlocker<'_>) -> BTreeSet<String> {
         .filter(|line| !line.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+/// The actions of the LUKS volumes alone, which need no more than a LUKS
+/// session: `zbm luks` and start-up's unlocking.
+#[derive(Clone, Copy)]
+pub struct Volumes<'a> {
+    luks: Luks<'a>,
+    keyholders: Option<&'a dyn Keyholders>,
+    /// What cancels the action a keyholder performs.
+    until: Option<&'a CancelToken>,
+}
+
+impl<'a> Volumes<'a> {
+    /// The volumes of the LUKS session `luks`, opened in this process.
+    pub fn new(luks: Luks<'a>) -> Volumes<'a> {
+        Volumes {
+            luks,
+            keyholders: None,
+            until: None,
+        }
+    }
+
+    /// The same volumes, opened by a keyholder of `keyholders` (ADR 0002,
+    /// zone Z1) and in this process only when none can start.
+    #[must_use]
+    pub fn through(self, keyholders: &'a dyn Keyholders) -> Volumes<'a> {
+        Volumes {
+            keyholders: Some(keyholders),
+            ..self
+        }
+    }
+
+    /// The same volumes, whose keyholder ends at once when `until`, if
+    /// given, is cancelled.
+    #[must_use]
+    pub(crate) fn until(self, until: Option<&'a CancelToken>) -> Volumes<'a> {
+        Volumes { until, ..self }
+    }
+
+    /// The LUKS session the volumes are of.
+    pub fn luks(&self) -> Luks<'a> {
+        self.luks
+    }
+
+    /// Applies `action`, which ends as failed unless it is one of the
+    /// volumes'.
+    pub fn apply(&self, action: &Action) -> Vec<Event> {
+        if let Some(keyholders) = self.keyholders
+            && keyholder::is_unlocking(action)
+        {
+            let request = UnlockRequest {
+                action: action.clone(),
+                retry: self.luks.settings.retry,
+                remote: self.luks.settings.presence == Presence::Remote,
+            };
+            match keyholder::unlock(keyholders, self.luks.interaction, &request, self.until) {
+                Ok(events) => return events,
+                Err(error) => {
+                    tracing::error!(%error, "no keyholder started, so this process unlocks");
+                }
+            }
+        }
+        perform(self.luks, action).unwrap_or_else(|| not_here(action))
+    }
 }
 
 /// Performs a volume action with `luks`; `None` for other actions.
@@ -253,4 +320,4 @@ fn close(luks: Luks<'_>, only: Option<&MappingName>) -> Vec<Event> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

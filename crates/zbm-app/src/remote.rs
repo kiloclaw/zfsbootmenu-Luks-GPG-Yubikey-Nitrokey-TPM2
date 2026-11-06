@@ -21,11 +21,23 @@
 //! .{"version":1,"message":"read"}
 //!                                    +{"version":1,"message":{"snapshot"…
 //!                                    .…}}
-//! .{"version":1,"message":{"send":{"action":…}},"secret":9}
+//! .{"version":1,"message":{"send":{"action":…}}}
+//!                                    .{"version":1,"message":{"ask":
+//!                                     {"question":1,"event":…}}}
+//! .{"version":1,"message":{"answer":{"question":1,"action":…}},
+//!  "secret":9}
 //! (9 bytes)
-//!                                    .{"version":1,"message":{"event":…}}
 //!                                    .{"version":1,"message":"done"}
 //! ```
+//!
+//! What an action asks, as opening a volume asks for its passphrase, comes
+//! as [`ToMenu::Ask`], an event that opens a dialog, numbered; the
+//! dialog's answer goes back as [`ToSession::Answer`] with that number, to
+//! the question's reply, which the action waits for, and not to the queue
+//! of actions. An answer to a question withdrawn meanwhile, whose number
+//! is not the one asked now, goes to nobody. A passphrase typed over SSH opens
+//! the volume, but is not recorded as typed at the machine: it opens
+//! nothing the locked menu keeps (ROADMAP.md SE9).
 
 use std::io;
 use std::os::fd::{BorrowedFd, OwnedFd};
@@ -75,6 +87,15 @@ pub enum ToSession {
         /// The action.
         action: Action,
     },
+    /// Answers question `question` of what the action sent asked: an
+    /// [`Action::is_answer`], which goes to the question's reply, and is
+    /// never done; its secret follows as a packet of its own.
+    Answer {
+        /// The number of the question it answers ([`ToMenu::Ask`]).
+        question: u64,
+        /// The answer.
+        action: Action,
+    },
     /// Cancels the actions sent and not done.
     Cancel,
     /// The menu ends.
@@ -91,6 +112,15 @@ pub enum ToMenu {
     Snapshot(Option<Box<Snapshot>>),
     /// Something happened while an action was performed.
     Event(Box<Event>),
+    /// The action asks: the dialog `event` opens, which
+    /// [`ToSession::Answer`] answers with the number `question`, until
+    /// [`Event::Withdrawn`] closes it, or the action is done.
+    Ask {
+        /// The number of the question, from 1 in the menu's session.
+        question: u64,
+        /// What is asked.
+        event: Box<Event>,
+    },
     /// The action ended; its last event said how.
     Done,
     /// The request was refused, for this reason.
@@ -250,7 +280,9 @@ impl ToSession {
     /// The action it carries, if it carries one.
     fn action_mut(&mut self) -> Option<&mut Action> {
         match self {
-            ToSession::Send { action } | ToSession::Console { action } => Some(action),
+            ToSession::Send { action }
+            | ToSession::Console { action }
+            | ToSession::Answer { action, .. } => Some(action),
             _ => None,
         }
     }

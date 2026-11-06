@@ -17,7 +17,7 @@ use crate::device::{
 use crate::error::LuksError;
 use crate::keys::OpenMapping;
 use crate::mappings::Origin;
-use crate::unlocker::{Key, Unlocker};
+use crate::unlocker::{Key, Presence, Unlocker};
 use crate::volume::{Entry, Volume};
 use zbm_crypt::{Closed, Mapping, Open};
 use zbm_platform::interaction::{Answer, PromptRequest, Subject};
@@ -102,13 +102,19 @@ impl Unlocker<'_> {
     }
 
     /// Records a mapping this run opened with `method`, and whether a
-    /// person opened it (ROADMAP.md, SE10).
+    /// person opened it (ROADMAP.md, SE10), at the machine or over SSH.
     fn opened(&self, volume: &Volume<Open>, method: Method) -> Opened {
         self.mappings()
             .record(volume.name(), volume.device(), volume.entry().origin);
-        let attended = self.is_attended(method, volume.device());
+        let how = if !self.is_attended(method, volume.device()) {
+            zbm_state::Unlocked::Unattended
+        } else if self.settings().presence == Presence::Remote {
+            zbm_state::Unlocked::Remotely
+        } else {
+            zbm_state::Unlocked::Attended
+        };
         let state = State::new(self.context().files(), &self.settings().base);
-        if let Err(error) = state.record_unlocked(volume.name().as_str(), attended) {
+        if let Err(error) = state.record_unlocked(volume.name().as_str(), how) {
             zbm_trace::error!("{error}"; %error);
         }
         Opened::Unlocked(method)

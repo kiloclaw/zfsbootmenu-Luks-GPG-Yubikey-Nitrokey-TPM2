@@ -11,7 +11,7 @@ use zbm_platform::event::spawn_scoped_traced;
 use zbm_sys::socket::Connection;
 
 use super::*;
-use crate::menu::world::Outcome;
+use crate::menu::world::{Method, Outcome};
 
 const WAIT: Option<Duration> = Some(Duration::from_secs(5));
 
@@ -160,6 +160,76 @@ fn an_action_that_takes_the_console_waits_until_the_session_performed_it() {
         panic!("{events:?}");
     };
     assert!(why[0].contains("service"), "{why:?}");
+}
+
+#[test]
+fn an_answer_goes_to_the_question_by_its_number_and_is_never_counted_as_sent() {
+    let open = Action::Open {
+        device: "/dev/sdb2".to_owned(),
+        name: None,
+    };
+    let sent = open.clone();
+    let asked = Event::UnlockRequested {
+        volume: "/dev/sdb2".to_owned(),
+        method: Method::Passphrase,
+        tries_left: Some(3),
+        notice: None,
+        wait: None,
+    };
+    let question = asked.clone();
+    let events = with_session(
+        move |session| {
+            attached(session, &[ToMenu::Snapshot(Some(Box::default()))]);
+            assert_eq!(next(session), ToSession::Send { action: sent });
+            let event = Box::new(question);
+            ToMenu::Ask { question: 7, event }.send(session).unwrap();
+            // The answer comes as one, to question 7, with its secret.
+            let ToSession::Answer {
+                question: 7,
+                action,
+            } = next(session)
+            else {
+                panic!("not an answer to question 7");
+            };
+            let Action::Unlock { secret, .. } = action else {
+                panic!("{action:?}");
+            };
+            assert_eq!(secret.unwrap().expose(), b"pw");
+            ToMenu::Event(Box::new(Event::Withdrawn))
+                .send(session)
+                .unwrap();
+            ToMenu::Event(Box::new(Event::Finished(Outcome::Cancelled)))
+                .send(session)
+                .unwrap();
+            ToMenu::Done.send(session).unwrap();
+            // The answer to nothing asked was not sent.
+            assert_eq!(next(session), ToSession::Detach);
+        },
+        |machine| {
+            let mut machine = machine.unwrap();
+            assert!(machine.apply(open).is_empty());
+            let mut events = Vec::new();
+            while !events.contains(&asked) {
+                std::thread::sleep(Duration::from_millis(1));
+                events.extend(machine.poll());
+            }
+            let answer = Action::Unlock {
+                volume: "/dev/sdb2".to_owned(),
+                method: Method::Passphrase,
+                secret: Some(std::sync::Arc::new(
+                    zbm_platform::secret::Secret::copy_from(b"pw"),
+                )),
+            };
+            assert!(machine.apply(answer.clone()).is_empty());
+            events.extend(until_idle(&mut machine));
+            assert!(machine.apply(answer).is_empty());
+            events
+        },
+    );
+    // One action sent, one done: the answer was not waited for.
+    assert_eq!(events.len(), 3, "{events:?}");
+    assert_eq!(events[1], Event::Withdrawn);
+    assert_eq!(events[2], Event::Finished(Outcome::Cancelled));
 }
 
 #[test]

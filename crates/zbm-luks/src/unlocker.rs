@@ -37,6 +37,37 @@ pub const GNUPG_DIR: &str = "/etc/zfsbootmenu/gnupg";
 /// The TPM of the machine.
 pub const TPM2_TCTI: &str = "device:/dev/tpmrm0";
 
+/// Where the person who answers the prompts of unlocking is.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Presence {
+    /// At the machine, on its console, or nobody.
+    AtTheMachine,
+    /// In a menu over SSH: what they open is recorded as opened remotely,
+    /// which opens nothing the locked menu keeps (ROADMAP.md SE9).
+    Remote,
+}
+
+impl Presence {
+    /// The variable that says that the person who answers is over SSH, as
+    /// the session sets it for the programs it runs on a remote menu's
+    /// terminal; a login over SSH says so by `SSH_CONNECTION`, which its
+    /// server sets.
+    pub const REMOTE_VARIABLE: &'static str = "ZBM_REMOTE";
+
+    /// Where `environment` says the person is: over SSH when it holds
+    /// [`Presence::REMOTE_VARIABLE`] or `SSH_CONNECTION`.
+    pub fn of(environment: &dyn Environment) -> Presence {
+        let remote = [Presence::REMOTE_VARIABLE, "SSH_CONNECTION"]
+            .into_iter()
+            .any(|name| environment.non_empty(name).is_some());
+        if remote {
+            Presence::Remote
+        } else {
+            Presence::AtTheMachine
+        }
+    }
+}
+
 /// The settings of the LUKS code, with the names of the legacy variables that
 /// set them.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,6 +92,8 @@ pub struct Settings {
     /// Whether this run is a retry of the import loop (`LUKS_RETRY`), which
     /// only looks at volumes that appeared since and never waits.
     pub retry: bool,
+    /// Where the person who answers is.
+    pub presence: Presence,
     /// The delay of the prompt for a missing device (`zbm_retry_delay`).
     pub retry_delay: RetryDelay,
     /// How to tell whether a volume is open.
@@ -86,6 +119,7 @@ impl Settings {
             token_plugins: true,
             default_tries: DEFAULT_TRIES,
             retry: false,
+            presence: Presence::AtTheMachine,
             retry_delay: RetryDelay::DEFAULT,
             open_check: OpenCheck::Sysfs,
             colors: true,
@@ -97,7 +131,8 @@ impl Settings {
     /// `: "${VAR:=default}"` lets them: `BASE`, `ZBM_CRYPTTAB`, `LUKS_STATE`,
     /// `LUKS_SKIPPED`, `LUKS_GNUPG_DIR`, `LUKS_TPM2_TCTI`,
     /// `LUKS_NO_TOKEN_PLUGINS`, `LUKS_DEFAULT_TRIES`, `LUKS_RETRY` and
-    /// `zbm_retry_delay`.
+    /// `zbm_retry_delay`; and where the person is ([`Presence::of`]), so
+    /// that a run over SSH records what it opens as opened remotely.
     pub fn from_environment(environment: &dyn Environment) -> Settings {
         let var = |name: &str| environment.non_empty(name);
         let base = var("BASE").unwrap_or_else(|| zbm_state::BASE.to_owned());
@@ -129,6 +164,7 @@ impl Settings {
         settings.retry = var("LUKS_RETRY").is_some();
         settings.retry_delay =
             RetryDelay::or_default(&environment.var("zbm_retry_delay").unwrap_or_default());
+        settings.presence = Presence::of(environment);
         settings
     }
 }

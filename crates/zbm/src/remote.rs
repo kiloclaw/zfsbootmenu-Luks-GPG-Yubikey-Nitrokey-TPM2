@@ -5,7 +5,9 @@
 //! terminal (the lock, the setup hooks, the prompts), serving the menu's
 //! requests (`zbm_app::remote`) instead of drawing. The actions that take
 //! the console run here, on the menu's terminal: their programs read and
-//! write it ([`TerminalRunner`]), in sessions of their own.
+//! write it ([`TerminalRunner`]), in sessions of their own, and are told
+//! that the person who answers them is over SSH ([`Remotely`]): a volume
+//! that start-up, run from there, opens is recorded as opened remotely.
 
 use std::fs::File;
 use std::io;
@@ -13,12 +15,15 @@ use std::io;
 use zbm_app::model::Action;
 use zbm_app::remote::{self, Served};
 use zbm_app::service::MachineService;
+use zbm_app::service::asker::Asker;
 use zbm_app::session::Handover;
 use zbm_app::{App, Application as _, BootSettings, Recovery, Runtime, Through};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
+use zbm_luks::unlocker::{Luks, Presence};
 use zbm_platform::event::CancelToken;
-use zbm_platform::{Context, Runner, System, Terminal, TerminalRunner};
+use zbm_platform::exec::{Command, Output};
+use zbm_platform::{Context, QuietRunner, Runner, System, Terminal, TerminalRunner};
 use zbm_startup::preinit;
 use zbm_startup::program::Startup;
 use zbm_startup::program::menu::Menu;
@@ -67,16 +72,19 @@ impl Remotes<'_, '_> {
             on_terminal = TerminalRunner::new(input, output);
             &on_terminal
         };
+        let remotely = Remotely(runner);
         let terminal = Terminal::new(File::from(attached.input), File::from(attached.output));
         let system = System {
-            runner,
+            runner: &remotely,
             console: &terminal,
             ..self.system
         };
         zbm_trace::info!("a remote menu attached");
+        let quiet = QuietRunner::new(self.system.runner);
         let mut menu = RemoteMenu {
             peer,
             system,
+            quiet: self.system.with_runner(&quiet),
             conf: self.conf,
             handover: self.handover,
             until: self.until,
@@ -93,11 +101,26 @@ impl Remotes<'_, '_> {
     }
 }
 
+/// Runs the programs of a remote menu's terminal with its runner, each
+/// told that the person who answers it is over SSH
+/// ([`Presence::REMOTE_VARIABLE`]).
+struct Remotely<'r>(&'r dyn Runner);
+
+impl Runner for Remotely<'_> {
+    fn run(&self, command: &Command) -> io::Result<Output> {
+        let told = command.clone().env(Presence::REMOTE_VARIABLE, "1");
+        self.0.run(&told)
+    }
+}
+
 /// The menu program's menu, served to the menu on `peer`.
 struct RemoteMenu<'s, 'a> {
     peer: &'s Connection,
     /// The system on the menu's terminal.
     system: System<'a>,
+    /// The session's own system, whose programs leave its console alone:
+    /// the LUKS session's, which reads the volumes for every snapshot.
+    quiet: System<'a>,
     conf: &'s Conf,
     handover: &'s Handover,
     until: &'s CancelToken,
@@ -112,15 +135,29 @@ impl Menu for RemoteMenu<'_, '_> {
         let runtime = Runtime::new(options, &base)
             .with_boot(settings.clone())
             .with_import(zbm_pool::ImportSettings::from_conf(self.conf));
-        // The keyholders check the PIN of a locked menu (ROADMAP.md SE9).
-        let keyholders = crate::unlock::ProcessKeyholders::new();
-        let app = App::new(Context::new(self.system), &runtime).with_keyholders(&keyholders);
+        // The keyholders open the volumes, asking through the remote menu's
+        // dialogs, and check the PIN of a locked menu (ROADMAP.md SE9).
+        // Their programs leave the session's console alone: it is the
+        // machine's, not the menu's. A passphrase typed over SSH opens a
+        // volume, but not the lock.
+        let keyholders = crate::unlock::ProcessKeyholders::new().quiet();
+        let asker = Asker::new(self.system.clock);
+        let mut luks_settings = crate::luks::settings(&self.quiet, self.conf);
+        luks_settings.presence = Presence::Remote;
+        let luks = Luks {
+            context: Context::new(self.quiet),
+            settings: &luks_settings,
+            interaction: &asker,
+        };
+        let app = App::new(Context::new(self.system), &runtime)
+            .with_keyholders(&keyholders)
+            .with_luks(luks);
         let system = self.system;
         let console = |action: &Action| app.apply(action, Through::Console(system, recovery));
         let (handover, until) = (self.handover, self.until);
         let stop = || handover.is_asked() || until.is_cancelled();
         let served = Served {
-            service: MachineService::new(app, system),
+            service: MachineService::new(app, system).with_asker(&asker),
             console: &console,
             stop: &stop,
         };

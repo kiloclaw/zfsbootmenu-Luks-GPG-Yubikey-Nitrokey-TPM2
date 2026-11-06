@@ -39,7 +39,9 @@ fn after_an_attended_unlock_or_none_the_defaults_stay() {
         ImportPolicy::Hostid
     );
     assert!(may_boot_by_itself(&system, &state, &usb));
-    state.record_unlocked("luks-a", true).unwrap();
+    state
+        .record_unlocked("luks-a", zbm_state::Unlocked::Attended)
+        .unwrap();
     assert_eq!(
         import_policy(&state, ImportPolicy::Hostid),
         ImportPolicy::Hostid
@@ -51,7 +53,9 @@ fn after_an_attended_unlock_or_none_the_defaults_stay() {
 fn after_an_unattended_unlock_only_its_pools_boot_by_themselves() {
     let fake = machine();
     let state = State::new(&fake.files, "/zfsbootmenu");
-    state.record_unlocked("luks-a", false).unwrap();
+    state
+        .record_unlocked("luks-a", zbm_state::Unlocked::Unattended)
+        .unwrap();
     let system = fake.system();
 
     assert_eq!(

@@ -72,7 +72,9 @@ fn the_pools_view_lists_pools_then_volumes() {
     model.pools.selected = 1;
     let pool = model.selected_pool().map(ToString::to_string);
     model.pools.selected = 2;
-    let volume = model.selected_volume().map(str::to_owned);
+    let volume = model
+        .selected_volume()
+        .map(|volume| volume.name.get().clone());
 
     assert_eq!(model.pool_rows().len(), 5);
     assert_eq!(pool.as_deref(), Some("tank"));

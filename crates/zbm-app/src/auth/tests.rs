@@ -96,7 +96,9 @@ fn the_recovery_shell_asks_for_the_pin_when_locked_and_locks_again_after() {
     // The proof went with the shell.
     assert!(locked.is_locked(false, at(3)));
     // A person opened a volume: the shell opens, now and later.
-    state.record_unlocked("home", true).unwrap();
+    state
+        .record_unlocked("home", zbm_state::Unlocked::Attended)
+        .unwrap();
     recovery_shell(&locked, &state, &fake.runner, at(4)).unwrap();
     assert!(!locked.is_locked(true, at(4 + 10 * IDLE.as_secs())));
 

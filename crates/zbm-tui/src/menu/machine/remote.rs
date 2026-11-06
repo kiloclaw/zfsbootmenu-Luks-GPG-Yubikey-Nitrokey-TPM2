@@ -3,7 +3,9 @@
 //! the session, over the session's socket (`zbm_app::remote`). The actions
 //! that take the console run in the session, on the terminal this menu
 //! handed it as it attached; the others run there meanwhile, their events
-//! read as they come.
+//! read as they come. The answer to what such an action asks goes to the
+//! session as an answer to that question, by its number, which the
+//! session sends to the question's reply.
 
 use std::io;
 use std::os::fd::{AsFd as _, BorrowedFd};
@@ -26,6 +28,9 @@ pub struct RemoteMachine<'s> {
     sent: bool,
     /// The actions sent that are not done.
     sent_actions: usize,
+    /// The number of the question the session's action asks now, which
+    /// the menu's answer answers.
+    asked: Option<u64>,
     /// Whether the menu should end: its terminal went, or another
     /// instance asked it to.
     stop: &'s dyn Fn() -> bool,
@@ -73,6 +78,7 @@ impl<'s> RemoteMachine<'s> {
             snapshot,
             sent: false,
             sent_actions: 0,
+            asked: None,
             stop,
         };
         machine.snapshot.timeout = Timeout::Wait;
@@ -94,10 +100,20 @@ impl<'s> RemoteMachine<'s> {
         match message {
             ToMenu::Event(event) => {
                 let mut event = *event;
+                if event == Event::Withdrawn {
+                    self.asked = None;
+                }
                 self.keep(&mut event);
                 (Some(event), false)
             }
-            ToMenu::Done => (None, true),
+            ToMenu::Ask { question, event } => {
+                self.asked = Some(question);
+                (Some(*event), false)
+            }
+            ToMenu::Done => {
+                self.asked = None;
+                (None, true)
+            }
             // Another menu took the session's over, the session ends, or it
             // serves this menu no more.
             ToMenu::Refused(_) => (Some(Event::Leaving(String::new())), false),
@@ -198,6 +214,20 @@ impl Machine for RemoteMachine<'_> {
     fn apply(&mut self, action: Action) -> Vec<Event> {
         if action == Action::Shell {
             return vec![Event::Leaving(String::new())];
+        }
+        // Never done: the action that asked is. It answers the question
+        // asked now, once; none, when nothing is asked.
+        if action.is_answer() {
+            let Some(question) = self.asked.take() else {
+                return Vec::new();
+            };
+            if (ToSession::Answer { question, action })
+                .send(&self.session, &[])
+                .is_err()
+            {
+                return vec![Event::Leaving(String::new())];
+            }
+            return Vec::new();
         }
         if action.needs_console_on(&self.snapshot) {
             return self.on_console(action);

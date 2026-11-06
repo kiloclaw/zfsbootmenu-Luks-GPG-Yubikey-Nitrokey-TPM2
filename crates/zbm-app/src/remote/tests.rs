@@ -133,6 +133,27 @@ fn a_secret_follows_as_a_packet_of_its_own() {
 }
 
 #[test]
+fn an_answer_carries_its_secret_as_a_packet_of_its_own() {
+    let (menu, session) = Connection::pair().unwrap();
+    let answer = ToSession::Answer {
+        question: 1,
+        action: unlock(Some(b"hunter2")),
+    };
+    answer.clone().send(&menu, &[]).unwrap();
+    answer.clone().send(&menu, &[]).unwrap();
+
+    let message = session.receive(WAIT).unwrap().unwrap();
+    let text = String::from_utf8(message).unwrap();
+    assert!(
+        text.contains("\"answer\"") && !text.contains("hunter2"),
+        "{text}"
+    );
+    assert_eq!(session.receive(WAIT).unwrap().unwrap(), b"hunter2");
+    let received = ToSession::receive(&session, WAIT).unwrap().unwrap();
+    assert_eq!(received.message, answer);
+}
+
+#[test]
 fn a_secret_of_another_length_is_refused() {
     let (menu, session) = Connection::pair().unwrap();
     menu.send(b".{\"version\":1,\"message\":{\"send\":{\"action\":\"Shell\"}},\"secret\":4}")

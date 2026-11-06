@@ -303,6 +303,32 @@ fn with_a_service_the_real_machine_performs_quiet_actions_on_its_worker() {
 }
 
 #[test]
+fn an_answer_never_goes_to_the_service_s_queue() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    let runtime = Runtime::default().with_base(std::path::Path::new("/zfsbootmenu"));
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let shells = Shells::default();
+    let stop = || false;
+    let service = zbm_app::service::MachineService::new(app, fake.system());
+
+    std::thread::scope(|scope| {
+        let mut machine = RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run)
+            .unwrap()
+            .with_service(service.start(scope).unwrap());
+        // Nothing asked: the answers go to nobody, and nothing runs.
+        for answer in [
+            Action::SkipUnlock("/dev/sdb2".to_owned()),
+            Action::Answer(zbm_types::Answer::Continue),
+        ] {
+            assert!(machine.apply(answer).is_empty());
+            assert!(!machine.is_busy());
+        }
+        assert!(machine.poll().is_empty());
+    });
+}
+
+#[test]
 fn the_menu_counts_down_after_a_start_up_view_that_saw_every_stage_end() {
     use crate::menu::model::Model;
     use crate::menu::update::{Message, update};

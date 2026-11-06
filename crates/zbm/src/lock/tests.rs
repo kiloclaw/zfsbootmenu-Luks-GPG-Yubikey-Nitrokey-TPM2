@@ -119,7 +119,9 @@ fn a_person_who_opened_a_volume_or_an_open_image_get_the_shell_at_once() {
         fake.files.dir("/zfsbootmenu");
         let state = State::new(&fake.files, "/zfsbootmenu");
         if attended {
-            state.record_unlocked("home", true).unwrap();
+            state
+                .record_unlocked("home", zbm_state::Unlocked::Attended)
+                .unwrap();
         }
 
         let status = ask_then_shell(&fake.system(), &state, (&Authority::new(lock), &keyholders));

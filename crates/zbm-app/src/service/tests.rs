@@ -198,3 +198,83 @@ fn the_worker_ends_when_the_front_end_is_gone_while_it_works() {
         drop(handle);
     });
 }
+
+/// The person at the console, who cancels the action as soon as unlocking
+/// says anything, as Escape does while a TPM2 unseals.
+struct Cancelling(CancelToken);
+
+impl zbm_platform::interaction::Interaction for Cancelling {
+    fn ask(&self, _: &zbm_platform::interaction::PromptRequest) -> zbm_types::Answer {
+        zbm_types::Answer::Escape
+    }
+
+    fn secret(
+        &self,
+        _: &zbm_platform::interaction::SecretRequest<'_>,
+    ) -> zbm_platform::interaction::Asked {
+        zbm_platform::interaction::Asked::Ended
+    }
+
+    fn wait(
+        &self,
+        _: &zbm_platform::interaction::WaitRequest<'_>,
+    ) -> zbm_platform::interaction::Wait {
+        zbm_platform::interaction::Wait::TimedOut
+    }
+
+    fn notify(&self, _: zbm_platform::interaction::Tell<'_>) {
+        self.0.cancel();
+    }
+}
+
+#[test]
+fn a_volume_opened_as_its_action_was_cancelled_says_it_is_open() {
+    use zbm_luks::unlocker::{Luks, Settings};
+    use zbm_sys::socket::Connection;
+
+    use crate::keyholder::{FromKeyholder, Notice};
+    use crate::model::UnlockOutcome;
+
+    let fake = machine();
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let settings = Settings::new("/zfsbootmenu");
+    let token = CancelToken::new().unwrap();
+    let person = Cancelling(token.clone());
+    let (client, keyholder) = Connection::pair().unwrap();
+    let keyholders = crate::keyholder::tests::Given::new(client);
+    let opened = vec![
+        Event::UnlockFinished {
+            volume: "root".to_owned(),
+            outcome: UnlockOutcome::Opened,
+        },
+        Event::Finished(Outcome::Done("/dev/sda2 is open as root".to_owned())),
+    ];
+    // The keyholder says it works, which cancels, and has already opened
+    // the volume.
+    let working = FromKeyholder::Notify(Notice {
+        told: zbm_platform::interaction::Told::Working,
+        text: "Unsealing".to_owned(),
+        highlight: None,
+    });
+    for said in [working, FromKeyholder::Finished(opened.clone())] {
+        keyholder.send(&said.encode()).unwrap();
+    }
+    let luks = Luks {
+        context: fake.context(),
+        settings: &settings,
+        interaction: &person,
+    };
+    let app = App::new(Context::new(fake.system()), &runtime)
+        .with_keyholders(&keyholders)
+        .with_luks(luks);
+    let service = MachineService::new(app, fake.system());
+    let open = Action::Open {
+        device: "/dev/sda2".to_owned(),
+        name: Some("root".parse().unwrap()),
+    };
+
+    let events = service.perform(&open, &token);
+
+    assert!(token.is_cancelled());
+    assert!(events.ends_with(&opened), "{events:?}");
+}

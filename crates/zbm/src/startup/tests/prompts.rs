@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use zbm_app::model::{Notice, Volume, VolumeState};
+use zbm_app::model::{Method, Notice, Volume, VolumeState};
 use zbm_platform::Clock;
 use zbm_platform::interaction::{
     Asked, Awaited, Resume, ResumeRequest, SecretKind, SecretRequest, SecretSubject, Tell, Told,

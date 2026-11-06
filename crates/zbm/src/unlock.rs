@@ -30,7 +30,7 @@ use zbm_app::Volumes;
 use zbm_app::auth::{self, Lock};
 use zbm_app::keyholder::{KEYHOLDER_FD, Keyholder, Keyholders, UnlockRequest, serve};
 use zbm_app::model::{Event, Outcome};
-use zbm_luks::unlocker::Luks;
+use zbm_luks::unlocker::{Luks, Presence};
 use zbm_platform::env::{Environment as _, ProcessEnvironment};
 use zbm_platform::interaction::Interaction;
 use zbm_platform::sandbox::{self, Sandboxed as _};
@@ -173,6 +173,11 @@ fn keep(connection: &Connection, options: &Options) -> io::Result<()> {
     let unlock = |interaction: &dyn Interaction, request: &UnlockRequest| {
         let mut settings = settings.clone();
         settings.retry = request.retry;
+        settings.presence = if request.remote {
+            Presence::Remote
+        } else {
+            Presence::AtTheMachine
+        };
         let luks = Luks {
             context: Context::new(runs),
             settings: &settings,
@@ -253,7 +258,7 @@ impl Keyholders for ProcessKeyholders {
         zbm_trace::info!("keyholder {keyholder} started"; keyholder = child.id());
         Ok(Box::new(Running {
             connection: ours,
-            _process: Collected(child),
+            process: Collected(child),
         }))
     }
 }
@@ -262,12 +267,20 @@ impl Keyholders for ProcessKeyholders {
 /// which ends a keyholder that did not finish, and then it is collected.
 struct Running {
     connection: Connection,
-    _process: Collected,
+    process: Collected,
 }
 
 impl Keyholder for Running {
     fn connection(&self) -> &Connection {
         &self.connection
+    }
+
+    /// Kills the keyholder; a program it runs, in a session of its own,
+    /// ends by its own time-out.
+    fn kill(&mut self) {
+        let keyholder = self.process.0.id();
+        zbm_trace::info!("keyholder {keyholder} is killed: its action was cancelled"; keyholder);
+        let _ = self.process.0.kill();
     }
 }
 

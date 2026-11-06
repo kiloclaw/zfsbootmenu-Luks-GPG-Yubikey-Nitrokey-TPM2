@@ -45,6 +45,7 @@ fn unlock_all() -> UnlockRequest {
     UnlockRequest {
         action: Action::UnlockAll,
         retry: false,
+        remote: false,
     }
 }
 
@@ -58,6 +59,7 @@ fn every_message_to_the_keyholder_reads_back_as_it_was_sent() {
                 name: Some("root".parse().unwrap()),
             },
             retry: true,
+            remote: true,
         }),
         ToKeyholder::Unlock(UnlockRequest {
             action: Action::Open {
@@ -65,6 +67,7 @@ fn every_message_to_the_keyholder_reads_back_as_it_was_sent() {
                 name: None,
             },
             retry: false,
+            remote: false,
         }),
         ToKeyholder::Unlock(UnlockRequest {
             action: Action::OpenWithKeyFile {
@@ -77,6 +80,7 @@ fn every_message_to_the_keyholder_reads_back_as_it_was_sent() {
                 },
             },
             retry: false,
+            remote: false,
         }),
         ToKeyholder::Answer(Answer::Continue),
         ToKeyholder::Answer(Answer::Escape),
@@ -141,6 +145,7 @@ fn messages_of_another_version_or_none_of_the_protocol_are_refused() {
     let shell = ToKeyholder::Unlock(UnlockRequest {
         action: Action::Shell,
         retry: false,
+        remote: false,
     });
     assert_eq!(shell.encode(), None);
     assert!(!is_unlocking(&Action::Shell) && !is_unlocking(&Action::Close(None)));
@@ -298,7 +303,7 @@ fn a_run_asks_the_client_and_ends_with_its_events() {
             .unwrap();
             got
         });
-        let events = unlock(&Given::new(client), &person, &unlock_all()).unwrap();
+        let events = unlock(&Given::new(client), &person, &unlock_all(), None).unwrap();
         (events, served.join().unwrap())
     });
 
@@ -341,7 +346,7 @@ fn a_keyholder_that_ends_too_soon_fails_the_run_and_none_that_starts_is_said() {
     let (client, keyholder) = Connection::pair().unwrap();
     drop(keyholder);
 
-    let events = unlock(&Given::new(client), &Person::default(), &unlock_all()).unwrap();
+    let events = unlock(&Given::new(client), &Person::default(), &unlock_all(), None).unwrap();
 
     let Some(Event::Finished(Outcome::Failed { what, why, .. })) = events.last() else {
         panic!("{events:?}");
@@ -351,7 +356,7 @@ fn a_keyholder_that_ends_too_soon_fails_the_run_and_none_that_starts_is_said() {
         why[0].starts_with("the keyholder did not finish: "),
         "{why:?}"
     );
-    assert!(unlock(&Given::none(), &Person::default(), &unlock_all()).is_err());
+    assert!(unlock(&Given::none(), &Person::default(), &unlock_all(), None).is_err());
 }
 
 #[test]
@@ -433,7 +438,7 @@ fn a_keyholder_out_of_turn_fails_the_run() {
         let (client, keyholder) = Connection::pair().unwrap();
         say(&keyholder, script);
 
-        let events = unlock(&Given::new(client), &Person::default(), &unlock_all()).unwrap();
+        let events = unlock(&Given::new(client), &Person::default(), &unlock_all(), None).unwrap();
 
         assert!(
             matches!(
@@ -482,3 +487,91 @@ fn a_client_out_of_turn_gets_no_secret_nor_answer() {
 }
 
 mod wire;
+
+/// Keyholders of one connection made beforehand, which say whether its
+/// keyholder was killed.
+struct Killable {
+    connection: Mutex<Option<Connection>>,
+    killed: std::sync::atomic::AtomicBool,
+}
+
+struct Kept<'k> {
+    connection: Connection,
+    killed: &'k std::sync::atomic::AtomicBool,
+}
+
+impl Keyholder for Kept<'_> {
+    fn connection(&self) -> &Connection {
+        &self.connection
+    }
+
+    fn kill(&mut self) {
+        self.killed.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+impl Keyholders for Killable {
+    fn start(&self) -> io::Result<Box<dyn Keyholder + '_>> {
+        let connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        let killed = &self.killed;
+        connection
+            .map(|connection| Box::new(Kept { connection, killed }) as Box<dyn Keyholder>)
+            .ok_or_else(|| io::ErrorKind::NotFound.into())
+    }
+}
+
+/// A run whose keyholder said `said` beforehand, and whose action was
+/// cancelled before it began: its events, and whether its keyholder was
+/// killed.
+fn cancelled_after(said: &[FromKeyholder]) -> (Vec<Event>, bool) {
+    let (client, keyholder) = Connection::pair().unwrap();
+    for message in said {
+        keyholder.send(&message.encode()).unwrap();
+    }
+    let keyholders = Killable {
+        connection: Mutex::new(Some(client)),
+        killed: std::sync::atomic::AtomicBool::new(false),
+    };
+    let token = CancelToken::new().unwrap();
+    token.cancel();
+    let events = unlock(&keyholders, &Person::default(), &unlock_all(), Some(&token)).unwrap();
+    (events, keyholders.killed.into_inner())
+}
+
+#[test]
+fn a_cancelled_run_ends_at_once_and_kills_its_keyholder() {
+    // Busy with what asks nothing, as a TPM2 unseals; or asking.
+    let working = FromKeyholder::Notify(Notice {
+        told: Told::Working,
+        text: "Unsealing".to_owned(),
+        highlight: None,
+    });
+    for said in [Vec::new(), vec![working]] {
+        let (events, killed) = cancelled_after(&said);
+
+        let Some(Event::Finished(Outcome::Failed { why, .. })) = events.last() else {
+            panic!("{events:?}");
+        };
+        assert!(why[0].ends_with(CANCELLED), "{why:?}");
+        assert!(killed, "{said:?}");
+    }
+}
+
+#[test]
+fn a_run_cancelled_once_its_keyholder_finished_keeps_how_it_ended() {
+    let opened = vec![
+        Event::UnlockFinished {
+            volume: "root".to_owned(),
+            outcome: UnlockOutcome::Opened,
+        },
+        Event::Finished(Outcome::Done("/dev/sda2 is open as root".to_owned())),
+    ];
+    let (events, killed) = cancelled_after(&[FromKeyholder::Finished(opened.clone())]);
+
+    assert_eq!(events, opened);
+    assert!(!killed);
+}

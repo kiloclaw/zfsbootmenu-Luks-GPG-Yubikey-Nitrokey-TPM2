@@ -398,6 +398,32 @@ takes over from a menu already running.
   mean what they meant.
 - **Why:** what is about to boot, and what else there is, can be seen without a key press.
 
+### Volumes open from the menu
+
+- **Before:** the menu opened no LUKS volume. A volume that start-up skipped was opened with `zluks` in the recovery
+  shell or over SSH.
+- **Now:** a locked volume opens from the pools view (`u` or `Enter` on its row), on the console and in the menu over
+  SSH, in an image with `cryptsetup`. A keyholder opens it (`zbm unlock serve`, SB10), as at start-up, and asks in the
+  menu's unlock dialog: the passphrase or PIN, a key device or security key to wait for with the seconds left, a
+  volume to retry. Escape skips the method, as at start-up. Cancelling the action, or another menu taking over, closes
+  the dialog and ends the keyholder at once, also while it waits for a TPM2 or a security key; a volume it opened by
+  then stays open, and the menu says so. The keyholder's programs leave the menu's terminal alone, so a crypttab key script and
+  `fido2-assert` asking for a FIDO2 PIN cannot ask there: from the menu they fail, and start-up or `zluks` opens such
+  a volume.
+- **Why:** the volume and its key methods are on the screen, and opening it is one key, not a shell.
+
+### A volume opened over SSH does not open the lock
+
+- **Before:** the legacy runtime had no lock. In the Rust runtime, a locked menu (ADR 0010) lets a person who opened
+  a volume with a passphrase, a PIN or a key device, at start-up or with `zluks`, do what it keeps without the PIN;
+  the menu over SSH opened no volume.
+- **Now:** a volume opened over SSH is recorded as opened remotely (`<name>\tremote` in
+  `/zfsbootmenu/luks-unlocked`): in the menu over SSH, by start-up run from it, or with `zluks` in an SSH login
+  (`SSH_CONNECTION`). It counts neither as attended, so the locked menu and the recovery shell still ask for the PIN,
+  nor as unattended, so the boot is not taken for one that unlocked itself. One opened in the menu on the console is
+  attended, as at start-up.
+- **Why:** a passphrase typed over SSH shows who knows it, not who is at the machine; the PIN keeps the shell.
+
 ### No countdown to a snapshot
 
 - **Before:** there was no boot counting, so nothing booted in place of a default that failed. The menu's design had

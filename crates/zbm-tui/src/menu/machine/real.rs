@@ -2,13 +2,16 @@
 //! [`zbm_app::App`], reads it and applies the actions. With a
 //! [`ServiceHandle`], the actions that leave the console alone run on the
 //! service's worker while the menu goes on; those that take it run here,
-//! once the service is idle.
+//! once the service is idle. What an action on the worker asks opens its
+//! dialog, whose answer goes straight to the question's reply: the worker
+//! waits for it, and would never take it from its queue.
 
 use std::os::fd::{AsFd as _, BorrowedFd};
 
 use zbm_app::service::{Report, ServiceHandle};
 use zbm_app::{AppError, Application, Recovery, Through};
 use zbm_platform::System;
+use zbm_platform::event::Reply;
 
 use super::Machine;
 use crate::menu::world::{Action, Event, Snapshot, Timeout};
@@ -28,6 +31,9 @@ pub struct RealMachine<'a, 'r> {
     sent: bool,
     /// The service that performs the actions that leave the console alone.
     service: Option<ServiceHandle>,
+    /// The reply to what the service's action asked last, until it is
+    /// answered or withdrawn.
+    asked: Option<Reply<Action>>,
 }
 
 /// Whether the menu counts down before booting the environment start-up
@@ -67,6 +73,7 @@ impl<'a, 'r> RealMachine<'a, 'r> {
             snapshot,
             sent: false,
             service: None,
+            asked: None,
         })
     }
 
@@ -87,14 +94,26 @@ impl<'a, 'r> RealMachine<'a, 'r> {
         };
         let mut events = Vec::new();
         for report in service.take() {
-            if let Report::Event(event) = report {
-                let mut event = *event;
-                if let Event::Changed(snapshot) = &mut event {
-                    snapshot.timeout = Timeout::Wait;
-                    self.snapshot = snapshot.clone();
+            let mut event = match report {
+                Report::Event(event) => *event,
+                Report::Ask { event, reply } => {
+                    self.asked = Some(reply);
+                    *event
                 }
-                events.push(event);
+                Report::Withdraw => {
+                    self.asked = None;
+                    Event::Withdrawn
+                }
+                Report::Done => {
+                    self.asked = None;
+                    continue;
+                }
+            };
+            if let Event::Changed(snapshot) = &mut event {
+                snapshot.timeout = Timeout::Wait;
+                self.snapshot = snapshot.clone();
             }
+            events.push(event);
         }
         if !events.is_empty() && (self.stop)() {
             events.push(Event::Leaving(String::new()));
@@ -145,6 +164,13 @@ impl Machine for RealMachine<'_, '_> {
     /// menu: the program that ran it opens the shell, and imports the pools
     /// the shell made importable before it runs the menu again.
     fn apply(&mut self, action: Action) -> Vec<Event> {
+        // An answer to nothing asked, or no more, goes to nobody.
+        if action.is_answer() {
+            if let Some(reply) = self.asked.take() {
+                reply.send(action);
+            }
+            return Vec::new();
+        }
         if action == Action::Shell {
             return vec![Event::Leaving(String::new())];
         }

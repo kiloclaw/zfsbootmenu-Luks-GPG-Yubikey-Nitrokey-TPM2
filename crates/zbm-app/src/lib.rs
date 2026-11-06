@@ -35,11 +35,11 @@ pub mod steps;
 mod volumes;
 pub mod wire;
 
-pub use application::{App, Application, LAYOUTS, Runtime, Through, Volumes};
+pub use application::{App, Application, LAYOUTS, Runtime, Through};
 pub use boot::kernel_version;
 pub use model::Encryption;
 pub use read::stage_name;
-pub use volumes::{NO_CRYPTSETUP, device_not_found};
+pub use volumes::{NO_CRYPTSETUP, Volumes, device_not_found};
 pub use zbm_boot::BootError;
 pub use zbm_boot::BootSettings;
 pub use zbm_boot::Recovery;

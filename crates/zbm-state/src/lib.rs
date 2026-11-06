@@ -68,6 +68,19 @@ fn first_line(text: &str) -> &str {
     line.trim_matches([' ', '\t'])
 }
 
+/// How a LUKS mapping of this boot was opened ([`State::luks_unlocked`]).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Unlocked {
+    /// By a person at the machine, with a passphrase, a PIN, a security
+    /// key or a key device: who did may do what the locked menu keeps.
+    Attended,
+    /// By a key method that needs nobody: the machine unlocked itself.
+    Unattended,
+    /// By a person in a menu over SSH, who chose to but is not at the
+    /// machine: it opens nothing the locked menu keeps.
+    Remotely,
+}
+
 /// The state directory.
 pub struct State<'a> {
     files: &'a dyn Files,
@@ -472,23 +485,28 @@ impl<'a> State<'a> {
     }
 
     /// How each LUKS mapping of this boot was opened, closed since or not
-    /// (`luks-unlocked`): a
-    /// line `name<TAB>unattended` for a volume a silent key method opened,
-    /// a TPM2 token without a PIN or Clevis, and `name<TAB>attended` for
-    /// one a person opened, with a passphrase, a PIN, a security key or a
-    /// key device ([`State::record_unlocked`]).
+    /// (`luks-unlocked`): a line `name<TAB>unattended` for a volume a
+    /// silent key method opened, a TPM2 token without a PIN or Clevis,
+    /// `name<TAB>attended` for one a person at the machine opened, with a
+    /// passphrase, a PIN, a security key or a key device, and
+    /// `name<TAB>remote` for one a person opened from a menu over SSH
+    /// ([`State::record_unlocked`], [`Unlocked`]).
     pub fn luks_unlocked(&self) -> PathBuf {
         self.path("luks-unlocked")
     }
 
-    /// Records that this boot opened the LUKS mapping `name`, by a person
-    /// when `attended`.
+    /// Records that this boot opened the LUKS mapping `name`, as `how`
+    /// says.
     ///
     /// # Errors
     ///
     /// When the file cannot be written.
-    pub fn record_unlocked(&self, name: &str, attended: bool) -> Result<()> {
-        let how = if attended { "attended" } else { "unattended" };
+    pub fn record_unlocked(&self, name: &str, how: Unlocked) -> Result<()> {
+        let how = match how {
+            Unlocked::Attended => "attended",
+            Unlocked::Unattended => "unattended",
+            Unlocked::Remotely => "remote",
+        };
         let path = self.luks_unlocked();
         self.files
             .append(&path, format!("{name}\t{how}\n").as_bytes())
@@ -512,9 +530,10 @@ impl<'a> State<'a> {
         (!names.is_empty()).then_some(names)
     }
 
-    /// Whether a person opened a LUKS mapping this boot, with a passphrase,
-    /// a PIN, a security key or a key device: who did may do what the
-    /// locked menu keeps (ROADMAP.md SE9).
+    /// Whether a person at the machine opened a LUKS mapping this boot,
+    /// with a passphrase, a PIN, a security key or a key device: who did
+    /// may do what the locked menu keeps (ROADMAP.md SE9). One opened from
+    /// a menu over SSH does not count.
     pub fn has_attended_unlock(&self) -> bool {
         let text = self.files.read(&self.luks_unlocked()).unwrap_or_default();
         String::from_utf8_lossy(&text).lines().any(|line| {

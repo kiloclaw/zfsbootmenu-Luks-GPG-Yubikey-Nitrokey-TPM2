@@ -352,14 +352,18 @@ fn a_boot_is_unattended_when_silent_key_methods_opened_every_volume() {
     let state = State::new(&files, "/zfsbootmenu");
     // Nothing opened: nobody was needed, nothing to hold to.
     assert_eq!(state.unattended_mappings(), None);
-    state.record_unlocked("luks-a", false).unwrap();
-    state.record_unlocked("luks-b", false).unwrap();
+    state
+        .record_unlocked("luks-a", Unlocked::Unattended)
+        .unwrap();
+    state
+        .record_unlocked("luks-b", Unlocked::Unattended)
+        .unwrap();
     assert_eq!(
         state.unattended_mappings(),
         Some(vec!["luks-a".to_owned(), "luks-b".to_owned()])
     );
     // A person opened one: the boot was attended.
-    state.record_unlocked("luks-c", true).unwrap();
+    state.record_unlocked("luks-c", Unlocked::Attended).unwrap();
     assert_eq!(state.unattended_mappings(), None);
     assert!(state.luks_unlocked().ends_with("luks-unlocked"));
 }
@@ -370,10 +374,25 @@ fn a_person_s_unlock_is_seen_among_the_silent_ones() {
     files.dir("/zfsbootmenu");
     let state = State::new(&files, "/zfsbootmenu");
     assert!(!state.has_attended_unlock());
-    state.record_unlocked("auto", false).unwrap();
+    state.record_unlocked("auto", Unlocked::Unattended).unwrap();
     assert!(!state.has_attended_unlock());
-    state.record_unlocked("home", true).unwrap();
+    state.record_unlocked("home", Unlocked::Attended).unwrap();
     assert!(state.has_attended_unlock());
+}
+
+#[test]
+fn a_volume_opened_over_ssh_is_neither_attended_nor_unattended() {
+    let files = FakeFiles::new();
+    files.dir("/zfsbootmenu");
+    let state = State::new(&files, "/zfsbootmenu");
+    state.record_unlocked("auto", Unlocked::Unattended).unwrap();
+    state.record_unlocked("home", Unlocked::Remotely).unwrap();
+
+    // A person chose, but not at the machine: the lock stays.
+    assert!(!state.has_attended_unlock());
+    assert_eq!(state.unattended_mappings(), None);
+    let recorded = files.read(&state.luks_unlocked()).unwrap();
+    assert_eq!(recorded, b"auto\tunattended\nhome\tremote\n");
 }
 
 #[test]

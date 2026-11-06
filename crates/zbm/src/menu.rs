@@ -13,16 +13,18 @@ use std::path::Path;
 use std::time::Duration;
 
 use zbm_app::service::MachineService;
+use zbm_app::service::asker::Asker;
 use zbm_app::session::{self, Handover};
 use zbm_app::{App, BootSettings, Recovery, Runtime};
 use zbm_config::args::{Args as _, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_config::spec::cmdline::MENU;
+use zbm_luks::unlocker::Luks;
 use zbm_platform::console::Console;
 use zbm_platform::sandbox::{self, Profile as _};
 use zbm_platform::{Clock, SystemClock};
-use zbm_platform::{Context, System};
+use zbm_platform::{Context, QuietRunner, System};
 use zbm_pool::ImportSettings;
 use zbm_startup::preinit;
 use zbm_startup::program::Startup;
@@ -108,9 +110,21 @@ impl Menu for Terminal<'_, '_> {
         let runtime = Runtime::new(self.options.clone(), self.base)
             .with_boot(settings.clone())
             .with_import(ImportSettings::from_conf(self.conf));
-        // The keyholders check the PIN of a locked menu (ROADMAP.md SE9).
-        let keyholders = crate::unlock::ProcessKeyholders::new();
-        let app = App::new(Context::new(self.system), &runtime).with_keyholders(&keyholders);
+        // The keyholders open the volumes, asking through the menu's
+        // dialogs, and check the PIN of a locked menu (ROADMAP.md SE9);
+        // their programs leave the terminal to the menu.
+        let keyholders = crate::unlock::ProcessKeyholders::new().quiet();
+        let asker = Asker::new(self.system.clock);
+        let luks_settings = crate::luks::settings(&self.system, self.conf);
+        let quiet = QuietRunner::new(self.system.runner);
+        let luks = Luks {
+            context: Context::new(self.system.with_runner(&quiet)),
+            settings: &luks_settings,
+            interaction: &asker,
+        };
+        let app = App::new(Context::new(self.system), &runtime)
+            .with_keyholders(&keyholders)
+            .with_luks(luks);
         let (signals, handover) = (self.signals, self.handover);
         let stop = || {
             signals.is_some_and(|signals| is_taken_over(signals.received()))
@@ -125,7 +139,7 @@ impl Menu for Terminal<'_, '_> {
         };
         // The service performs the actions that leave the console alone on
         // a worker, while the menu draws; it ends with the menu.
-        let service = MachineService::new(app, self.system);
+        let service = MachineService::new(app, self.system).with_asker(&asker);
         let show = &mut self.show;
         let ran = std::thread::scope(|scope| match service.start(scope) {
             Ok(handle) => show(machine.with_service(handle)),

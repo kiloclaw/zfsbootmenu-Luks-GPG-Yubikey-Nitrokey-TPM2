@@ -217,12 +217,8 @@ fn kinds_reached(offers: &[Offer]) -> BTreeSet<Offer> {
 
 #[test]
 fn every_key_menu_entry_and_palette_item_leads_only_to_what_is_offered() {
-    // Offering everything, the menu reaches every kind but opening a
-    // volume, which the unlock dialog answers.
-    let every: BTreeSet<Offer> = Offer::ALL
-        .into_iter()
-        .filter(|kind| *kind != Offer::OpenVolume)
-        .collect();
+    // Offering everything, the menu reaches every kind.
+    let every: BTreeSet<Offer> = Offer::ALL.into_iter().collect();
     assert_eq!(kinds_reached(&Offer::ALL), every);
 
     assert_eq!(kinds_reached(&[]), BTreeSet::new());
@@ -304,13 +300,45 @@ fn a_key_of_something_not_offered_opens_nothing_and_says_so() {
     assert_eq!(key_press(&mut model, key('b')), []);
     assert!(is_refused(&model), "{model:?}");
 
-    // Offered, the same keys open their dialogs.
+    // Offered, the same keys open their dialogs; a volume's when the
+    // machine asks for what opens it, and until it withdraws the question.
     let mut model = menu(&machine_all(), Map::Classic, Place::Pools(3));
-    let _ = key_press(&mut model, key('u'));
+    let volume = model.selected_volume().cloned().unwrap();
+    let sent = key_press(&mut model, key('u'));
+    assert!(
+        matches!(sent.as_slice(), [Action::Open { device, .. }] if device == volume.device.get()),
+        "{sent:?}"
+    );
+    assert_eq!(model.dialog, None);
+    let asked = Event::UnlockRequested {
+        volume: volume.name.get().clone(),
+        method: crate::menu::world::Method::Passphrase,
+        tries_left: Some(3),
+        notice: None,
+        wait: None,
+    };
+    events::apply(&mut model, asked);
     assert!(matches!(model.dialog, Some(Dialog::Unlock(_))), "{model:?}");
+    events::apply(&mut model, Event::Withdrawn);
+    assert_eq!(model.dialog, None);
     let mut model = menu(&app, Map::Classic, Place::Snapshots);
     let _ = key_press(&mut model, key('b'));
     assert!(matches!(model.dialog, Some(Dialog::Name(_))), "{model:?}");
+}
+
+#[test]
+fn a_volume_does_not_open_again_while_the_machine_works() {
+    let mut model = menu(&machine_all(), Map::Classic, Place::Pools(3));
+    // As between two questions of the action that opens it.
+    model.working = Some(0);
+    for press in [KeyPress::new(Key::Char('u')), KeyPress::new(Key::Enter)] {
+        assert_eq!(key_press(&mut model, press), [], "{press:?}");
+    }
+    model.working = None;
+    assert!(matches!(
+        key_press(&mut model, KeyPress::new(Key::Enter)).as_slice(),
+        [Action::Open { .. }]
+    ));
 }
 
 #[test]

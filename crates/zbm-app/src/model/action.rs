@@ -141,6 +141,16 @@ pub enum Action {
 }
 
 impl Action {
+    /// Whether the action answers what the machine asked
+    /// ([`Event::UnlockRequested`], [`Event::Asked`]): it goes to the
+    /// question's reply, as the action that asked waits for it.
+    pub fn is_answer(&self) -> bool {
+        matches!(
+            self,
+            Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_)
+        )
+    }
+
     /// Whether the action takes the console from the menu: booting, which
     /// may ask for a passphrase, a snapshot's too, the recovery shell and
     /// the chroot, rebooting and powering off, and every import, which may
@@ -394,6 +404,10 @@ pub enum Event {
         /// What it would do.
         plan: Plan,
     },
+    /// The question asked last was answered otherwise, as by the device it
+    /// waited for, or ended with the action that asked it: its dialog
+    /// closes.
+    Withdrawn,
     /// An action finished.
     Finished(Outcome),
     /// The menu ends: the machine boots, powers off or opens the shell.

@@ -36,6 +36,22 @@ fn settings_follow_the_legacy_variables() {
     assert_eq!(settings.retry_delay.seconds(), 7);
 }
 
+#[test]
+fn a_run_over_ssh_is_remote_and_one_at_the_machine_is_not() {
+    let fake = FakeSystem::new();
+    assert_eq!(
+        Settings::from_environment(&fake.environment).presence,
+        Presence::AtTheMachine
+    );
+    // A login over SSH, or a program of a remote menu's terminal.
+    for name in ["SSH_CONNECTION", Presence::REMOTE_VARIABLE] {
+        let fake = FakeSystem::new();
+        fake.environment.set(name, "10.0.0.2 51234 10.0.0.1 22");
+        let settings = Settings::from_environment(&fake.environment);
+        assert_eq!(settings.presence, Presence::Remote, "{name}");
+    }
+}
+
 fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Unlocker<'_>)) {
     let settings = Settings::new("/zfsbootmenu");
     let _log = log(fake);

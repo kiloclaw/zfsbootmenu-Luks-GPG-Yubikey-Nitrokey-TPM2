@@ -256,20 +256,35 @@ fn of_kind(kind: model::Offer) -> Action {
 
 #[test]
 fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
-    for has_chroot in [false, true] {
+    // The chroot with `zfs-chroot`; opening a volume with a LUKS session,
+    // in an image with `cryptsetup`.
+    for (has_chroot, has_luks) in [(false, false), (true, true)] {
         let fake = FakeSystem::new();
         fake.files.dir("/zfsbootmenu");
         if has_chroot {
             fake.files.file(ZFS_CHROOT, "#!/bin/bash\n");
         }
+        fake.environment.set("PATH", "/sbin");
+        fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
         fake.runner.respond_program("zpool", 0, "");
         fake.runner.respond_program("zfs", 0, "");
         let runtime = Runtime::default();
-        let app = App::new(Context::new(fake.system()), &runtime);
+        let settings = zbm_luks::unlocker::Settings::new("/zfsbootmenu");
+        let prompter = crate::read::tests::NoPrompts;
+        let luks = Luks {
+            context: fake.context(),
+            settings: &settings,
+            interaction: &prompter,
+        };
+        let mut app = App::new(Context::new(fake.system()), &runtime);
+        if has_luks {
+            app = app.with_luks(luks);
+        }
         let offers = app.snapshot().unwrap().offers;
 
         assert!(!offers.is_empty());
         assert_eq!(offers.contains(&model::Offer::Chroot), has_chroot);
+        assert_eq!(offers.contains(&model::Offer::OpenVolume), has_luks);
         for kind in model::Offer::ALL {
             let action = of_kind(kind);
             assert_eq!(action.offer(), Some(kind));

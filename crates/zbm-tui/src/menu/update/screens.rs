@@ -5,7 +5,7 @@ use zbm_types::{ImportPolicy, PoolName, Untrusted};
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent, Tab};
 use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
-use crate::menu::world::{Access, Action, Environment, Method, Outcome, Verdict};
+use crate::menu::world::{Access, Action, Environment, Outcome, Verdict, Volume};
 use crate::text::text;
 
 /// What `intent` does on the current screen.
@@ -213,13 +213,15 @@ fn kernels(model: &mut Model, intent: Intent) -> Vec<Action> {
     }
 }
 
-/// Pools and volumes.
+/// Pools and volumes. A volume opens through the machine, which asks for
+/// what opens it: the unlock dialog opens then. While the machine works,
+/// as between two of its questions, a volume does not open again.
 fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
-    if let Some(volume) = model.selected_volume().map(str::to_owned) {
-        if matches!(intent, Intent::Primary | Intent::Unlock) {
-            unlock(model, &volume);
+    if let Some(volume) = model.selected_volume() {
+        if !matches!(intent, Intent::Primary | Intent::Unlock) || model.working.is_some() {
+            return Vec::new();
         }
-        return Vec::new();
+        return vec![open(volume)];
     }
     let Some(pool) = model.selected_pool().cloned() else {
         return Vec::new();
@@ -246,17 +248,15 @@ fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
     Vec::new()
 }
 
-/// Opens the unlock dialog of `volume` with its first method.
-pub(super) fn unlock(model: &mut Model, volume: &str) {
-    let method = model
-        .snapshot
-        .volumes
-        .iter()
-        .find(|known| known.name.get() == volume)
-        .and_then(|known| known.methods.first().copied())
-        .unwrap_or(Method::Passphrase);
-    let prompt = crate::menu::model::Prompt::new(volume.to_owned(), method, None, None);
-    model.dialog = Some(crate::menu::model::Dialog::Unlock(prompt));
+/// Opening `volume`: its device, as the mapping it was opened as before,
+/// when its name is one, else its default name.
+fn open(volume: &Volume) -> Action {
+    let device = volume.device.get().clone();
+    let name = volume.name.get();
+    Action::Open {
+        name: (*name != device).then(|| name.parse().ok()).flatten(),
+        device,
+    }
 }
 
 /// Whether the snapshot says `pool` has a checkpoint to rewind to.

@@ -21,7 +21,7 @@
 //!
 //! ```text
 //! {"version":1,"message":"unlock","unlock":{"action":"unlock all"},
-//!  "retry":false}
+//!  "retry":false,"remote":false}
 //!     {"version":1,"message":"notify","told":"working","text":"…",
 //!      "highlight":null}
 //!     {"version":1,"message":"secret","name":"root","device":"/dev/sda2",
@@ -40,15 +40,23 @@
 //! that needs the console borrows it ([`FromKeyholder::Lease`]): the
 //! client's front end steps aside until the keyholder says the program
 //! [`FromKeyholder::Returned`].
+//!
+//! A run the client's action cancels ends at once: the client stops
+//! answering, keeps how the keyholder finished if it did already, and
+//! kills it otherwise ([`Keyholder::kill`]).
 
 mod messages;
 mod serve;
 mod values;
 
 use std::io;
+use std::os::fd::AsFd as _;
+use std::time::Duration;
 
 use zbm_platform::Secret;
+use zbm_platform::event::CancelToken;
 use zbm_platform::interaction::{Interaction, SecretRequest, Tell, VolumeRef, WaitRequest};
+use zbm_sys::console::{Watch, wait_ready};
 use zbm_sys::socket::Connection;
 
 pub use self::messages::{
@@ -69,6 +77,11 @@ pub const KEYHOLDER_FD: &str = "ZBM_KEYHOLDER_FD";
 pub trait Keyholder {
     /// The client's end of the connection.
     fn connection(&self) -> &Connection;
+
+    /// Ends the keyholder at once, as when the action it performs was
+    /// cancelled; what it runs is not waited for. One that is not a
+    /// process ends as it is dropped.
+    fn kill(&mut self) {}
 }
 
 /// Starts keyholders, one for each unlocking run.
@@ -90,8 +103,12 @@ pub fn is_unlocking(action: &Action) -> bool {
     )
 }
 
+/// Why a run ended that the client's action cancelled.
+const CANCELLED: &str = "the action was cancelled";
+
 /// Runs `request` in a keyholder of `keyholders`, answering what it asks
-/// with `interaction`; the run's events, the last of them how it ended.
+/// with `interaction`, until `until`, if given, is cancelled; the run's
+/// events, the last of them how it ended.
 ///
 /// # Errors
 ///
@@ -100,16 +117,24 @@ pub fn unlock(
     keyholders: &dyn Keyholders,
     interaction: &dyn Interaction,
     request: &UnlockRequest,
+    until: Option<&CancelToken>,
 ) -> io::Result<Vec<Event>> {
-    let keyholder = keyholders.start()?;
+    let mut keyholder = keyholders.start()?;
     let connection = keyholder.connection();
     let ended = request
         .encode()
         .ok_or_else(|| "the keyholder does not perform that action".to_owned())
         .and_then(|message| send(connection, &message))
-        .and_then(|()| answer(connection, interaction));
+        .and_then(|()| answer(connection, interaction, until));
+    if ended.is_err() && until.is_some_and(CancelToken::is_cancelled) {
+        keyholder.kill();
+    }
     Ok(ended.unwrap_or_else(|why| {
-        tracing::error!(%why, "the keyholder did not finish");
+        if why == CANCELLED {
+            tracing::info!("the keyholder was ended: the action was cancelled");
+        } else {
+            tracing::error!(%why, "the keyholder did not finish");
+        }
         vec![Event::Finished(Outcome::Failed {
             what: "unable to unlock".to_owned(),
             why: vec![format!("the keyholder did not finish: {why}")],
@@ -171,11 +196,38 @@ fn next(connection: &Connection) -> Result<FromKeyholder, String> {
     }
 }
 
-/// Answers the keyholder's requests with `interaction` until it finished;
-/// the events it finished with.
-fn answer(connection: &Connection, interaction: &dyn Interaction) -> Result<Vec<Event>, String> {
+/// The keyholder's next message, unless `until` is cancelled first: then
+/// only how it finished, if it said so already.
+fn next_until(
+    connection: &Connection,
+    until: Option<&CancelToken>,
+) -> Result<FromKeyholder, String> {
+    let Some(token) = until else {
+        return next(connection);
+    };
+    let watches = [Watch::read(connection.as_fd()), Watch::read(token.as_fd())];
+    wait_ready(&watches, None).map_err(|error| error.to_string())?;
+    if !token.is_cancelled() {
+        return next(connection);
+    }
+    match connection.receive(Some(Duration::ZERO)) {
+        Ok(Some(bytes)) => match FromKeyholder::decode(&bytes) {
+            Ok(finished @ FromKeyholder::Finished(_)) => Ok(finished),
+            _ => Err(CANCELLED.to_owned()),
+        },
+        _ => Err(CANCELLED.to_owned()),
+    }
+}
+
+/// Answers the keyholder's requests with `interaction` until it finished,
+/// or `until` is cancelled; the events it finished with.
+fn answer(
+    connection: &Connection,
+    interaction: &dyn Interaction,
+    until: Option<&CancelToken>,
+) -> Result<Vec<Event>, String> {
     loop {
-        match next(connection)? {
+        match next_until(connection, until)? {
             FromKeyholder::Ask(request) => {
                 tell(connection, &ToKeyholder::Answer(interaction.ask(&request)))?;
             }

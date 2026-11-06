@@ -1,96 +1,23 @@
-//! What unlocking asks, answered with the start-up view's dialogs: a
-//! secret in the unlock dialog, a device waited for in it with the time
-//! left, and the timed prompts as questions. What booting asks (a ZFS key,
-//! the resume question, a failed boot) has no dialog yet (ADR 0015): the
-//! view steps aside, and the plain console asks it.
+//! What unlocking asks, answered with the start-up view's dialogs
+//! (`zbm_app::service::asker`'s, which the menu shares): a secret in the
+//! unlock dialog, a device waited for in it with the time left, and the
+//! timed prompts as questions. What booting asks (a ZFS key, the resume
+//! question, a failed boot) has no dialog yet (ADR 0015): the view steps
+//! aside, and the plain console asks it.
 
-use std::time::Duration;
-
-use zbm_app::model::{Action, Event, Method, Notice, Question, Volume, VolumeState};
-use zbm_app::prompt::{ConsoleInteraction, retry_delay};
+use zbm_app::model::{Action, Event, Method, Volume, VolumeState};
+use zbm_app::prompt::ConsoleInteraction;
+use zbm_app::service::asker::{Asks, Dialogs};
 use zbm_platform::Clock;
 use zbm_platform::interaction::{
-    Asked, Awaited, Resume, ResumeRequest, SecretKind, SecretRequest, SecretSubject, Tell, Told,
-    VolumeRef, WaitRequest,
+    Asked, Interaction, PromptRequest, Resume, ResumeRequest, SecretRequest, SecretSubject, Tell,
+    VolumeRef, Wait, WaitRequest,
 };
-use zbm_platform::interaction::{Interaction, PromptRequest, Subject, Wait};
-use zbm_platform::secret::Secret;
 use zbm_types::{Answer, Untrusted};
 
-use super::{DEFAULT_DELAY, MenuFront};
-
-/// What the console says when a passphrase did not open the volume, which
-/// the next prompt says too.
-const WRONG_PASSPHRASE: &str = "No key available with this passphrase.";
-
-/// The method of the unlock dialog that asks for `kind`.
-fn secret_method(kind: &SecretKind) -> Method {
-    match kind {
-        // A volume asks for no ZFS key.
-        SecretKind::Passphrase | SecretKind::HexKey => Method::Passphrase,
-        SecretKind::Tpm2Pin => Method::Tpm2Pin,
-        SecretKind::Fido2Pin => Method::Fido2Pin,
-        SecretKind::YubiKeyPassphrase(_) => Method::YubiKeyPassphrase,
-        SecretKind::KeyFilePassphrase(_) | SecretKind::SecretKeyPassphrase(_) => {
-            Method::GnupgKeyFile
-        }
-        SecretKind::CardPin { .. } => Method::OpenPgpCardPin,
-    }
-}
-
-/// The method of the unlock dialog that waits for `awaited`.
-fn awaited_method(awaited: &Awaited) -> Method {
-    match awaited {
-        Awaited::SecurityKey => Method::Fido2,
-        Awaited::OpenPgpKey => Method::OpenPgpCard,
-        Awaited::YubiKey => Method::YubiKey,
-        Awaited::KeyDevice { .. } => Method::KeyDevice,
-    }
-}
-
-/// Says when a second passed on `clock`, the first time at once.
-struct EverySecond<'c> {
-    clock: &'c dyn Clock,
-    last: Option<Duration>,
-}
-
-impl<'c> EverySecond<'c> {
-    fn new(clock: &'c dyn Clock) -> EverySecond<'c> {
-        EverySecond { clock, last: None }
-    }
-
-    /// Whether a second passed since this last said so.
-    fn is_due(&mut self) -> bool {
-        let now = self.clock.now();
-        let due = self
-            .last
-            .is_none_or(|last| now.saturating_sub(last) >= Duration::from_secs(1));
-        if due {
-            self.last = Some(now);
-        }
-        due
-    }
-}
+use super::MenuFront;
 
 impl MenuFront<'_> {
-    /// Why the dialog asks for `method`, attempt `attempt`: what unlocking
-    /// said went wrong since the last request, a wrong secret when the same
-    /// method asks again, or another method that failed.
-    fn notice(&self, method: Method, attempt: u32) -> Option<Notice> {
-        let refused = std::mem::take(&mut *super::lock(&self.refused));
-        let again = super::lock(&self.last).replace(method) == Some(method) && attempt > 1;
-        if !refused.is_empty() {
-            let text = refused.join(" ");
-            return Some(if again {
-                Notice::Wrong(text)
-            } else {
-                Notice::Instead(text)
-            });
-        }
-        (method == Method::Passphrase && attempt > 1)
-            .then(|| Notice::Wrong(WRONG_PASSPHRASE.to_owned()))
-    }
-
     /// What `ask` gets from the plain console, while the view steps aside;
     /// `refused` if it did not run.
     fn plainly<T>(&self, refused: T, ask: impl FnOnce(&ConsoleInteraction<'_>) -> T) -> T {
@@ -126,104 +53,51 @@ impl MenuFront<'_> {
     }
 }
 
+impl Asks for MenuFront<'_> {
+    fn show(&self, event: Event) {
+        MenuFront::show(self, event);
+    }
+
+    fn answer(
+        &self,
+        event: Event,
+        check: Option<&mut dyn FnMut() -> Option<Action>>,
+    ) -> Option<Action> {
+        MenuFront::answer(self, event, check)
+    }
+
+    fn list(&self, volume: VolumeRef<'_>, method: Method) -> String {
+        self.list_volume(volume, method);
+        volume.name.to_owned()
+    }
+
+    fn clock(&self) -> &dyn Clock {
+        self.system.clock
+    }
+}
+
 impl Interaction for MenuFront<'_> {
     fn ask(&self, request: &PromptRequest) -> Answer {
-        let question = match &request.subject {
-            Subject::Retry { name, .. } => Question::RetryUnlock {
-                volume: name.clone(),
-            },
-            Subject::Missing(device) => Question::MissingVolume {
-                device: device.clone(),
-            },
-            Subject::LoadFailed { .. } | Subject::KexecFailed { .. } => {
-                return self.plainly(Answer::Escape, |console| console.ask(request));
-            }
-        };
-        let delay = request.delay.map_or(DEFAULT_DELAY, retry_delay);
-        self.timed(question, delay)
+        Dialogs::ask(self, request)
+            .unwrap_or_else(|| self.plainly(Answer::Escape, |console| console.ask(request)))
     }
 
     /// The unlock dialog: what was typed with Enter; empty with Esc, or when
     /// another method was chosen; nothing when another program opened the
     /// volume meanwhile, or the view is gone.
     fn secret(&self, request: &SecretRequest<'_>) -> Asked {
-        let volume = match request.subject {
-            SecretSubject::Volume(volume) => volume,
+        match request.subject {
+            SecretSubject::Volume(volume) => self.dialogs.secret(self, volume, request),
             SecretSubject::EncryptionRoot(_) => {
-                return self.plainly(Asked::Ended, |console| console.secret(request));
+                self.plainly(Asked::Ended, |console| console.secret(request))
             }
-        };
-        let method = secret_method(&request.kind);
-        let notice = self.notice(method, request.attempt);
-        self.list_volume(volume, method);
-        let event = Event::UnlockRequested {
-            volume: volume.name.to_owned(),
-            method,
-            tries_left: request.tries_left(),
-            notice,
-            wait: None,
-        };
-        let mut every = EverySecond::new(self.system.clock);
-        let mut elsewhere = |opened: &dyn Fn() -> bool| {
-            (every.is_due() && opened()).then_some(Action::Answer(Answer::Escape))
-        };
-        let answer = match request.opened_elsewhere {
-            Some(opened) => self.answer(event, Some(&mut || elsewhere(opened))),
-            None => self.answer(event, None),
-        };
-        match answer {
-            Some(Action::Unlock {
-                method: chosen,
-                secret,
-                ..
-            }) if chosen == method => Asked::Secret(
-                secret
-                    .map(zbm_platform::secret::unshare)
-                    .unwrap_or_default(),
-            ),
-            Some(Action::Answer(_)) => Asked::Elsewhere,
-            Some(_) => Asked::Secret(Secret::new()),
-            None => Asked::Ended,
         }
     }
 
     /// The unlock dialog, waiting for the device with the time left: Esc
     /// stops waiting, Enter looks again at once.
     fn wait(&self, request: &WaitRequest<'_>) -> Wait {
-        if (request.present)() {
-            return Wait::Present;
-        }
-        let method = awaited_method(&request.awaited);
-        let notice = self.notice(method, 1);
-        self.list_volume(request.volume, method);
-        let clock = self.system.clock;
-        let start = clock.now();
-        let mut every = EverySecond::new(clock);
-        let _ = every.is_due();
-        loop {
-            let spent = clock.now().saturating_sub(start).as_secs();
-            let left = request.seconds.saturating_sub(spent);
-            if left == 0 {
-                return Wait::TimedOut;
-            }
-            let event = Event::UnlockRequested {
-                volume: request.volume.name.to_owned(),
-                method,
-                tries_left: None,
-                notice: notice.clone(),
-                wait: Some(left),
-            };
-            let mut present = || {
-                (every.is_due() && (request.present)()).then_some(Action::Answer(Answer::Continue))
-            };
-            match self.answer(event, Some(&mut present)) {
-                Some(Action::Answer(_)) => return Wait::Present,
-                Some(Action::SkipUnlock(_)) => return Wait::Skipped,
-                Some(_) if (request.present)() => return Wait::Present,
-                Some(_) => {}
-                None => return Wait::TimedOut,
-            }
-        }
+        self.dialogs.wait(self, request)
     }
 
     /// The view steps aside while `run`'s program has the console, with the
@@ -241,11 +115,6 @@ impl Interaction for MenuFront<'_> {
     /// What goes wrong is said by the next dialog; what takes a while
     /// shows until the next event.
     fn notify(&self, tell: Tell<'_>) {
-        match tell.told {
-            Told::Refused => super::lock(&self.refused).push(tell.text.to_owned()),
-            Told::Working | Told::Touch | Told::Heading | Told::Booting => {
-                self.show(Event::Progress(tell.text.to_owned()));
-            }
-        }
+        self.dialogs.notify(self, tell);
     }
 }

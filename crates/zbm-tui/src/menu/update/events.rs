@@ -48,6 +48,12 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             model.notification = Some(outcome);
         }
         Event::Leaving(why) => model.leaving = Some(why),
+        // Answered otherwise, or the action that asked ended: unanswered.
+        Event::Withdrawn => {
+            if matches!(model.dialog, Some(Dialog::Unlock(_) | Dialog::Question(_))) {
+                model.dialog = None;
+            }
+        }
         // The dry run's pages come with the command line (ROADMAP.md, UI14).
         Event::Planned { .. } => {}
         Event::StageStarted(name) => stage(model, name, StageState::Running),

@@ -53,14 +53,6 @@ pub struct StartupView<B: Surface, I: Input> {
     frontend: Frontend<B, I>,
 }
 
-/// Whether `action` answers a dialog of start-up.
-fn is_answer(action: &Action) -> bool {
-    matches!(
-        action,
-        Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_)
-    )
-}
-
 impl<B: Surface, I: Input> StartupView<B, I>
 where
     B::Error: Send + Sync + 'static,
@@ -164,14 +156,14 @@ where
                 None => Vec::new(),
             };
             let passed = self.frontend.now().saturating_sub(last_tick);
-            if !answers.iter().any(is_answer) && passed >= TICK {
+            if !answers.iter().any(Action::is_answer) && passed >= TICK {
                 last_tick = self.frontend.now();
                 let ms = u64::try_from(passed.as_millis()).unwrap_or(u64::MAX);
                 answers.extend(self.step(Message::Tick(ms)));
             }
             // The dialog answered closes at once on the screen, before
             // what the answer starts.
-            if let Some(answer) = answers.into_iter().find(is_answer) {
+            if let Some(answer) = answers.into_iter().find(Action::is_answer) {
                 self.draw()?;
                 return Ok(answer);
             }

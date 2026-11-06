@@ -1,11 +1,15 @@
 //! The session's side: it takes the menu's terminal, then serves its
 //! requests, the actions that leave the console alone on a
-//! [`MachineService`], those that take it on the terminal.
+//! [`MachineService`], those that take it on the terminal. What an action
+//! asks goes to the menu, whose answer goes to the question's reply. The
+//! session opens only a volume of the machine as it reads it, as the menu
+//! names it, and none in the ways of `zluks` alone.
 
 use std::io;
 use std::os::fd::{AsFd as _, OwnedFd};
 use std::time::Duration;
 
+use zbm_platform::event::Reply;
 use zbm_sys::console::{Watch, wait_ready};
 use zbm_sys::socket::Connection;
 
@@ -82,6 +86,8 @@ pub struct Served<'s, 'a> {
 pub fn serve(connection: &Connection, served: &Served<'_, '_>) -> io::Result<()> {
     std::thread::scope(|scope| {
         let mut handle = served.service.start(scope)?;
+        // What the action performed asks now.
+        let mut asked = Asked::default();
         loop {
             if (served.stop)() {
                 handle.cancel();
@@ -90,7 +96,7 @@ pub fn serve(connection: &Connection, served: &Served<'_, '_>) -> io::Result<()>
             }
             let watches = [Watch::read(connection.as_fd()), Watch::read(handle.as_fd())];
             wait_ready(&watches, Some(STOP_POLL))?;
-            match forward(connection, &mut handle) {
+            match forward(connection, &mut handle, &mut asked) {
                 // The menu went while the service reported.
                 Err(error) if is_gone(&error) => return Ok(()),
                 forwarded => forwarded?,
@@ -102,6 +108,10 @@ pub fn serve(connection: &Connection, served: &Served<'_, '_>) -> io::Result<()>
                 Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
                 Err(error) => return Err(error),
             };
+            if let ToSession::Answer { question, action } = message {
+                asked.answer(question, action);
+                continue;
+            }
             if !answer(connection, served, &mut handle, message)? {
                 return Ok(());
             }
@@ -120,6 +130,11 @@ fn answer(
         ToSession::Attach => refuse(connection, "already attached")?,
         ToSession::Read => {
             ToMenu::Snapshot(served.service.read().map(Box::new)).send(connection)?;
+        }
+        ToSession::Send { action } | ToSession::Console { action }
+            if let Some(reason) = refusal(served, &action) =>
+        {
+            fail(connection, &reason)?;
         }
         ToSession::Send { action } => {
             if handle.send(action).is_err() {
@@ -141,6 +156,8 @@ fn answer(
             ToMenu::Done.send(connection)?;
         }
         ToSession::Cancel => handle.cancel(),
+        // Answered as it comes, before this.
+        ToSession::Answer { .. } => {}
         ToSession::Detach => {
             handle.cancel();
             return Ok(false);
@@ -158,12 +175,92 @@ fn is_gone(error: &io::Error) -> bool {
     )
 }
 
-/// Sends the menu what the service reported.
-fn forward(connection: &Connection, handle: &mut ServiceHandle) -> io::Result<()> {
+/// Why the session does not perform `action` for a remote menu, if it
+/// does not: an answer goes as one ([`ToSession::Answer`]); the menu opens
+/// volumes one at a time, with their key methods, and only those the
+/// machine has, named as the menu names them.
+fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
+    match action {
+        Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_) => {
+            Some("an answer goes with the question it answers".to_owned())
+        }
+        Action::UnlockAll | Action::OpenWithKeyFile { .. } | Action::Close(_) => {
+            Some("the menu opens one volume at a time".to_owned())
+        }
+        Action::Open { device, name } => {
+            // The volumes alone: the pools and kernels are not read, so that
+            // what the action performed reports meanwhile goes on at once.
+            let volumes = served.service.volumes();
+            let known = volumes.iter().any(|volume| {
+                volume.device.get() == device
+                    && name
+                        .as_ref()
+                        .is_none_or(|name| name.as_str() == volume.name.get())
+            });
+            (!known).then(|| "the machine has no such volume".to_owned())
+        }
+        _ => None,
+    }
+}
+
+/// What the action performed asks the menu now: the number of its
+/// question, and the reply its answer goes to.
+#[derive(Default)]
+struct Asked {
+    /// The number of the question asked last; the next is one more.
+    last: u64,
+    /// The reply of question `last`, while it is not answered or withdrawn.
+    reply: Option<Reply<Action>>,
+}
+
+impl Asked {
+    /// Asks the next question, whose answer goes to `reply`: its number.
+    fn ask(&mut self, reply: Reply<Action>) -> u64 {
+        self.last += 1;
+        self.reply = Some(reply);
+        self.last
+    }
+
+    /// The question asked now ends unanswered.
+    fn withdraw(&mut self) {
+        self.reply = None;
+    }
+
+    /// Sends `action` to the reply of question `question`, if it is an
+    /// answer and that question is the one asked now: an answer to a
+    /// question withdrawn meanwhile, or to nothing, goes to nobody.
+    fn answer(&mut self, question: u64, action: Action) {
+        if action.is_answer()
+            && question == self.last
+            && let Some(reply) = self.reply.take()
+        {
+            reply.send(action);
+        }
+    }
+}
+
+/// Sends the menu what the service reported, keeping in `asked` what its
+/// action asks.
+fn forward(
+    connection: &Connection,
+    handle: &mut ServiceHandle,
+    asked: &mut Asked,
+) -> io::Result<()> {
     for report in handle.take() {
         match report {
             Report::Event(event) => ToMenu::Event(event).send(connection)?,
-            Report::Done => ToMenu::Done.send(connection)?,
+            Report::Ask { event, reply } => {
+                let question = asked.ask(reply);
+                ToMenu::Ask { question, event }.send(connection)?;
+            }
+            Report::Withdraw => {
+                asked.withdraw();
+                ToMenu::Event(Box::new(Event::Withdrawn)).send(connection)?;
+            }
+            Report::Done => {
+                asked.withdraw();
+                ToMenu::Done.send(connection)?;
+            }
         }
     }
     Ok(())

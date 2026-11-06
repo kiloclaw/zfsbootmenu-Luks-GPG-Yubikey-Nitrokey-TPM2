@@ -36,9 +36,10 @@ fn a_keyholder_process_answers_a_run_and_ends() {
     let request = UnlockRequest {
         action: Action::UnlockAll,
         retry: false,
+        remote: false,
     };
 
-    let events = keyholder::unlock(&keyholders, &NoInteraction, &request).unwrap();
+    let events = keyholder::unlock(&keyholders, &NoInteraction, &request, None).unwrap();
 
     let Some(Event::Finished(Outcome::Failed { why, .. })) = events.last() else {
         panic!("{events:?}");

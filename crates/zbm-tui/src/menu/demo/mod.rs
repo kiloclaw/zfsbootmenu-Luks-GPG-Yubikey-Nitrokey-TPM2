@@ -146,20 +146,7 @@ impl FakeMachine {
                 .volumes
                 .iter()
                 .find(|volume| volume.state == VolumeState::Locked)?;
-            let first = volume.methods.first().copied();
-            let (method, notice) = match (first, kept_by_tpm(volume)) {
-                (Some(Method::Tpm2Pin), Some(notice)) => (Method::Passphrase, Some(notice)),
-                (first, _) => (first.unwrap_or(Method::Passphrase), None),
-            };
-            // Events and actions name a volume as plain text, which the
-            // views show through `Printable`.
-            return Some(Event::UnlockRequested {
-                volume: volume.name.get().clone(),
-                method,
-                tries_left: None,
-                notice,
-                wait: None,
-            });
+            return Some(asked(volume));
         }
         if stage == data::IMPORT_STAGE && !self.import_asked {
             let pool = self.snapshot.pools.iter().find(|pool| !pool.imported)?;
@@ -205,6 +192,7 @@ impl FakeMachine {
                 method,
                 secret,
             } => self.unlock(&volume, method, secret.as_deref().map(Secret::expose)),
+            Action::Open { device, .. } => self.open(&device),
             Action::SkipUnlock(volume) => {
                 self.set_volume(&volume, VolumeState::Skipped);
                 self.waiting = false;
@@ -246,6 +234,18 @@ impl FakeMachine {
             },
             Event::Finished(outcome),
         ]
+    }
+
+    /// Opens the volume of `device`, as the machine does: it asks for what
+    /// opens it.
+    fn open(&self, device: &str) -> Vec<Event> {
+        self.snapshot
+            .volumes
+            .iter()
+            .find(|volume| volume.device.get() == device)
+            .map(asked)
+            .into_iter()
+            .collect()
     }
 
     /// Seals the TPM2 key of `volume` to the PCRs as they are now.
@@ -405,6 +405,25 @@ impl FakeMachine {
         storage::add_backup_environment(&mut self.snapshot, name);
         let done = Outcome::Done(format!("{name} imported ({policy})"));
         vec![self.changed(), Event::Finished(done)]
+    }
+}
+
+/// What opening `volume` asks first: its first method's secret, or the
+/// passphrase when the TPM keeps the key.
+fn asked(volume: &Volume) -> Event {
+    let first = volume.methods.first().copied();
+    let (method, notice) = match (first, kept_by_tpm(volume)) {
+        (Some(Method::Tpm2Pin), Some(notice)) => (Method::Passphrase, Some(notice)),
+        (first, _) => (first.unwrap_or(Method::Passphrase), None),
+    };
+    // Events and actions name a volume as plain text, which the views show
+    // through `Printable`.
+    Event::UnlockRequested {
+        volume: volume.name.get().clone(),
+        method,
+        tries_left: None,
+        notice,
+        wait: None,
     }
 }
 

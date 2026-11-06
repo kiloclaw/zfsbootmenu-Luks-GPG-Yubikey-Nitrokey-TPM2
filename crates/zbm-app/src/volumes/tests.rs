@@ -14,7 +14,7 @@ use super::*;
 use crate::read::tests::NoPrompts;
 
 /// A machine with `cryptsetup`: /dev/sda2 is open, /dev/sdb2 is locked.
-fn machine() -> FakeSystem {
+pub(crate) fn machine() -> FakeSystem {
     let fake = FakeSystem::new();
     fake.environment.set("PATH", "/sbin");
     fake.files

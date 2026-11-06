@@ -45,8 +45,9 @@ stays right when the snapshot changes under it.
 | `Reseal` | volume | re-seal alert, palette |
 | `Chroot` | environment or snapshot | main, snapshots |
 | `Import` | pool, `ImportOptions`: read-only or read/write, the policy (this host, its last host, forced), whether to rewind to the checkpoint; an imported pool is exported first | main, pools, import problem |
-| `Unlock` | volume, method, the secret (a `Secret`, never a `String`) | unlock dialog, pools |
-| `SkipUnlock` | volume | unlock dialog |
+| `Open` | the volume's device, and the name it was opened as before, if it has one | pools: a keyholder opens it, and asks in the unlock dialog (ADR 0016, point 1) |
+| `Unlock` | volume, method, the secret (a `Secret`, never a `String`) | unlock dialog: an answer, which goes to the question asked, not to the machine's queue |
+| `SkipUnlock` | volume | unlock dialog: an answer, as `Unlock` |
 | `AnswerImportProblem` | pool, the choice | import problem dialog |
 | `LoadLog` | — | log |
 | `Shell`, `FirmwareSetup`, `Reboot`, `PowerOff` | — | recovery, power |
@@ -56,7 +57,8 @@ stays right when the snapshot changes under it.
 | Event | Carries | Shown as |
 | --- | --- | --- |
 | `StageStarted`, `StageFinished` | the stage, its outcome | the start-up view |
-| `UnlockRequested` | volume, method, how long to wait for a device, a notice: the last secret was wrong, or why this method instead of another | the unlock dialog (the `Prompter` port of `zbm-luks`) |
+| `UnlockRequested` | volume, method, how long to wait for a device, a notice: the last secret was wrong, or why this method instead of another | the unlock dialog (the `Prompter` port of `zbm-luks`); in the menu, it comes with the reply that takes the answer |
+| `Withdrawn` | — | the unlock dialog or question closes unanswered: the device came, or the action that asked ended |
 | `ResealOffered` | volume: it was opened without its TPM2 key, which the TPM kept | the re-seal alert |
 | `UnlockFinished` | volume, outcome (opened, wrong secret with tries left, locked out, skipped) | the dialog, then a notification |
 | `ImportProblem` | pool, the reason, the choices that apply | the import problem dialog (the `Operator` port of `zbm-pool`) |
@@ -86,3 +88,25 @@ stays right when the snapshot changes under it.
 Start-up runs inside the menu: `zbm_platform::Interaction` and `zbm-pool`'s `Operator` turn into `UnlockRequested` and
 `ImportProblem` events, and the menu answers with `Unlock`/`SkipUnlock` and `AnswerImportProblem`. Without a terminal
 that can run the menu, the plain console prompts of today answer the same ports.
+
+The menu asks the same way while a keyholder opens a volume (ADR 0016, point 1). The machine's service performs
+`Open` on its worker, and the menu's LUKS session asks through `zbm_app::service::asker::Asker`, which shares start-up's
+dialogs (`asker::Dialogs`, behind the `Asks` trait that start-up's front end implements too). A question reaches the
+menu as `Report::Ask`, an event with a one-shot reply: the menu sends its answer (`Action::is_answer`: `Unlock`,
+`SkipUnlock`, `Answer`) to that reply, never to the service's queue, which the action that asks holds. A question
+the device answered, or whose action was cancelled or whose menu went, ends with `Report::Withdraw`, which the menu
+sees as `Withdrawn`. A cancelled action asks nothing more, and an answer that comes once it is cancelled is none;
+its keyholder is killed unless it said how it ended, and a volume it opened meanwhile is said to be open. While the
+machine works, as between two questions, the menu does not send `Open` again. Over SSH, a question comes as
+`ToMenu::Ask`, numbered, and the menu sends its answer to the session as `ToSession::Answer` with that number, its
+secret as a packet of its own, and counts it as no action sent; the session sends it to the reply only when the number
+is that of the question asked now, so that an answer to a question withdrawn meanwhile goes to nobody. The session
+opens only a volume its volumes list, under the name it lists, and refuses `UnlockAll`, `OpenWithKeyFile`, `Close`
+and an answer sent as an action. Its keyholder's request says that the person is remote (`"remote":true`), so that
+the volume is recorded as opened remotely, which opens nothing the locked menu keeps. So is a volume that start-up,
+run from the menu over SSH, opens: the session tells the programs of a remote menu's terminal that the person is over
+SSH (`ZBM_REMOTE`), and a menu or `zluks` run in an SSH login knows it by `SSH_CONNECTION`.
+
+Not done: the keyholder lends a key program no console from the menu, so a crypttab key script or `fido2-assert`
+asking for its PIN fails there; resealing a TPM2 key (`Reseal`) and resetting the boot tries (`ResetBootTries`) are
+not offered.

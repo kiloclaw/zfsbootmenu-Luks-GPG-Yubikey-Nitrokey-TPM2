@@ -240,3 +240,20 @@ fn the_menu_over_ssh_is_served_until_the_session_s_own_menu_takes_it_back() {
     );
     assert_eq!(left, [Event::Leaving(String::new())]);
 }
+
+#[test]
+fn the_programs_of_a_remote_menu_s_terminal_are_told_it_is_over_ssh() {
+    let fake = FakeSystem::new();
+    let remotely = Remotely(&fake.runner);
+
+    let _ = remotely.run(&Command::new("zluks").arg("unlock"));
+
+    let calls = fake.runner.calls();
+    let env = calls[0].get_env();
+    assert!(
+        env.iter()
+            .any(|(name, value)| name == Presence::REMOTE_VARIABLE
+                && value.as_deref() == Some(std::ffi::OsStr::new("1"))),
+        "{env:?}"
+    );
+}
