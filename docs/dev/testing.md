@@ -156,7 +156,7 @@ RUSTFLAGS=-Zsanitizer=address cargo +nightly test -p zbm-sys -p zbm-platform --l
 - A Rust runtime program that panicked left a crash report: `zbm debug crash` in the recovery shell prints it, and
   `cargo xtask symbolize <report> --debug-dir <image build>/build/debug` names the functions and lines
   ([tooling.md](tooling.md), "Crash reports"). The VM test `runtime-rust-crash` checks that whole way.
-- A Rust image booted with `zbm.save_logs` kept each boot's journal, crash reports and kernel log on the EFI system
-  partition, below `EFI/zfsbootmenu/logs/`; `zbm debug saved` lists them, and `zbm report` writes a bug report
+- A Rust image booted with `zbm.save_logs` kept each boot's journal, crash reports, kernel log and record
+  (`boot.json`) on the EFI system partition, below `EFI/zfsbootmenu/logs/`; `zbm debug saved` lists them, and `zbm report` writes a bug report
   without key material ([tooling.md](tooling.md), "Saved logs and bug reports"). The VM test `runtime-rust-saved`
   checks both.

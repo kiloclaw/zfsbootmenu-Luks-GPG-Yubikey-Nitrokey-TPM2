@@ -69,7 +69,11 @@ partition just before it boots a kernel, and the supervisor does after a crash
 `.2` added when two saves fall in the same second; the newest five stay. The partition is mounted at
 `/run/zbm-saved-logs` only for the write. Without a value, it is the partition named by the boot loader's
 `LoaderDevicePartUUID` EFI variable (systemd's EFI stub sets it), or else the only partition of the EFI system
-partition type; a tag or a device path names another.
+partition type; a tag or a device path names another. A boot's directory also holds its record, `boot.json`
+(`zbm_types::BootRecord`, schema 1): the boot environment, kernel, initramfs, command line, device tree, what loaded
+the kernel and whether the files loaded were the measured copies. It is written last, as `boot.json.tmp` renamed
+once whole, and the logs written again before `kexec` go through a `.tmp` file too, so a directory with a record
+holds its boot's logs whole; the saves after a crash and those of `zbm debug save` have none.
 
 In the recovery shell:
 

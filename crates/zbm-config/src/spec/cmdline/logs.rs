@@ -2,8 +2,8 @@
 
 use super::super::{Doc, OptionSpec, Reader, Source, Value};
 
-/// `zbm.save_logs`: where the runtime saves its journal, crash reports and
-/// kernel log before it boots, or `off`.
+/// `zbm.save_logs`: where the runtime saves its journal, crash reports,
+/// kernel log and the record of the boot before it boots, or `off`.
 pub static SAVE_LOGS: OptionSpec = OptionSpec {
     name: "zbm.save_logs",
     aliases: &[],
@@ -29,9 +29,14 @@ In images built with the Rust runtime, save the logs of each boot on an EFI syst
 survive the boot and a restart: the runtime journal, the crash reports and the kernel log go to a
 directory named for the time (UTC), such as */EFI/zfsbootmenu/logs/2026-10-24T01-29-15Z*, once
 the selected kernel is loaded, before the teardown hooks (which may unbind a USB device the
-partition is on), and after a program of the runtime crashes. The newest five stay. In images with
-graphics drivers, the kernel log and the journal are written again last before *kexec*, with how
-the GPUs were handed back (see **zbm.gpu_untested**), when the partition is still there.
+partition is on), and after a program of the runtime crashes. The newest five stay. A boot's
+directory also holds *boot.json*, its record: the time, the boot environment, the kernel and
+initramfs, the command line and whether it was typed for this boot, the device tree, what loaded the
+kernel and whether the files loaded were those measured into the TPM. It is written last, so a
+directory with it holds the boot's logs whole; the saves after a crash and those of **zbm debug
+save** have none. In images with graphics drivers, the kernel log and the journal are written again
+last before *kexec*, with how the GPUs were handed back (see **zbm.gpu_untested**), when the
+partition is still there; each is written whole or not at all, so a failure keeps the saved copy.
 The partition is mounted only for the write, and must be FAT, with the *vfat* module in the image.
 With no value, or **esp**, it is the partition the boot loader loaded ZFSBootMenu from (systemd's
 EFI stub records it in ZFSBootMenu's EFI bundles), or else the machine's only EFI system partition;

@@ -29,6 +29,7 @@
 //! | [`PoolRequirement`] | How much `zbm.prefer`'s pool is required |
 //! | [`BootfsPreference`] | The boot environment `zbm.prefer` names, if any |
 //! | [`Untrusted`] | Text from outside, shown only as [`Printable`] |
+//! | [`BootRecord`] | What the saved logs of a boot say about it: `boot.json` |
 //!
 //! [`version`] holds the version order itself (`sort -V`), and [`number`]
 //! integers as the shell's `test` reads them.
@@ -58,6 +59,7 @@ mod mapping;
 pub mod number;
 mod policy;
 mod preference;
+mod record;
 mod selector;
 mod settings;
 mod snapshot;
@@ -76,6 +78,7 @@ pub use hostid::{HostId, scrape_hostid};
 pub use mapping::MappingName;
 pub use policy::ImportPolicy;
 pub use preference::{BootfsPreference, PoolRequirement};
+pub use record::{BootRecord, RecordError};
 pub use selector::KernelSelector;
 pub use settings::{LogLevel, RetryDelay, Timeout};
 pub use snapshot::SnapshotName;

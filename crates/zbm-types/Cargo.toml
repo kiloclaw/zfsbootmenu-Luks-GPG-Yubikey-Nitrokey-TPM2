@@ -11,12 +11,13 @@ publish.workspace = true
 [dependencies]
 regex.workspace = true
 serde.workspace = true
+# boot.json, the record of a boot beside its saved logs (ADR 0016, point 7)
+serde_json.workspace = true
 thiserror.workspace = true
 uucore.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
-serde_json.workspace = true
 proptest.workspace = true
 zbm-testkit.workspace = true
 

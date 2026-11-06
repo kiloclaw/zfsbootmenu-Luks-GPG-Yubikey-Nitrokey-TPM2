@@ -1,0 +1,1 @@
+{"schema":1,"time":1767225600,"environment":"zroot/ROOT/\u001b]0;owned\u0007void","kernel":"/boot/vmlinuz","initramfs":"/boot/initramfs.img","command_line":"quiet\n\u009b31m","devicetree":"/boot/dtbs/\u202eboard.dtb","loaded_by":"kexec","measured":false,"command_line_edited":true,"origin":"countdown"}

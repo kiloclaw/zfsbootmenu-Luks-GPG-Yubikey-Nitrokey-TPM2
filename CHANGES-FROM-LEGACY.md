@@ -528,6 +528,22 @@ takes over from a menu already running.
 - **Why:** the menu says the edit is for this boot only, and a line saved after a failed boot should not decide the
   next one.
 
+### Saved logs record what was booted
+
+- **Before:** nothing of a boot survived `kexec`: the kernel log that `logs` and `zlogtail` showed was gone with the
+  memory of the runtime.
+- **Now:** with `zbm.save_logs`, each boot's directory on the ESP (`EFI/zfsbootmenu/logs/<time>`) holds, beside its
+  journal and kernel log, `boot.json`: one line of JSON with `"schema": 1`, the time of the save, the boot
+  environment, the kernel and initramfs, the command line as it was loaded and whether it was typed for this boot,
+  the device tree, what loaded the kernel (`kexec_file_load` or `kexec`) and whether the files loaded were the copies
+  measured into the TPM (the event log beside says what the TPM took). It is written last, to `boot.json.tmp` and
+  then renamed, so a directory with a record holds its boot's logs whole, and the logs written again before `kexec`
+  go through a `.tmp` file too, so that a write that fails leaves the saved ones as they were;
+  a record that cannot be written fails the save as a full partition does, with a warning, and the boot goes on. The
+  saves after a crash and those of `zbm debug save` have no record.
+- **Why:** the boot history (ADR 0016, point 7) needs to know what each saved boot booted, and the logs alone do
+  not say; fields may be added, never changed, and a reader takes the record as text from a disk anyone can write.
+
 ### When the menu cannot start
 
 - **Before:** the countdown of the start-up program booted the default environment before the menu ran, so a menu

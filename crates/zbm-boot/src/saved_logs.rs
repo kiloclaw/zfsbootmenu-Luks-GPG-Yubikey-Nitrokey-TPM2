@@ -9,6 +9,13 @@
 //! loader loaded ZFSBootMenu from (`LoaderDevicePartUUID`, which systemd's
 //! EFI stub sets in ZFSBootMenu's EFI bundles), or else the machine's only
 //! ESP.
+//!
+//! A boot's directory also holds its record, `boot.json` (ADR 0016, point
+//! 7): what was booted and how, written last, so that a directory with a
+//! record holds the boot's logs whole. The record, and the logs written
+//! again before `kexec`, go to a file of their name with `.tmp` after it,
+//! renamed once whole: a write that fails, as on a full partition, leaves
+//! what was there whole.
 
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -17,6 +24,7 @@ use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Context, Files};
 use zbm_tools::devices::Devices;
 use zbm_tools::mount::Mount;
+use zbm_types::BootRecord;
 
 /// The GPT partition type of an EFI system partition.
 pub(crate) const ESP_TYPE: &str = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b";
@@ -39,6 +47,13 @@ const JOURNAL: &str = "journal.jsonl";
 
 /// The kernel log, in a saved directory.
 const KERNEL_LOG: &str = "kernel.log";
+
+/// The record of the boot, in a saved directory.
+pub(crate) const RECORD: &str = "boot.json";
+
+/// The extension added to a file's name while it is written, before it is
+/// renamed to its name once whole; a listing leaves such files out.
+const PARTIAL: &str = "tmp";
 
 /// Where the logs go.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -220,7 +235,8 @@ fn loader_partuuid(context: &Context<'_>) -> Option<String> {
 }
 
 /// Runs `work` with `device` mounted at [`MOUNT_POINT`], and unmounts it
-/// after.
+/// after. The unmount is the only flush of what `work` may have written,
+/// so a failed one is warned about.
 fn with_mounted<T>(
     context: &Context<'_>,
     device: &str,
@@ -233,7 +249,12 @@ fn with_mounted<T>(
         return Err(SaveError::Mount(device.to_owned()));
     };
     let result = work(mounted.path());
-    let _ = mounted.quietly().unmount();
+    if !mounted.quietly().unmount() {
+        zbm_trace::warn!(
+            "unable to unmount {device}: anything written on it may not be whole";
+            %device
+        );
+    }
     let _ = context.files().remove_dir(point);
     result
 }
@@ -318,8 +339,9 @@ fn state_files(files: &dyn Files, base: &Path) -> Vec<String> {
 }
 
 /// Saves the journal and the crash reports of the state directory `base`
-/// and the kernel log to `destination`, in a new directory, and removes the
-/// oldest saved boots but the newest five.
+/// and the kernel log to `destination`, in a new directory, with `record`,
+/// if given, as `boot.json`, and removes the oldest saved boots but the
+/// newest five. The record's time is the save's, which names the directory.
 ///
 /// # Errors
 ///
@@ -328,6 +350,7 @@ pub fn save(
     context: &Context<'_>,
     base: &Path,
     destination: &Destination,
+    record: Option<&BootRecord>,
 ) -> Result<Saved, SaveError> {
     let device = device(context, destination)?;
     let seconds = context
@@ -335,6 +358,10 @@ pub fn save(
         .wall()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |time| time.as_secs());
+    let record = record.map(|record| BootRecord {
+        time: seconds,
+        ..record.clone()
+    });
     with_mounted(context, &device, |root| {
         let logs = root.join(DIRECTORY);
         let mut name = stamp(seconds);
@@ -349,7 +376,7 @@ pub fn save(
             .files()
             .create_dir_all(&dir)
             .map_err(|source| SaveError::write(&dir, source))?;
-        let written = write_boot(context, base, &dir);
+        let written = write_boot(context, base, &dir, record.as_ref());
         // A boot not saved whole is removed, and the old ones are pruned
         // all the same: a full partition is the likely cause.
         if written.is_err() {
@@ -369,9 +396,14 @@ pub fn save(
     })
 }
 
-/// Writes the journal and the crash reports of `base` and the kernel log
-/// into `dir`; returns the names written.
-fn write_boot(context: &Context<'_>, base: &Path, dir: &Path) -> Result<Vec<String>, SaveError> {
+/// Writes the journal and the crash reports of `base`, the kernel log and
+/// then `record`, if given, into `dir`; returns the names written.
+fn write_boot(
+    context: &Context<'_>,
+    base: &Path,
+    dir: &Path,
+    record: Option<&BootRecord>,
+) -> Result<Vec<String>, SaveError> {
     let mut written = Vec::new();
     for file in state_files(context.files(), base) {
         if let Ok(contents) = context.files().read(&base.join(&file)) {
@@ -385,7 +417,42 @@ fn write_boot(context: &Context<'_>, base: &Path, dir: &Path) -> Result<Vec<Stri
         kernel_log(context.files(), context.runner()).as_bytes(),
     )?;
     written.push(KERNEL_LOG.to_owned());
+    if let Some(record) = record {
+        write_record(context.files(), dir, record)?;
+        written.push(RECORD.to_owned());
+    }
     Ok(written)
+}
+
+/// Writes `record` into `dir` as [`RECORD`], whole or not at all.
+fn write_record(files: &dyn Files, dir: &Path, record: &BootRecord) -> Result<(), SaveError> {
+    let mut text = record
+        .to_json()
+        .map_err(|source| SaveError::write(&dir.join(RECORD), source))?;
+    text.push('\n');
+    write_whole(files, dir, RECORD, text.as_bytes())
+}
+
+/// Writes `contents` into `dir` as `name`: to `name` and [`PARTIAL`] first,
+/// renamed once whole, so that no reader finds half a file, and a file of
+/// that name written before stays as it was when the write fails.
+fn write_whole(
+    files: &dyn Files,
+    dir: &Path,
+    name: &str,
+    contents: &[u8],
+) -> Result<(), SaveError> {
+    let partial = dir.join(format!("{name}.{PARTIAL}"));
+    let whole = dir.join(name);
+    let written = write(files, &partial, contents).and_then(|()| {
+        files
+            .rename(&partial, &whole)
+            .map_err(|source| SaveError::write(&whole, source))
+    });
+    if written.is_err() {
+        let _ = files.remove_file(&partial);
+    }
+    written
 }
 
 /// Writes the kernel log and the journal of the state directory `base`
@@ -393,11 +460,13 @@ fn write_boot(context: &Context<'_>, base: &Path, dir: &Path) -> Result<Vec<Stri
 /// as how the GPUs were handed back right before `kexec`, which comes after
 /// the teardown hooks and so after the save. The journal holds the info
 /// messages that the kernel log leaves out at the default `loglevel=4`.
+/// Each is written whole or not at all, so that the saved boot keeps its
+/// logs whole when the partition has no room for the longer ones.
 ///
 /// # Errors
 ///
 /// When the partition cannot be mounted, as when a teardown hook took its
-/// device away, or the saved boot is gone.
+/// device away, the saved boot is gone, or a file not written.
 pub(crate) fn update_logs(
     context: &Context<'_>,
     base: &Path,
@@ -410,11 +479,12 @@ pub(crate) fn update_logs(
             return Err(SaveError::write(&dir, gone));
         }
         if let Ok(journal) = context.files().read(&base.join(JOURNAL)) {
-            write(context.files(), &dir.join(JOURNAL), &journal)?;
+            write_whole(context.files(), &dir, JOURNAL, &journal)?;
         }
-        write(
+        write_whole(
             context.files(),
-            &dir.join(KERNEL_LOG),
+            &dir,
+            KERNEL_LOG,
             kernel_log(context.files(), context.runner()).as_bytes(),
         )
     })
@@ -442,6 +512,7 @@ pub fn list(
                     .unwrap_or_default()
                     .into_iter()
                     .filter_map(|file| file.into_string().ok())
+                    .filter(|file| Path::new(file).extension().is_none_or(|ext| ext != PARTIAL))
                     .map(|file| {
                         let size = context
                             .files()

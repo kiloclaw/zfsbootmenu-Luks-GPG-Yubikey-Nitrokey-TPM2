@@ -11,7 +11,9 @@
 //! them, which a root login can send, on the client channel between the
 //! console and the menu (I18), and between a client and the keyholder that
 //! opens its volumes (I19), and between the console and the supervisor
-//! that opens its devices (I20).
+//! that opens its devices (I20). And the record of a boot that its saved
+//! logs keep on the ESP, `boot.json` (I15), which anyone with the disk can
+//! write.
 
 #![no_main]
 
@@ -58,6 +60,14 @@ fuzz_target!(|data: &[u8]| {
                 !found.name.is_empty() && !found.name.contains('/'),
                 "{found:?}"
             );
+        }
+    }
+    // A boot's record on the ESP (I15): a record read is written as one
+    // that reads the same, while it fits.
+    if let Ok(record) = zbm_types::BootRecord::parse(data) {
+        let written = record.to_json().expect("a record read has a text");
+        if written.len() <= zbm_types::BootRecord::MAX_LEN {
+            assert_eq!(zbm_types::BootRecord::parse(written.as_bytes()), Ok(record));
         }
     }
     let _ = zbm_console::screen::zoom::Zoom::parse(&text);

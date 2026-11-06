@@ -1,0 +1,1 @@
+{"schema":1,"time":1767225600,"environment":"zroot/ROOT/void","kernel":"/boot/vmlinuz-6.12.9_1","initramfs":"/boot/initramfs-6.12.9_1.img","command_line":"root=zfs:zroot/ROOT/void          quiet","devicetree":null,"loaded_by":"kexec_file_load","measured":true,"command_line_edited":false}

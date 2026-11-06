@@ -1,6 +1,7 @@
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
+use zbm_types::code::Coded as _;
 
 /// The partition table of a machine with one ESP, as `lsblk` lists it.
 const ONE_ESP: &str =
@@ -135,6 +136,7 @@ fn a_save_writes_the_logs_and_keeps_the_newest_boots() {
         &Context::new(system),
         Path::new("/zfsbootmenu"),
         &Destination::Esp,
+        None,
     )
     .unwrap();
 
@@ -178,6 +180,7 @@ fn a_save_writes_the_logs_and_keeps_the_newest_boots() {
         &Context::new(system),
         Path::new("/zfsbootmenu"),
         &Destination::Esp,
+        None,
     )
     .unwrap();
     assert_eq!(
@@ -216,6 +219,7 @@ fn a_partition_that_does_not_mount_is_said_so() {
         &Context::new(system),
         Path::new("/zfsbootmenu"),
         &Destination::Esp,
+        None,
     )
     .unwrap_err();
 
@@ -238,6 +242,7 @@ fn a_file_that_cannot_be_written_is_named() {
         &fake.context(),
         Path::new("/zfsbootmenu"),
         &Destination::Esp,
+        None,
     )
     .unwrap_err();
 
@@ -268,6 +273,7 @@ fn the_boot_just_saved_stays_with_the_clock_behind() {
         &Context::new(system),
         Path::new("/zfsbootmenu"),
         &Destination::Esp,
+        None,
     )
     .unwrap();
 
@@ -296,6 +302,7 @@ fn a_boot_not_saved_whole_is_removed_and_old_ones_pruned() {
         &Context::new(system),
         Path::new("/zfsbootmenu"),
         &Destination::Esp,
+        None,
     )
     .unwrap_err();
 
@@ -314,6 +321,7 @@ fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
         &Context::new(system),
         Path::new("/zfsbootmenu"),
         &Destination::Esp,
+        None,
     )
     .unwrap();
     let dir = Path::new(MOUNT_POINT).join(&saved.directory);
@@ -354,4 +362,199 @@ fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
         update_logs(&Context::new(system), Path::new("/zfsbootmenu"), &saved),
         Err(SaveError::Mount(device)) if device == "/dev/vda1"
     ));
+}
+
+/// The record while it is written.
+const RECORD_TMP: &str = "boot.json.tmp";
+
+#[test]
+fn logs_written_again_on_a_full_partition_stay_as_they_were_saved() {
+    let fake = machine();
+    let system = fake.system();
+    let saved = save_with_record(&fake).unwrap();
+    let dir = Path::new(MOUNT_POINT).join(&saved.directory);
+    let before = fake.files.text(dir.join("kernel.log"));
+    fake.files
+        .file("/dev/kmsg", "5,0,0,-;Linux version\n6,1,1,-;handed back\n")
+        .fail(dir.join("kernel.log.tmp"), std::io::ErrorKind::StorageFull);
+
+    let error = update_logs(&Context::new(system), Path::new("/zfsbootmenu"), &saved).unwrap_err();
+
+    assert!(
+        matches!(&error, SaveError::Write { path, .. } if path.ends_with("kernel.log.tmp")),
+        "{error}"
+    );
+    // The saved copy is whole, the record beside it, and no partial file.
+    assert!(before.is_some());
+    assert_eq!(fake.files.text(dir.join("kernel.log")), before);
+    assert!(fake.files.exists(&dir.join(RECORD)));
+    assert!(!fake.files.exists(&dir.join("kernel.log.tmp")));
+}
+
+/// A record of a boot, with no time yet.
+fn record() -> BootRecord {
+    BootRecord {
+        environment: zbm_types::Untrusted::new("pool/ROOT/be".to_owned()),
+        kernel: zbm_types::Untrusted::new("/boot/vmlinuz-6.12".to_owned()),
+        loaded_by: zbm_types::Untrusted::new("kexec_file_load".to_owned()),
+        ..BootRecord::default()
+    }
+}
+
+/// Saves the logs of [`machine`] on its ESP with [`record`].
+fn save_with_record(fake: &FakeSystem) -> Result<Saved, SaveError> {
+    save(
+        &fake.context(),
+        Path::new("/zfsbootmenu"),
+        &Destination::Esp,
+        Some(&record()),
+    )
+}
+
+#[test]
+fn the_record_is_written_last_with_the_time_that_names_the_directory() {
+    let fake = machine();
+
+    let saved = save_with_record(&fake).unwrap();
+
+    assert_eq!(saved.files.last().map(String::as_str), Some(RECORD));
+    let dir = Path::new(MOUNT_POINT).join(&saved.directory);
+    let text = fake.files.text(dir.join(RECORD)).unwrap();
+    let written = BootRecord::parse(text.as_bytes()).unwrap();
+    assert_eq!(stamp(written.time), "2026-01-01T00-00-00Z");
+    assert_eq!(
+        written,
+        BootRecord {
+            time: 1_767_225_600,
+            ..record()
+        }
+    );
+    assert!(!fake.files.exists(&dir.join(RECORD_TMP)));
+    // Written whole, then renamed.
+    let renamed = zbm_testkit::fakes::FileOperation::Rename(dir.join(RECORD_TMP), dir.join(RECORD));
+    assert!(fake.files.operations().contains(&renamed));
+}
+
+#[test]
+fn a_name_already_taken_keeps_the_record_s_time() {
+    let fake = machine();
+    let logs = Path::new(MOUNT_POINT).join(DIRECTORY);
+    fake.files.file(
+        logs.join("2026-01-01T00-00-00Z/boot.json"),
+        "{\"schema\":1}\n",
+    );
+
+    let saved = save_with_record(&fake).unwrap();
+
+    assert_eq!(
+        saved.directory,
+        format!("{DIRECTORY}/2026-01-01T00-00-00Z.2")
+    );
+    let text = fake
+        .files
+        .text(Path::new(MOUNT_POINT).join(&saved.directory).join(RECORD))
+        .unwrap();
+    assert_eq!(
+        BootRecord::parse(text.as_bytes()).unwrap().time,
+        1_767_225_600
+    );
+    // The other boot's record is left as it was.
+    assert_eq!(
+        fake.files
+            .text(logs.join("2026-01-01T00-00-00Z/boot.json"))
+            .as_deref(),
+        Some("{\"schema\":1}\n")
+    );
+}
+
+#[test]
+fn a_full_partition_leaves_no_record_and_no_half_saved_boot() {
+    let fake = machine();
+    let dir = Path::new(MOUNT_POINT)
+        .join(DIRECTORY)
+        .join("2026-01-01T00-00-00Z");
+    fake.files
+        .fail(dir.join(RECORD_TMP), std::io::ErrorKind::StorageFull);
+
+    let error = save_with_record(&fake).unwrap_err();
+
+    assert!(
+        matches!(&error, SaveError::Write { path, .. } if path.ends_with(RECORD_TMP)),
+        "{error}"
+    );
+    assert_eq!(error.code().number(), 625);
+    assert!(!fake.files.exists(&dir));
+}
+
+#[test]
+fn a_read_only_partition_fails_the_rename_and_leaves_no_partial_record() {
+    let fake = machine();
+    let dir = Path::new(MOUNT_POINT)
+        .join(DIRECTORY)
+        .join("2026-01-01T00-00-00Z");
+    fake.files
+        .fail(dir.join(RECORD), std::io::ErrorKind::ReadOnlyFilesystem);
+
+    let error = save_with_record(&fake).unwrap_err();
+
+    assert!(
+        matches!(&error, SaveError::Write { path, .. } if path.ends_with(RECORD)),
+        "{error}"
+    );
+    assert!(!fake.files.exists(&dir.join(RECORD_TMP)));
+    assert!(!fake.files.exists(&dir));
+
+    // A partition the kernel will not mount read-write: nothing is written.
+    let fake = machine();
+    fake.runner.respond(
+        "mount -t vfat -o rw,noatime /dev/vda1 /run/zbm-saved-logs",
+        32,
+        "mount: /run/zbm-saved-logs: cannot mount /dev/vda1 read-only.\n",
+    );
+    let error = save_with_record(&fake).unwrap_err();
+    assert_eq!(error.code().number(), 624);
+    assert!(!fake.files.exists(Path::new(MOUNT_POINT)));
+}
+
+#[test]
+fn a_stray_partial_record_is_not_listed_and_goes_with_its_boot() {
+    let fake = machine();
+    let logs = Path::new(MOUNT_POINT).join(DIRECTORY);
+    for day in 1..=5 {
+        let old = logs.join(format!("2025-12-0{day}T00-00-00Z"));
+        fake.files
+            .file(old.join("journal.jsonl"), "old\n")
+            .file(old.join(RECORD_TMP), "{\"schema\":1,\"ti");
+    }
+
+    let (_, boots) = list(&fake.context(), &Destination::Esp).unwrap();
+    assert!(
+        boots
+            .iter()
+            .all(|boot| boot.files == [("journal.jsonl".to_owned(), 4)]),
+        "{boots:?}"
+    );
+
+    save_with_record(&fake).unwrap();
+    let oldest = logs.join("2025-12-01T00-00-00Z");
+    assert!(!fake.files.exists(&oldest.join(RECORD_TMP)));
+    assert!(!fake.files.exists(&oldest));
+}
+
+#[test]
+fn a_partition_that_does_not_unmount_is_warned_about() {
+    let fake = machine();
+    let _log =
+        zbm_platform::KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+    fake.runner.respond("umount /run/zbm-saved-logs", 32, "");
+
+    let saved = save_with_record(&fake);
+
+    assert!(saved.is_ok(), "{saved:?}");
+    assert!(
+        fake.kmsg()
+            .contains("unable to unmount /dev/vda1: anything written on it may not be whole"),
+        "{}",
+        fake.kmsg()
+    );
 }

@@ -63,7 +63,7 @@ pub fn run_in(system: &System<'_>, base: &Path, args: &[&str], io: &mut Io) -> i
             }
             0
         }
-        ["save"] => match saved_logs::save(&Context::new(*system), base, &destination) {
+        ["save"] => match saved_logs::save(&Context::new(*system), base, &destination, None) {
             Ok(saved) => {
                 let _ = writeln!(io.stdout, "saved {} on {}", saved.directory, saved.device);
                 0
@@ -88,7 +88,7 @@ pub fn run(base: &Path, args: &[&str], io: &mut Io) -> i32 {
 pub fn after_crash_in(system: &System<'_>, base: &Path) -> Option<String> {
     let destination = destination(system.files, base)?;
     Some(
-        match saved_logs::save(&Context::new(*system), base, &destination) {
+        match saved_logs::save(&Context::new(*system), base, &destination, None) {
             Ok(saved) => format!("logs saved in {} on {}", saved.directory, saved.device),
             Err(error) => format!(
                 "unable to save the logs: {}",

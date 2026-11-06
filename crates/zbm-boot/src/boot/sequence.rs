@@ -24,6 +24,7 @@ use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_bootenv::{Noise, commandline, mount_zfs, recursive_umount, umount};
 
 use super::measured;
+use super::record::{self, HowLoaded, save_logs};
 use super::zfs::{export_writable_pools, substituted};
 use crate::graphics;
 use crate::load::KexecLoad;
@@ -190,15 +191,16 @@ pub fn kexec_kernel(
         args: &cli_args,
         copies: None,
     };
-    let Some((output, by)) = load_measured(context, interaction, state, &load, &mnt) else {
+    let Some((output, how)) = load_measured(context, interaction, state, &load, &mnt) else {
         return;
     };
     log_loaded(&load, &output);
 
     // The logs are saved before the teardown hooks, which may take away
     // the partition they go to (`90-xhci-unbind` and an ESP on USB).
-    let saved = save_logs(context, state, settings.save_logs.as_ref());
-    tear_down(context, settings, (selected, &load, by), &mnt);
+    let record = record::record(settings, selected, &load, how);
+    let saved = save_logs(context, state, settings.save_logs.as_ref(), Some(&record));
+    tear_down(context, settings, (selected, &load, how.by), &mnt);
     hand_over(context, state);
     execute(context, interaction, state, (fs, kernel), saved.as_ref());
 }
@@ -315,14 +317,16 @@ fn find_devicetree(
 /// Measures `load` into the TPM, if there is one (ROADMAP.md SE10), and
 /// loads the copies that went into it, or the boot environment's files
 /// when nothing was measured, as [`load_kernel`] does; the copies go once
-/// they are loaded, or failed to load.
+/// they are loaded, or failed to load. What `kexec` printed and how the
+/// kernel was loaded: measured when the copies were loaded, whatever the
+/// TPM took of their events, which the event log says.
 fn load_measured(
     context: &Context<'_>,
     interaction: &dyn Interaction,
     state: &State<'_>,
     load: &KexecLoad<'_>,
     mnt: &Path,
-) -> Option<(String, &'static str)> {
+) -> Option<(String, HowLoaded)> {
     let copies = measured::measure(context, state, load);
     let measured = KexecLoad {
         copies: copies.as_ref(),
@@ -332,7 +336,8 @@ fn load_measured(
     if let Some(copies) = &copies {
         copies.remove(context);
     }
-    loaded
+    let measured = copies.is_some();
+    loaded.map(|(output, by)| (output, HowLoaded { by, measured }))
 }
 
 /// The kernel's loader of a context, which remembers whether its call
@@ -457,32 +462,6 @@ fn tear_down(
         },
     };
     hooks::run_stage(context, &settings.hooks, &env, &settings.steps, false);
-}
-
-/// Saves the logs of this boot to `destination`, if given, once the kernel
-/// is loaded and before the teardown hooks, which may unbind the device the
-/// partition is on; a failure is logged and the boot goes on.
-pub(crate) fn save_logs(
-    context: &Context<'_>,
-    state: &State<'_>,
-    destination: Option<&Destination>,
-) -> Option<Saved> {
-    match saved_logs::save(context, state.base(), destination?) {
-        Ok(saved) => {
-            zbm_trace::info!(
-                "saved the logs on {device} in {directory}";
-                device = %saved.device, directory = %saved.directory
-            );
-            Some(saved)
-        }
-        Err(error) => {
-            zbm_trace::warn!(
-                "unable to save the logs: {error}";
-                error = %chain(&error), error_code = %error.code()
-            );
-            None
-        }
-    }
 }
 
 /// Writes the kernel log and the journal again into the logs `saved` for

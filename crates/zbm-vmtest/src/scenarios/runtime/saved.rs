@@ -3,8 +3,9 @@
 //! The first boot, with `zbm.save_logs` naming a FAT disk, boots `tplain`'s
 //! boot environment; ZFSBootMenu saves its logs on the disk before `kexec`.
 //! After a restart, `zbm debug saved` in the recovery shell must list the
-//! first boot's logs, and `zbm report` must write a report on the same
-//! disk. The host then reads both from the disk. The reports of
+//! first boot's logs, its record `boot.json` among them, and `zbm report`
+//! must write a report on the same disk. The host then reads both from the
+//! disk, and checks what the record says of the first boot. The reports of
 //! `zbm-debug(8)` must read this boot's start-up there too.
 
 use std::path::{Path, PathBuf};
@@ -27,6 +28,9 @@ const SAVE: &str = " zbm.save_logs=LABEL=ZBMLOGS";
 
 /// Where the logs and the reports are on the disk.
 const LOGS: &str = "EFI/zfsbootmenu/logs";
+
+/// The boot environment the first boot boots.
+const BE: &str = "tplain/ROOT/be";
 
 /// A boot that `zbm debug saved` lists: its directory and its files.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -158,6 +162,46 @@ fn check_saved(test: &Test, boots: &[SavedBoot]) {
         files.contains("kernel.log ("),
         "the saved logs hold the kernel log",
     );
+    test.check(
+        files.contains("boot.json (") && !files.contains("boot.json.tmp"),
+        "the saved logs hold the boot's record, renamed whole",
+    );
+}
+
+/// Checks the first boot's record, `boot.json`: one line of schema 1 that
+/// names `tplain`'s boot environment, its kernel and command line, loaded
+/// by `kexec_file_load`, not measured, as the machine has no TPM, and with
+/// the environment's own command line.
+fn check_record(test: &Test, text: &str) {
+    test.note(&format!("boot.json: {text}"));
+    let record: serde_json::Value = serde_json::from_str(text).unwrap_or_default();
+    let field = |name: &str| record.get(name).cloned().unwrap_or_default();
+    let text_of = |name: &str| field(name).as_str().map(str::to_owned).unwrap_or_default();
+    test.check(
+        text.ends_with("}\n") && text.trim_end().lines().count() == 1,
+        "the record is one line of JSON",
+    );
+    test.check(
+        field("schema") == 1 && field("time").as_u64().is_some_and(|time| time > 0),
+        "the record has schema 1 and the time of the save",
+    );
+    test.check(
+        field("environment") == BE,
+        "the record names the boot environment booted",
+    );
+    test.check(
+        text_of("kernel").starts_with("/boot/") && text_of("initramfs").starts_with("/boot/"),
+        "the record names the kernel and the initramfs",
+    );
+    test.check(
+        text_of("command_line").starts_with(&format!("root=zfs:{BE}"))
+            && field("command_line_edited") == false,
+        "the record holds the environment's own command line",
+    );
+    test.check(
+        field("loaded_by") == "kexec_file_load" && field("measured") == false,
+        "the record says kexec_file_load loaded the kernel, unmeasured",
+    );
 }
 
 /// The report's directory on the disk, from what `zbm report` printed.
@@ -187,6 +231,8 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
             journal.contains("kexec_file_load loaded"),
             "kexec_file_load loaded the kernel",
         );
+        let record = mtype(logs, &format!("{LOGS}/{}/boot.json", boot.name))?;
+        check_record(test, &record);
     }
     let Some(dir) = report_dir(written) else {
         test.check(
@@ -251,7 +297,8 @@ mod tests {
     #[test]
     fn the_saved_boots_and_the_report_are_read_from_the_output() {
         let output = "saved logs on /dev/vdb:\r\n\
-                      2026-10-24T10-00-00Z: journal.jsonl (812 bytes), kernel.log (9 bytes)\r\n\
+                      2026-10-24T10-00-00Z: boot.json (300 bytes), journal.jsonl (812 bytes), \
+                      kernel.log (9 bytes)\r\n\
                       2026-10-24T10-00-00Z.2: kernel.log (0 bytes)\n";
 
         let boots = saved_boots(output);
@@ -273,7 +320,8 @@ mod tests {
         let test = Test::new(&settings, "runtime-rust-saved").unwrap();
         let good = SavedBoot {
             name: "2026-10-24T10-00-00Z".to_owned(),
-            files: "journal.jsonl (812 bytes), kernel.log (9 bytes)".to_owned(),
+            files: "boot.json (300 bytes), journal.jsonl (812 bytes), kernel.log (9 bytes)"
+                .to_owned(),
         };
         check_saved(&test, std::slice::from_ref(&good));
         let empty = SavedBoot {
@@ -287,9 +335,39 @@ mod tests {
             .iter()
             .map(|line| line.starts_with("ok"))
             .collect();
-        assert_eq!(&results[..3], [true, true, true]);
-        assert_eq!(&results[3..6], [false, true, true]);
-        assert_eq!(&results[6..], [false, false, false]);
+        assert_eq!(&results[..4], [true, true, true, true]);
+        assert_eq!(&results[4..8], [false, true, true, true]);
+        assert_eq!(&results[8..], [false, false, false, false]);
+        cleanup(&settings);
+    }
+
+    #[test]
+    fn the_record_must_name_the_first_boot() {
+        let settings = settings("runtime-saved-record");
+        let test = Test::new(&settings, "runtime-rust-saved").unwrap();
+        let good = concat!(
+            r#"{"schema":1,"time":1793246955,"environment":"tplain/ROOT/be","#,
+            r#""kernel":"/boot/vmlinuz-6.12","initramfs":"/boot/initramfs-6.12.img","#,
+            r#""command_line":"root=zfs:tplain/ROOT/be          quiet","devicetree":null,"#,
+            r#""loaded_by":"kexec_file_load","measured":false,"command_line_edited":false}"#,
+            "\n"
+        );
+        check_record(&test, good);
+        let other = good
+            .replace("schema\":1", "schema\":2")
+            .replace("tplain/ROOT/be", "tplain/ROOT/other")
+            .replace("/boot/vmlinuz", "vmlinuz")
+            .replace("\"kexec_file_load\"", "\"kexec\"");
+        check_record(&test, &other);
+        check_record(&test, "");
+
+        let results: Vec<bool> = checks(&test)
+            .iter()
+            .map(|line| line.starts_with("ok"))
+            .collect();
+        assert_eq!(&results[..6], [true; 6]);
+        assert_eq!(&results[6..12], [true, false, false, false, false, false]);
+        assert_eq!(&results[12..], [false; 6]);
         cleanup(&settings);
     }
 

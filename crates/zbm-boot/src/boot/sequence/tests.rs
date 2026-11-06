@@ -46,33 +46,6 @@ fn after_a_failed_kexec_the_console_takes_the_display_again() {
 }
 
 #[test]
-fn the_logs_are_saved_or_the_failure_logged() {
-    let fake = FakeSystem::new();
-    let system = fake.system();
-    let state = State::new(system.files, "/zfsbootmenu");
-    fake.runner.respond(
-        "lsblk -rnpo NAME,PARTTYPE",
-        0,
-        "/dev/vda1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b\n",
-    );
-
-    save_logs(&Context::new(system), &state, None);
-    assert!(fake.runner.lines().is_empty());
-    save_logs(&Context::new(system), &state, Some(&Destination::Esp));
-    let none = Destination::Device("LABEL=none".to_owned());
-    save_logs(&Context::new(system), &state, Some(&none));
-
-    let lines = fake.runner.lines();
-    assert!(
-        lines.contains(&"mount -t vfat -o rw,noatime /dev/vda1 /run/zbm-saved-logs".to_owned()),
-        "{lines:?}"
-    );
-    assert!(fake.files.exists(std::path::Path::new(
-        "/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log"
-    )));
-}
-
-#[test]
 fn the_hand_back_goes_into_the_logs_saved_for_the_boot() {
     let fake = FakeSystem::new();
     // The kernel log as reading `/dev/kmsg` gives it.
@@ -157,26 +130,6 @@ fn the_cached_keys_are_removed_before_kexec_but_not_what_they_link_to() {
             .exists(std::path::Path::new("/zfsbootmenu/.keys"))
     );
     assert_eq!(fake.files.text("/elsewhere/kept").as_deref(), Some("kept"));
-}
-
-#[test]
-fn a_failed_save_is_logged_with_its_code() {
-    let fake = FakeSystem::new();
-    fake.files.dir("/zfsbootmenu");
-    let _log =
-        zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
-            .install();
-    let system = fake.system();
-    let state = State::new(system.files, "/zfsbootmenu");
-
-    assert!(save_logs(&Context::new(system), &state, Some(&Destination::Esp)).is_none());
-
-    assert!(
-        fake.kmsg()
-            .contains("<4>ZFSBootMenu: unable to save the logs: no EFI system partition found"),
-        "{}",
-        fake.kmsg()
-    );
 }
 
 #[test]

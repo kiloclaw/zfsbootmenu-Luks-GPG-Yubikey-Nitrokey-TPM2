@@ -574,6 +574,7 @@ fn failed_exports_and_missing_kernels_are_errors() {
 mod kexec;
 mod locked;
 use locked::OneKey;
+mod record;
 mod root_prefix;
 
 #[test]
