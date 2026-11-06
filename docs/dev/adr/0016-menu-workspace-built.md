@@ -204,6 +204,49 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
 - The VM tests of point 16, in the lanes of VE5.
 - `xtask gen-docs --check` for the man page's key section.
 
+## Where the work stands
+
+Points 1 to 4 built from 4 to 6 November 2026 (UI10a-1 to UI10a-5), as decided but for what follows. On 5 November the
+maintainer decided four details the record left open: restoring files first takes a safety snapshot, the countdown no
+longer falls back to a snapshot, a passphrase typed over SSH opens nothing the lock keeps, and the export on its own
+comes with UI10b.
+
+- **Point 1:**
+  - **kernels:** as decided. Setting the default writes `org.zfsbootmenu:kernel` as `/<file>$`, with the regular
+    expression's metacharacters escaped, so that it matches only that kernel; inheriting asks for no key.
+  - **boot a snapshot:** as decided. The name is prefilled `<name>_NEW`, as in the legacy menu; the clone is booted
+    only once it is made, and a failed boot leaves it, to boot or destroy. The countdown boots only environments
+    (`Target::Snapshot` is gone): a default that used up its tries with no good environment to fall back to never
+    boots on its own again, and the banner says what failed.
+  - **restore files:** offered only from a diff against the filesystem. It first takes the safety snapshot
+    `<environment>@before-restore-<UTC time>`, unique to each restore, copies each path beside itself and renames it
+    into place, and deletes nothing.
+  - **the chroot:** as decided. It starts from `programs::interactive_shell(runner, ShellRoot::Chroot)`, so the
+    shell-start metric counts it; it is offered only when the image has `/bin/zfs-chroot`, and its nonzero exit is a
+    failure.
+  - **pools:** the import as point 3. The export is not offered on its own yet: it comes with UI10b.
+  - **LUKS volumes:** as decided, but the keyholder protocol gains one field. `UnlockRequest` says whether the person
+    who answers is over SSH, and a volume opened so is recorded as `<name>\tremote` in `luks-unlocked`, neither
+    attended nor unattended, so it opens neither the locked menu nor the recovery shell. The session says so for the
+    programs of a menu it serves over SSH (`ZBM_REMOTE`), and `zluks` and the menu that runs itself over SSH see
+    `SSH_CONNECTION`. The keyholders of the menu are quiet; their questions reach the menu through
+    `zbm_app::service::asker::Asker`, which start-up's dialogs share (`Dialogs`), and the answers go to the question
+    waiting, never through the service's queue. Over SSH each question has a number, and an answer reaches only the
+    question asked now. Cancelling the action, or another instance taking over, ends the wait and kills the
+    keyholder; a volume that opened as its action was cancelled says it is open. Not built: the reseal, the boot
+    tries (#7), and lending the console to a key program, so that a crypttab key script or `fido2-assert` that asks
+    for a PIN on the terminal fails from the menu.
+- **Point 2:** as decided. `OpenVolume` is offered only with a LUKS session and `cryptsetup`.
+- **Point 3:** as decided. Every import runs on the console. The lock keeps every import but a read-only one as this
+  host: the read/write, forced and rewinding ones, and a read-only one as its last host, which adopts that host's ID.
+  Under `zbm.import_policy=force`, which comes from the image, the menu's change between read-only and read/write
+  forces the import, as the legacy `set_ro_pool` did.
+- **Point 4:** as decided. A read-only pool takes the console only for an action that writes it.
+- **Checks:** `zbm-app`'s tests on `FakeSystem` and `FakeZfs` for each use case, import option and plan; the test that
+  every kind offered is performed and no other; the menu's tests that it sends only what is offered; the asker's and
+  the session's tests of a question cancelled, withdrawn, answered late or answered over SSH, and that an SSH unlock
+  leaves the lock shut. The VM run of UI10a, on rebuilt images, is the maintainer's.
+
 ## Questions for the maintainer
 
 1. **The workspace before the sessions.** Proposed: it becomes the menu in UI10c, with `zbm.menu=classic` for one

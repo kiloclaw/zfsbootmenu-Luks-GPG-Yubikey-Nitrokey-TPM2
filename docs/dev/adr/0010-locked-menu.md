@@ -65,8 +65,8 @@ The first option of each, built in two steps.
 **Step 1, the gate (SE9's first half, no new crate).** `ShellGate::open(&Authorized)` in `zbm-app` becomes the only
 way to start an interactive shell or `chroot`; `Authorized` is a zero-sized token whose constructor is private to
 `zbm_app::auth`. Without a lock in the image, `auth::unlocked()` mints it at once, and nothing changes for users. The
-start-up program's recovery shell, the menu's `Shell` and `Chroot`, and the supervisor's shell and its fallback go
-through it, and `Chroot` will when UI10 builds it; `xtask metrics`' `shell_starts` counts the gate's own start alone,
+start-up program's recovery shell, the menu's `Shell` and `Chroot` (since UI10a), and the supervisor's shell and its
+fallback go through it; `xtask metrics`' `shell_starts` counts the gate's own start alone,
 and is ratcheted there. The supervisor's crash recovery takes a `RecoveryPolicy`: `Open` gives the shell as today, `Locked`
 starts `zbm lock prompt` in its place, which asks for the PIN on the terminal (no echo), and opens the shell through the
 gate once it is right. The supervisor itself still parses nothing and holds no secret.
