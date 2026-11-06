@@ -247,6 +247,44 @@ comes with UI10b.
   the session's tests of a question cancelled, withdrawn, answered late or answered over SSH, and that an SSH unlock
   leaves the lock shut. The VM run of UI10a, on rebuilt images, is the maintainer's.
 
+Points 5 to 8 built on 6 November 2026 (UI10b-1 to UI10b-6), as decided but for what follows. On 6 November the
+maintainer decided four details: until UI10c the device messages, the boot history and the new attention items are
+shown in the workspace only, the classic menu gaining only the export and the pool rows it already draws; exporting
+the pool of the default environment is allowed; the boot history and a device's messages need no PIN under the lock,
+and the export is kept by it; and without `zbm.save_logs` the menu does not read the ESP.
+
+- **Point 5:**
+  - **pools:** as decided. `zbm-zfs` reads `zpool status`, `zpool import` and `zdb -e -C <id>`, in `LC_ALL=C`, into
+    typed vdevs; each `Pool` has its id, devices with their states and errors, its host and its checkpoint. `zdb`
+    runs only for a foreign pool. The scan of importable pools runs after the first frame, and only once no
+    countdown runs, so a slow or hung `zpool import` never delays an unattended boot; it answers `PoolsScanned`,
+    never `Changed`. It runs again after an import, an export, an unlock and a chroot. Pools with the same name are
+    told apart by their id: the import, and the re-import of a pool made read/write, go by it.
+  - **the export,** left over from point 1: `Export` in the pool dialog and the palette, through the port's
+    export. Afterwards the pool is listed to import, and a default on it is dropped.
+  - **a device's messages:** not on `Enter`, which waits for UI10c's device column, but as a choice of the pool
+    dialog in the workspace, shown in a panel under the pools. They are the kernel's lines tagged with the device's
+    numbers or naming it, a partition's disk and a mapping's slaves included, the newest 500. A lost device known
+    only by a `/dev/disk/by-id/` link it no longer has cannot be traced to a kernel name, and the panel says so.
+- **Point 6:** as decided. One column is open at a time, the one read last. A list too long to send (about 70,000
+  snapshots) fails on every menu, not only over SSH, so the two menus agree. At 10,000 snapshots every key takes
+  less than a frame once the rows are built only for the visible lines; the numbers are in decision 7.
+- **Point 7:** as decided, with no `origin` field. `boot.json` is schema 1 and is written last, through a `.tmp` and a
+  rename, as are the logs written again before `kexec`, so a directory with a record holds its boot's logs whole.
+  `measured` says that the measured copies were the files loaded: the TPM may hold the events of a boot whose
+  copies could not be written, and its event log says so. The history mounts the ESP read-only at its own mount
+  point and lists the newest 16 boots; a record that is missing or does not parse leaves its boot listed. The Log
+  tab and the inspector's "Last Boot" show it in the workspace.
+- **Point 8:** as decided, in the workspace: degraded and foreign pools, pools not imported, devices unavailable,
+  removed or faulted, worst first, checkpoints, volumes left locked, and the log's errors and warnings counted apart.
+  An offline device shows in its pool, not in the sidebar. The status line's worst pool puts an imported one first.
+- **Checks:** `zbm-zfs`'s parsers on recorded and written output, fuzzed; `zbm-app`'s tests on `FakeSystem` and
+  `FakeZfs` for the scan, the export, the loads and the history, and their `calls()`; the countdown's tests that it
+  neither waits for nor sends a read; the wireframes `workspace-attention`, `workspace-device-log`, `log-history` and
+  `log-no-history` at every size; the 10,000-snapshot test and `examples/snapshots.rs`. The VM run of UI10b, on
+  rebuilt images, is the maintainer's; `runtime-rust-saved` checks `boot.json`, and the recorded fixtures of
+  `zpool status -j`, `zpool import` and `zdb` wait for `xtask record-zfs`.
+
 ## Questions for the maintainer
 
 1. **The workspace before the sessions.** Proposed: it becomes the menu in UI10c, with `zbm.menu=classic` for one
