@@ -27,10 +27,12 @@ use std::collections::BTreeMap;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 use zbm_zfs::{
-    Dataset, Difference, Health, Pool, Property, Snapshot, Source, Version, Zfs, ZfsError,
+    Dataset, Difference, Health, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot,
+    Source, Version, Zfs, ZfsError,
 };
 
 mod changes;
+mod pools;
 
 /// The defaults of the native properties the fake knows.
 const DEFAULTS: &[(&str, &str)] = &[
@@ -67,6 +69,8 @@ struct State {
     /// The snapshot each clone was made from.
     origins: BTreeMap<DatasetName, SnapshotName>,
     differences: BTreeMap<(SnapshotName, Option<SnapshotName>), Vec<Difference>>,
+    /// The vdevs and problems of pools, and the pools not imported.
+    described: pools::Described,
     /// The changes planned to fail, by operation, with their messages.
     failures: BTreeMap<String, String>,
     calls: Vec<String>,
@@ -168,45 +172,6 @@ impl FakeZfs {
         self
     }
 
-    /// Sets the `bootfs` of `pool`.
-    #[must_use]
-    pub fn bootfs(self, pool: &str, dataset: &str) -> FakeZfs {
-        self.with_pool(pool, |fake| fake.bootfs = Some(name(dataset)))
-    }
-
-    /// Marks `pool` as imported read-only.
-    #[must_use]
-    pub fn read_only(self, pool: &str) -> FakeZfs {
-        self.with_pool(pool, |fake| fake.read_only = true)
-    }
-
-    /// Sets the health of `pool`.
-    #[must_use]
-    pub fn health(self, pool: &str, health: Health) -> FakeZfs {
-        self.with_pool(pool, |fake| fake.health = health)
-    }
-
-    /// Sets a property of `pool`, such as `feature@encryption`.
-    #[must_use]
-    pub fn pool_setting(self, pool: &str, property: &str, value: &str) -> FakeZfs {
-        self.with_pool(pool, |fake| {
-            fake.properties
-                .insert(property.to_owned(), value.to_owned());
-        })
-    }
-
-    /// Adds `device`, such as `/dev/dm-3`, to the vdevs of `pool`.
-    #[must_use]
-    pub fn device(self, pool: &str, device: &str) -> FakeZfs {
-        self.with_pool(pool, |fake| fake.devices.push(device.to_owned()))
-    }
-
-    /// Makes `pool` busy, so that exporting it fails.
-    #[must_use]
-    pub fn busy(self, pool: &str) -> FakeZfs {
-        self.with_pool(pool, |fake| fake.busy = true)
-    }
-
     /// Makes the filesystem `dataset` a clone of `snapshot`.
     #[must_use]
     pub fn origin(self, dataset: &str, snapshot: &str) -> FakeZfs {
@@ -245,18 +210,6 @@ impl FakeZfs {
             .origins
             .get(&name::<DatasetName>(dataset))
             .map(ToString::to_string)
-    }
-
-    fn with_pool(self, pool: &str, change: impl FnOnce(&mut FakePool)) -> FakeZfs {
-        {
-            let mut state = self.state.borrow_mut();
-            let fake = state
-                .pools
-                .get_mut(&name::<PoolName>(pool))
-                .unwrap_or_else(|| panic!("FakeZfs has no pool {pool}"));
-            change(fake);
-        }
-        self
     }
 
     /// Each operation asked of the fake, such as `property zroot/ROOT/void
@@ -339,6 +292,21 @@ impl Zfs for FakeZfs {
         Ok(fake.devices.clone())
     }
 
+    fn status(&self) -> Result<Vec<PoolStatus>, ZfsError> {
+        self.record("status".to_owned());
+        Ok(pools::status(&self.state.borrow()))
+    }
+
+    fn importable(&self) -> Result<Vec<Importable>, ZfsError> {
+        self.record("importable".to_owned());
+        Ok(self.state.borrow().described.importable.clone())
+    }
+
+    fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError> {
+        self.record(format!("pool_host {id}"));
+        pools::pool_host(&self.state.borrow(), id)
+    }
+
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {
         self.record(format!("export {pool}"));
         let mut state = self.state.borrow_mut();
@@ -353,7 +321,9 @@ impl Zfs for FakeZfs {
             }
             Some(_) => {}
         }
-        state.pools.remove(pool);
+        if let Some(fake) = state.pools.remove(pool) {
+            pools::list_exported(&mut state.described, pool, &fake);
+        }
         let pool = pool.as_str();
         state
             .datasets

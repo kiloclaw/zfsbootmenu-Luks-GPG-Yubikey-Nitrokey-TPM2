@@ -6,7 +6,9 @@
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
-use crate::model::{Dataset, Difference, Pool, Property, Snapshot, Version};
+use crate::model::{
+    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, Version,
+};
 
 /// Why a ZFS operation failed.
 #[derive(Debug, thiserror::Error)]
@@ -90,6 +92,37 @@ pub trait Zfs {
     /// [`ZfsError::Missing`] when the pool is not imported, and other
     /// [`ZfsError`]s when `zpool status` fails.
     fn devices(&self, pool: &PoolName) -> Result<Vec<String>, ZfsError>;
+
+    /// The status of every imported pool, with the tree of its vdevs and
+    /// the paths of its devices (`zpool status -P`).
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zpool status` fails or prints something
+    /// unexpected.
+    fn status(&self) -> Result<Vec<PoolStatus>, ZfsError>;
+
+    /// The pools that could be imported, as `zpool import` lists them: a
+    /// scan of the labels of every device, which can take seconds. None is
+    /// an empty list, as `zpool import` succeeds when it finds none.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zpool import` fails otherwise or prints something
+    /// unexpected.
+    fn importable(&self) -> Result<Vec<Importable>, ZfsError>;
+
+    /// The host that last imported the pool not imported whose numeric
+    /// identifier is `id` ([`Importable::id`]), from its configuration
+    /// (`zdb -e -C <id>`), which reads it without importing it. The
+    /// identifier, unlike the name, finds a pool that shares its name with
+    /// another.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zdb` fails, for example because no pool has that
+    /// identifier, or prints something unexpected.
+    fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError>;
 
     /// Exports `pool`.
     ///

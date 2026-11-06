@@ -36,7 +36,8 @@ pub use change::{DryRun, ZfsChange};
 pub use cli::{Format, ZfsCli};
 
 pub use model::{
-    Dataset, DiffChange, Difference, Health, Pool, Property, Snapshot, Source, Version,
+    Dataset, DiffChange, Difference, Health, Importable, Pool, PoolHost, PoolStatus, Property,
+    Snapshot, Source, Vdev, VdevClass, VdevErrors, VdevKind, Version,
 };
 pub use port::{ZFS_CODES, Zfs, ZfsError};
 pub use zfs_text::{ZfsName, ZfsText};

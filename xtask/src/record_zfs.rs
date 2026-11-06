@@ -76,13 +76,14 @@ pub fn records() -> Vec<(String, String)> {
     let mut records = vec![
         ("version.txt".to_owned(), "zfs version".to_owned()),
         ("version.json".to_owned(), "zfs version -j".to_owned()),
+        // As `ZfsCli::status` runs it: `-p` for exact error counts.
         (
             "status.json".to_owned(),
-            "zpool status -j -P fixture".to_owned(),
+            "zpool status -j -p -P fixture".to_owned(),
         ),
         (
             "status.txt".to_owned(),
-            "zpool status -P fixture".to_owned(),
+            "zpool status -p -P fixture".to_owned(),
         ),
     ];
     for (stem, command) in LISTINGS {

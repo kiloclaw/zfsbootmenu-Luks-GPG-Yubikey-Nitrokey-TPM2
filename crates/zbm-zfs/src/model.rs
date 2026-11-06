@@ -1,10 +1,15 @@
 //! What `zfs` and `zpool` report, as types: pools, datasets, snapshots and
-//! their properties, whichever output format they came from.
+//! their properties, and the vdevs of pools, whichever output format they
+//! came from.
 
 use std::collections::BTreeMap;
 use std::fmt;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
+
+mod status;
+
+pub use status::{Importable, PoolHost, PoolStatus, Vdev, VdevClass, VdevErrors, VdevKind};
 
 /// Where a property's value comes from (the `SOURCE` column of `zfs get`).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

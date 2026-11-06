@@ -10,7 +10,9 @@ use std::fmt;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
-use crate::model::{Dataset, Difference, Pool, Property, Snapshot, Version};
+use crate::model::{
+    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, Version,
+};
 use crate::port::{Zfs, ZfsError};
 
 /// A change ZFS makes, with what it is made to.
@@ -191,6 +193,18 @@ impl Zfs for DryRun<'_> {
 
     fn devices(&self, pool: &PoolName) -> Result<Vec<String>, ZfsError> {
         self.real.devices(pool)
+    }
+
+    fn status(&self) -> Result<Vec<PoolStatus>, ZfsError> {
+        self.real.status()
+    }
+
+    fn importable(&self) -> Result<Vec<Importable>, ZfsError> {
+        self.real.importable()
+    }
+
+    fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError> {
+        self.real.pool_host(id)
     }
 
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {

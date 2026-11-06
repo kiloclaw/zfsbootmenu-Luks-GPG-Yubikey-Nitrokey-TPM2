@@ -165,7 +165,7 @@ night.
 | `kernel_selector` | `zbm_types::KernelSelector`: the translation of `org.zfsbootmenu:kernel`, its compilation and matches | I4 | A3 |
 | `crypttab` | `zbm_luks::config::load_config` | I1, I7 | A1, A2 |
 | `luks_metadata` | `zbm_luks::tokens`: `parse_json_metadata`, `parse_dump_text`, `json_str`, `json_arr`, `json_bool` | I8 | A1, A2 |
-| `program_output` | `zbm_zfs::parse_table`, `zbm_pool::hostid::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |
+| `program_output` | `zbm_zfs::parse_table`, the listings of `zbm_zfs::json` and `zbm_zfs::text`, the status of pools and the listing of `zpool import` (`text::status`, `json::status`, `text::importable`), a pool's configuration (`text::pool_config`), `zbm_pool::hostid::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |
 | `display_data` | `zbm_startup::autosize`: `edid::parse`, `font::cell`, `Density::new`, `choice::order`; `zbm_display::psf`: `Font::parse`, `Font::subset`, `Font::to_bytes` | I13 | A1, A2 |
 | `console_output` | `zbm_console::screen::Console`: `feed` in reads of any size, `draw` (scrolling and the cursor included), `tick`, `take_replies`, `text` | I14 | A1, A3 |
 | `boot_files` | `zbm_bootenv::kernels`: `discover` (kernel names, their initramfs images and `.kcl` files, version order) and `select`; `zbm_bootenv::commandline`: `os_release`, `root_prefix` | I5 | A3 |

@@ -1,0 +1,36 @@
+  pool: tank
+    id: 15094445427306487906
+ state: ONLINE
+status: The pool was last accessed by another system.
+action: The pool can be imported using its name or numeric identifier and
+	the '-f' flag.
+   see: https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-EY
+config:
+
+	tank        ONLINE
+	  vdb       ONLINE
+
+  pool: data
+    id: 2306016271538451322
+ state: DEGRADED
+status: One or more devices are missing from the system.
+action: The pool can be imported despite missing or damaged devices.  The
+	fault tolerance of the pool may be compromised if imported.
+   see: https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-2Q
+config:
+
+	data                     DEGRADED
+	  mirror-0               DEGRADED
+	    vdc                  ONLINE
+	    5038457371592018853  UNAVAIL   cannot open
+	logs	
+	  vde                    ONLINE
+
+  pool: data
+    id: 9165323530912380101
+ state: ONLINE
+action: The pool can be imported using its name or numeric identifier.
+config:
+
+	data        ONLINE
+	  vdf       ONLINE

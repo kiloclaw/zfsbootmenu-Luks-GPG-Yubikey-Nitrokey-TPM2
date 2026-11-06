@@ -1,6 +1,7 @@
 //! The text that `zfs` and `zpool` print with `-H -p`: one line per row,
 //! fields separated by tabs, numbers in full. Versions before OpenZFS 2.3
-//! have only this format.
+//! have only this format. The text of pools and their vdevs, which has no
+//! `-H` form, is read by [`status`], [`importable`] and [`pool_config`].
 
 use std::collections::BTreeMap;
 
@@ -10,6 +11,10 @@ use crate::model::{
     Dataset, DiffChange, Difference, Health, Pool, Property, Snapshot, Source, Version,
 };
 use crate::rows::Readable as _;
+
+mod vdevs;
+
+pub use vdevs::{importable, pool_config, status};
 
 /// What was wrong with a line of output.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

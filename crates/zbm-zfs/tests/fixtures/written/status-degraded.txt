@@ -1,0 +1,53 @@
+  pool: tank
+ state: DEGRADED
+status: One or more devices could not be opened.  Sufficient replicas exist for
+	the pool to continue functioning in a degraded state.
+action: Attach the missing device and online it using 'zpool online'.
+   see: https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-2Q
+  scan: scrub repaired 0B in 00:00:01 with 0 errors on Sun Nov  1 00:24:01 2026
+config:
+
+	NAME                                 STATE     READ WRITE CKSUM
+	tank                                 DEGRADED     0     0     0
+	  mirror-0                           DEGRADED     0     0     0
+	    /dev/disk/by-id/virtio-d0-part1  ONLINE       0     0     3
+	    9876543210987654321              UNAVAIL      0     0     0  was /dev/disk/by-id/virtio-d1-part1
+	special	
+	  /dev/disk/by-id/virtio-d4-part1    ONLINE       0     0     0
+	logs	
+	  /dev/disk/by-id/virtio-d2-part1    ONLINE       0     0     0
+	cache
+	  /dev/disk/by-id/virtio-d3-part1    ONLINE       0     0     0
+	spares
+	  /dev/disk/by-id/virtio-d5-part1    AVAIL   
+
+errors: 2 data errors, use '-v' for a list
+
+  pool: rpool
+ state: ONLINE
+config:
+
+	NAME                               STATE     READ WRITE CKSUM
+	rpool                              ONLINE       0     0     0
+	  /dev/disk/by-id/nvme-disk-part3  ONLINE       0     0     0
+
+errors: No known data errors
+
+  pool: scratch
+ state: DEGRADED
+status: One or more devices are faulted in response to persistent errors.
+	Sufficient replicas exist for the pool to continue functioning in a
+	degraded state.
+action: Replace the faulted device, or use 'zpool clear' to mark the device
+	repaired.
+config:
+
+	NAME                                 STATE     READ WRITE CKSUM
+	scratch                              DEGRADED     0     0     0
+	  mirror-0                           DEGRADED     0     0     0
+	    /dev/disk/by-id/virtio-d6-part1  ONLINE       0     0     0
+	    /dev/disk/by-id/virtio-d7-part1  FAULTED     12     0     0  too many errors
+	spares
+	  /dev/disk/by-id/virtio-d8-part1    UNAVAIL   cannot open
+
+errors: No known data errors

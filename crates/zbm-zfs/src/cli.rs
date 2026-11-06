@@ -11,7 +11,9 @@ use zbm_platform::exec::{Command, Input, Runner, Stream};
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::change::ZfsChange;
-use crate::model::{Dataset, Difference, Pool, Property, Snapshot, Version};
+use crate::model::{
+    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, Version,
+};
 use crate::port::{Zfs, ZfsError};
 use crate::{json, text};
 
@@ -122,6 +124,21 @@ impl<'a> ZfsCli<'a> {
         })
     }
 
+    /// Runs `program` with `args` in the C locale, whose words the parsers
+    /// of descriptions read, and parses its output with `parse`.
+    fn described<T, E: std::fmt::Display>(
+        &self,
+        program: &str,
+        args: &[&str],
+        parse: impl FnOnce(&str) -> Result<T, E>,
+    ) -> Result<T, ZfsError> {
+        let output = self.run_command(c_locale(program, args), None)?;
+        parse(&output).map_err(|error| ZfsError::Output {
+            command: format!("{program} {}", args.join(" ")),
+            detail: error.to_string(),
+        })
+    }
+
     /// Runs a listing in the format in use and parses it with `parse`.
     fn listing<T, E: std::fmt::Display>(
         &self,
@@ -163,6 +180,13 @@ impl<'a> ZfsCli<'a> {
                 detail: "the property is missing".to_owned(),
             })
     }
+}
+
+/// `program` with `args`, its messages in the C locale.
+fn c_locale(program: &str, args: &[&str]) -> Command {
+    Command::new(program)
+        .args(args.iter().copied())
+        .env("LC_ALL", "C")
 }
 
 /// The pool properties [`Zfs::pools`] lists.
@@ -219,6 +243,24 @@ impl Zfs for ZfsCli<'_> {
     fn devices(&self, pool: &PoolName) -> Result<Vec<String>, ZfsError> {
         let output = self.run("zpool", &["status", "-L", "-P", pool.as_str()])?;
         Ok(text::status_devices(&output))
+    }
+
+    fn status(&self) -> Result<Vec<PoolStatus>, ZfsError> {
+        match self.format() {
+            Format::Json => self.described("zpool", &["status", "-j", "-p", "-P"], json::status),
+            Format::Text => self.described("zpool", &["status", "-p", "-P"], text::status),
+        }
+    }
+
+    fn importable(&self) -> Result<Vec<Importable>, ZfsError> {
+        // With no pool found, `zpool import` prints nothing on its standard
+        // output and succeeds.
+        self.described("zpool", &["import"], text::importable)
+    }
+
+    fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError> {
+        let id = id.to_string();
+        self.described("zdb", &["-e", "-C", &id], text::pool_config)
     }
 
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {

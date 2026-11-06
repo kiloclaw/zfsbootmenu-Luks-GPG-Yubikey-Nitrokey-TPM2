@@ -5,7 +5,8 @@
 //! from names to objects with a `properties` map. Each property has a
 //! `value` (a string; exact numbers with `-p`) and a `source` with a `type`
 //! (`LOCAL`, `DEFAULT`, `INHERITED`, `RECEIVED`, `TEMPORARY` or `NONE`) and
-//! `data` (the ancestor of an inherited value, otherwise `-`).
+//! `data` (the ancestor of an inherited value, otherwise `-`). The status
+//! of pools, which has no properties, is read by [`status`].
 
 use std::collections::BTreeMap;
 
@@ -14,6 +15,10 @@ use zbm_config::spec::properties::BOOTFS;
 
 use crate::model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
 use crate::rows::Readable as _;
+
+mod vdevs;
+
+pub use vdevs::status;
 
 /// What was wrong with a JSON document.
 #[derive(Debug, thiserror::Error)]

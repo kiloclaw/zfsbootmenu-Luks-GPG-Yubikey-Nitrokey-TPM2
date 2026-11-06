@@ -1,0 +1,8 @@
+  pool: fixture
+    id: 4438165986505091419
+ state: ONLINE
+action: The pool can be imported using its name or numeric identifier.
+config:
+
+	fixture      ONLINE
+	  virtio-d0  ONLINE

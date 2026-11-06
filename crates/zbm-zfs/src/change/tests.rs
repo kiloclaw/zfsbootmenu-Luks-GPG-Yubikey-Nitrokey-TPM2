@@ -149,6 +149,15 @@ fn a_dry_run_reads_what_the_real_port_reads() {
         format!("{:?}", dry.devices(&pool)),
         format!("{:?}", cli.devices(&pool)),
     );
+    same(format!("{:?}", dry.status()), format!("{:?}", cli.status()));
+    same(
+        format!("{:?}", dry.importable()),
+        format!("{:?}", cli.importable()),
+    );
+    same(
+        format!("{:?}", dry.pool_host(7)),
+        format!("{:?}", cli.pool_host(7)),
+    );
     same(
         format!("{:?}", dry.pool_property(&pool, "bootfs")),
         format!("{:?}", cli.pool_property(&pool, "bootfs")),
