@@ -10,9 +10,6 @@ use crate::menu::model::{Choice, Make, Model, Naming, Then};
 use crate::menu::world::{Action, Outcome, SnapshotInfo};
 use crate::text::text;
 
-/// How many marked snapshots a diff compares.
-const MARKS: usize = 2;
-
 /// What `intent` does on the snapshots view.
 pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     if intent == Intent::Sort {
@@ -33,9 +30,9 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     }
     let snapshot = model.selected_snapshot().cloned();
     if intent == Intent::Diff
-        && let Some(action) = diff(model, snapshot.as_ref().map(|s| &s.name))
+        && let Some(actions) = diff(model, snapshot.as_ref().map(|s| &s.name))
     {
-        return dialogs::follow(model, Then::Act(action));
+        return actions;
     }
     let Some(snapshot) = snapshot else {
         return on_folded(model, intent);
@@ -61,27 +58,36 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     dialogs::follow(model, then)
 }
 
-/// Marks or unmarks a snapshot for a diff; the oldest mark goes when a third
-/// is set.
+/// Marks or unmarks a snapshot; as many as the person likes.
 fn mark(model: &mut Model, name: &SnapshotName) {
-    if let Some(position) = model.marked.iter().position(|marked| marked == name) {
-        model.marked.remove(position);
-        return;
+    if !model.marked.remove(name) {
+        model.marked.insert(name.clone());
     }
-    if model.marked.len() == MARKS {
-        model.marked.remove(0);
-    }
-    model.marked.push(name.clone());
 }
 
-/// The diff of the marked snapshots, or of the selection against now;
-/// none with neither.
-fn diff(model: &Model, selected: Option<&SnapshotName>) -> Option<Action> {
-    match model.marked.as_slice() {
-        [first, second] => Some(Action::Diff(first.clone(), Some(second.clone()))),
-        [only] => Some(Action::Diff(only.clone(), None)),
-        _ => selected.map(|selected| Action::Diff(selected.clone(), None)),
-    }
+/// The diff of the two marked snapshots, the older against the newer, or
+/// of the one marked or else the selection against now; none with
+/// neither. Three marks or more are no diff, nor are marks while the
+/// column's list is not read, which the status line says.
+fn diff(model: &mut Model, selected: Option<&SnapshotName>) -> Option<Vec<Action>> {
+    let count = model.marked.len();
+    let action = match model.marked_by_age().as_deref() {
+        _ if count > 2 => None,
+        Some([older, newer]) => Some(Action::Diff((*older).clone(), Some((*newer).clone()))),
+        Some([only]) => Some(Action::Diff((*only).clone(), None)),
+        Some(_) => Some(Action::Diff(selected?.clone(), None)),
+        None => None,
+    };
+    let Some(action) = action else {
+        let said = if count > 2 {
+            text!("diff-marks", count = count)
+        } else {
+            text!("diff-unread")
+        };
+        model.notification = Some(Outcome::Warning(said));
+        return Some(Vec::new());
+    };
+    Some(dialogs::follow(model, Then::Act(action)))
 }
 
 /// What a snapshot's `intent` does with no snapshot selected: on the

@@ -579,6 +579,18 @@ takes over from a menu already running.
 - **Why:** what needs attention, and the parts of the machine that hold it, show on one screen, and the keys move
   as other terminal programs' do (ADR 0007).
 
+### Snapshots are marked as a set
+
+- **Before:** `Tab` selected up to two snapshots for the differences (`fzf --multi 2`); the Rust runtime's menu,
+  the workspace and the classic menu alike, dropped the first mark when a third was set.
+- **Now:** in the workspace and the classic menu alike, `Space` marks as many snapshots as the user likes, and drops
+  none; in the classic menu `Tab` marks too, as before. `f` compares the two marked, the older against the newer
+  whichever was marked first (two taken in the same second in the order ZFS took them), or the one marked with now;
+  with three or more, or while their list is not read, it compares nothing and says so. A list of snapshots read
+  again, after a change, takes the marks of those it no longer has. The line view says `marked` after each.
+- **Why:** a mark that goes by itself, unseen, is a surprise; and a comparison of three snapshots has no meaning, so
+  the menu says so rather than choose two of them.
+
 ### `zbm.menu`: lines, a screen, or the classic menu
 
 - **Before:** the menu was `fzf`'s, drawn on the terminal, with nothing to choose.

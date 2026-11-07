@@ -3,7 +3,10 @@
 //! with each snapshot of the machine after it, kept in the menu's sort
 //! order; and what a column says while its list is not there.
 
-use zbm_types::DatasetName;
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
+
+use zbm_types::{DatasetName, SnapshotName};
 
 use super::{Model, Sort, keep, refilter, timeline};
 use crate::menu::keymap::Map;
@@ -44,6 +47,15 @@ pub(super) fn sort_lists(lists: &mut [SnapshotList], sort: Sort) {
     for list in lists {
         sort_snapshots(&mut list.snapshots, sort);
     }
+}
+
+/// The place of each snapshot of `lists` in its list, as the machine sent
+/// it: newest first, in the order ZFS took them, by transaction group.
+pub(super) fn ages(lists: &[SnapshotList]) -> BTreeMap<SnapshotName, usize> {
+    let places = lists
+        .iter()
+        .flat_map(|list| list.snapshots.iter().enumerate());
+    places.map(|(place, s)| (s.name.clone(), place)).collect()
 }
 
 /// The snapshots of `environment` that `snapshot` holds, if they are read.
@@ -115,8 +127,36 @@ impl Model {
             && self.unread.as_ref() != self.focus.as_ref()
     }
 
+    /// Forgets the marks of the snapshots that the list of their
+    /// environment, read again, no longer has, so that no mark names a
+    /// snapshot the menu does not show.
+    pub(super) fn forget_unlisted_marks(&mut self) {
+        let snapshot = &self.snapshot;
+        self.marked.retain(|mark| {
+            loaded_of(snapshot, mark.dataset())
+                .is_none_or(|listed| listed.iter().any(|known| known.name == *mark))
+        });
+    }
+
+    /// The marked snapshots, the oldest first: by when each was taken, and,
+    /// taken in the same second, by the order ZFS took them in, as the
+    /// machine's list says whatever the menu's sort. None while one of them
+    /// is not in the column's list: the menu cannot tell its age.
+    pub(crate) fn marked_by_age(&self) -> Option<Vec<&SnapshotName>> {
+        let listed = self.focus_snapshots();
+        let mut marked = Vec::with_capacity(self.marked.len());
+        for mark in &self.marked {
+            let created = listed.iter().find(|s| s.name == *mark)?.created;
+            let place = *self.ages.get(mark)?;
+            marked.push((created, Reverse(place), mark));
+        }
+        marked.sort_unstable();
+        Some(marked.into_iter().map(|(_, _, mark)| mark).collect())
+    }
+
     /// Takes `list`, which the machine read, in place of the list of its
-    /// environment, keeping the snapshot selected by name.
+    /// environment, keeping the snapshot selected by name, and the marks of
+    /// the snapshots it still lists.
     pub(crate) fn take_loaded(&mut self, mut list: SnapshotList) {
         let selected = self.selected_names();
         if self.reading.as_ref() == Some(&list.environment) {
@@ -125,6 +165,9 @@ impl Model {
         if self.unread.as_ref() == Some(&list.environment) {
             self.unread = None;
         }
+        self.ages
+            .retain(|name, _| *name.dataset() != list.environment);
+        self.ages.extend(ages(std::slice::from_ref(&list)));
         sort_snapshots(&mut list.snapshots, self.sort);
         let known = self
             .snapshot
@@ -137,6 +180,7 @@ impl Model {
             None => self.snapshot.loaded.push(list),
         }
         self.generation = self.generation.wrapping_add(1);
+        self.forget_unlisted_marks();
         self.refresh_keeping(None, selected);
     }
 

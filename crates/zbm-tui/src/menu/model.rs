@@ -1,6 +1,8 @@
 //! The state of the menu: the snapshot of the machine and everything on the
 //! screen. Nothing in it changes but through [`update`](fn@super::update).
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use zbm_types::{DatasetName, SnapshotName, Untrusted};
 
 mod columns;
@@ -228,8 +230,14 @@ pub struct Model {
     timeline: Option<Timeline>,
     /// The groups of the timeline the person folded or opened.
     folds: Folds,
-    /// Snapshots marked for a diff.
-    pub marked: Vec<SnapshotName>,
+    /// The snapshots marked, for a diff, all of the focused environment:
+    /// a set, as many as are marked; none that a list read again no longer
+    /// has.
+    pub marked: BTreeSet<SnapshotName>,
+    /// The place of each snapshot read in its list as the machine sent it,
+    /// newest first: the order ZFS took them in, which tells two taken in
+    /// the same second apart where the menu's sort does not.
+    ages: BTreeMap<SnapshotName, usize>,
     /// The kernels of [`Model::focus`].
     pub kernels: ListState,
     /// The pools and volumes, as one list: pools first.
@@ -307,7 +315,8 @@ impl Model {
             ranked: None,
             timeline: None,
             folds: Folds::default(),
-            marked: Vec::new(),
+            marked: BTreeSet::new(),
+            ages: BTreeMap::new(),
             kernels: ListState::default(),
             pools: ListState::default(),
             recovery: ListState::default(),
@@ -437,14 +446,20 @@ impl Model {
     fn refresh_keeping(&mut self, new: Option<Snapshot>, selected: Selected) {
         let (environment, snapshot, row, kernel) = selected;
         if let Some(mut new) = new {
+            let ages = snapshots::ages(&new.loaded);
             snapshots::sort_lists(&mut new.loaded, self.sort);
-            if new.loaded != self.snapshot.loaded {
+            let relisted = new.loaded != self.snapshot.loaded;
+            if relisted {
                 self.generation = self.generation.wrapping_add(1);
             }
             if new.now != self.snapshot.now {
                 self.ticked = 0;
             }
             self.snapshot = new;
+            if relisted {
+                self.ages = ages;
+                self.forget_unlisted_marks();
+            }
         }
         let names = self.environment_order();
         let labels: Vec<String> = names

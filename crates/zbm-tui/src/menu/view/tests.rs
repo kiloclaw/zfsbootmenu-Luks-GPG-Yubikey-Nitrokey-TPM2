@@ -316,3 +316,33 @@ fn the_line_view_s_help_says_the_zfs_version_in_the_workspace_only() {
     );
     assert_eq!(workspace.first().map(String::as_str), Some("ZFS 2.2.6-1"));
 }
+
+#[test]
+fn the_line_view_says_which_snapshots_are_marked() {
+    for workspace in [true, false] {
+        let options = DemoOptions {
+            classic: !workspace,
+            ..DemoOptions::default()
+        };
+        let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
+        session.start();
+        session.key(Key::Escape);
+        session.key(Key::Char(if workspace { '2' } else { 's' }));
+        let name = session
+            .model()
+            .selected_snapshot()
+            .expect("a snapshot")
+            .name
+            .clone();
+        session.key(Key::Char(' '));
+
+        let (rows, _) = super::words::rows(session.model());
+
+        let marked: Vec<&String> = rows
+            .iter()
+            .filter(|row| row.ends_with(", marked"))
+            .collect();
+        assert_eq!(marked.len(), 1, "{workspace}: {rows:#?}");
+        assert!(marked[0].starts_with(name.name()), "{workspace}: {rows:#?}");
+    }
+}

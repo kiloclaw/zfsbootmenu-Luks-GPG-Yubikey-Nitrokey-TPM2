@@ -251,7 +251,14 @@ timeline-count = { $count ->
        *[other] { $count } snapshots
     }
 timeline-folded = folded
+# What the line view says after a snapshot marked for a diff.
+snapshot-marked = marked
 timeline-open-group = open the group with Enter to choose one of its snapshots
+# A diff compares two marked snapshots, or one with now; never more. Short,
+# so that the warning stays whole on a 52x20 screen.
+diff-marks = { $count } marked: a diff compares two
+# The marked snapshots' list is not read: the menu cannot tell their order.
+diff-unread = Marked snapshots not read: no diff
 # What labels the default kernel, and the default environment.
 label-default = default
 kernels-title = Kernels

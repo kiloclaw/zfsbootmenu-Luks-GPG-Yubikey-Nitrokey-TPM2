@@ -173,8 +173,9 @@ fn environments(model: &Model) -> Vec<String> {
     })
 }
 
-/// The snapshots of the focused environment: name, age and size; while
-/// they are not read, what their column says instead. In the workspace's
+/// The snapshots of the focused environment: name, age and size, and
+/// whether it is marked; while they are not read, what their column says
+/// instead. In the workspace's
 /// timeline, the header of each group comes before its snapshots, or
 /// alone when it is folded.
 fn snapshots(model: &Model) -> Vec<String> {
@@ -185,12 +186,16 @@ fn snapshots(model: &Model) -> Vec<String> {
     let said = |position: usize| {
         let ranked = model.snapshots.matches.get(position)?;
         let snapshot = snapshots.get(ranked.index)?;
-        Some(format!(
+        let mut said = format!(
             "{}, {}, {}",
             snapshot.name.name(),
             age(model.snapshot.now, snapshot.created),
             size(snapshot.used)
-        ))
+        );
+        if model.marked.contains(&snapshot.name) {
+            said = format!("{said}, {}", text!("snapshot-marked"));
+        }
+        Some(said)
     };
     let Some(timeline) = model.timeline() else {
         return (0..model.snapshots.matches.len())

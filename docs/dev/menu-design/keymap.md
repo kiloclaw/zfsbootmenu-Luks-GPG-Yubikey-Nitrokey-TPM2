@@ -37,7 +37,7 @@ to the other in the changes.
 | --- | --- |
 | Everywhere | `Enter` the primary action; `Esc` back, out of a column, closes a page; arrows and `j` `k` `h` `l` move, `h` `l` out of and into a column; `PgUp` `PgDn` `Home` `End`; `Tab` and `Shift-Tab` the next and previous tab, `1` to `4` a tab; `/` filter; `:` command line; `?` and `F1` help; `!` a shell: into the selection (read-only for a snapshot), or the recovery tools; `x` power; `Ctrl-L` redraw |
 | Boot | `b` boot the selection; `e` edit the command line once; `d` make it the default; `s` its snapshots; `n` a new snapshot |
-| Snapshots | `Enter` what to do with it; `b` boot it as a clone; `c` clone…; `m` clone and promote…; `y` duplicate…; `r` roll back…; `f` the files and packages changed since, or between the marked ones, and restoring them; `Space` mark; `z` fold or unfold; `o` sort; `n` a new snapshot |
+| Snapshots | `Enter` what to do with it; `b` boot it as a clone; `c` clone…; `m` clone and promote…; `y` duplicate…; `r` roll back…; `f` the files and packages changed since the selection or the one marked, or between the two marked (the older first, as ZFS took them), and restoring them; with three or more marked, or while their list is not read, `f` says so and compares nothing; `Space` marks or unmarks, as many as wanted (a set: no mark is dropped); `z` fold or unfold; `o` sort; `n` a new snapshot |
 | Pools | `i` import…: read-only, read/write, as the host that owns it, at its checkpoint, or forced; `w` read/write…; `u` unlock…; `Enter` on a device: its kernel messages |
 | Start-up | `1` to `9` a choice, as do `j` `k` and `Enter`; between choices, as the Boot tab, only `Tab` and `Shift-Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), the arrows, `Ctrl-P` and `Ctrl-N` move, `?` and `F1` open help; any other key, the digits and `j` `k` included, starts typing ahead of the next dialog, and the tab bar names no digit. On another tab during start-up, `1` to `4` choose a tab |
 | Review page | letters, digits and `?` type the target's name, `Backspace` and `Ctrl-U` erase it; `Enter` the change once it is planned and named, or the safer action when it has the focus; `Tab` and `Shift-Tab` move among the field, the safer action and the change; the arrows, `PgUp` and `PgDn` scroll what is lost; `Esc` closes the page. On a page that refuses its change, `Enter` closes it |
@@ -120,8 +120,8 @@ workspace's.
 | `m` | clone and promote (moves the snapshots to the clone) | snapshots |
 | `y` | duplicate the selected snapshot (an independent copy, as `zfs send` and `zfs recv` make) | snapshots |
 | `n` | new snapshot of the environment | main, snapshots |
-| `f` | the changes since the snapshot, or between two marked snapshots | snapshots |
-| `Space`, `Tab` | mark the selection (snapshots for `f`, files to restore) | snapshots, changes |
+| `f` | the changes since the snapshot or the one marked, or between the two marked, the older first (two taken in the same second as ZFS took them, whatever the sort); none with three or more marked, or while their list is not read, which the status line says | snapshots |
+| `Space`, `Tab` | mark or unmark the selection (snapshots for `f`, as many as wanted, none dropped; files to restore) | snapshots, changes |
 | `Enter` | restore the marked files, or the selected one; on a package, show its files | changes |
 | `Left`, `Right` | the other segment: files or packages | changes |
 | `u` | unlock the selected volume | pools |

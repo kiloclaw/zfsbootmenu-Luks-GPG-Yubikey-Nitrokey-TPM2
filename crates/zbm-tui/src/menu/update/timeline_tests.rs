@@ -364,9 +364,10 @@ fn a_diff_of_marked_snapshots_starts_from_a_folded_group() {
     let model = session.into_model();
     let (_, actions) = update(model, Message::Key(KeyPress::new(Key::Char('f'))));
     let name = |date: &str| format!("zroot/ROOT/void@{date}").parse().unwrap();
+    // The older first, whichever was marked first.
     assert_eq!(
         actions,
-        [Action::Diff(name("pre-upgrade"), Some(name(&daily(22))))]
+        [Action::Diff(name(&daily(22)), Some(name("pre-upgrade")))]
     );
 }
 
