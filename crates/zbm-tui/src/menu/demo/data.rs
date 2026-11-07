@@ -135,7 +135,7 @@ pub fn snapshots(options: &DemoOptions) -> Vec<SnapshotList> {
     vec![
         list(
             "zroot/ROOT/void",
-            many_snapshots("zroot/ROOT/void", options.snapshots),
+            many_snapshots("zroot/ROOT/void", options.snapshots, options.workspace),
         ),
         list("zroot/ROOT/ubuntu", few_snapshots("zroot/ROOT/ubuntu")),
         list("tank/ROOT/arch", few_snapshots("tank/ROOT/arch")),
@@ -330,11 +330,13 @@ fn taken(name: &str, days: u64, used: u64) -> SnapshotInfo {
 }
 
 /// A daily snapshot for each of `count` days, and the one taken before
-/// yesterday's upgrade.
-fn many_snapshots(dataset: &str, count: usize) -> Vec<SnapshotInfo> {
+/// yesterday's upgrade; with `today`, as in the workspace, before this
+/// morning's, so that its timeline shows a group of each kind: today, the
+/// days of this week, the weeks of this month and the months.
+fn many_snapshots(dataset: &str, count: usize, today: bool) -> Vec<SnapshotInfo> {
     let mut snapshots = vec![SnapshotInfo {
         name: snapshot_name(&format!("{dataset}@pre-upgrade")),
-        created: NOW - DAY / 2,
+        created: if today { NOW - 3600 } else { NOW - DAY / 2 },
         used: 1_288_490_188,
     }];
     for day in 1..=u64::try_from(count.saturating_sub(1)).unwrap_or_default() {

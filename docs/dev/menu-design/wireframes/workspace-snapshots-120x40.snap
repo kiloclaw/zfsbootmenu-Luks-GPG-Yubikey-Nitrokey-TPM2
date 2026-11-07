@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu  1 Boot [2 Snapshots] 3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+ zroot › zroot/ROOT/void
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────────── 400 ┐┌ September 2025 ──────────────────┐
+│   zroot · ONLINE     ││   Week of 12 October               7 snapshots · 301 MiB ││    Snapshots  12 snapshots       │
+│ ▶ zroot/ROOT/void    ││     autosnap_2026-10-12_daily        11 d ago     56 MiB ││         Used  555 MiB            │
+│   zroot/ROOT/ubuntu  ││     autosnap_2026-10-13_daily        10 d ago     43 MiB ││                                  │
+│   tank · DEGRADED    ││     autosnap_2026-10-14_daily         9 d ago     30 MiB ││ NEXT STEPS                       │
+│   tank/ROOT/arch     ││     autosnap_2026-10-15_daily         8 d ago     17 MiB ││   n snapshot     / filter        │
+│   tank/ROOT/debian   ││     autosnap_2026-10-16_daily         7 d ago    4.0 MiB ││   : commands     o sort          │
+│                      ││     autosnap_2026-10-17_daily         6 d ago     82 MiB ││                                  │
+│                      ││     autosnap_2026-10-18_daily         5 d ago     69 MiB ││                                  │
+│                      ││   Week of 5 October                7 snapshots · 301 MiB ││                                  │
+│                      ││     autosnap_2026-10-05_daily        18 d ago     56 MiB ││                                  │
+│                      ││     autosnap_2026-10-06_daily        17 d ago     43 MiB ││                                  │
+│                      ││     autosnap_2026-10-07_daily        16 d ago     30 MiB ││                                  │
+│                      ││     autosnap_2026-10-08_daily        15 d ago     17 MiB ││                                  │
+│                      ││     autosnap_2026-10-09_daily        14 d ago    4.0 MiB ││                                  │
+│                      ││     autosnap_2026-10-10_daily        13 d ago     82 MiB ││                                  │
+│                      ││     autosnap_2026-10-11_daily        12 d ago     69 MiB ││                                  │
+│                      ││   Week of 1 October                4 snapshots · 172 MiB ││                                  │
+│                      ││     autosnap_2026-10-01_daily        22 d ago     17 MiB ││                                  │
+│                      ││     autosnap_2026-10-02_daily        21 d ago    4.0 MiB ││                                  │
+│                      ││     autosnap_2026-10-03_daily        20 d ago     82 MiB ││                                  │
+│                      ││     autosnap_2026-10-04_daily        19 d ago     69 MiB ││                                  │
+│                      ││   September 2026         30 snapshots · 1.2 GiB · folded ││                                  │
+│                      ││   August 2026            31 snapshots · 1.3 GiB · folded ││                                  │
+│                      ││   July 2026              31 snapshots · 1.2 GiB · folded ││                                  │
+│                      ││   June 2026              30 snapshots · 1.2 GiB · folded ││                                  │
+│                      ││   May 2026               31 snapshots · 1.3 GiB · folded ││                                  │
+│                      ││   April 2026             30 snapshots · 1.2 GiB · folded ││                                  │
+│                      ││   March 2026             31 snapshots · 1.3 GiB · folded ││                                  │
+│                      ││   February 2026          28 snapshots · 1.1 GiB · folded ││                                  │
+│                      ││   January 2026           31 snapshots · 1.2 GiB · folded ││                                  │
+│                      ││   December 2025          31 snapshots · 1.3 GiB · folded ││                                  │
+│                      ││   November 2025          30 snapshots · 1.3 GiB · folded ││                                  │
+│                      ││   October 2025           31 snapshots · 1.2 GiB · folded ││                                  │
+│                      ││ ▶ September 2025         12 snapshots · 555 MiB · folded ││                                  │
+└──────────────────────┘└──────────────────────────────────────────────────────────┘└──────────────────────────────────┘
+ : commands   / filter   ? every key
+ n Snapshot   / Filter   : Commands   o Sort   ! Recovery                                                        ? More

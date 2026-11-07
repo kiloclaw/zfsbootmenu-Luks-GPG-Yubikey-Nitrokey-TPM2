@@ -1,11 +1,13 @@
 //! How fast the menu shows many snapshots (ROADMAP.md B5, in process): the
 //! demo machine with 100, 1,000 and 10,000 snapshots on its default
 //! environment, the menu drawn on a terminal in memory at 120×40 and
-//! 80×24. It times opening the snapshots (their load, ranking and the
-//! first frame), typing a filter, scrolling a page and the palette (opening
-//! it, and typing in it), each key with the frame it draws, and reports the
-//! median and the worst of each, and the peak memory of each count. The
-//! budget is a frame, 16 ms (B4), at 10,000.
+//! 80×24, with each key map: in the workspace the snapshots are its
+//! timeline. It times opening the snapshots (their load, ranking and the
+//! first frame), scrolling a page, sorting them (`o`), folding the group
+//! of the selection and unfolding it (the workspace's `z`), typing a
+//! filter and the palette (opening it, and typing in it), each key with
+//! the frame it draws, and reports the median and the worst of each, and
+//! the peak memory of each count. The budget is a frame, 16 ms (B4), at 10,000.
 //!
 //! ```sh
 //! cargo run --release -p zbm-tui --example snapshots
@@ -35,6 +37,9 @@ const COUNTS: [usize; 3] = [100, 1_000, 10_000];
 /// The terminal sizes measured.
 const SIZES: [(u16, u16); 2] = [(120, 40), (80, 24)];
 
+/// The key maps measured, by name.
+const MAPS: [(&str, bool); 2] = [("classic", false), ("workspace", true)];
+
 /// How often each measure is made.
 const RUNS: usize = 5;
 
@@ -49,11 +54,13 @@ struct Bench {
 
 impl Bench {
     /// The menu on the demo machine with `count` snapshots, its main view
-    /// drawn at `size`, the countdown stopped.
-    fn new(count: usize, (width, height): (u16, u16)) -> Bench {
+    /// drawn at `size`, the countdown stopped; in the workspace when
+    /// `workspace`.
+    fn new(count: usize, (width, height): (u16, u16), workspace: bool) -> Bench {
         let options = DemoOptions {
             snapshots: count,
             timeout: None,
+            workspace,
             ..DemoOptions::default()
         };
         let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
@@ -91,16 +98,26 @@ struct Times {
     open: Vec<Duration>,
     filter: Vec<Duration>,
     scroll: Vec<Duration>,
+    sort: Vec<Duration>,
+    fold: Vec<Duration>,
     palette_open: Vec<Duration>,
     palette_type: Vec<Duration>,
 }
 
-/// One run at `count` snapshots and `size`.
-fn run(count: usize, size: (u16, u16), times: &mut Times) {
-    let mut bench = Bench::new(count, size);
-    times.open.push(bench.press(KeyPress::new(Key::Char('s'))));
+/// One run at `count` snapshots and `size`, in the workspace when
+/// `workspace`: its tab `2` opens the snapshots, and `z` folds.
+fn run(count: usize, size: (u16, u16), workspace: bool, times: &mut Times) {
+    let mut bench = Bench::new(count, size, workspace);
+    let open = if workspace { '2' } else { 's' };
+    times.open.push(bench.press(KeyPress::new(Key::Char(open))));
     for _ in 0..10 {
         times.scroll.push(bench.press(KeyPress::new(Key::PageDown)));
+    }
+    times.sort.push(bench.press(KeyPress::new(Key::Char('o'))));
+    if workspace {
+        for _ in 0..2 {
+            times.fold.push(bench.press(KeyPress::new(Key::Char('z'))));
+        }
     }
     bench.press(KeyPress::new(Key::Char('/')));
     times.filter.extend(bench.type_text("2026-0"));
@@ -141,26 +158,44 @@ fn reset_peak() {
 fn main() {
     println!("B5: median and worst of {RUNS} runs, in ms ('!' over a frame of 16 ms)");
     println!(
-        "{:>6} {:>7}  {:>15} {:>15} {:>15} {:>15} {:>15} {:>9}",
-        "count", "size", "open", "filter key", "page down", "palette", "palette key", "peak KiB"
+        "{:>9} {:>6} {:>7}  {:>15} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15} {:>9}",
+        "map",
+        "count",
+        "size",
+        "open",
+        "filter key",
+        "page down",
+        "sort",
+        "fold",
+        "palette",
+        "palette key",
+        "peak KiB"
     );
-    for count in COUNTS {
-        for size in SIZES {
-            reset_peak();
-            let mut times = Times::default();
-            for _ in 0..RUNS {
-                run(count, size, &mut times);
+    for (name, workspace) in MAPS {
+        for count in COUNTS {
+            for size in SIZES {
+                reset_peak();
+                let mut times = Times::default();
+                for _ in 0..RUNS {
+                    run(count, size, workspace, &mut times);
+                }
+                let fold = if workspace {
+                    summary(&mut times.fold)
+                } else {
+                    format!("{:>15}", "-")
+                };
+                println!(
+                    "{name:>9} {count:>6} {:>7}  {} {} {} {} {fold} {} {} {:>9}",
+                    format!("{}x{}", size.0, size.1),
+                    summary(&mut times.open),
+                    summary(&mut times.filter),
+                    summary(&mut times.scroll),
+                    summary(&mut times.sort),
+                    summary(&mut times.palette_open),
+                    summary(&mut times.palette_type),
+                    peak_kib()
+                );
             }
-            println!(
-                "{count:>6} {:>7}  {} {} {} {} {} {:>9}",
-                format!("{}x{}", size.0, size.1),
-                summary(&mut times.open),
-                summary(&mut times.filter),
-                summary(&mut times.scroll),
-                summary(&mut times.palette_open),
-                summary(&mut times.palette_type),
-                peak_kib()
-            );
         }
     }
 }

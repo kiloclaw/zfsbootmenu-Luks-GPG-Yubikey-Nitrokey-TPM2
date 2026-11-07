@@ -8,6 +8,7 @@ use ratatui::widgets::{Paragraph, Wrap};
 use zbm_types::Printable;
 
 use super::lists;
+use crate::menu::filter::Ranked;
 use crate::menu::format::{age, date, fit, size};
 use crate::menu::keymap::{self, Context, Map};
 use crate::menu::model::{Column, Model, RECOVERY, recovery_tools};
@@ -70,8 +71,6 @@ pub(super) fn unread(model: &Model) -> Option<(String, String)> {
 /// The snapshots of the focused environment: name, then age and size;
 /// while they are read, or when they are not, the column says so.
 pub(super) fn snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    let theme = model.theme;
-    let snapshots = model.focus_snapshots();
     let width = lists::row_width(area).saturating_sub(2);
     // Ten thousand snapshots: the rows of those shown alone.
     let window = lists::window(&model.snapshots, area);
@@ -82,47 +81,63 @@ pub(super) fn snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .get(window)
         .unwrap_or_default()
         .iter()
-        .filter_map(|ranked| {
-            let snapshot = snapshots.get(ranked.index)?;
-            let marked = model.marked.contains(&snapshot.name);
-            let facts = vec![Span::styled(
-                format!(
-                    "{:>10}  {:>9}",
-                    age(model.snapshot.now, snapshot.created),
-                    size(snapshot.used)
-                ),
-                theme.style(Role::Muted),
-            )];
-            let name = fit(
-                snapshot.name.name(),
-                width.saturating_sub(23),
-                theme.is_ascii(),
-            );
-            let mut line = lists::row(theme, &name, &ranked.positions, width, facts);
-            let mark = if marked {
-                theme.glyph(Glyph::Marked)
-            } else {
-                " "
-            };
-            line.spans.insert(
-                0,
-                Span::styled(format!("{mark} "), theme.style(Role::Accent)),
-            );
-            Some(line)
-        })
+        .filter_map(|ranked| snapshot_row(model, ranked, width))
         .collect();
-    let header = text!("snapshots-by", order = text::get(model.sort.id()));
-    let (title, hint) =
-        unread(model).unwrap_or_else(|| (text!("snapshots-none"), text!("snapshots-none.text")));
+    let (header, count) = snapshots_total(model);
+    let (title, hint) = snapshots_empty(model);
     let empty = (title.as_str(), hint.as_str());
-    // Until they come, the count is the one the machine read with it.
+    let rows = (first, rows);
+    let total = (header.as_str(), count);
+    lists::render_window(model, frame, area, total, &model.snapshots, rows, empty);
+}
+
+/// The header of the snapshots column, their order, and its count: until
+/// they come, the count the machine read with the environment.
+pub(super) fn snapshots_total(model: &Model) -> (String, usize) {
+    let header = text!("snapshots-by", order = text::get(model.sort.id()));
     let count = match model.column() {
-        Column::Loaded => snapshots.len(),
+        Column::Loaded => model.focus_snapshots().len(),
         _ => model.focused().map_or(0, |e| e.snapshot_count),
     };
-    let total = (header.as_str(), count);
-    let rows = (first, rows);
-    lists::render_window(model, frame, area, total, &model.snapshots, rows, empty);
+    (header, count)
+}
+
+/// What the snapshots column says when it shows none: that they are read,
+/// or not, or that there are none.
+pub(super) fn snapshots_empty(model: &Model) -> (String, String) {
+    unread(model).unwrap_or_else(|| (text!("snapshots-none"), text!("snapshots-none.text")))
+}
+
+/// The row of the snapshot `ranked` points at, `width` columns wide: its
+/// mark, its name with the matches, its age and its size.
+pub(super) fn snapshot_row(model: &Model, ranked: &Ranked, width: usize) -> Option<Line<'static>> {
+    let theme = model.theme;
+    let snapshot = model.focus_snapshots().get(ranked.index)?;
+    let marked = model.marked.contains(&snapshot.name);
+    let facts = vec![Span::styled(
+        format!(
+            "{:>10}  {:>9}",
+            age(model.snapshot.now, snapshot.created),
+            size(snapshot.used)
+        ),
+        theme.style(Role::Muted),
+    )];
+    let name = fit(
+        snapshot.name.name(),
+        width.saturating_sub(23),
+        theme.is_ascii(),
+    );
+    let mut line = lists::row(theme, &name, &ranked.positions, width, facts);
+    let mark = if marked {
+        theme.glyph(Glyph::Marked)
+    } else {
+        " "
+    };
+    line.spans.insert(
+        0,
+        Span::styled(format!("{mark} "), theme.style(Role::Accent)),
+    );
+    Some(line)
 }
 
 /// The kernels of the focused environment, the default labelled.

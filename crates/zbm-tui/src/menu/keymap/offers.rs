@@ -77,3 +77,30 @@ pub(crate) fn is_offered(context: Context, intent: Intent, model: &Model) -> boo
         Some(kind) => offers.contains(&kind),
     }
 }
+
+/// Whether `intent` in `context` acts on the selected snapshot, which the
+/// header of a folded group of the timeline is not: `Enter` there opens
+/// the group, and a diff of marked snapshots needs none selected.
+pub(crate) fn needs_snapshot(context: Context, intent: Intent, model: &Model) -> bool {
+    context == Snapshots
+        && match intent {
+            Intent::Primary
+            | Intent::Mark
+            | Intent::Boot
+            | Intent::Rollback
+            | Intent::Clone
+            | Intent::CloneAndPromote
+            | Intent::Duplicate
+            | Intent::Chroot => true,
+            Intent::Diff => model.marked.is_empty(),
+            _ => false,
+        }
+}
+
+/// Whether the toolbar, the next steps and the line view show `intent` in
+/// `context`: it is offered, and does something to the selection, which
+/// on the header of a folded group a snapshot's action does not.
+pub(crate) fn is_shown(context: Context, intent: Intent, model: &Model) -> bool {
+    is_offered(context, intent, model)
+        && !(needs_snapshot(context, intent, model) && model.folded_group().is_some())
+}

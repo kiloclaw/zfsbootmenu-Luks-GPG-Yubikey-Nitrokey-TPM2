@@ -105,6 +105,8 @@ pub enum Intent {
     Diff,
     /// Mark the selection.
     Mark,
+    /// Fold the group of the selection, or unfold it.
+    Fold,
     /// Unlock the selected volume.
     Unlock,
     /// Import the selected pool.
@@ -307,7 +309,7 @@ mod workspace;
 use self::classic::classic;
 pub use self::classic::{CLASSIC, classic_bindings};
 pub use self::labels::{TOOLBAR, TOOLBAR_GAP, Tool, bindings, describe, footer, help, key_name};
-pub(crate) use self::offers::is_offered;
+pub(crate) use self::offers::{is_offered, is_shown, needs_snapshot};
 pub use self::workspace::{Map, Tab, WORKSPACE};
 
 use Context::{Diff, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots, Startup};

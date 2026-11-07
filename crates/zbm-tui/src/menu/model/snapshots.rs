@@ -5,8 +5,12 @@
 
 use zbm_types::DatasetName;
 
-use super::{Model, Sort, keep, refilter};
+use super::{Model, Sort, keep, refilter, timeline};
+use crate::menu::keymap::Map;
 use crate::menu::world::{Snapshot, SnapshotInfo, SnapshotList};
+
+/// The seconds of a day.
+const DAY: u64 = 86_400;
 
 /// What the snapshots column of the focused environment shows.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -21,8 +25,9 @@ pub(crate) enum Column {
 }
 
 /// What the snapshots' matches were ranked from: the lists as they were
-/// ([`Model::generation`]), the focus and the filter.
-pub(super) type Ranked = (u64, Option<DatasetName>, String);
+/// ([`Model::generation`]), the focus, the filter, the key map, whose
+/// workspace groups them, and the day, by which it does.
+pub(super) type Ranked = (u64, Option<DatasetName>, String, Map, u64);
 
 /// Sorts `snapshots` in the order `sort` says; equal ones keep theirs.
 fn sort_snapshots(snapshots: &mut [SnapshotInfo], sort: Sort) {
@@ -71,8 +76,18 @@ impl Model {
         focused_of(&self.snapshot, self.focus.as_ref())
     }
 
-    /// The selected snapshot.
+    /// The selected snapshot; none on the header of a folded group of the
+    /// timeline, which stands for its snapshots.
     pub fn selected_snapshot(&self) -> Option<&SnapshotInfo> {
+        if self.folded_group().is_some() {
+            return None;
+        }
+        self.snapshot_at_selection()
+    }
+
+    /// The snapshot of the selected match, which on a folded group of the
+    /// timeline is the first of the group: what a refresh keeps selected.
+    pub(super) fn snapshot_at_selection(&self) -> Option<&SnapshotInfo> {
         self.focus_snapshots().get(self.snapshots.selected_item()?)
     }
 
@@ -141,27 +156,39 @@ impl Model {
         self.reading = None;
     }
 
-    /// Matches the filter against the snapshots of the focus again, and
-    /// selects the one called `name`; only when the lists, the focus or
-    /// the filter changed since the last time, as ranking ten thousand
-    /// snapshots takes longer than a frame.
+    /// Matches the filter against the snapshots of the focus again, in the
+    /// workspace without one as its timeline orders them, and selects the
+    /// one called `name`; only when the lists, the focus, the filter, the
+    /// map or the clock's day changed since the last time, as ranking ten
+    /// thousand snapshots takes longer than a frame.
     pub(super) fn rank_snapshots(&mut self, name: Option<String>) {
+        let now = self.clock();
         let ranked = (
             self.generation,
             self.focus.clone(),
             self.snapshots.filter.clone(),
+            self.map,
+            now / DAY,
         );
         if self.ranked.as_ref() == Some(&ranked) {
             return;
         }
         let snapshots = focused_of(&self.snapshot, self.focus.as_ref());
-        refilter(
-            &mut self.snapshots,
-            snapshots.iter().map(|snapshot| snapshot.name.name()),
-        );
-        keep(&mut self.snapshots, snapshots, name, |snapshot| {
-            snapshot.name.name().to_owned()
-        });
+        let grouped = self.map == Map::Workspace && self.snapshots.filter.is_empty();
+        self.timeline = None;
+        if grouped {
+            let name = name.as_deref();
+            let list = &mut self.snapshots;
+            self.timeline = Some(timeline::rank(list, snapshots, now, &mut self.folds, name));
+        } else {
+            refilter(
+                &mut self.snapshots,
+                snapshots.iter().map(|snapshot| snapshot.name.name()),
+            );
+            keep(&mut self.snapshots, snapshots, name, |snapshot| {
+                snapshot.name.name().to_owned()
+            });
+        }
         self.ranked = Some(ranked);
     }
 
@@ -169,5 +196,16 @@ impl Model {
     /// next refresh ranks them, as when their list state was reset.
     pub(crate) fn rank_again(&mut self) {
         self.ranked = None;
+    }
+
+    /// Groups the snapshots again once the clock passed midnight since
+    /// the timeline grouped them, as its days are the clock's: yesterday's
+    /// snapshots leave today's group, though the machine sent nothing.
+    pub(crate) fn follow_clock(&mut self) {
+        let day = self.clock() / DAY;
+        let ranked = self.ranked.as_ref().map(|ranked| ranked.4);
+        if self.timeline.is_some() && ranked.is_some_and(|ranked| ranked != day) {
+            self.refresh();
+        }
     }
 }

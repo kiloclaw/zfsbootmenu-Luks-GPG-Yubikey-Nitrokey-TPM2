@@ -8,7 +8,7 @@ use zbm_types::Printable;
 use super::{health, main_view, question, screens, unlock};
 use crate::menu::format::{age, size};
 use crate::menu::keymap;
-use crate::menu::model::{Asking, Column, Dialog, Model, Naming, RECOVERY, Screen, Segment};
+use crate::menu::model::{Asking, Column, Dialog, Model, Naming, RECOVERY, Row, Screen, Segment};
 use crate::menu::world::{Level, Outcome, StageState};
 use crate::text::{self, text};
 
@@ -171,21 +171,53 @@ fn environments(model: &Model) -> Vec<String> {
 }
 
 /// The snapshots of the focused environment: name, age and size; while
-/// they are not read, what their column says instead.
+/// they are not read, what their column says instead. In the workspace's
+/// timeline, the header of each group comes before its snapshots, or
+/// alone when it is folded.
 fn snapshots(model: &Model) -> Vec<String> {
     if let Some((title, detail)) = screens::unread(model) {
         return vec![format!("{title}: {detail}")];
     }
     let snapshots = model.focus_snapshots();
-    in_order(&model.snapshots.matches, |index| {
-        let snapshot = snapshots.get(index)?;
+    let said = |position: usize| {
+        let ranked = model.snapshots.matches.get(position)?;
+        let snapshot = snapshots.get(ranked.index)?;
         Some(format!(
             "{}, {}, {}",
             snapshot.name.name(),
             age(model.snapshot.now, snapshot.created),
             size(snapshot.used)
         ))
-    })
+    };
+    let Some(timeline) = model.timeline() else {
+        return (0..model.snapshots.matches.len())
+            .filter_map(said)
+            .collect();
+    };
+    timeline
+        .window(0, timeline.rows())
+        .into_iter()
+        .filter_map(|row| match row {
+            Row::Header(group) => {
+                let mut header = vec![group.period.label()];
+                header.extend(group.facts());
+                Some(header.join(", "))
+            }
+            Row::Snapshot(position) => said(position),
+        })
+        .collect()
+}
+
+/// The rows of [`rows`] that are headers the line view does not number,
+/// as they are no item to choose: those of the workspace's timeline whose
+/// group is not folded, in order.
+pub(crate) fn headers(model: &Model) -> Vec<usize> {
+    match model.timeline() {
+        Some(timeline) if model.screen == Screen::Snapshots && model.column() == Column::Loaded => {
+            timeline.headers()
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// The kernels of the focused environment, the default said.
@@ -231,7 +263,7 @@ fn help(model: &Model, context: keymap::Context) -> Vec<String> {
     let workspace = model.map == keymap::Map::Workspace;
     let version = model.snapshot.zfs_version.as_ref().filter(|_| workspace);
     let keys = keymap::help(model.map, context, &|intent| {
-        keymap::is_offered(context, intent, model)
+        keymap::is_shown(context, intent, model)
     });
     version
         .map(|version| {
@@ -373,7 +405,7 @@ fn palette(model: &Model) -> Option<Said> {
 pub(crate) fn commands(model: &Model) -> Vec<String> {
     let context = model.context();
     keymap::bindings(model.map, context, &|intent| {
-        keymap::is_offered(context, intent, model)
+        keymap::is_shown(context, intent, model)
     })
     .into_iter()
     .filter(|(_, key, _)| key.chars().count() == 1)

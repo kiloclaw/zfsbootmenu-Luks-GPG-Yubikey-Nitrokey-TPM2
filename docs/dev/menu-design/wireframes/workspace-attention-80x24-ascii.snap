@@ -20,7 +20,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 |         Pool  zroot | ONLINE | read-only                                     |
 |       Kernel  6.12.9_1 | 3 kernels                                           |
 |    Last Boot  Loaded 2026-10-22 19:00 with 6.12.9_1                          |
-|    Snapshots  400 | newest pre-upgrade, 12 h ago                             |
+|    Snapshots  400 | newest pre-upgrade, 1 h ago                              |
 |   Encryption  key loaded                                                     |
 +------------------------------------------------------------------------------+
  : commands   / filter   ? every key

@@ -96,6 +96,9 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         Screen::Main | Screen::Kernels if model.map == keymap::Map::Workspace => {
             workspace::render(model, frame, area);
         }
+        Screen::Snapshots if model.map == keymap::Map::Workspace => {
+            workspace::render_snapshots(model, frame, area);
+        }
         Screen::Main => main_view::render(model, frame, area),
         Screen::Snapshots => screens::snapshots(model, frame, area),
         Screen::Kernels => screens::kernels(model, frame, area),
@@ -170,7 +173,7 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
     let mut spans = vec![Span::raw(" ")];
     let mut used = 0;
     let context = model.context();
-    let offered = |intent| keymap::is_offered(context, intent, model);
+    let offered = |intent| keymap::is_shown(context, intent, model);
     for (index, tool) in keymap::footer(model.map, context, width, &offered)
         .into_iter()
         .enumerate()

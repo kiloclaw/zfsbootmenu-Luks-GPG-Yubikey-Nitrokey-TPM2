@@ -41,6 +41,8 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `workspace-kernels` | `l` from the Boot tab: the kernels column of the second environment, its kernel in the path and the inspector |
 | `workspace-columns` | `Right` into the kernels of `tank/ROOT/arch`, the first environment of the second pool, and down one: the path `tank › tank/ROOT/arch › 6.10.10-arch1-1` |
 | `workspace-inspector-wrap` | the kernels column of `tank/ROOT/arch` with a long command line: the inspector wraps it under its label |
+| `workspace-snapshots` | `2` and `End`: the Snapshots tab, the environments beside the timeline of the default's 400 snapshots: today, the days of this week, the weeks of this month (the first from 1 October) and the months, folded, each under a header with its count and the space it holds; the oldest month selected, its count and space in the inspector, which offers no snapshot's action |
+| `workspace-snapshots-reading` | `2` before the machine sent the snapshots: their column says it reads them |
 | `workspace-pools` | `3`: the Pools tab |
 | `workspace-help` | `?` on the Boot tab: the version of the ZFS module on the right of its header, and the `MOD+key` aliases of the `fzf` menu |
 | `workspace-attention` | once the scan after the first frame found the pools start-up left alone, one of them another host's: what needs attention, worst first, each with the tab that shows it |

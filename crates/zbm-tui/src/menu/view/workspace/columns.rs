@@ -32,6 +32,18 @@ const BESIDE_FROM: u16 = 94;
 /// columns takes more lines.
 const TALL: u16 = 17;
 
+/// What the rows of the environments say after each name.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Facts {
+    /// What the main view says: the kernel that boots, then the labels.
+    Kernel,
+    /// The labels alone, as the kernels column beside says the kernel.
+    Labels,
+    /// Nothing: the column beside the snapshots, which only says whose
+    /// they are.
+    Nothing,
+}
+
 /// Draws the columns and the inspector in `area`, below the path: the
 /// inspector beside them when `beside` and there is room, else below them.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, beside: bool) {
@@ -42,7 +54,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, beside: b
             Constraint::Fill(1),
         ])
         .areas(area);
-        render_environments(model, frame, environments, false);
+        render_environments(model, frame, environments, Facts::Labels);
         render_kernels(model, frame, kernels);
         render_inspector(model, frame, inspector);
         return;
@@ -54,12 +66,12 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, beside: b
     if columns.width >= TWO_FROM {
         let [environments, kernels] =
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(KERNELS)]).areas(columns);
-        render_environments(model, frame, environments, false);
+        render_environments(model, frame, environments, Facts::Labels);
         render_kernels(model, frame, kernels);
     } else if model.screen == Screen::Kernels {
         render_kernels(model, frame, columns);
     } else {
-        render_environments(model, frame, columns, true);
+        render_environments(model, frame, columns, Facts::Kernel);
     }
     render_inspector(model, frame, inspector);
 }
@@ -76,9 +88,9 @@ fn render_inspector(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 
 /// The boot environments, under a header for each pool, which is not an
 /// item: the selection moves from environment to environment. Each says
-/// the kernel that boots only `with_kernel`, as the kernels column does
-/// when it shows beside.
-fn render_environments(model: &Model, frame: &mut Frame<'_>, area: Rect, with_kernel: bool) {
+/// what `facts` says after its name; beside the snapshots the column is
+/// titled shorter, as it is narrow.
+pub(super) fn render_environments(model: &Model, frame: &mut Frame<'_>, area: Rect, facts: Facts) {
     let theme = model.theme;
     let environments = &model.snapshot.environments;
     let width = lists::row_width(area);
@@ -94,18 +106,25 @@ fn render_environments(model: &Model, frame: &mut Frame<'_>, area: Rect, with_ke
         if position == model.environments.selected {
             selected = Some(rows.len());
         }
-        let facts = if with_kernel {
-            main_view::facts(model, environment)
-        } else {
-            trimmed(main_view::labels(model, environment))
+        let said = match facts {
+            Facts::Kernel => main_view::facts(model, environment),
+            Facts::Labels => trimmed(main_view::labels(model, environment)),
+            Facts::Nothing => Vec::new(),
         };
-        let room = width.saturating_sub(facts.iter().map(Span::width).sum::<usize>() + 2);
+        let room = match said.iter().map(Span::width).sum::<usize>() {
+            0 => width,
+            used => width.saturating_sub(used + 2),
+        };
         let name = fit(environment.name.as_str(), room, theme.is_ascii());
-        rows.push(lists::row(theme, &name, &ranked.positions, width, facts));
+        rows.push(lists::row(theme, &name, &ranked.positions, width, said));
     }
     let (title, hint) = (text!("environments-none"), text!("environments-none.text"));
     let empty = (title.as_str(), hint.as_str());
-    let header = text!("view-main");
+    let header = if facts == Facts::Nothing {
+        text!("timeline-environments")
+    } else {
+        text!("view-main")
+    };
     let total = (header.as_str(), environments.len());
     let rows = (selected, rows);
     lists::render_rows(model, frame, area, total, &model.environments, rows, empty);

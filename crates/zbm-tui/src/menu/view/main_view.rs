@@ -121,7 +121,7 @@ pub(super) fn labels(model: &Model, environment: &Environment) -> Vec<Span<'stat
 }
 
 /// The inspector with nothing selected.
-fn render_nothing(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+pub(super) fn render_nothing(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let block = lists::block(theme, &text!("details-title"));
     let inner = block.inner(area);
@@ -131,7 +131,7 @@ fn render_nothing(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 }
 
 /// The inspector's box: `title`, and `label` on the right.
-fn inspector(model: &Model, title: &str, label: Option<String>) -> Block<'static> {
+pub(super) fn inspector(model: &Model, title: &str, label: Option<String>) -> Block<'static> {
     let theme = model.theme;
     let block = Block::bordered()
         .border_set(theme.border())
@@ -149,7 +149,7 @@ fn inspector(model: &Model, title: &str, label: Option<String>) -> Block<'static
 
 /// The facts as the inspector draws them in lines `width` columns wide:
 /// in the workspace their values wrap, else they are cut.
-fn fact_lines(model: &Model, facts: Vec<Fact>, width: usize) -> Vec<Line<'static>> {
+pub(super) fn fact_lines(model: &Model, facts: Vec<Fact>, width: usize) -> Vec<Line<'static>> {
     let ascii = model.theme.is_ascii();
     if model.map == Map::Workspace {
         return facts
@@ -293,7 +293,7 @@ pub(super) fn render_kernel_detail(model: &Model, frame: &mut Frame<'_>, area: R
 }
 
 /// A fact of the inspector: its label, and its value.
-type Fact = (String, Vec<Span<'static>>);
+pub(super) type Fact = (String, Vec<Span<'static>>);
 
 /// One row of the inspector: the label right-aligned and secondary, then
 /// the value.

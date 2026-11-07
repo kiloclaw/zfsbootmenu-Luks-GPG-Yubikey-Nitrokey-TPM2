@@ -5,7 +5,10 @@
 //! names and devices, the names and notes of the pools' devices, the name
 //! of the host that used a pool not imported, the log, the version of the
 //! ZFS module and the host ID; with the demo's snapshots read, every screen
-//! is drawn with them, the workspace's Boot tab and help too, at one of
+//! is drawn with them, the workspace's Boot tab and help too, then the
+//! workspace's Snapshots tab: its timeline of the snapshots whose names
+//! the input gives, taken at times around now, after it and at the epoch,
+//! with a group folded, and in the line view's words; at one of
 //! three sizes that the first byte picks, the largest wide enough for the
 //! host ID and the time. Drawing may not panic, and no cell may hold a
 //! character that acts on a terminal.
@@ -17,14 +20,19 @@ use std::sync::OnceLock;
 use libfuzzer_sys::fuzz_target;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use zbm_display::keys::{Key, KeyPress};
 use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::demo::DemoOptions;
 use zbm_tui::menu::demo::data::{machine, snapshots};
 use zbm_tui::menu::keymap::{Context, Map};
+use zbm_tui::menu::lines::page;
 use zbm_tui::menu::model::{Editor, Model, Screen};
 use zbm_tui::menu::theme::Theme;
 use zbm_tui::menu::view::view;
-use zbm_tui::menu::world::{DeviceState, Kernel, Level, LogEntry, PoolHost, Snapshot};
+use zbm_tui::menu::world::{
+    DeviceState, Event, Kernel, Level, LogEntry, PoolHost, Snapshot, SnapshotInfo, SnapshotList,
+};
+use zbm_tui::menu::{Message, update};
 use zbm_types::{Untrusted, must_escape};
 
 /// The sizes drawn: the smallest the menu lays out for, the console's, a
@@ -151,4 +159,40 @@ fuzz_target!(|data: &[u8]| {
         model.screen = screen;
         check(&model, width, height);
     }
+    // The workspace's Snapshots tab: hostile names, taken at times that
+    // cross the boundaries of the groups, one group folded.
+    let now = model.snapshot.now;
+    let mut taken = Vec::new();
+    for hours in 0..12_u64 {
+        let part = next();
+        let Ok(snapshot) = format!("{name}@{}", part.get()).parse() else {
+            continue;
+        };
+        let length = u64::try_from(part.get().len()).unwrap_or(u64::MAX);
+        let created = match length % 4 {
+            0 => 0,
+            1 => now.saturating_add(hours * 3600),
+            2 => now.saturating_sub(length.saturating_mul(hours).saturating_mul(86_400)),
+            _ => u64::MAX,
+        };
+        taken.push(SnapshotInfo {
+            name: snapshot,
+            created,
+            used: length.saturating_mul(1 << 40),
+        });
+    }
+    // As the machine sends them, so that the timeline groups them anew.
+    let loaded = Event::SnapshotsLoaded(SnapshotList {
+        environment: name.clone(),
+        snapshots: taken,
+    });
+    model.focus = Some(name);
+    model.screen = Screen::Snapshots;
+    let (model, _) = update(model, Message::Event(Box::new(loaded)));
+    check(&model, width, height);
+    let _ = page(&model);
+    let fold = Message::Key(KeyPress::new(Key::Char('z')));
+    let (model, _) = update(model, fold);
+    check(&model, width, height);
+    let _ = page(&model);
 });

@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+ zroot › zroot/ROOT/void
+┌ SNAPSHOTS BY NAME ────────────────────────── 400 ┐
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│             Reading the Snapshots...             │
+│       The machine lists them; Esc stops it.      │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ DETAILS ─────────────────────────────────────────┐
+│                   No Selection                   │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ Enter Choose   r Roll Back   c Clone        ? More

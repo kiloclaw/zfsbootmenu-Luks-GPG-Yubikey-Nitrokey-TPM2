@@ -58,6 +58,8 @@ action-diff = diff
     .title = Diff
 action-mark = mark
     .title = Mark
+action-fold = fold or unfold
+    .title = Fold
 action-unlock = unlock
     .title = Unlock
 action-import = import
@@ -196,6 +198,44 @@ snapshots-reading = Reading the Snapshots...
     .text = The machine lists them; Esc stops it.
 snapshots-not-read = Snapshots Not Read
     .text = Open the snapshots again to read them.
+# The workspace's snapshots as a timeline, in groups by when they were
+# taken, newest first: today, the days of this week, the weeks of this
+# month, then the months. Each header says how many snapshots its group
+# holds and the space they hold.
+timeline-environments = Environments
+timeline-today = Today
+timeline-day = { $weekday } { $day } { $month }
+timeline-week = Week of { $day } { $month }
+timeline-month = { $month } { $year }
+timeline-month-name = { $month ->
+        [1] January
+        [2] February
+        [3] March
+        [4] April
+        [5] May
+        [6] June
+        [7] July
+        [8] August
+        [9] September
+        [10] October
+        [11] November
+       *[12] December
+    }
+timeline-weekday-name = { $weekday ->
+        [1] Monday
+        [2] Tuesday
+        [3] Wednesday
+        [4] Thursday
+        [5] Friday
+        [6] Saturday
+       *[7] Sunday
+    }
+timeline-count = { $count ->
+        [one] { $count } snapshot
+       *[other] { $count } snapshots
+    }
+timeline-folded = folded
+timeline-open-group = open the group with Enter to choose one of its snapshots
 # What labels the default kernel, and the default environment.
 label-default = default
 kernels-title = Kernels
@@ -388,6 +428,9 @@ fact-last-boot = Last Boot
     .loaded = Loaded { $when } with { $kernel }
 fact-encryption = Encryption
 fact-command-line = Command Line
+fact-taken = Taken
+    .when = { $date } { $time } UTC, { $age }
+fact-used = Used
 encryption-unlocked = key loaded
 encryption-locked = : the key is asked at boot
 origin-local = set here

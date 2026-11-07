@@ -13,6 +13,7 @@ mod prompt;
 mod recovery;
 mod snapshots;
 mod sort;
+mod timeline;
 
 pub use self::diff::{DiffView, Segment};
 use self::list::keep;
@@ -24,6 +25,8 @@ pub(crate) use self::recovery::recovery_tools;
 pub use self::recovery::{RECOVERY, RecoveryTool};
 pub(crate) use self::snapshots::Column;
 pub use self::sort::Sort;
+use self::timeline::Folds;
+pub(crate) use self::timeline::{Group, Row, Timeline};
 
 use super::filter::Ranked;
 use super::keymap::{Context, Map};
@@ -210,6 +213,10 @@ pub struct Model {
     /// What the snapshots' matches were ranked from, which a refresh ranks
     /// again only when it changed.
     ranked: Option<snapshots::Ranked>,
+    /// The snapshots as the workspace's timeline groups them, when it does.
+    timeline: Option<Timeline>,
+    /// The groups of the timeline the person folded or opened.
+    folds: Folds,
     /// Snapshots marked for a diff.
     pub marked: Vec<SnapshotName>,
     /// The kernels of [`Model::focus`].
@@ -282,6 +289,8 @@ impl Model {
             unread: None,
             generation: 0,
             ranked: None,
+            timeline: None,
+            folds: Folds::default(),
             marked: Vec::new(),
             kernels: ListState::default(),
             pools: ListState::default(),
@@ -353,6 +362,12 @@ impl Model {
         self.refresh_with(None);
     }
 
+    /// The time, in seconds since the epoch: the snapshot's and the ticks
+    /// counted since, as the tab bar's clock and the timeline's days say.
+    pub(crate) fn clock(&self) -> u64 {
+        self.snapshot.now.saturating_add(self.ticked / 1000)
+    }
+
     /// Sorts the snapshots by `sort`. The selection is read in the old order,
     /// so a rollback takes the snapshot shown selected before.
     pub fn set_sort(&mut self, sort: Sort) {
@@ -368,7 +383,8 @@ impl Model {
     fn selected_names(&self) -> Selected {
         (
             self.selected_environment().map(|e| e.name.to_string()),
-            self.selected_snapshot().map(|s| s.name.name().to_owned()),
+            self.snapshot_at_selection()
+                .map(|s| s.name.name().to_owned()),
             self.selected_row(),
             self.selected_kernel().map(|k| k.version.get().clone()),
         )

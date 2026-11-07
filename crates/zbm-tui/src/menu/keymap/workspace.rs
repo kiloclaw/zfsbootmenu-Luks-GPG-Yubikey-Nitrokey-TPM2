@@ -134,6 +134,11 @@ pub const WORKSPACE: &[Binding] = &[
     ),
 ];
 
+/// The bindings of the workspace that come after the current map's in the
+/// toolbar, as they do less than its keys of the same view: `z` folds the
+/// group of the timeline the selection is in.
+const WORKSPACE_LAST: &[Binding] = &[key('z', &[Snapshots], Intent::Fold)];
+
 /// Letters of the current map that the workspace leaves unbound: the pools
 /// are a tab.
 const FREED: &[char] = &['p'];
@@ -144,7 +149,7 @@ fn is_taken(binding: &Binding) -> bool {
     let freed =
         binding.modifiers == NONE && matches!(binding.key, Key::Char(c) if FREED.contains(&c));
     freed
-        || WORKSPACE.iter().any(|own| {
+        || WORKSPACE.iter().chain(WORKSPACE_LAST).any(|own| {
             own.key == binding.key
                 && own.modifiers == binding.modifiers
                 && own.scope.has_context_in_common(binding.scope)
@@ -159,6 +164,7 @@ impl Map {
             Map::Workspace => WORKSPACE
                 .iter()
                 .chain(KEYMAP.iter().filter(|binding| !is_taken(binding)))
+                .chain(WORKSPACE_LAST)
                 .collect(),
         }
     }

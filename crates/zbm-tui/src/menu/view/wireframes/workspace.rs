@@ -22,9 +22,11 @@ fn workspace() -> DemoOptions {
 /// them another host's; the kernel's messages about the disk `tank`
 /// lost, chosen in its pool's dialog; the Log tab with the boot history
 /// `zbm.save_logs` kept, and without the option; and help, under the ZFS
-/// version.
+/// version; the Snapshots tab as the timeline of the default environment,
+/// its months folded and the oldest selected, and while the machine reads
+/// them.
 pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
-    use Step::{Char, Code, Tick};
+    use Step::{Char, Code, Tick, Unanswered};
     let frame = |name, keys| Wireframe {
         name,
         options: workspace(),
@@ -61,6 +63,8 @@ pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
             ticks: 50,
             keys: &[Code(Key::Down), Code(Key::Down), Code(Key::Right)],
         },
+        frame("workspace-snapshots", &[Char('2'), Code(Key::End)]),
+        frame("workspace-snapshots-reading", &[Unanswered('2')]),
         frame("workspace-pools", &[Char('3')]),
         frame("workspace-help", &[Char('?')]),
         Wireframe {

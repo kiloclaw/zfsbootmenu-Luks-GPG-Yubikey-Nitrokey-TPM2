@@ -38,6 +38,7 @@ pub fn describe(context: Context, intent: Intent) -> Id {
         (_, Intent::NewSnapshot) => id!("action-snapshot"),
         (_, Intent::Diff) => id!("action-diff"),
         (_, Intent::Mark) => id!("action-mark"),
+        (_, Intent::Fold) => id!("action-fold"),
         (_, Intent::Unlock) => id!("action-unlock"),
         (_, Intent::Import) => id!("action-import"),
         (_, Intent::Rewind) => id!("action-rewind"),

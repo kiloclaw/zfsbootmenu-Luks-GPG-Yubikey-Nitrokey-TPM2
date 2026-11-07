@@ -133,12 +133,21 @@ pub fn typed(line: &str, context: Context, map: Map) -> Typed {
     }
 }
 
-/// `items` numbered from 1, indented.
-fn numbered(items: &[String]) -> Vec<String> {
+/// `items` numbered from 1, indented, but for those at `headers`, a
+/// sorted list of their indexes, which are indented alone: a number
+/// counts the items to choose.
+fn numbered(items: &[String], headers: &[usize]) -> Vec<String> {
+    let mut number = 0;
     items
         .iter()
         .enumerate()
-        .map(|(index, item)| format!("  {}) {item}", index + 1))
+        .map(|(index, item)| {
+            if headers.binary_search(&index).is_ok() {
+                return format!("  {item}");
+            }
+            number += 1;
+            format!("  {number}) {item}")
+        })
         .collect()
 }
 
@@ -166,7 +175,7 @@ pub fn page(model: &Model) -> Vec<String> {
         if rows.is_empty() {
             page.push(text!("lines-none"));
         }
-        page.extend(numbered(&rows));
+        page.extend(numbered(&rows, &words::headers(model)));
     } else {
         page.extend(rows.into_iter().map(|row| format!("  {row}")));
     }
@@ -176,7 +185,7 @@ pub fn page(model: &Model) -> Vec<String> {
         page.push(String::new());
         page.push(said.title.clone());
         page.extend(said.lines.iter().map(|line| format!("  {line}")));
-        page.extend(numbered(&said.choices));
+        page.extend(numbered(&said.choices, &[]));
     }
     page.push(String::new());
     if is_text(model) {

@@ -5,9 +5,9 @@ use zbm_types::{DatasetName, SnapshotName};
 
 use super::dialogs;
 use crate::menu::format::{age, size};
-use crate::menu::keymap::Intent;
+use crate::menu::keymap::{self, Intent};
 use crate::menu::model::{Choice, Make, Model, Naming, Then};
-use crate::menu::world::{Action, SnapshotInfo};
+use crate::menu::world::{Action, Outcome, SnapshotInfo};
 use crate::text::text;
 
 /// How many marked snapshots a diff compares.
@@ -26,8 +26,19 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
         let then = new_snapshot(model, environment);
         return dialogs::follow(model, then);
     }
-    let Some(snapshot) = model.selected_snapshot().cloned() else {
+    // `Enter` on a folded group of the timeline opens it, as `z` does.
+    if intent == Intent::Fold || (intent == Intent::Primary && model.folded_group().is_some()) {
+        model.fold();
         return Vec::new();
+    }
+    let snapshot = model.selected_snapshot().cloned();
+    if intent == Intent::Diff
+        && let Some(action) = diff(model, snapshot.as_ref().map(|s| &s.name))
+    {
+        return dialogs::follow(model, Then::Act(action));
+    }
+    let Some(snapshot) = snapshot else {
+        return on_folded(model, intent);
     };
     let name = snapshot.name.clone();
     let then = match intent {
@@ -39,7 +50,6 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
             mark(model, &name);
             return Vec::new();
         }
-        Intent::Diff => Then::Act(diff(model, &name)),
         Intent::Boot => boot_clone(model, &name),
         Intent::Rollback => rollback(model, &snapshot),
         Intent::Clone => clone(model, &name),
@@ -64,13 +74,25 @@ fn mark(model: &mut Model, name: &SnapshotName) {
     model.marked.push(name.clone());
 }
 
-/// The diff of the marked snapshots, or of the selection against now.
-fn diff(model: &Model, selected: &SnapshotName) -> Action {
+/// The diff of the marked snapshots, or of the selection against now;
+/// none with neither.
+fn diff(model: &Model, selected: Option<&SnapshotName>) -> Option<Action> {
     match model.marked.as_slice() {
-        [first, second] => Action::Diff(first.clone(), Some(second.clone())),
-        [only] => Action::Diff(only.clone(), None),
-        _ => Action::Diff(selected.clone(), None),
+        [first, second] => Some(Action::Diff(first.clone(), Some(second.clone()))),
+        [only] => Some(Action::Diff(only.clone(), None)),
+        _ => selected.map(|selected| Action::Diff(selected.clone(), None)),
     }
+}
+
+/// What a snapshot's `intent` does with no snapshot selected: on the
+/// header of a folded group of the timeline, the status line says to open
+/// it first; elsewhere nothing.
+fn on_folded(model: &mut Model, intent: Intent) -> Vec<Action> {
+    let context = model.context();
+    if model.folded_group().is_some() && keymap::needs_snapshot(context, intent, model) {
+        model.notification = Some(Outcome::Warning(text!("timeline-open-group")));
+    }
+    Vec::new()
 }
 
 /// Opens the choice of the actions the machine offers for a snapshot.

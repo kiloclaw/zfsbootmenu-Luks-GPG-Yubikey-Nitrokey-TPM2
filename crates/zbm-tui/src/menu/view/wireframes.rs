@@ -8,8 +8,9 @@ use zbm_display::psf::{Font, repertoire};
 
 use super::tests::screen;
 use crate::menu::caps::Capabilities;
-use crate::menu::demo::{DemoOptions, Session};
+use crate::menu::demo::{DemoOptions, FakeMachine, Session};
 use crate::menu::theme::Theme;
+use crate::menu::update::{Message, update};
 
 /// The sizes of the wireframes.
 const SIZES: [(u16, u16); 3] = [(120, 40), (80, 25), (52, 20)];
@@ -25,6 +26,8 @@ enum Step {
     Tick,
     Code(Key),
     Text(&'static str),
+    /// A key whose actions the machine has not answered yet.
+    Unanswered(char),
 }
 
 /// A view and how to reach it from power-on.
@@ -69,6 +72,11 @@ fn play(wireframe: &Wireframe, capabilities: Capabilities) -> Session {
             Step::Tick => session.tick(0),
             Step::Code(key) => session.key(key),
             Step::Text(text) => session.type_text(text),
+            Step::Unanswered(c) => {
+                let message = Message::Key(KeyPress::new(Key::Char(c)));
+                let (model, _) = update(session.into_model(), message);
+                session = Session::with_model(FakeMachine::new(&wireframe.options), model);
+            }
         }
     }
     session

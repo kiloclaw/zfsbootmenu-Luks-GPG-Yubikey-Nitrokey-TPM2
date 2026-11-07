@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+ zroot › zroot/ROOT/void
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────── 400 ┐
+│   zroot · ONLINE     ││                                                      │
+│ ▶ zroot/ROOT/void    ││                                                      │
+│   zroot/ROOT/ubuntu  ││                                                      │
+│   tank · DEGRADED    ││                                                      │
+│   tank/ROOT/arch     ││                                                      │
+│   tank/ROOT/debian   ││                                                      │
+│                      ││               Reading the Snapshots...               │
+│                      ││         The machine lists them; Esc stops it.        │
+│                      ││                                                      │
+│                      ││                                                      │
+│                      ││                                                      │
+│                      ││                                                      │
+│                      ││                                                      │
+│                      ││                                                      │
+└──────────────────────┘└──────────────────────────────────────────────────────┘
+┌ DETAILS ─────────────────────────────────────────────────────────────────────┐
+│                                 No Selection                                 │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Choose   r Roll Back   c Clone   f Diff   y Duplicate             ? More

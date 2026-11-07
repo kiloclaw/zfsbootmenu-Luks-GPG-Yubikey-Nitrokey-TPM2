@@ -1,6 +1,7 @@
 //! The columns of the workspace's Boot tab (ADR 0007, decision 2): the
 //! boot environments grouped by pool, the kernels of one of them, and the
-//! path of what they select, which shows above them.
+//! path of what they select, which shows above them, as above the
+//! Snapshots tab's.
 
 use zbm_types::PoolName;
 
@@ -58,14 +59,23 @@ impl Model {
         self.focused()?.kernels.get(self.kernels.selected_item()?)
     }
 
-    /// The path above the columns of the Boot tab: the pool and the
-    /// environment selected, and the kernel when its column is open, the
-    /// kernel drawn printable. Empty without a selection, and in the other
-    /// views.
+    /// The path above the columns of the Boot and Snapshots tabs: the pool
+    /// and the environment selected, then the kernel when its column is
+    /// open, the kernel drawn printable, or the snapshot selected in the
+    /// snapshots column. Empty without a selection, and in the other views.
     pub fn path(&self) -> Vec<String> {
-        let (environment, kernel) = match self.screen {
+        let (environment, last) = match self.screen {
             Screen::Main => (self.selected_environment(), None),
-            Screen::Kernels => (self.focused(), self.selected_kernel()),
+            Screen::Kernels => (
+                self.focused(),
+                self.selected_kernel()
+                    .map(|kernel| kernel.version.printable().to_string()),
+            ),
+            Screen::Snapshots => (
+                self.focused(),
+                self.selected_snapshot()
+                    .map(|snapshot| snapshot.name.name().to_owned()),
+            ),
             _ => return Vec::new(),
         };
         let Some(environment) = environment else {
@@ -75,7 +85,7 @@ impl Model {
             environment.name.pool().to_string(),
             environment.name.to_string(),
         ];
-        path.extend(kernel.map(|kernel| kernel.version.printable().to_string()));
+        path.extend(last);
         path
     }
 

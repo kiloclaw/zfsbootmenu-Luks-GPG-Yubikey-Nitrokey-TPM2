@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+ zroot › zroot/ROOT/void
+┌ SNAPSHOTS BY NAME ────────────────────────── 400 ┐
+│   June 2026      30 snapshots · 1.2 GiB · folded │
+│   May 2026       31 snapshots · 1.3 GiB · folded │
+│   April 2026     30 snapshots · 1.2 GiB · folded │
+│   March 2026     31 snapshots · 1.3 GiB · folded │
+│   February 2026  28 snapshots · 1.1 GiB · folded │
+│   January 2026   31 snapshots · 1.2 GiB · folded │
+│   December 2025  31 snapshots · 1.3 GiB · folded │
+│   November 2025  30 snapshots · 1.3 GiB · folded │
+│   October 2025   31 snapshots · 1.2 GiB · folded │
+│ ▶ September 20…  12 snapshots · 555 MiB · folded │
+└──────────────────────────────────────────────────┘
+┌ September 2025 ──────────────────────────────────┐
+│    Snapshots  12 snapshots                       │
+│         Used  555 MiB                            │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ n Snapshot   / Filter   : Commands          ? More

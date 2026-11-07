@@ -12,7 +12,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ luks-zroot-b      open ││   tank/ROOT/arch    1 warning ││                          ││       Kernel  6.12.9_1 · 3    │
 │ luks-tank         open ││   tank/ROOT/debian  1 problem ││                          ││               kernels         │
 └────────────────────────┘│                               ││                          ││    Snapshots  400 · newest    │
-┌ ATTENTION ────────── 6 ┐│                               ││                          ││               pre-upgrade, 12 │
+┌ ATTENTION ────────── 6 ┐│                               ││                          ││               pre-upgrade, 1  │
 │ ! tank DEGRADED        ││                               ││                          ││               h ago           │
 │   3 Pools              ││                               ││                          ││   Encryption  key loaded      │
 │ ! tank: sdb2 UNAVAIL   ││                               ││                          ││ Command Line  quiet           │
@@ -36,7 +36,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                        ││                               ││                          ││   6.8.0_1                     │
 │                        ││                               ││                          ││                               │
 │                        ││                               ││                          ││ NEWEST SNAPSHOTS              │
-│                        ││                               ││                          ││   pre-upgrade        12 h ago │
+│                        ││                               ││                          ││   pre-upgrade         1 h ago │
 │                        ││                               ││                          ││                               │
 └────────────────────────┘└───────────────────────────────┘└──────────────────────────┘└───────────────────────────────┘
  : commands   / filter   ? every key

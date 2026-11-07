@@ -34,6 +34,7 @@ const NEXT_STEPS: usize = 4;
 
 mod columns;
 mod path;
+mod timeline;
 
 /// Something that needs attention, and the tab that leads to it.
 struct Item {
@@ -70,6 +71,11 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     }
     path::render(model, frame, top);
     columns::render(model, frame, rest, false);
+}
+
+/// Draws the Snapshots tab: the timeline of the environment open.
+pub(super) fn render_snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    timeline::render(model, frame, area);
 }
 
 /// What needs attention: pools not imported or not healthy, their missing
@@ -414,7 +420,7 @@ pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
     }
     let theme = model.theme;
     let context = model.context();
-    let offered = |intent| keymap::is_offered(context, intent, model);
+    let offered = |intent| keymap::is_shown(context, intent, model);
     let steps: Vec<(String, String)> = keymap::bindings(model.map, context, &offered)
         .into_iter()
         .filter(|(intent, ..)| !matches!(intent, Intent::Primary | Intent::Help))

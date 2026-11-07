@@ -19,7 +19,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │   Boot Tries  3 of 3 left                                                    │
 │         Pool  zroot · ONLINE · read-only                                     │
 │       Kernel  6.12.9_1 · 3 kernels                                           │
-│    Snapshots  400 · newest pre-upgrade, 12 h ago                             │
+│    Snapshots  400 · newest pre-upgrade, 1 h ago                              │
 │   Encryption  key loaded                                                     │
 │ Command Line  quiet loglevel=4 · from zroot/ROOT                             │
 └──────────────────────────────────────────────────────────────────────────────┘

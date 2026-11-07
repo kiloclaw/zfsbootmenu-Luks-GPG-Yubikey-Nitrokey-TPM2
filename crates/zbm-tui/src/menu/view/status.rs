@@ -384,11 +384,10 @@ fn host(model: &Model) -> Option<Part> {
 /// snapshot's time and the ticks counted since; none before the machine
 /// said its time, as in start-up's snapshot.
 fn time(model: &Model) -> Option<Part> {
-    let now = model.snapshot.now;
-    if now == 0 {
+    if model.snapshot.now == 0 {
         return None;
     }
-    let minutes = now.saturating_add(model.ticked / 1000) / 60 % (24 * 60);
+    let minutes = model.clock() / 60 % (24 * 60);
     let time = format!("{:02}:{:02}", minutes / 60, minutes % 60);
     Some((text!("status-time", time = time), Role::Muted))
 }

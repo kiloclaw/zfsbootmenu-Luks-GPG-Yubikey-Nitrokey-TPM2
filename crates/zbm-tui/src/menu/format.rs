@@ -43,7 +43,7 @@ pub fn date(seconds: u64) -> String {
 
 /// The calendar date of a day number (days since 1970-01-01), by Howard
 /// Hinnant's algorithm.
-fn civil(days: i64) -> (i64, i64, i64) {
+pub(crate) fn civil(days: i64) -> (i64, i64, i64) {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);

@@ -39,7 +39,7 @@ The current map draws the same frame with a navigation bar instead of the tab ba
 | Tab | Columns | Inspector | Today's prototype |
 | --- | --- | --- | --- |
 | `1` Boot | pool › environment › kernels | will it boot, the checks, the kernel, the boot tries, the pool, the volumes it needs, the snapshots, the command line, the next steps | the environments and their kernels (`l`), the sidebar, the inspector |
-| `2` Snapshots | the selection's snapshots as a timeline, newest first, grouped by day, week and month, older months folded, with the space each month holds (#23) | what changed since the snapshot (packages, files), and what to do with it | the snapshots view of the selected environment |
+| `2` Snapshots | environment › its snapshots as a timeline, newest first, grouped by day, week and month, older months folded, with the space each group holds; `z` folds or opens a group (#23) | the snapshot: when it was taken, the space it holds, its environment, the next steps; what changed since it (`f`) | the timeline beside the environments, the inspector |
 | `3` Pools | pools › their vdevs and devices; the LUKS volumes | what the state means, the next steps with their commands | the pools and volumes view |
 | `4` Log | the log since start, and the boot history from the saved logs (#9) | the entry, and the saved report of a boot | the log view |
 
@@ -61,7 +61,7 @@ and narrower below them, so that the environments keep their room. The wireframe
 │ luks-zroot-b      open ││   tank/ROOT/arch    1 warning ││                          ││       Kernel  6.12.9_1 · 3    │
 │ luks-tank         open ││   tank/ROOT/debian  1 problem ││                          ││               kernels         │
 └────────────────────────┘│                               ││                          ││    Snapshots  400 · newest    │
-┌ ATTENTION ────────── 6 ┐│                               ││                          ││               pre-upgrade, 12 │
+┌ ATTENTION ────────── 6 ┐│                               ││                          ││               pre-upgrade, 1  │
 │ ! tank DEGRADED        ││                               ││                          ││               h ago           │
 ```
 
@@ -91,6 +91,32 @@ inspector goes below the two columns (`workspace-80x24`, `workspace-80x24-ascii`
 ```
 
 At 52×20 the deepest column and the inspector alone, and the tab bar counts what needs attention.
+
+## The Snapshots tab
+
+The environments, beside the snapshots of the one the Boot tab selected, as a timeline: today, then each earlier day
+of this week, each earlier week of this month (weeks start on Monday, as ISO 8601 says; the first week of a month
+starts on its first day, as the days before it are in the month before), then each month, the newest first, in UTC as
+every time of the menu. A snapshot taken after now, by a clock ahead, is today's. Each group has a header that is
+neither numbered nor a stop for the arrows, with how many snapshots it holds and the space they hold; `o` sorts the
+snapshots within each group. The months are folded: a folded group is its header alone, which is then its one stop.
+`z` folds the group of the selection, or opens it, and `Enter` on a folded group opens it too; there the keys of a
+snapshot's actions are not shown, and say to open the group, but `f` diffs the snapshots marked. A group stays folded
+or open until midnight, when the tab bar's clock moves the groups, even before the machine says its time again; a
+refresh keeps the snapshot selected by name. While a filter ranks the snapshots by how well each name matches, they
+show without groups. From 120 columns the inspector is beside them (`workspace-snapshots-120x40`, at `End`):
+
+```text
+ zroot › zroot/ROOT/void
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────────── 400 ┐┌ September 2025 ──────────────────┐
+│   zroot · ONLINE     ││   Week of 12 October               7 snapshots · 301 MiB ││    Snapshots  12 snapshots       │
+│ ▶ zroot/ROOT/void    ││     autosnap_2026-10-12_daily        11 d ago     56 MiB ││         Used  555 MiB            │
+│   zroot/ROOT/ubuntu  ││     autosnap_2026-10-13_daily        10 d ago     43 MiB ││                                  │
+│   tank · DEGRADED    ││     autosnap_2026-10-14_daily         9 d ago     30 MiB ││ NEXT STEPS                       │
+```
+
+Narrower the inspector is below them, and under 80 columns the snapshots stand alone. The line view prints the
+headers as lines without a number, and numbers the snapshots, and the folded groups, which are stops.
 
 ## The command line and review pages
 

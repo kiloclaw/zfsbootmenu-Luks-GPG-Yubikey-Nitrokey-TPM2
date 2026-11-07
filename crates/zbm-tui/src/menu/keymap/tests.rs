@@ -223,7 +223,8 @@ fn every_action_has_a_title() {
         Context::Text,
     ];
     for context in contexts {
-        for binding in KEYMAP.iter().chain(WORKSPACE) {
+        let tables = Map::Classic.table().into_iter();
+        for binding in tables.chain(Map::Workspace.table()) {
             let what = describe(context, binding.intent);
             let title = crate::text::title(what);
             assert_ne!(
@@ -260,6 +261,10 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
         (Main, plain('p'), None),
         (Snapshots, press(Key::Tab, NONE), intent(Intent::NextTab)),
         (Snapshots, plain(' '), intent(Intent::Mark)),
+        // `z` folds a group of the timeline, in the Snapshots tab alone.
+        (Snapshots, plain('z'), intent(Intent::Fold)),
+        (Main, plain('z'), None),
+        (Context::Diff, plain('z'), None),
         // Text fields still type the letters, and the start-up view has no
         // tabs.
         (Context::Text, plain('j'), Some(Input::Type('j'))),
@@ -269,11 +274,12 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
     for (context, event, expected) in cases {
         assert_eq!(workspace(context, event), expected, "{context:?} {event:?}");
     }
-    // The current map is unchanged.
+    // The current map is unchanged, and gains no key.
     assert_eq!(
         input(Map::Classic, Main, plain('k')),
         intent(Intent::Kernels)
     );
+    assert_eq!(input(Map::Classic, Snapshots, plain('z')), None);
     assert_eq!(
         input(Map::Classic, Main, plain('j')),
         intent(Intent::Chroot)

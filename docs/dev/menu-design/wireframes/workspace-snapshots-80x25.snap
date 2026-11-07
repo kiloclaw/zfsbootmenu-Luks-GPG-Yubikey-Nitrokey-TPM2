@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+ zroot › zroot/ROOT/void
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────── 400 ┐
+│   zroot · ONLINE     ││     autosnap_2026-10-04_daily    19 d ago     69 MiB │
+│ ▶ zroot/ROOT/void    ││   September 2026     30 snapshots · 1.2 GiB · folded │
+│   zroot/ROOT/ubuntu  ││   August 2026        31 snapshots · 1.3 GiB · folded │
+│   tank · DEGRADED    ││   July 2026          31 snapshots · 1.2 GiB · folded │
+│   tank/ROOT/arch     ││   June 2026          30 snapshots · 1.2 GiB · folded │
+│   tank/ROOT/debian   ││   May 2026           31 snapshots · 1.3 GiB · folded │
+│                      ││   April 2026         30 snapshots · 1.2 GiB · folded │
+│                      ││   March 2026         31 snapshots · 1.3 GiB · folded │
+│                      ││   February 2026      28 snapshots · 1.1 GiB · folded │
+│                      ││   January 2026       31 snapshots · 1.2 GiB · folded │
+│                      ││   December 2025      31 snapshots · 1.3 GiB · folded │
+│                      ││   November 2025      30 snapshots · 1.3 GiB · folded │
+│                      ││   October 2025       31 snapshots · 1.2 GiB · folded │
+│                      ││ ▶ September 2025     12 snapshots · 555 MiB · folded │
+└──────────────────────┘└──────────────────────────────────────────────────────┘
+┌ September 2025 ──────────────────────────────────────────────────────────────┐
+│    Snapshots  12 snapshots                                                   │
+│         Used  555 MiB                                                        │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ n Snapshot   / Filter   : Commands   o Sort   ! Recovery                ? More

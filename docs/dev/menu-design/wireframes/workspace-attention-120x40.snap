@@ -15,7 +15,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 └────────────────────────┘│                               ││                          ││               19:00 with      │
 ┌ ATTENTION ────────── 8 ┐│                               ││                          ││               6.12.9_1        │
 │ ! tank DEGRADED        ││                               ││                          ││    Snapshots  400 · newest    │
-│   3 Pools              ││                               ││                          ││               pre-upgrade, 12 │
+│   3 Pools              ││                               ││                          ││               pre-upgrade, 1  │
 │ ! tank: sdb2 UNAVAIL   ││                               ││                          ││               h ago           │
 │   3 Pools              ││                               ││                          ││   Encryption  key loaded      │
 │ ! tank: checkpoint     ││                               ││                          ││ Command Line  quiet           │

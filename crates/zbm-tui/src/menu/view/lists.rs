@@ -90,13 +90,19 @@ fn is_searching(state: &ListState) -> bool {
 /// scrolls to keep the selection at its bottom: a long list builds the
 /// rows of these alone ([`render_window`]).
 pub(super) fn window(state: &ListState, area: Rect) -> std::ops::Range<usize> {
+    let height = height(state, area);
+    let first = (state.selected + 1).saturating_sub(height);
+    first..(first + height).min(state.matches.len())
+}
+
+/// How many rows a group drawn in `area` shows of the list `state`: one
+/// at least.
+pub(super) fn height(state: &ListState, area: Rect) -> usize {
     let inner = Block::bordered()
         .padding(Padding::horizontal(1))
         .inner(area);
     let height = inner.height.saturating_sub(u16::from(is_searching(state)));
-    let height = usize::from(height).max(1);
-    let first = (state.selected + 1).saturating_sub(height);
-    first..(first + height).min(state.matches.len())
+    usize::from(height).max(1)
 }
 
 /// [`render`], with `rows` the rows of the matches from `first` on alone,
