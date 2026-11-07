@@ -339,8 +339,9 @@ value; and the classic wireframes keep their names.
   the tests that pinned the classic map now name it; the offers test for each map alone; the `menu_names` fuzz target
   over both maps; the VM scenarios now expect the workspace (`runtime-rust-drm` waits for `BOOT ENVIRONMENTS`,
   `runtime-rust-console`, `-console-serial`, `-console-start` and `-console-comfort` check the tab bar), and
-  `runtime-rust-console-lines` boots `zbm.menu=classic` with `TERM=dumb` too. The VM run of UI10c, on rebuilt
-  images, is the maintainer's.
+  `runtime-rust-console-lines` boots `zbm.menu=classic` with `TERM=dumb` too. The VM run of UI10c passed at
+  `1177c34b` on rebuilt images: every lane, 836 checks, none failed; `layouts-parity-oldzfs` and `complex-oldzfs`
+  were skipped, as no old kernel was given.
 
 Points 12 to 15 built on 7 November 2026 (UI10d-1 to UI10d-6), as decided but for what follows. On 7 November the
 maintainer decided the details the record left open: the digits and `j` `k` are unbound on start-up's view of the
