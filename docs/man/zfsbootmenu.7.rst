@@ -421,6 +421,14 @@ These options are set on the kernel command line when booting the initramfs or U
   selected and **h**, **Left** or **Escape** back out; **Enter** boots what is selected, **!** opens
   the recovery tools, the shell first, **/** filters and **?** lists the keys of the view.
 
+  A rollback (**r** on the Snapshots tab), a rewind to the checkpoint, a forced import and the
+  destroy of snapshots (**Delete** on the Snapshots tab: those marked with **Space**, or else the one
+  selected) open a review page first: what the change loses, frees and keeps, read from the machine,
+  its steps, its undo or that it has none, and a safer action where there is one. A change that a
+  clone, a hold or another system using the pool would stop is refused there, before any pool is
+  imported read/write; any other is made once the target's name is typed, and **Escape** changes
+  nothing.
+
   **zbm.menu=lines** shows the menu as lines a screen reader reads in order, rather than as a
   screen redrawn in place: each view prints its title, its items numbered, what happened last and
   the dialog over it with its choices numbered, and prints again only when that changed. Type a
@@ -432,8 +440,9 @@ These options are set on the kernel command line when booting the initramfs or U
   screen even then.
 
   **zbm.menu=classic** keeps the classic menu, its screens and its keys (**k** the kernels, **s**
-  the snapshots, **p** the pools, **l** the log), for this release only; the lines still show by
-  themselves where they would, with the classic keys (*2 k*).
+  the snapshots, **p** the pools, **l** the log), for this release only: a rollback, a rewind or a
+  forced import asks for the target's name in an alert instead of the review page, and no snapshot
+  is destroyed. The lines still show by themselves where they would, with the classic keys (*2 k*).
 
 **zbm.wait_for=device,device,...**
 
@@ -771,20 +780,20 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 
 **zfsbootmenu_lock_hash='$argon2id$v=19$m=...'**
 
-  In images with the *rust* runtime, locks the menu with a PIN: everything but the default boot
-  then needs the PIN, or a passphrase that opened a LUKS volume during this boot. Locked: the
-  recovery shell, however it opens, editing the command line, booting another boot environment,
-  kernel or snapshot, and every change (snapshots, rollbacks, clones, the default, read/write and
-  forced imports, the checkpoint). The countdown and the default boot, looking around, unlocking a
-  volume with its own passphrase, rebooting and powering off need nothing. The PIN typed lasts until
-  the menu has been idle for five minutes, or the recovery shell ends; each wrong one doubles the
-  wait before the next answer, from one second to thirty. A locked image ignores **zbm.hookroot**.
-  **zbm lock hash** asks for the PIN twice, of 8 characters at least, and prints the line to add:
-  the hash lies on the EFI system partition, where anyone can read it and guess PINs offline, so a
-  passphrase of a few words is better. The lock only holds when the image cannot be changed, nor its
-  command line: boot it as a signed unified kernel image under Secure Boot. Without lockdown or
-  Secure Boot, the image warns at start-up that a changed command line gets past the lock. An image
-  with the *legacy* runtime fails to build with this option set.
+  In images with the *rust* runtime, locks the menu with a PIN: everything but the default boot then
+  needs the PIN, or a passphrase that opened a LUKS volume during this boot. Locked: the recovery
+  shell, however it opens, editing the command line, booting another boot environment, kernel or
+  snapshot, and every change (snapshots taken or destroyed, rollbacks, clones, the default,
+  read/write and forced imports, the checkpoint). The countdown and the default boot, looking around,
+  unlocking a volume with its own passphrase, rebooting and powering off need nothing. The PIN typed
+  lasts until the menu has been idle for five minutes, or the recovery shell ends; each wrong one
+  doubles the wait before the next answer, from one second to thirty. A locked image ignores
+  **zbm.hookroot**. **zbm lock hash** asks for the PIN twice, of 8 characters at least, and prints
+  the line to add: the hash lies on the EFI system partition, where anyone can read it and guess PINs
+  offline, so a passphrase of a few words is better. The lock only holds when the image cannot be
+  changed, nor its command line: boot it as a signed unified kernel image under Secure Boot. Without
+  lockdown or Secure Boot, the image warns at start-up that a changed command line gets past the
+  lock. An image with the *legacy* runtime fails to build with this option set.
 
 **zfsbootmenu_brltty=yes**
 

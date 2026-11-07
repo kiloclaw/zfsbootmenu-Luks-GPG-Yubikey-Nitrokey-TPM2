@@ -280,9 +280,13 @@ menu also restores files from a snapshot, which the legacy menu did not.
 ### Rollback has no safety snapshot
 
 - **Before:** typing `ROLLBACK` confirmed the rollback, which destroys the newer snapshots.
-- **Now:** typing the environment's name confirms it, and the confirmation counts the snapshots destroyed and their
-  size. The menu's design had a safety snapshot taken first; ZFS destroys it with the other newer snapshots, so there
-  is none, and the confirmation says to clone the snapshot instead to keep things as they are.
+- **Now:** typing the environment's name confirms it. In the workspace, the rollback's review page (see "Changes are
+  reviewed before they are made") lists the newer snapshots and bookmarks it destroys, with their sizes, and offers
+  to clone the snapshot instead; in the classic menu, the confirmation counts the snapshots destroyed and their size.
+  The menu's design had a safety snapshot taken first; ZFS destroys it with the other newer snapshots, so there is
+  none, and both say to clone the snapshot instead to keep things as they are. A clone or a hold of a newer snapshot,
+  which makes `zfs rollback -r` refuse, is found before the pool is imported read/write: the rollback fails at once
+  and names it, where a hold used to stop `zfs` only after it had destroyed the other newer snapshots.
 - **Why:** the name says which environment loses its changes.
 
 ### A pool that may not be written
@@ -298,13 +302,14 @@ menu also restores files from a snapshot, which the legacy menu did not.
   imported it read/write with `--rewind-to-checkpoint`. An import that failed after the export left the pool exported.
   The menu could not import a pool that was not imported.
 - **Now:** the menu's import of an imported pool is read-only or read/write again, or the rewind, confirmed by the
-  pool's name and refused when the pool has no checkpoint; each exports the pool and imports it under
-  `zbm.import_policy`, with the property, degraded and hibernation checks of before for read/write, and a failed import
-  imports the pool read-only again. The import after the export names the pool by its `guid`, read before the export,
-  so that a pool that is not imported and has its name is not in the way; `set_rw_pool` of the hook library does the
-  same. A pool that is not imported is imported read-only as this host, as the host that
-  last imported it, whose host ID is then recorded for the boot as start-up records it, or forced; a read/write import
-  or a rewind then exports it and imports it again, with the same checks. Every import takes the console, and the
+  pool's name, on its review page in the workspace, and refused when the pool has no checkpoint; each exports the pool
+  and imports it under `zbm.import_policy`, with the property, degraded and hibernation checks of before for
+  read/write, and a failed import imports the pool read-only again. The import after the export names the pool by its
+  `guid`, read before the export, so that a pool that is not imported and has its name is not in the way;
+  `set_rw_pool` of the hook library does the same. A pool that is not imported is imported read-only as this host, as
+  the host that last imported it, whose host ID is then recorded for the boot as start-up records it, or forced,
+  confirmed by the pool's name and refused when another system has the pool imported now; a read/write import or a
+  rewind then exports it and imports it again, with the same checks. Every import takes the console, and the
   locked menu keeps every one but a read-only import as this host.
 - **Why:** one action says how a pool is imported, and a failed import tries to import the pool read-only again
   instead of leaving it exported; the pool stays exported only when that import fails too.
@@ -590,6 +595,39 @@ takes over from a menu already running.
   again, after a change, takes the marks of those it no longer has. The line view says `marked` after each.
 - **Why:** a mark that goes by itself, unseen, is a surprise; and a comparison of three snapshots has no meaning, so
   the menu says so rather than choose two of them.
+
+### Changes are reviewed before they are made
+
+- **Before:** the legacy menu asked to type `ROLLBACK` before a rollback and `REWIND` before a rewind, and, while a
+  suspend partition was active, `NORESUME` or `DANGEROUS` before the first change that imported a pool read/write, none
+  listing what the change would lose; the Rust runtime's menu asked for the target's name in an alert, which counted
+  what a rollback destroys from the snapshots it had read.
+- **Now:** in the workspace a rollback, a destroy, a forced import and a rewind open a review page, in red, which asks
+  the machine for the change's plan and shows it: what is lost (the snapshots and bookmarks with their sizes and the
+  space they free, what was written since the snapshot, or for a rewind every write since the checkpoint, with the
+  filesystems and snapshots made since), what is kept, the steps with their commands, the undo or that there is none,
+  a safer action (a clone of the snapshot instead of a rollback, a read-only import instead of a rewind), and, for an
+  import, who else may use the pool: this host, or the host ID and name it last had and when it was last written. A
+  clone or a hold of a snapshot the change destroys, or another system that has the pool imported now, makes the page
+  refuse the change and name what stops it. Otherwise the change is made once the name is typed: the environment's
+  last component for a rollback, the snapshot's short name for the destroy of one, the environment's last component
+  for several, and the pool's name for an import. `Tab` goes to the safer action, `Escape` closes the page and changes
+  nothing. In the line view the page is lines, which cannot scroll or take the safer action. The classic menu keeps
+  its confirmations, and is otherwise unchanged.
+- **Why:** what a change destroys should be read before its name is typed, from the machine as it is, not from what
+  the menu happened to read; and where ZFS would refuse, the menu says so before it imports anything read/write.
+
+### Snapshots are destroyed from the menu
+
+- **Before:** the legacy menu destroyed no snapshot: that took `zfs destroy` in the recovery shell.
+- **Now:** in the workspace, `Delete` on the Snapshots tab destroys the marked snapshots, or the selected one, after
+  their review page; `Destroy It…` in a snapshot's `Enter` menu destroys that snapshot, and the palette has an entry for
+  the selected snapshot and one for the marked ones. Only snapshots of one boot environment are destroyed, in one
+  `zfs destroy <environment>@a,b,c` that destroys all or none, and their bookmarks stay; a clone or a hold of one stops
+  it before the pool is imported read/write. The locked menu asks for the PIN first. Over SSH only the snapshots of the
+  machine's boot environments are destroyed. The classic menu does not destroy.
+- **Why:** reclaiming the space of old snapshots, or removing a bad one, needs no shell, and the review page says
+  what it frees before anything is destroyed.
 
 ### `zbm.menu`: lines, a screen, or the classic menu
 

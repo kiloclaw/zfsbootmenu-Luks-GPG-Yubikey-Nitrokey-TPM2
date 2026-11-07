@@ -248,7 +248,7 @@ Dialogs open over a view and return to it:
   target, with their sizes), and a field that wants the short name of the target typed. Only the restore of files
   takes a safety snapshot first, and says so; a rollback takes none. Under the workspace a rollback, a rewind and a
   forced import open their review page instead.
-- **Choose** (an action sheet, with **Cancel** set apart): the actions for a snapshot (boot a clone, roll back, clone, duplicate, clone and promote, diff, chroot).
+- **Choose** (an action sheet, with **Cancel** set apart): the actions for a snapshot (boot a clone, roll back, clone, duplicate, clone and promote, diff, chroot, and under the workspace, last, destroy it).
 - **May not boot** (an action sheet): booting an environment whose checks found a failure says what failed and
   what to do, with **Boot Anyway** and **Cancel** ([boot health](boot-health.md)).
 - **Error**: what failed, why (the cause chain of the error, in words), and the next steps offered.

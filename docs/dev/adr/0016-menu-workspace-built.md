@@ -120,21 +120,21 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
 ### Review pages
 
 12. **A review page is a view of the plan.** `Action::Plan` returns a `Plan` with, besides its steps and their
-    commands, what the action loses (snapshots with their sizes, files), what it keeps, its undo if it has one, and a
-    safer action if there is one, all computed by `zbm-app` from the machine. The page shows them, then asks for the
-    target's name. UI14's dry run is the same view without the confirmation.
-13. **Rollback.** `zfs rollback -r` destroys the newer snapshots, and nothing taken first could undo it, so the page
-    lists those snapshots with their sizes, says it has no undo, and offers cloning the snapshot as the safer action.
-    When a newer snapshot has a clone, `zfs rollback -r` refuses, and the page says so and names the clone instead of
-    asking. The design pages lose the safety snapshot.
+    commands, what the action loses (snapshots and bookmarks with their sizes, the bytes written since), what it keeps,
+    its undo if it has one, and a safer action if there is one, all computed by `zbm-app` from the machine. The page
+    shows them, then asks for the target's name. UI14's dry run is the same view without the confirmation.
+13. **Rollback.** `zfs rollback -r` destroys the newer snapshots and bookmarks, and nothing taken first could undo it,
+    so the page lists them with their sizes, says it has no undo, and offers cloning the snapshot as the safer action.
+    When a newer snapshot has a clone or a hold, `zfs rollback -r` refuses, and the page says so and names it instead
+    of asking. The design pages lose the safety snapshot.
 14. **Destroy.** `Action::Destroy(Vec<SnapshotName>)` destroys snapshots: the selection, or the marked ones, which is
     also how #15 reclaims space. Marks become a set; `f` diffs when one or two are marked and says so otherwise. The
-    page lists each snapshot with its size, the space they free together (`zfs destroy -nv`), and what stops it: a
+    page lists each snapshot with its size, the space they free together (`zfs destroy -n -v -p`), and what stops it: a
     clone or a hold, either of which makes the page refuse and name it. Bookmarks of a destroyed snapshot stay. It is
     an entry of the snapshot's `Enter` menu and of the palette (rule 1), and `Delete` where the terminal sends it; no
     letter, while decision 8 is open. Destroying an environment is not in UI10.
 15. **The forced import and the rewind** have pages too: who else may be using the pool (its host ID and host name,
-    when it was last imported), and, for the rewind, what is lost since the checkpoint.
+    when it was last written), and, for the rewind, what is lost since the checkpoint.
 
 ### The exit
 
@@ -318,9 +318,9 @@ value; and the classic wireframes keep their names.
     view of the Boot tab (`Context::Startup`) and wait with the rest of the passphrase for its dialog; `Tab`,
     `Shift-Tab`, the arrows and `?` stay, and the digits still choose a tab on the other tabs during start-up, which
     hold no keys typed ahead. The tab bar and what needs attention name the keys of the view they are on, so start-up's
-view of the Boot tab shows no digit (`[Boot] Snapshots  Pools  Log`; the six `workspace-startup-*` and
-`workspace-import-problem-*` wireframes changed). A passphrase that begins with `?` still opens help, whose keys then
-read the rest of it, as a digit chooses a tab: it is lost, and typed again into its dialog.
+    view of the Boot tab shows no digit (`[Boot] Snapshots  Pools  Log`; the 12 `workspace-startup-*` and
+    `workspace-import-problem-*` wireframes changed). A passphrase that begins with `?` still opens help, whose keys
+    then read the rest of it, as a digit chooses a tab: it is lost, and typed again into its dialog.
   - **the keys:** the map spans `keymap/` (`workspace.rs`, `classic.rs`, `labels.rs`, `offers.rs`), and keys are also
     named by strings: the line view's words and hints, and the hint of an empty Boot tab, whose key comes from the
     map. A change of decision 8 is a change of `keymap/` and those strings. `!` still opens the recovery tools, the
@@ -341,6 +341,104 @@ read the rest of it, as a digit chooses a tab: it is lost, and typed again into 
   `runtime-rust-console`, `-console-serial`, `-console-start` and `-console-comfort` check the tab bar), and
   `runtime-rust-console-lines` boots `zbm.menu=classic` with `TERM=dumb` too. The VM run of UI10c, on rebuilt
   images, is the maintainer's.
+
+Points 12 to 15 built on 7 November 2026 (UI10d-1 to UI10d-6), as decided but for what follows. On 7 November the
+maintainer decided the details the record left open: the digits and `j` `k` are unbound on start-up's view of the
+Boot tab alone, and `?` stays bound there (point 9's record); destroy is the workspace's alone, and the classic menu
+gains nothing; marks are a set in both maps; "who else" may use a pool rewound is this host when it has the pool
+imported, and otherwise the host the pool's configuration records; only snapshots of boot environments are
+destroyed; the wire stays at `VERSION` 2, its new fields defaulted; the name typed is the snapshot's short name for
+the destroy of one, the environment's last component for several and for a rollback, as the classic menu asks, and
+the pool's name for a rewind or a forced import; a hold stops a rollback as a clone does; over SSH the plans of what
+the menu does not show are refused; the forced import offers nothing safer; and what `zfs`, `zpool` and `zdb` print
+that no recording shows yet is checked in the maintainer's VM run and by `xtask record-zfs`.
+
+- **Point 12:**
+  - **the machine:** `Action::Plan` answers `Event::Planned` with the steps and their commands, how the change would
+    end, and its review (`Plan.review`), which `zbm-app` reads from the machine after running the change against the
+    dry run: what it loses (snapshots and bookmarks with their sizes, what was written since, what a rewind
+    discards), the space destroying them frees, what it keeps, its undo, a safer action, what stops it (a clone, a
+    hold, a host that has the pool imported now) and who else may use the pool. A read that fails leaves its part
+    unknown; only a stop fails the plan, as ZFS would refuse the change, and the change checks the same stops itself
+    before it imports anything read/write. Every name and text a pool gives (clones, hold tags, hosts) is untrusted.
+    The review is a field the wire defaults, so `VERSION` stays 2, which no release has shipped.
+  - **"files" lost,** which the point said before: the files a rollback or a rewind loses would take `zfs diff`, which
+    mounts the filesystem and, against the live one, takes a snapshot of it on a writable pool, which a plan must not.
+    The page gives the bytes written since the snapshot (`written@<snapshot>`), and `f` shows the files.
+  - **a plan never acts:** since PM8 (7b963be6, 29 October 2026, in no release; DM8 kept it), `Action::Plan` of an
+    action that has no plan performed the action, though the plan of a change never did: `Plan(Close)`,
+    `Plan(UnlockAll)` or `Plan(OpenWithKeyFile)` closed or opened LUKS volumes past the SSH session's refusals and the
+    locked menu's lock, which leaves plans free. Fixed in UI10d-3: the plan of anything but a change or the boot of a
+    snapshot fails and runs nothing, and so does the diff's, a change that only reads; a plan is a read, neither
+    recorded among the actions nor followed by a second read of the machine; and the SSH session refuses the plan of
+    what the menu does not show: an action that is no change and boots no snapshot, a change of a filesystem that is no
+    boot environment, or of a pool the machine does not list.
+  - **the page:** under the workspace map, `r`, `Rewind to the Checkpoint…` and `Force the Import…` open a review page
+    in place of the typed-name alert, and so does every destroy; the classic map keeps its alerts as they were. The page
+    is the whole view in the danger colour and asks the machine for the plan as it opens: what stops the change, first
+    and in place of the field; what is lost, which scrolls, with its sizes under their total; the space freed and what
+    is kept; the steps, their commands muted; the undo, or that there is none; the safer action; who else may use the
+    pool; and the field and the buttons at the bottom. It is a context of its own (`Context::Review`), in which letters
+    type, and `Tab` and `Shift-Tab` move among the field, the safer action and the change. The change is sent only with
+    its plan, nothing that stops it, an outcome that did not fail, and the name typed as it is; `Escape` sends nothing,
+    and cancels the plan only when the machine reads nothing else meanwhile, as a cancel reaches every action not done.
+    The line view prints the page as lines, the first 20 losses and how many more, and cannot scroll or take the safer
+    action, as its help line says. The demo answers plans, with a clone and a hold on its snapshots.
+  - **a page can go stale,** which the point did not say: it shows the machine as it was planned, and a change of the
+    machine while it is open plans it again. A rollback destroys what is newer when it runs, which may be more than
+    the page listed when something else took a snapshot since; a destroy names its snapshots, and destroys no other.
+- **Point 13:** as decided, but for holds. The page lists the snapshots and bookmarks newer than the target by
+  `createtxg`, so that two taken in the same second keep the order ZFS took them in, each snapshot with its size, the
+  space destroying them frees, and what was written since; the older snapshots and bookmarks kept; no undo; and
+  cloning the snapshot as the safer action, whose name the menu asks for. A clone or a hold of a newer snapshot stops
+  it, named: the point named clones only before, and the 7 November decision widened it, as `zfs rollback -r` refuses
+  a hold too, but only once it has destroyed the other newer snapshots and bookmarks, so the change checks both before
+  it imports the pool read/write. No safety snapshot is taken, and the design pages no longer speak of one.
+- **Point 14:** as decided, in the workspace alone (point 10), and for the snapshots of boot environments alone.
+  `Action::Destroy` destroys the snapshots of one boot environment in one `zfs destroy <environment>@a,b,c`, all or
+  none, which keeps the bookmarks. It drops repeated names and refuses, before the pool is imported read/write, an
+  empty list, snapshots of several filesystems, a filesystem that is no boot environment, and any clone or hold of
+  one of them. The lock keeps it; over SSH it is refused, and so is its plan, unless every snapshot is of a boot
+  environment of the machine. Its page lists each snapshot with its size, the space they free together, the
+  bookmarks kept, no undo and nothing safer. `Delete` on the Snapshots tab destroys the marked snapshots, the oldest
+  first, or else the selection; `Destroy It…`, last in a snapshot's `Enter` sheet, destroys that snapshot alone; the
+  palette over the Snapshots tab has an entry for the selection and one for the marked snapshots. `zfs destroy -nv`
+  prints the space freed rounded to units, and only `-p` gives the exact bytes the review reads; it covers the
+  snapshots of one filesystem a command, as the destroy does; the point now says `-n -v -p`. Marks are a set in both
+  maps, with no cap: the classic menu no longer drops the first of three either. `f` compares the selection or the
+  one marked with now, and two marked the older against the newer; with three or more, or marks whose list is not
+  read, it compares nothing and says so; a list read again drops the marks it no longer has. The classic map offers
+  no destroy, and the offers test leaves `Offer::Destroy` out for it.
+- **Point 15:** as decided, but for "when it was last imported", which the point said before: what the pool records
+  is the time of its last uberblock (`zdb -e -C -u`), when it was last written, not imported, and the page says so.
+  The forced import's page names the last host's ID and name and that time; a pool another system has imported now
+  stops it, and the import refuses such a pool too; its undo is the export; nothing is safer, as importing as the
+  last host is not. The rewind's page names what is lost since the checkpoint: when it was taken and the space it
+  holds (`zpool status -p`), the filesystems and snapshots made since, by their creation time, and every other write;
+  the read-only import without the rewind is safer. For an imported pool "who else" is this host; for one that is
+  not imported it is the host the pool records, and the checkpoint's time, and so what was made since, are unknown.
+- **Checks:** `zbm-zfs`'s parsers of `zfs list` with `createtxg`, `userrefs` and `clones`, `zfs holds`, `zfs destroy
+  -n -v -p`, the checkpoint of `zpool status -p` and the uberblock of `zdb -e -C -u` on written fixtures, fuzzed in
+  `program_output` with seeds; `FakeZfs` refusing as ZFS does (a clone stops `rollback -r` before anything is
+  destroyed, a hold only after the rest is); `zbm-app`'s tests of each review, stop and refusal on `FakeZfs` and
+  `FakeSystem`, a plan that performs nothing, the SSH refusals and the wire; the menu's tests that a change is sent
+  only once planned and named, that `Escape` sends nothing and that the classic map opens its alerts; the offers test
+  for each map alone; 42 new wireframes (`workspace-rollback-review`, `-rollback-refused`, `-rewind-review`,
+  `-force-import-review`, `-snapshot-actions`, `-destroy-review` and `-destroy-refused`, at every size), the 12 of
+  `workspace-startup` and `workspace-import-problem` changed by point 9's keys, and the classic ones unchanged; the
+  `menu_names` fuzz target drawing the pages with hostile clone, hold, host and filesystem names; the palette's
+  destroy entries within B5 at 10,000 snapshots. No VM scenario rolls back, imports, rewinds or destroys through the
+  menu: that is UI10e's. The VM run of UI10d, on rebuilt images, is the maintainer's, and the recordings of the new
+  outputs wait for `xtask record-zfs`.
+- **Not built:** UI14's dry run, the same view without the field; destroying an environment (point 18); under
+  `zbm.import_policy=force`, the menu's change between read-only and read/write forces the import without a page, as
+  point 3 says; and an `Escape` or `Enter` typed ahead on start-up's Boot tab reaches the next dialog, as in the
+  classic map.
+
+What remains of UI10 is UI10e, the exit (points 16 and 17): the VM tests that drive each core task through the menu,
+these pages among them, the hostile-names fuzz target over every view of both menus, the wireframes of point 16 that
+are missing (every view has its 52×20 in the pseudo-language, but the classic views have none at 80×24), the key
+section of the man page generated from `keymap/`, and `CHANGES-FROM-LEGACY.md` as the migration guide.
 
 ## Questions for the maintainer
 

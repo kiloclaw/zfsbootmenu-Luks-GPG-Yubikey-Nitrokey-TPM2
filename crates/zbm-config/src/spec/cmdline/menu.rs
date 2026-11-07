@@ -28,6 +28,14 @@ pools and the log on the tabs of one screen. **1** to **4** choose a tab and **T
 selected and **h**, **Left** or **Escape** back out; **Enter** boots what is selected, **!** opens
 the recovery tools, the shell first, **/** filters and **?** lists the keys of the view.
 
+A rollback (**r** on the Snapshots tab), a rewind to the checkpoint, a forced import and the
+destroy of snapshots (**Delete** on the Snapshots tab: those marked with **Space**, or else the one
+selected) open a review page first: what the change loses, frees and keeps, read from the machine,
+its steps, its undo or that it has none, and a safer action where there is one. A change that a
+clone, a hold or another system using the pool would stop is refused there, before any pool is
+imported read/write; any other is made once the target's name is typed, and **Escape** changes
+nothing.
+
 **zbm.menu=lines** shows the menu as lines a screen reader reads in order, rather than as a
 screen redrawn in place: each view prints its title, its items numbered, what happened last and
 the dialog over it with its choices numbered, and prints again only when that changed. Type a
@@ -39,6 +47,7 @@ goes back. Passphrases are typed without echo. The lines show by themselves when
 screen even then.
 
 **zbm.menu=classic** keeps the classic menu, its screens and its keys (**k** the kernels, **s**
-the snapshots, **p** the pools, **l** the log), for this release only; the lines still show by
-themselves where they would, with the classic keys (*2 k*).
+the snapshots, **p** the pools, **l** the log), for this release only: a rollback, a rewind or a
+forced import asks for the target's name in an alert instead of the review page, and no snapshot
+is destroyed. The lines still show by themselves where they would, with the classic keys (*2 k*).
 ";
