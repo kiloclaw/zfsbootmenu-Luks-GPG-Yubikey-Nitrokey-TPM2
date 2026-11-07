@@ -12,8 +12,9 @@
 //! tab: its timeline of the snapshots whose names the input gives, taken
 //! at times around now, after it and at the epoch, with a group folded,
 //! and in the line view's words; then the review pages of a rollback to a
-//! snapshot the input names and of the rewind and the forced import of a
-//! pool it names, while they are planned, then with plans whose lost
+//! snapshot the input names, of the destroy of it and another it names,
+//! and of the rewind and the forced import of a pool it names, while they
+//! are planned, then with plans whose lost
 //! bookmark, checkpoint time and filesystem, steps' commands, clone, hold
 //! tags, host and failure the input gives, refused and not; then the
 //! workspace's Pools tab: the tree of pools the scan sends with the names
@@ -311,6 +312,12 @@ fn hostile_steps(
         kind: StepKind::Rollback(target.clone()),
         command: Some(next().into_inner()),
     }];
+    if let Action::Destroy(snapshots) = action {
+        steps.push(Step {
+            kind: StepKind::Destroy(snapshots.clone()),
+            command: Some(next().into_inner()),
+        });
+    }
     if let Action::Import(pool, options) = action {
         steps.push(Step {
             kind: StepKind::Import {
@@ -328,7 +335,7 @@ fn hostile_steps(
 }
 
 /// The safer action of `action`: a clone of `target` for a rollback, the
-/// read-only import for a rewind, none for a forced import.
+/// read-only import for a rewind, none for a forced import or a destroy.
 fn safer(action: &Action, target: &SnapshotName) -> Option<Safer> {
     match action {
         Action::Import(pool, options) if options.rewind => {
@@ -343,7 +350,7 @@ fn safer(action: &Action, target: &SnapshotName) -> Option<Safer> {
                 read_only,
             ))))
         }
-        Action::Import(..) => None,
+        Action::Import(..) | Action::Destroy(_) => None,
         _ => Some(Safer::Clone(target.clone())),
     }
 }
@@ -398,8 +405,9 @@ fn hostile_plan(
 }
 
 /// The changes reviewed: a rollback of the focused environment to the
-/// snapshot the input names, and the rewind and the forced import of the
-/// pool it names; each with the snapshot its plan names.
+/// snapshot the input names, the destroy of it and of another it names,
+/// and the rewind and the forced import of the pool it names; each with
+/// the snapshot its plan names.
 fn reviewed(
     model: &Model,
     next: &mut impl FnMut() -> Untrusted<String>,
@@ -409,6 +417,9 @@ fn reviewed(
     let target = named
         .or_else(|_| format!("{environment}@target").parse::<SnapshotName>())
         .ok()?;
+    let other = format!("{environment}@{}", next().get())
+        .parse::<SnapshotName>()
+        .unwrap_or_else(|_| target.clone());
     let pool = next()
         .get()
         .parse::<PoolName>()
@@ -424,16 +435,17 @@ fn reviewed(
     };
     let actions = vec![
         Action::Rollback(target.clone()),
+        Action::Destroy(vec![target.clone(), other]),
         import(true, ImportPolicy::Strict),
         import(false, ImportPolicy::Force),
     ];
     Some((target, actions))
 }
 
-/// The review pages of a rollback, a rewind and a forced import with the
-/// names the input gives: each while it is planned, then with a plan the
-/// input names refused and not, typed in, scrolled, its focus moved,
-/// drawn and said; then closed.
+/// The review pages of a rollback, a destroy, a rewind and a forced import
+/// with the names the input gives: each while it is planned, then with a
+/// plan the input names refused and not, typed in, scrolled, its focus
+/// moved, drawn and said; then closed.
 fn review_pages(
     mut model: Model,
     next: &mut impl FnMut() -> Untrusted<String>,

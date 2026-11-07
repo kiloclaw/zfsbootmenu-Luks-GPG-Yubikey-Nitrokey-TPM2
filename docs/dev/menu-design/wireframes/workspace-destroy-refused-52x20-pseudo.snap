@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 BBóótt [2 SSñáppshóóts] 3 PPóólls  4 LLóg   ! 6
+┌──────────────────────────────────────────────────┐
+│ DDésttróýý zroot/ROOT/void@autosnap_2026-10-18_… │
+│ ZZFS wwóúlld rééfússé thhís:                     │
+│ autosnap_2026-10-18_daily hhás tthé ççlóññé      │
+│ zroot/ROOT/void-test: ddésttróýý ór pprómmótéé   │
+│ théé çlóóñé ffírsst.                             │
+│ WWHÁTT ÍS LLÓSTT                69 MMíB ííñ álll │
+│ autosnap_2026-10-18_daily                69 MMíB │
+│ KKéptt: ííts 2 bbóókkmárrks.                     │
+│ SSTÉPPS                                          │
+│ 1. Ddésttróýý óñéé sñáápshhót                    │
+│    zfs destroy                                   │
+│ zroot/ROOT/void@autosnap_2026-10-18_daily        │
+│ ÑÑó úññdó: wwhátt ís llóstt çáñññótt bé          │
+│ bbróúúghtt báççk.                                │
+│                                                  │
+│                                          [ ÓÓK ] │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇlóssé   ÉÉsç ÇÇáñççél

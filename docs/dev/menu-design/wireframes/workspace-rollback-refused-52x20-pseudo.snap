@@ -13,7 +13,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ WWHÁTT ÍS LLÓSTT 1 ttó 2 óóf 7  1.6 GGíB ííñ áll │
 │ autosnap_2026-10-18_daily                69 MMíB │
 │ autosnap_2026-10-19_daily                56 MMíB │
-│ KKéptt: 393 óóldéér sññápsshótts.                │
+│ KKéptt: 393 óóldéér sññápsshótts, 2 óóldéér bóó… │
 │ SSTÉPPS                                          │
 │ 1. Rrólll zroot/ROOT/void bbáçkk tó autosnap_20… │
 │    zfs rollback -r zroot/ROOT/void@autosnap_202… │

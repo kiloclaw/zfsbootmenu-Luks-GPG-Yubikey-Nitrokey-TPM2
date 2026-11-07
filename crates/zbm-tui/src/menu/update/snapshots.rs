@@ -1,5 +1,7 @@
 //! The snapshots view: the actions on a snapshot, with a review page, or
 //! under the classic map a typed confirmation, for those that lose data.
+//! The workspace destroys snapshots too: the marked ones, or the selected
+//! one.
 
 use zbm_types::{DatasetName, SnapshotName};
 
@@ -34,6 +36,10 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     {
         return actions;
     }
+    if intent == Intent::Destroy && !model.marked.is_empty() {
+        let then = destroy_marked(model);
+        return dialogs::follow(model, then);
+    }
     let Some(snapshot) = snapshot else {
         return on_folded(model, intent);
     };
@@ -49,6 +55,7 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
         }
         Intent::Boot => boot_clone(model, &name),
         Intent::Rollback => rollback(model, &snapshot),
+        Intent::Destroy => destroy(vec![&name]),
         Intent::Clone => clone(model, &name),
         Intent::Duplicate => duplicate(model, &snapshot),
         Intent::CloneAndPromote => promote(model, &name),
@@ -101,11 +108,12 @@ fn on_folded(model: &mut Model, intent: Intent) -> Vec<Action> {
     Vec::new()
 }
 
-/// Opens the choice of the actions the machine offers for a snapshot.
+/// Opens the choice of the actions the machine offers for a snapshot; the
+/// workspace's destroys it too.
 fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
     let name = &snapshot.name;
     let choice = |label: String, then: Then| Choice { label, then };
-    let choices = vec![
+    let mut choices = vec![
         choice(text!("snapshot-boot-clone"), boot_clone(model, name)),
         choice(text!("snapshot-roll-back"), rollback(model, snapshot)),
         choice(text!("snapshot-clone"), clone(model, name)),
@@ -120,9 +128,13 @@ fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
             Then::Act(Action::Chroot(name.clone().into())),
         ),
     ];
+    if model.map == Map::Workspace {
+        choices.push(choice(text!("snapshot-destroy"), destroy(vec![name])));
+    }
+    // A middle dot, or `|` in ASCII, as over a serial line.
+    let dot = model.theme.dot();
     let lines = vec![format!(
-        "{} · {} · {}",
-        name,
+        "{name}{dot}{}{dot}{}",
         age(model.snapshot.now, snapshot.created),
         size(snapshot.used)
     )];
@@ -192,6 +204,23 @@ fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
         lines,
         name: environment.last_component().to_owned(),
     }
+}
+
+/// The destroy of `snapshots`, the oldest first, after its review page,
+/// which the workspace alone has.
+pub(super) fn destroy(snapshots: Vec<&SnapshotName>) -> Then {
+    Then::Review(Action::Destroy(snapshots.into_iter().cloned().collect()))
+}
+
+/// The destroy of the marked snapshots, the oldest first; in the order of
+/// their names while one is not in the column's list, which the machine
+/// then reads.
+pub(super) fn destroy_marked(model: &Model) -> Then {
+    destroy(
+        model
+            .marked_by_age()
+            .unwrap_or_else(|| model.marked.iter().collect()),
+    )
 }
 
 /// The name of a new snapshot of `environment`.

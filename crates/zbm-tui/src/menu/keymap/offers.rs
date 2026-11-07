@@ -8,10 +8,20 @@ use crate::menu::world::Offer;
 use crate::text::{Id, id};
 use Context::{Diff, Kernels, Main, Pools, Recovery, Snapshots};
 
-/// The kinds of the entries of the menu `intent` opens in `context`;
-/// `None` when it opens none.
-fn menu_of(context: Context, intent: Intent) -> Option<&'static [Offer]> {
+/// The kinds of the entries of the menu `intent` opens in `context` with
+/// the key map `map`; `None` when it opens none. The workspace's actions of
+/// a snapshot destroy it too.
+fn menu_of(map: Map, context: Context, intent: Intent) -> Option<&'static [Offer]> {
     match (context, intent) {
+        (Snapshots, Intent::Primary) if map == Map::Workspace => Some(&[
+            Offer::BootSnapshot,
+            Offer::Rollback,
+            Offer::Clone,
+            Offer::Duplicate,
+            Offer::Diff,
+            Offer::Chroot,
+            Offer::Destroy,
+        ]),
         (Snapshots, Intent::Primary) => Some(&[
             Offer::BootSnapshot,
             Offer::Rollback,
@@ -36,6 +46,7 @@ fn offer_of(context: Context, intent: Intent, model: &Model) -> Option<Offer> {
         (Kernels, Intent::SetDefault | Intent::InheritDefault) => Some(Offer::DefaultKernel),
         (Main | Snapshots, Intent::NewSnapshot) => Some(Offer::CreateSnapshot),
         (Snapshots, Intent::Rollback) => Some(Offer::Rollback),
+        (Snapshots, Intent::Destroy) => Some(Offer::Destroy),
         (Snapshots, Intent::Clone | Intent::CloneAndPromote) => Some(Offer::Clone),
         (Snapshots, Intent::Duplicate) => Some(Offer::Duplicate),
         // Snapshots are marked for a diff, and paths for a restore.
@@ -67,7 +78,7 @@ fn offer_of(context: Context, intent: Intent, model: &Model) -> Option<Offer> {
 /// with, never from a diff of two snapshots, which did not look at it.
 pub(crate) fn is_offered(context: Context, intent: Intent, model: &Model) -> bool {
     let offers = &model.snapshot.offers;
-    if let Some(kinds) = menu_of(context, intent) {
+    if let Some(kinds) = menu_of(model.map, context, intent) {
         return kinds.iter().any(|kind| offers.contains(kind));
     }
     match offer_of(context, intent, model) {
@@ -81,7 +92,8 @@ pub(crate) fn is_offered(context: Context, intent: Intent, model: &Model) -> boo
 
 /// Whether `intent` in `context` acts on the selected snapshot, which the
 /// header of a folded group of the timeline is not: `Enter` there opens
-/// the group, and a diff of marked snapshots needs none selected.
+/// the group, and a diff or a destroy of marked snapshots needs none
+/// selected.
 pub(crate) fn needs_snapshot(context: Context, intent: Intent, model: &Model) -> bool {
     context == Snapshots
         && match intent {
@@ -93,7 +105,7 @@ pub(crate) fn needs_snapshot(context: Context, intent: Intent, model: &Model) ->
             | Intent::CloneAndPromote
             | Intent::Duplicate
             | Intent::Chroot => true,
-            Intent::Diff => model.marked.is_empty(),
+            Intent::Diff | Intent::Destroy => model.marked.is_empty(),
             _ => false,
         }
 }

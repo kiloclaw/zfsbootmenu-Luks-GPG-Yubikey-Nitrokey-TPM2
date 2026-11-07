@@ -53,6 +53,10 @@ pub enum Action {
     /// Roll an environment back to a snapshot, destroying the newer ones:
     /// ZFS keeps none of them, so nothing taken first could undo it.
     Rollback(SnapshotName),
+    /// Destroy snapshots of one boot environment, all of them or none:
+    /// ZFS keeps none of them, so nothing undoes it, and a clone or a hold
+    /// of one stops it. The environment's bookmarks stay.
+    Destroy(Vec<SnapshotName>),
     /// Clone a snapshot into the new environment named.
     Clone(SnapshotName, DatasetName),
     /// Clone a snapshot into the new environment named, and promote the
@@ -225,6 +229,7 @@ impl Action {
                 | Action::InheritDefaultKernel(_)
                 | Action::CreateSnapshot(_)
                 | Action::Rollback(_)
+                | Action::Destroy(_)
                 | Action::Clone(..)
                 | Action::CloneAndPromote(..)
                 | Action::Duplicate(..)
@@ -287,6 +292,7 @@ impl Action {
             | Action::InheritDefaultKernel(_)
             | Action::CreateSnapshot(_)
             | Action::Rollback(_)
+            | Action::Destroy(_)
             | Action::Clone(..)
             | Action::CloneAndPromote(..)
             | Action::Duplicate(..)
@@ -301,9 +307,11 @@ impl Action {
     }
 
     /// The environment a change works on, whose key it loads and whose
-    /// pool it writes, if it does ([`Action::needs_writable_pool`]).
+    /// pool it writes, if it does ([`Action::needs_writable_pool`]); for a
+    /// destroy, that of its first snapshot, as all must be of one.
     pub fn changed_environment(&self) -> Option<&DatasetName> {
         match self {
+            Action::Destroy(snapshots) => snapshots.first().map(SnapshotName::dataset),
             Action::SetDefaultEnvironment(environment)
             | Action::SetDefaultKernel(environment, _)
             | Action::InheritDefaultKernel(environment) => Some(environment),

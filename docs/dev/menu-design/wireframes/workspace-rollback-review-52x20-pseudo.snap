@@ -10,7 +10,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ pre-upgrade                             1.1 GGíB │
 │ wwhátt wáss wrííttééñ sííñçéé autosna…  230 MMíB │
 │ DDésttróýýíñgg théé sñáápshhótss frééés 1.2 GGí… │
-│ KKéptt: 396 óóldéér sññápsshótts.                │
+│ KKéptt: 396 óóldéér sññápsshótts, 2 óóldéér bóó… │
 │ SSTÉPPS                                          │
 │ 1. Rrólll zroot/ROOT/void bbáçkk tó autosnap_20… │
 │    zfs rollback -r zroot/ROOT/void@autosnap_202… │

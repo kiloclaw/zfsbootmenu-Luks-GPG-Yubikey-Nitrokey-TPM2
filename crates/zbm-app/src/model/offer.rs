@@ -23,6 +23,8 @@ pub enum Offer {
     CreateSnapshot,
     /// Rolling an environment back to a snapshot.
     Rollback,
+    /// Destroying snapshots of an environment.
+    Destroy,
     /// Cloning a snapshot, and promoting the clone.
     Clone,
     /// Copying a snapshot into an independent environment.
@@ -53,13 +55,14 @@ pub enum Offer {
 
 impl Offer {
     /// Every kind, in order.
-    pub const ALL: [Offer; 19] = [
+    pub const ALL: [Offer; 20] = [
         Offer::Boot,
         Offer::BootSnapshot,
         Offer::SetDefaultEnvironment,
         Offer::DefaultKernel,
         Offer::CreateSnapshot,
         Offer::Rollback,
+        Offer::Destroy,
         Offer::Clone,
         Offer::Duplicate,
         Offer::Diff,
@@ -89,6 +92,7 @@ impl Action {
             Action::SetDefaultKernel(..) | Action::InheritDefaultKernel(_) => Offer::DefaultKernel,
             Action::CreateSnapshot(_) => Offer::CreateSnapshot,
             Action::Rollback(_) => Offer::Rollback,
+            Action::Destroy(_) => Offer::Destroy,
             Action::Clone(..) | Action::CloneAndPromote(..) => Offer::Clone,
             Action::Duplicate(..) => Offer::Duplicate,
             Action::Diff(..) => Offer::Diff,

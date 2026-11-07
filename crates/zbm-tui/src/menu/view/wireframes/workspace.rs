@@ -164,8 +164,9 @@ fn startup_wireframes() -> Vec<Wireframe> {
 /// (ADR 0016, points 12 to 15): the rollback to the daily snapshot of 20
 /// October, the environment's name typed in part; the rollback to that of
 /// 17 October, which a clone and a hold of newer snapshots stop; the rewind
-/// of `tank` to its checkpoint, from the imports of `i`; and the forced
-/// import of the pool of another host start-up could not import.
+/// of `tank` to its checkpoint, from the imports of `i`; the forced
+/// import of the pool of another host start-up could not import; and the
+/// destroys ([`destroy_wireframes`]).
 fn review_wireframes() -> Vec<Wireframe> {
     use Step::{Char, Code, Text};
     let frame = |name, keys| Wireframe {
@@ -178,7 +179,7 @@ fn review_wireframes() -> Vec<Wireframe> {
         foreign: true,
         ..workspace()
     };
-    vec![
+    let mut all = vec![
         frame(
             "workspace-rollback-review",
             &[
@@ -234,5 +235,66 @@ fn review_wireframes() -> Vec<Wireframe> {
                 Text("back"),
             ],
         },
+    ];
+    all.extend(destroy_wireframes());
+    all
+}
+
+/// The destroys of snapshots, the workspace's alone: the actions of the
+/// daily snapshot of 20 October, `Enter` on it, among them its destroy;
+/// the review page of the destroy of it and of that of 21 October, both
+/// marked, the environment's name typed in part; and that of the destroy
+/// of the snapshot of 18 October, which its clone stops.
+fn destroy_wireframes() -> Vec<Wireframe> {
+    use Step::{Char, Code, Text};
+    let frame = |name, keys| Wireframe {
+        name,
+        options: workspace(),
+        ticks: 50,
+        keys,
+    };
+    vec![
+        frame(
+            "workspace-snapshot-actions",
+            &[
+                Char('2'),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Enter),
+            ],
+        ),
+        frame(
+            "workspace-destroy-review",
+            &[
+                Char('2'),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Char(' '),
+                Code(Key::Up),
+                Char(' '),
+                Code(Key::Delete),
+                Text("vo"),
+            ],
+        ),
+        frame(
+            "workspace-destroy-refused",
+            &[
+                Char('2'),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Delete),
+            ],
+        ),
     ]
 }

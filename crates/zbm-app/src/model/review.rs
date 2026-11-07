@@ -88,7 +88,8 @@ pub enum Loss {
 pub enum Keep {
     /// This many snapshots older than those it loses.
     Snapshots(usize),
-    /// This many bookmarks older than those it loses.
+    /// This many bookmarks: those older than the ones a rollback loses,
+    /// and every one of the filesystem whose snapshots a destroy loses.
     Bookmarks(usize),
 }
 

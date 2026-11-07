@@ -254,6 +254,7 @@ fn action_line(theme: Theme, choice: &Choice) -> Line<'static> {
 pub(super) fn verb(action: &Action) -> String {
     match action {
         Action::Rollback { .. } => text!("button-roll-back"),
+        Action::Destroy(_) => text!("button-destroy"),
         Action::CloneAndPromote(..) => text!("button-promote"),
         Action::Import(_, options) if options.rewind => text!("button-rewind"),
         Action::Import(_, options) if options.policy == ImportPolicy::Force => {

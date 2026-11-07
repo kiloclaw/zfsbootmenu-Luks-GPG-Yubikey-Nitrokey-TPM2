@@ -394,3 +394,121 @@ fn an_action_that_needs_no_review_has_none() {
     assert_eq!(review(&zfs, &take), Review::default());
     assert_eq!(review(&zfs, &strict), Review::default());
 }
+
+#[test]
+fn a_destroy_loses_its_snapshots_in_age_order_and_keeps_every_bookmark() {
+    let zfs = machine();
+    let b = snapshot("zroot/ROOT/void@b");
+    let old = snapshot("zroot/ROOT/void@old");
+    let gone = snapshot("zroot/ROOT/void@gone");
+
+    let review = review(
+        &zfs,
+        &Action::Destroy(vec![b.clone(), gone.clone(), old.clone()]),
+    );
+
+    assert_eq!(
+        review,
+        Review {
+            loses: vec![
+                Loss::Snapshot {
+                    name: old,
+                    used: Some(4096),
+                },
+                Loss::Snapshot {
+                    name: b,
+                    used: Some(4096),
+                },
+                // Listed by none: no size.
+                Loss::Snapshot {
+                    name: gone,
+                    used: None,
+                },
+            ],
+            freed: Some(8192),
+            keeps: vec![Keep::Bookmarks(2)],
+            ..Review::default()
+        }
+    );
+    assert!(
+        zfs.calls()
+            .contains(&"destroy_space zroot/ROOT/void@b,gone,old".to_owned()),
+        "{:?}",
+        zfs.calls()
+    );
+}
+
+#[test]
+fn a_destroy_whose_space_is_counted_says_what_it_frees() {
+    let zfs = FakeZfs::new()
+        .pool("zroot")
+        .filesystem("zroot/ROOT/void", &[])
+        .snapshot("zroot/ROOT/void@a", 100)
+        .snapshot("zroot/ROOT/void@b", 200);
+
+    let review = review(
+        &zfs,
+        &Action::Destroy(vec![
+            snapshot("zroot/ROOT/void@a"),
+            snapshot("zroot/ROOT/void@b"),
+        ]),
+    );
+
+    assert_eq!(review.freed, Some(8192));
+    assert!(review.keeps.is_empty());
+    assert_eq!(review.undo, None);
+    assert_eq!(review.safer, None);
+}
+
+#[test]
+fn a_clone_or_a_hold_of_a_destroyed_snapshot_stops_it() {
+    let zfs = machine()
+        .filesystem("zroot/ROOT/copy", &[])
+        .origin("zroot/ROOT/copy", "zroot/ROOT/void@a")
+        .hold("zroot/ROOT/void@b", "backup");
+    let a = snapshot("zroot/ROOT/void@a");
+    let b = snapshot("zroot/ROOT/void@b");
+
+    let review = review(&zfs, &Action::Destroy(vec![a.clone(), b.clone()]));
+
+    assert_eq!(
+        review.stops,
+        [
+            Stop::Clone {
+                snapshot: a,
+                clone: Untrusted::new("zroot/ROOT/copy".to_owned()),
+            },
+            Stop::Hold {
+                snapshot: b,
+                tag: Some(Untrusted::new("backup".to_owned())),
+            },
+        ]
+    );
+    // A clone: `zfs destroy -n` refuses too.
+    assert_eq!(review.freed, None);
+}
+
+#[test]
+fn a_destroy_whose_snapshots_cannot_be_listed_loses_them_with_no_size() {
+    let zfs = machine()
+        .failing("snapshot_details", "out of memory")
+        .failing("destroy_space", "out of memory");
+    let a = snapshot("zroot/ROOT/void@a");
+
+    let lost = review(&zfs, &Action::Destroy(vec![a.clone()]));
+
+    assert_eq!(
+        lost,
+        Review {
+            loses: vec![Loss::Snapshot {
+                name: a,
+                used: None
+            }],
+            ..Review::default()
+        }
+    );
+    assert_eq!(
+        review(&zfs, &Action::Destroy(Vec::new())),
+        Review::default()
+    );
+}

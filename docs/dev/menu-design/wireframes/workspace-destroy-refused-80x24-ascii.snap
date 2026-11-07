@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED | 3/3 open | ! 6
++------------------------------------------------------------------------------+
+|               Destroy zroot/ROOT/void@autosnap_2026-10-18_daily              |
+| ZFS would refuse this:                                                       |
+| autosnap_2026-10-18_daily has the clone zroot/ROOT/void-test: destroy or     |
+| promote the clone first.                                                     |
+| WHAT IS LOST                                                   69 MiB in all |
+| autosnap_2026-10-18_daily                                             69 MiB |
+| Kept: its 2 bookmarks.                                                       |
+| STEPS                                                                        |
+| 1. Destroy one snapshot                                                      |
+|    zfs destroy zroot/ROOT/void@autosnap_2026-10-18_daily                     |
+| No undo: what is lost cannot be brought back.                                |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                       [ OK ] |
++------------------------------------------------------------------------------+
+ Enter Close   Esc Cancel   Up/Down Scroll

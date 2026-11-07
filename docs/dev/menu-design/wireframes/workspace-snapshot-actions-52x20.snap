@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+ zroot › zroot/ROOT/void › autosnap_2026-10-20_dai…
+┌ ┌──────────────────────────────────────────────┐ ┐
+│ │      Snapshot autosnap_2026-10-20_daily      │ │
+│ │ zroot/ROOT/void@autosnap_2026-10-20_daily ·  │ │
+│ │ 3 d ago · 43 MiB                             │ │
+│ │                                              │ │
+│ │ ▶ Boot a New Clone…                          │ │
+│ │   Roll Back to It…                           │ │
+│ │   Clone as a New Boot Environment…           │ │
+│ │   Duplicate as an Independent Copy…          │ │
+│ │   Clone and Promote…                         │ │
+│ │   Show Differences to Now                    │ │
+└─│   Chroot into It, Read-Only                  │─┘
+┌ │   Destroy It…                                │─┐
+│ │ ──────────────────────────────────────────── │ │
+│ │   Cancel                                     │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+ Enter Choose   Esc Cancel   Up/Down Select

@@ -9,6 +9,8 @@
 //! - a snapshot: `zfs snapshot`;
 //! - a rollback, to a snapshot that has kernels, when no newer snapshot
 //!   has a clone or a hold ([`stops`]): `zfs rollback -r`;
+//! - destroying snapshots of a boot environment, when none has a clone or
+//!   a hold: `zfs destroy <environment>@a,b,c` ([`destroy`]);
 //! - a clone, promoted or not: `zfs clone` with the environment's own
 //!   properties, then `zfs promote`; the boot of a snapshot clones it so,
 //!   unpromoted, before the boot;
@@ -29,6 +31,7 @@
 //! the change may ask for something ([`Action::needs_console_on`]), and
 //! without it in the menu otherwise.
 
+mod destroy;
 mod import;
 mod needs;
 mod pools;
@@ -103,6 +106,7 @@ impl Changes<'_, '_> {
             Action::InheritDefaultKernel(environment) => self.default_kernel(environment, None),
             Action::CreateSnapshot(snapshot) => self.create_snapshot(snapshot),
             Action::Rollback(snapshot) => self.rollback(snapshot),
+            Action::Destroy(snapshots) => self.destroy(snapshots),
             Action::Clone(snapshot, target) | Action::BootSnapshot(snapshot, target) => {
                 self.clone_snapshot(snapshot, target, false)
             }

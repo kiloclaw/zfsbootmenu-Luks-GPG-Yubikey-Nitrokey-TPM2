@@ -23,7 +23,7 @@ use super::words::Said;
 use crate::menu::format::{age, date, fit, size};
 use crate::menu::model::{Focus, Lost, Model, Reviewing, host_text};
 use crate::menu::theme::{Glyph, Role, Theme};
-use crate::menu::world::{Action, Keep, Outcome, PoolUse, Safer};
+use crate::menu::world::{Action, Keep, Loss, Outcome, PoolUse, Review, Safer};
 use crate::text::text;
 
 /// How many rows of what is lost the line view says, before how many
@@ -51,6 +51,18 @@ pub(crate) fn title(reviewing: &Reviewing) -> String {
             environment = snapshot.dataset().to_string(),
             snapshot = snapshot.name()
         ),
+        Action::Destroy(snapshots) => {
+            let environment = snapshots.first().map(|first| first.dataset().to_string());
+            text!(
+                "review-destroy",
+                count = snapshots.len(),
+                snapshot = snapshots
+                    .first()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                environment = environment.unwrap_or_default()
+            )
+        }
         Action::Import(pool, options) if options.rewind => {
             text!("rewind.title", pool = pool.to_string())
         }
@@ -128,24 +140,7 @@ pub(crate) fn after(model: &Model, reviewing: &Reviewing) -> Vec<Part> {
         return Vec::new();
     };
     let review = &plan.review;
-    let mut parts = Vec::new();
-    if let Some(freed) = review.freed.filter(|_| !review.loses.is_empty()) {
-        parts.push(part(text!("review-freed", size = size(freed)), Role::Text));
-    }
-    let kept: Vec<String> = review
-        .keeps
-        .iter()
-        .map(|keep| match keep {
-            Keep::Snapshots(count) => text!("review-kept-snapshots", count = *count),
-            Keep::Bookmarks(count) => text!("review-kept-bookmarks", count = *count),
-        })
-        .collect();
-    if !kept.is_empty() {
-        parts.push(part(
-            text!("review-kept", kept = kept.join(", ")),
-            Role::Text,
-        ));
-    }
+    let mut parts = freed_and_kept(reviewing, review);
     if !plan.steps.is_empty() {
         parts.push(part(text!("review-steps"), Role::Header));
         parts.extend(steps(&plan.steps));
@@ -172,6 +167,40 @@ pub(crate) fn after(model: &Model, reviewing: &Reviewing) -> Vec<Part> {
             .iter()
             .flat_map(|pool_use| self::pool_use(model, pool_use)),
     );
+    parts
+}
+
+/// The space the change frees, said of one snapshot or of several, and
+/// what it keeps: a destroy keeps every bookmark, not the older ones alone.
+fn freed_and_kept(reviewing: &Reviewing, review: &Review) -> Vec<Part> {
+    let mut parts = Vec::new();
+    let destroyed = review
+        .loses
+        .iter()
+        .filter(|loss| matches!(loss, Loss::Snapshot { .. }))
+        .count();
+    if let Some(freed) = review.freed.filter(|_| !review.loses.is_empty()) {
+        let freed = text!("review-freed", count = destroyed, size = size(freed));
+        parts.push(part(freed, Role::Text));
+    }
+    let destroys = matches!(reviewing.action, Action::Destroy(_));
+    let kept: Vec<String> = review
+        .keeps
+        .iter()
+        .map(|keep| match keep {
+            Keep::Snapshots(count) => text!("review-kept-snapshots", count = *count),
+            Keep::Bookmarks(count) if destroys => {
+                text!("review-kept-every-bookmark", count = *count)
+            }
+            Keep::Bookmarks(count) => text!("review-kept-bookmarks", count = *count),
+        })
+        .collect();
+    if !kept.is_empty() {
+        parts.push(part(
+            text!("review-kept", kept = kept.join(", ")),
+            Role::Text,
+        ));
+    }
     parts
 }
 

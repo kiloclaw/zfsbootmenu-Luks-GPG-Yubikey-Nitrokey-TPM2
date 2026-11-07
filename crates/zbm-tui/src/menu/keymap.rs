@@ -96,6 +96,8 @@ pub enum Intent {
     Power,
     /// Roll back to the selected snapshot.
     Rollback,
+    /// Destroy the marked snapshots, or the selected one.
+    Destroy,
     /// Clone the selected snapshot.
     Clone,
     /// Clone and promote.

@@ -2,7 +2,8 @@
 //! clone of one of them, or a hold on one. A clone stops `zfs rollback -r`
 //! before it destroys anything; a hold stops it only after it destroyed
 //! every newer snapshot without one and every newer bookmark, so the
-//! rollback checks first, and refuses both.
+//! rollback checks first, and refuses both. A destroy checks first too,
+//! and so names each.
 //!
 //! A read that fails stops nothing: ZFS still refuses what it would.
 
@@ -93,6 +94,37 @@ pub(crate) fn of_rollback(zfs: &dyn Zfs, snapshot: &SnapshotName) -> Vec<Stop> {
         }
     };
     newer(&details, snapshot).map_or_else(Vec::new, |newer| stops(zfs, &newer))
+}
+
+/// The details of `snapshots`, of one filesystem, among `details`, in the
+/// order ZFS took them; those it does not list are left out.
+pub(crate) fn named<'d>(
+    details: &'d [SnapshotDetail],
+    snapshots: &[SnapshotName],
+) -> Vec<&'d SnapshotDetail> {
+    details
+        .iter()
+        .filter(|detail| {
+            snapshots
+                .iter()
+                .any(|snapshot| is_snapshot(detail, snapshot))
+        })
+        .collect()
+}
+
+/// What stops destroying `snapshots`, of one filesystem: their clones and
+/// holds; none when they cannot be listed.
+pub(crate) fn of_destroy(zfs: &dyn Zfs, snapshots: &[SnapshotName]) -> Vec<Stop> {
+    let Some(first) = snapshots.first() else {
+        return Vec::new();
+    };
+    match zfs.snapshot_details(first.dataset()) {
+        Ok(details) => stops(zfs, &named(&details, snapshots)),
+        Err(error) => {
+            tracing::warn!(%error, %first, "the snapshots could not be listed");
+            Vec::new()
+        }
+    }
 }
 
 /// `stop` in words.

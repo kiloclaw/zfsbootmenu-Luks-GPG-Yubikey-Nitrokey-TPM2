@@ -1,10 +1,12 @@
 //! The plans of the demo machine's changes, with their reviews (ADR 0016,
 //! points 12 to 15), as `zbm-app` reads them from the pools: a rollback
 //! loses the newer snapshots of its environment and what was written
-//! since, and a clone of one, or a hold, stops it; a rewind loses what was
+//! since, and a clone of one, or a hold, stops it; a destroy loses its
+//! snapshots, which a clone or a hold stops too; a rewind loses what was
 //! written since the checkpoint; a forced import says who used the pool
 //! last. Of the default environment's daily snapshots, that of 18 October
-//! has a clone and that of 19 October a hold.
+//! has a clone and that of 19 October a hold; it has two bookmarks, older
+//! than its snapshots.
 
 use zbm_types::{ImportPolicy, PoolName, SnapshotName};
 
@@ -25,6 +27,16 @@ const CLONED: (&str, &str) = ("autosnap_2026-10-18_daily", "zroot/ROOT/void-test
 /// The snapshot of [`ENVIRONMENT`] with a hold, and its tag.
 const HELD: (&str, &str) = ("autosnap_2026-10-19_daily", "backup-keep");
 
+/// The bookmarks of [`ENVIRONMENT`], older than every snapshot of it: a
+/// rollback keeps them, and so does a destroy.
+const BOOKMARKS: usize = 2;
+
+/// The bookmarks of `environment`: [`BOOKMARKS`] of [`ENVIRONMENT`], none
+/// of another.
+fn bookmarks(environment: &zbm_types::DatasetName) -> Option<Keep> {
+    (environment.as_str() == ENVIRONMENT).then_some(Keep::Bookmarks(BOOKMARKS))
+}
+
 /// What was written to an environment since the snapshot it rolls back
 /// to, in bytes.
 const WRITTEN: u64 = 241_172_480;
@@ -44,6 +56,7 @@ const FOREIGN_WRITTEN: u64 = NOW - 2 * 86_400 - 5 * 3600;
 pub(super) fn planned(snapshot: &Snapshot, lists: &Lists, action: Action) -> Event {
     let plan = match &action {
         Action::Rollback(target) => rollback(lists, target),
+        Action::Destroy(snapshots) => destroy(lists, snapshots),
         Action::Import(pool, options) if options.rewind => rewind(snapshot, lists, pool, *options),
         Action::Import(pool, options) if options.policy == ImportPolicy::Force => {
             forced(snapshot, pool, *options)
@@ -76,7 +89,7 @@ fn failed(what: String, why: String) -> Plan {
 }
 
 /// What stops the destroy of `snapshot`: its clone or its hold.
-fn stop(snapshot: &SnapshotName) -> Option<Stop> {
+pub(super) fn stop(snapshot: &SnapshotName) -> Option<Stop> {
     if snapshot.dataset().as_str() != ENVIRONMENT {
         return None;
     }
@@ -94,7 +107,8 @@ fn stop(snapshot: &SnapshotName) -> Option<Stop> {
 }
 
 /// The rollback to `target`: it loses the newer snapshots, oldest first,
-/// and what was written since; it keeps the older ones; cloning `target`
+/// and what was written since; it keeps the older ones, and the
+/// bookmarks; cloning `target`
 /// is safer; a clone or a hold of a newer snapshot stops it.
 fn rollback(lists: &Lists, target: &SnapshotName) -> Plan {
     let own = lists.of(target.dataset());
@@ -124,6 +138,7 @@ fn rollback(lists: &Lists, target: &SnapshotName) -> Plan {
         keeps: (older > 0)
             .then_some(Keep::Snapshots(older))
             .into_iter()
+            .chain(bookmarks(target.dataset()))
             .collect(),
         undo: None,
         safer: Some(Safer::Clone(target.clone())),
@@ -133,6 +148,45 @@ fn rollback(lists: &Lists, target: &SnapshotName) -> Plan {
     let change = Step {
         kind: StepKind::Rollback(target.clone()),
         command: Some(format!("zfs rollback -r {target}")),
+    };
+    plan(vec![change], review)
+}
+
+/// The destroy of `snapshots`, of one environment: it loses those that
+/// exist, oldest first, and frees their space; it keeps the
+/// environment's bookmarks; nothing undoes it, nothing
+/// is safer; a clone or a hold of one stops it.
+fn destroy(lists: &Lists, snapshots: &[SnapshotName]) -> Plan {
+    let Some(first) = snapshots.first() else {
+        let what = "unable to destroy snapshots".to_owned();
+        return failed(what, "no snapshot was chosen".to_owned());
+    };
+    let environment = first.dataset();
+    let mut lost: Vec<_> = lists
+        .of(environment)
+        .iter()
+        .filter(|s| snapshots.contains(&s.name))
+        .collect();
+    lost.sort_by_key(|s| s.created);
+    let stops: Vec<Stop> = lost.iter().filter_map(|s| stop(&s.name)).collect();
+    let has_clone = stops.iter().any(|stop| matches!(stop, Stop::Clone { .. }));
+    let review = Review {
+        loses: lost
+            .iter()
+            .map(|s| Loss::Snapshot {
+                name: s.name.clone(),
+                used: Some(s.used),
+            })
+            .collect(),
+        freed: (!has_clone).then(|| lost.iter().map(|s| s.used).sum()),
+        keeps: bookmarks(environment).into_iter().collect(),
+        stops,
+        ..Review::default()
+    };
+    let short: Vec<&str> = snapshots.iter().map(SnapshotName::name).collect();
+    let change = Step {
+        kind: StepKind::Destroy(snapshots.to_vec()),
+        command: Some(format!("zfs destroy {environment}@{}", short.join(","))),
     };
     plan(vec![change], review)
 }
@@ -156,7 +210,7 @@ fn plan(steps: Vec<Step>, review: Review) -> Plan {
 }
 
 /// Why `stop` stops a change, as `zbm-app` says it.
-fn why(stop: &Stop) -> String {
+pub(super) fn why(stop: &Stop) -> String {
     match stop {
         Stop::Clone { snapshot, clone } => {
             format!("{snapshot} has the clone {}", clone.printable())

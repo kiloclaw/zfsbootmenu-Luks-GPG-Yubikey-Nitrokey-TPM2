@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 BBóótt [2 SSñáppshóóts] 3 PPóólls  4 LLóg   ! 6
+┌──────────────────────────────────────────────────┐
+│   DDésttróýý 2 SSñáppshóóts óóf zroot/ROOT/void  │
+│ WWHÁTT ÍS LLÓSTT                73 MMíB ííñ álll │
+│ autosnap_2026-10-20_daily                43 MMíB │
+│ autosnap_2026-10-21_daily                30 MMíB │
+│ DDésttróýýíñgg théé sñáápshhótss frééés 73 MMíB. │
+│ KKéptt: ííts 2 bbóókkmárrks.                     │
+│ SSTÉPPS                                          │
+│ 1. Ddésttróýý 2 ssñáppshóóts                     │
+│    zfs destroy                                   │
+│ zroot/ROOT/void@autosnap_2026-10-20_daily,autosn │
+│ ap_2026-10-21_daily                              │
+│ ÑÑó úññdó: wwhátt ís llóstt çáñññótt bé          │
+│ bbróúúghtt báççk.                                │
+│ TTýpéé void ttó çóóñfíírm:                       │
+│ ▶ vo                                             │
+│                     [ ÇÇáñççél ]  [ DDésttróýý ] │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   TTáb ÑÑéxtt   ÉÉsç ÇÇáñççél

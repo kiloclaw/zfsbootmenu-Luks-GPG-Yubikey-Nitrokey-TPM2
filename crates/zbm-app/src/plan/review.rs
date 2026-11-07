@@ -6,6 +6,9 @@
 //!   what was written since; it keeps the older ones, has no undo, and
 //!   cloning the snapshot is safer; a clone or a hold of a newer snapshot
 //!   stops it;
+//! - a destroy loses its snapshots, with their sizes and the space they
+//!   free together; it keeps the environment's bookmarks, has no undo, and
+//!   nothing is safer; a clone or a hold of one of them stops it;
 //! - a rewind loses what was written since the checkpoint, among it the
 //!   filesystems and snapshots made since; it has no undo, and importing
 //!   the pool read-only without the rewind is safer;
@@ -27,6 +30,7 @@ use crate::model::{Review, Safer, Stop};
 pub(super) fn review(zfs: &dyn Zfs, action: &Action) -> Review {
     match action {
         Action::Rollback(snapshot) => rollback(zfs, snapshot),
+        Action::Destroy(snapshots) => destroy(zfs, snapshots),
         Action::Import(pool, options) if options.rewind => rewind(zfs, pool, *options),
         Action::Import(pool, options) if options.policy == ImportPolicy::Force => {
             forced(zfs, pool, *options)
@@ -115,9 +119,6 @@ fn kept(details: &[SnapshotDetail], snapshot: &SnapshotName) -> Vec<Keep> {
 /// without one; unknown when a clone stops the destroy, which `zfs destroy
 /// -n` refuses too.
 fn freed(zfs: &dyn Zfs, newer: &[&SnapshotDetail], stops: &[Stop]) -> Option<u64> {
-    if stops.iter().any(|stop| matches!(stop, Stop::Clone { .. })) {
-        return None;
-    }
     let mut snapshots = newer.iter().filter_map(|detail| match &detail.name {
         SnapshotOrBookmark::Snapshot(name) => Some(name),
         SnapshotOrBookmark::Bookmark { .. } => None,
@@ -130,9 +131,59 @@ fn freed(zfs: &dyn Zfs, newer: &[&SnapshotDetail], stops: &[Stop]) -> Option<u64
         first: first.clone(),
         last: last.clone(),
     };
-    zfs.destroy_space(&range)
+    space(zfs, &range, stops)
+}
+
+/// The space destroying `set` frees; unknown when a clone stops it, which
+/// `zfs destroy -n` refuses too.
+fn space(zfs: &dyn Zfs, set: &SnapshotSet, stops: &[Stop]) -> Option<u64> {
+    if stops.iter().any(|stop| matches!(stop, Stop::Clone { .. })) {
+        return None;
+    }
+    zfs.destroy_space(set)
         .inspect_err(|error| tracing::warn!(%error, "the space freed could not be counted"))
         .ok()
+}
+
+/// The review of destroying `snapshots`, of one filesystem: each lost, in
+/// the order ZFS took them, then those it does not list, with no size; the
+/// filesystem's bookmarks kept.
+fn destroy(zfs: &dyn Zfs, snapshots: &[SnapshotName]) -> Review {
+    let Some(first) = snapshots.first() else {
+        return Review::default();
+    };
+    let details = zfs
+        .snapshot_details(first.dataset())
+        .inspect_err(|error| tracing::warn!(%error, %first, "the snapshots could not be listed"))
+        .unwrap_or_default();
+    let named = stops::named(&details, snapshots);
+    let mut loses: Vec<Loss> = named.iter().map(|detail| lost(detail)).collect();
+    let unlisted = snapshots.iter().filter(|snapshot| {
+        !named
+            .iter()
+            .any(|detail| stops::is_snapshot(detail, snapshot))
+    });
+    for snapshot in unlisted {
+        loses.push(Loss::Snapshot {
+            name: snapshot.clone(),
+            used: None,
+        });
+    }
+    let bookmarks = details
+        .iter()
+        .filter(|detail| matches!(detail.name, SnapshotOrBookmark::Bookmark { .. }))
+        .count();
+    let stops = stops::stops(zfs, &named);
+    Review {
+        loses,
+        freed: space(zfs, &SnapshotSet::Each(snapshots.to_vec()), &stops),
+        keeps: (bookmarks > 0)
+            .then_some(Keep::Bookmarks(bookmarks))
+            .into_iter()
+            .collect(),
+        stops,
+        ..Review::default()
+    }
 }
 
 /// What was written to the filesystem of `snapshot` since it was taken, in

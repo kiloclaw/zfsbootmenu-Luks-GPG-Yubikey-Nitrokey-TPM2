@@ -256,6 +256,7 @@ fn of_kind(kind: model::Offer) -> Action {
         Offer::DefaultKernel => Action::InheritDefaultKernel(environment),
         Offer::CreateSnapshot => Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap()),
         Offer::Rollback => Action::Rollback(snapshot),
+        Offer::Destroy => Action::Destroy(vec![snapshot]),
         Offer::Clone => Action::Clone(snapshot, target),
         Offer::Duplicate => Action::Duplicate(snapshot, target),
         Offer::Diff => Action::Diff(snapshot, None),

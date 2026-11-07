@@ -50,6 +50,8 @@ action-power = power
     .title = Power
 action-roll-back = roll back
     .title = Roll Back
+action-destroy = destroy
+    .title = Destroy
 action-clone = clone
     .title = Clone
 action-clone-promote = clone+promote
@@ -134,6 +136,7 @@ key-page-up = PgUp
 key-page-down = PgDn
 key-home = Home
 key-end = End
+key-delete = Del
 key-space = Space
 key-function = F{ $number }
 key-ctrl = Ctrl-{ $key }
@@ -530,6 +533,7 @@ button-cancel = Cancel
 button-ok = OK
 button-continue = Continue
 button-roll-back = Roll Back
+button-destroy = Destroy
 button-promote = Promote
 button-rewind = Rewind
 button-force-import = Force Import
@@ -547,6 +551,11 @@ palette-boot-clone = Boot a clone of { $snapshot }
 palette-recovery-tools = Recovery tools
 palette-rescan-pools = Rescan the Pools
 palette-export = Export { $pool }
+palette-destroy = Destroy { $snapshot }
+palette-destroy-marked = { $count ->
+    [one] Destroy the Marked Snapshot
+   *[other] Destroy the { $count } Marked Snapshots
+}
 
 ## The changes since a snapshot: files and packages.
 
@@ -688,6 +697,7 @@ snapshot-duplicate = Duplicate as an Independent Copy
 snapshot-promote = Clone and Promote
 snapshot-diff = Show Differences to Now
 snapshot-chroot = Chroot into It, Read-Only
+snapshot-destroy = Destroy It
 rollback = { $environment } goes back to { $snapshot }: every change since is lost.
     .title = Roll Back { $environment }
     .none-destroyed = No newer snapshot is destroyed.
@@ -705,6 +715,10 @@ promote = The clone takes over the snapshots of { $environment } up to { $snapsh
 
 review-title = Review the Change
 review-rollback = Roll Back { $environment } to { $snapshot }
+review-destroy = { $count ->
+    [one] Destroy { $snapshot }
+   *[other] Destroy { $count } Snapshots of { $environment }
+}
 review-planning = Reading what it would change…
 review-wait = wait for what it would change to be read
 review-refused = ZFS would refuse this:
@@ -733,7 +747,10 @@ review-lost-snapshots-unknown = the snapshots taken since, which could not be li
 # The line view's rows of what is lost stop after 20; what stops a change,
 # where the page has no more room.
 review-more = and { $count } more
-review-freed = Destroying the snapshots frees { $size }.
+review-freed = { $count ->
+    [one] Destroying the snapshot frees { $size }.
+   *[other] Destroying the snapshots frees { $size }.
+}
 review-kept = Kept: { $kept }.
 review-kept-snapshots = { $count ->
     [one] one older snapshot
@@ -742,6 +759,10 @@ review-kept-snapshots = { $count ->
 review-kept-bookmarks = { $count ->
     [one] one older bookmark
    *[other] { $count } older bookmarks
+}
+review-kept-every-bookmark = { $count ->
+    [one] its bookmark
+   *[other] its { $count } bookmarks
 }
 review-no-undo = No undo: what is lost cannot be brought back.
 review-undo = It can be undone.

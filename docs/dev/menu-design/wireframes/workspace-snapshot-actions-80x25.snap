@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+ zroot › zroot/ROOT/void › autosnap_2026-10-20_daily
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────── 400 ┐
+│   zroot · ONLINE     ││   Today                         1 snapshot · 1.1 GiB │
+│ ▶ zroot/┌──────────────────────────────────────────────────────────┐ 1.1 GiB │
+│   zroot/│            Snapshot autosnap_2026-10-20_daily            │· 17 MiB │
+│   tank ·│ zroot/ROOT/void@autosnap_2026-10-20_daily · 3 d ago · 43 │  17 MiB │
+│   tank/R│ MiB                                                      │· 30 MiB │
+│   tank/R│                                                          │  30 MiB │
+│         │ ▶ Boot a New Clone…                                      │· 43 MiB │
+│         │   Roll Back to It…                                       │  43 MiB │
+│         │   Clone as a New Boot Environment…                       │· 56 MiB │
+│         │   Duplicate as an Independent Copy…                      │  56 MiB │
+│         │   Clone and Promote…                                     │ 301 MiB │
+│         │   Show Differences to Now                                │  56 MiB │
+│         │   Chroot into It, Read-Only                              │  43 MiB │
+│         │   Destroy It…                                            │  30 MiB │
+└─────────│ ──────────────────────────────────────────────────────── │─────────┘
+┌ autosnap│   Cancel                                                 │─────────┐
+│  Environ└──────────────────────────────────────────────────────────┘         │
+│        Taken  2026-10-20 07:00 UTC, 3 d ago                                  │
+│         Used  43 MiB                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Choose   Esc Cancel   Up/Down Select

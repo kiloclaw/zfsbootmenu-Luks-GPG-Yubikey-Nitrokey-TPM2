@@ -4,7 +4,7 @@
 use zbm_types::Untrusted;
 
 use super::dialogs;
-use crate::menu::keymap::{self, Input, Intent};
+use crate::menu::keymap::{self, Input, Intent, Map};
 use crate::menu::model::{Model, Palette, PaletteItem, Screen, Then};
 use crate::menu::world::{Action, Outcome};
 use crate::text::{self, id, text};
@@ -178,8 +178,33 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
             Then::Act(Action::Export(pool.name.clone())),
         ));
     }
+    items.extend(destroy_items(model));
     items.extend(tool_items(model));
     items.retain(|item| super::offers::is_offered(model, &item.then));
+    items
+}
+
+/// The palette's entries that destroy snapshots, the workspace's alone and
+/// over the snapshots view, whose selection and marks they name: the
+/// selected snapshot, and the marked ones. Not one for each snapshot read,
+/// which would double the palette of a long list (B5).
+fn destroy_items(model: &Model) -> Vec<PaletteItem> {
+    if model.map != Map::Workspace || model.screen != Screen::Snapshots {
+        return Vec::new();
+    }
+    let mut items = Vec::new();
+    if let Some(snapshot) = model.selected_snapshot() {
+        items.push(PaletteItem {
+            label: text!("palette-destroy", snapshot = snapshot.name.to_string()),
+            then: super::snapshots::destroy(vec![&snapshot.name]),
+        });
+    }
+    if !model.marked.is_empty() {
+        items.push(PaletteItem {
+            label: text!("palette-destroy-marked", count = model.marked.len()),
+            then: super::snapshots::destroy_marked(model),
+        });
+    }
     items
 }
 

@@ -10,7 +10,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ pre-upgrade                                                                                                  1.1 GiB │
 │ what was written since autosnap_2026-10-20_daily                                                             230 MiB │
 │ Destroying the snapshots frees 1.2 GiB.                                                                              │
-│ Kept: 396 older snapshots.                                                                                           │
+│ Kept: 396 older snapshots, 2 older bookmarks.                                                                        │
 │ STEPS                                                                                                                │
 │ 1. Roll zroot/ROOT/void back to autosnap_2026-10-20_daily                                                            │
 │    zfs rollback -r zroot/ROOT/void@autosnap_2026-10-20_daily                                                         │

@@ -42,6 +42,7 @@ pub(super) fn apply(snapshot: &mut Snapshot, lists: &mut Lists, action: Action) 
         Action::InheritDefaultKernel(name) => set_kernel(snapshot, &name, None),
         Action::CreateSnapshot(name) => create(snapshot, lists, &name),
         Action::Rollback(target) => rollback(snapshot, lists, &target),
+        Action::Destroy(names) => destroy(snapshot, lists, &names),
         Action::Clone(name, new)
         | Action::Duplicate(name, new)
         | Action::CloneAndPromote(name, new) => copy(snapshot, &name, &new),
@@ -172,6 +173,38 @@ fn rollback(snapshot: &mut Snapshot, lists: &mut Lists, target: &SnapshotName) -
         "{name} rolled back to {}; {destroyed} newer snapshots destroyed",
         target.name()
     ))
+}
+
+/// Destroys `names`, of one environment, all of them or none: a clone or
+/// a hold of one stops it, as `zfs destroy` refuses it.
+fn destroy(snapshot: &mut Snapshot, lists: &mut Lists, names: &[SnapshotName]) -> Outcome {
+    let Some(first) = names.first() else {
+        return Outcome::Warning("no snapshot to destroy".to_owned());
+    };
+    let environment = first.dataset().clone();
+    let stops: Vec<String> = names
+        .iter()
+        .filter_map(super::review::stop)
+        .map(|stop| super::review::why(&stop))
+        .collect();
+    if !stops.is_empty() {
+        // As `zbm-app` says it: `a snapshot`, `3 snapshots`.
+        let counted = match names.len() {
+            1 => "a snapshot".to_owned(),
+            count => format!("{count} snapshots"),
+        };
+        return Outcome::Failed {
+            what: format!("unable to destroy {counted} of {environment}"),
+            why: stops,
+            next: Vec::new(),
+        };
+    }
+    let note = make_writable(snapshot, &environment.pool());
+    lists
+        .of_mut(&environment)
+        .retain(|s| !names.contains(&s.name));
+    let short: Vec<&str> = names.iter().map(SnapshotName::name).collect();
+    Outcome::Done(format!("{environment}@{} destroyed{note}", short.join(",")))
 }
 
 fn copy(snapshot: &mut Snapshot, name: &SnapshotName, new: &DatasetName) -> Outcome {

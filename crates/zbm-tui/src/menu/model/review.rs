@@ -42,7 +42,9 @@ pub struct Reviewing {
     /// What was typed; `None` for a page without the field.
     pub typed: Option<String>,
     /// What has to be typed: the last component of the environment rolled
-    /// back, as the classic map asks, the name of a pool imported.
+    /// back, as the classic map asks; the short name of the one snapshot
+    /// destroyed, or the last component of the environment whose several
+    /// snapshots are; the name of a pool imported.
     pub name: String,
     /// How many rows the list of what is lost is scrolled down.
     pub scroll: usize,
@@ -56,6 +58,10 @@ impl Reviewing {
     pub(crate) fn new(action: Action) -> Option<Reviewing> {
         let name = match &action {
             Action::Rollback(snapshot) => snapshot.dataset().last_component().to_owned(),
+            Action::Destroy(snapshots) => match snapshots.as_slice() {
+                [snapshot] => snapshot.name().to_owned(),
+                _ => snapshots.first()?.dataset().last_component().to_owned(),
+            },
             Action::Import(pool, _) => pool.to_string(),
             _ => return None,
         };

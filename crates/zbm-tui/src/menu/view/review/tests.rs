@@ -3,7 +3,9 @@
 //! says how many more stops there are; the lines below what is lost wrap
 //! where there is room; the button `Enter` presses shows it; a page that
 //! refuses its change offers no safer action; the hint line leaves the
-//! page; names from the machine are drawn printable.
+//! page; names from the machine are drawn printable; a destroy keeps every
+//! bookmark of its environment, and names one snapshot whole; the space
+//! freed is said of one snapshot or of several.
 
 use pretty_assertions::assert_eq;
 use ratatui::Terminal;
@@ -20,7 +22,8 @@ use crate::menu::theme::{Role, Theme};
 use crate::menu::view::tests::screen;
 use crate::menu::view::{view, words};
 use crate::menu::world::{
-    Access, Action, ImportOptions, Loss, Outcome, Plan, PoolHost, PoolUse, Review, Safer, Stop,
+    Access, Action, ImportOptions, Keep, Loss, Outcome, Plan, PoolHost, PoolUse, Review, Safer,
+    Stop,
 };
 use crate::text::text;
 
@@ -272,4 +275,76 @@ fn hostile_names_on_a_page_are_drawn_printable() {
     let said = words::dialog(&model).unwrap();
     assert!(said.lines.iter().all(|line| !line.contains('\u{1b}')));
     assert!(said.lines.contains(&text!("review-active")), "{said:?}");
+}
+
+#[test]
+fn a_destroy_keeps_every_bookmark_and_names_one_snapshot_whole() {
+    let snapshot: SnapshotName = "zroot/ROOT/void@old".parse().unwrap();
+    let review = Review {
+        loses: vec![Loss::Snapshot {
+            name: snapshot.clone(),
+            used: Some(4096),
+        }],
+        freed: Some(4096),
+        keeps: vec![Keep::Bookmarks(2)],
+        ..Review::default()
+    };
+
+    let model = reviewed(Action::Destroy(vec![snapshot]), plan(review));
+
+    let drawn = prose(&model, 120, 40);
+    assert!(drawn.contains("Destroy zroot/ROOT/void@old"), "{drawn}");
+    let kept = text!("review-kept-every-bookmark", count = 2);
+    assert!(
+        drawn.contains(&text!("review-kept", kept = kept)),
+        "{drawn}"
+    );
+    assert!(
+        drawn.contains(&format!("[ {} ]", text!("button-destroy"))),
+        "{drawn}"
+    );
+    assert!(drawn.contains(&text!("review-no-undo")), "{drawn}");
+    // One snapshot: the freed line says so, and its short name is typed.
+    assert!(
+        drawn.contains("Destroying the snapshot frees 4.0 KiB."),
+        "{drawn}"
+    );
+    let Some(Dialog::Review(reviewing)) = &model.dialog else {
+        panic!("no review page");
+    };
+    assert_eq!(reviewing.name, "old");
+}
+
+#[test]
+fn the_space_freed_by_several_snapshots_is_said_of_them_all() {
+    let snapshot = |name: &str| -> SnapshotName { name.parse().unwrap() };
+    let (old, older) = (
+        snapshot("zroot/ROOT/void@old"),
+        snapshot("zroot/ROOT/void@older"),
+    );
+    let lost = |name: &SnapshotName| Loss::Snapshot {
+        name: name.clone(),
+        used: Some(4096),
+    };
+    let review = Review {
+        loses: vec![lost(&older), lost(&old)],
+        freed: Some(8192),
+        ..Review::default()
+    };
+
+    let model = reviewed(Action::Destroy(vec![older, old]), plan(review));
+
+    let drawn = prose(&model, 120, 40);
+    assert!(
+        drawn.contains("Destroying the snapshots frees 8.0 KiB."),
+        "{drawn}"
+    );
+    assert!(
+        drawn.contains("Destroy 2 Snapshots of zroot/ROOT/void"),
+        "{drawn}"
+    );
+    let Some(Dialog::Review(reviewing)) = &model.dialog else {
+        panic!("no review page");
+    };
+    assert_eq!(reviewing.name, "void");
 }

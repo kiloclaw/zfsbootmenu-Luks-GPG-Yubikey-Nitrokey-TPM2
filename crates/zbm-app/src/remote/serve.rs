@@ -6,6 +6,7 @@
 //! names it, and none in the ways of `zluks` alone; it reads the kernel's
 //! messages only about a device of a pool it shows.
 
+use std::collections::BTreeSet;
 use std::io;
 use std::os::fd::{AsFd as _, OwnedFd};
 use std::time::Duration;
@@ -13,6 +14,7 @@ use std::time::Duration;
 use zbm_platform::event::Reply;
 use zbm_sys::console::{Watch, wait_ready};
 use zbm_sys::socket::Connection;
+use zbm_types::{DatasetName, SnapshotName};
 
 use super::{Received, ToMenu, ToSession};
 use crate::model::{Action, Event, Outcome};
@@ -185,11 +187,14 @@ fn is_gone(error: &io::Error) -> bool {
 /// menu, is read as on the console. A plan reads what its review needs,
 /// which the lock leaves free: only that of a change to a boot environment
 /// or to a pool the menu shows ([`planned_refusal`]), never that of a
-/// volume's opening or closing. A change such as an
-/// export is the service's to refuse, as the lock keeps it.
+/// volume's opening or closing. A destroy, and its plan, must name
+/// snapshots of the machine's boot environments alone
+/// ([`destroy_refusal`]). A change such as an export is the service's to
+/// refuse, as the lock keeps it.
 fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
     match action {
         Action::Plan(planned) => planned_refusal(served, planned),
+        Action::Destroy(snapshots) => destroy_refusal(served, snapshots),
         Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_) => {
             Some("an answer goes with the question it answers".to_owned())
         }
@@ -224,6 +229,9 @@ fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
 /// pool the menu shows, the one of the identifier it names, if it names
 /// one. Nothing else has a plan, and is refused before it is read.
 fn planned_refusal(served: &Served<'_, '_>, planned: &Action) -> Option<String> {
+    if let Action::Destroy(snapshots) = planned {
+        return destroy_refusal(served, snapshots);
+    }
     if let Some(environment) = planned.changed_environment() {
         return (!served.service.is_environment(environment))
             .then(|| "the machine has no such boot environment".to_owned());
@@ -238,6 +246,18 @@ fn planned_refusal(served: &Served<'_, '_>, planned: &Action) -> Option<String> 
         .iter()
         .any(|shown| shown.name == *pool && id.is_none_or(|id| shown.id == Some(id)));
     (!known).then(|| "the machine shows no such pool".to_owned())
+}
+
+/// Why the session does not destroy `snapshots`, or plan it, for a remote
+/// menu, if it does not: each must be of a boot environment of the
+/// machine, which is read once for each.
+fn destroy_refusal(served: &Served<'_, '_>, snapshots: &[SnapshotName]) -> Option<String> {
+    let environments: BTreeSet<&DatasetName> =
+        snapshots.iter().map(SnapshotName::dataset).collect();
+    let known = environments
+        .into_iter()
+        .all(|environment| served.service.is_environment(environment));
+    (!known).then(|| "the machine has no such boot environment".to_owned())
 }
 
 /// What the action performed asks the menu now: the number of its

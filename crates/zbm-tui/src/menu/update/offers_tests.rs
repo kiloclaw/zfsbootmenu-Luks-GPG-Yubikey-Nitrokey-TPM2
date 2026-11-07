@@ -25,6 +25,7 @@ const APP: &[Offer] = &[
     Offer::DefaultKernel,
     Offer::CreateSnapshot,
     Offer::Rollback,
+    Offer::Destroy,
     Offer::Clone,
     Offer::Duplicate,
     Offer::Diff,
@@ -264,11 +265,15 @@ fn every_key_menu_entry_and_palette_item_leads_only_to_what_is_offered() {
 
 #[test]
 fn each_map_alone_reaches_every_kind_offered() {
-    let every: BTreeSet<Offer> = Offer::ALL.into_iter().collect();
-    let app: BTreeSet<Offer> = APP.iter().copied().collect();
     for map in [Map::Classic, Map::Workspace] {
+        // The classic map gains no destroy (ADR 0016, point 10).
+        let kinds = |offers: &[Offer]| -> BTreeSet<Offer> {
+            let is_kept = |kind: &Offer| map == Map::Workspace || *kind != Offer::Destroy;
+            offers.iter().copied().filter(is_kept).collect()
+        };
+        let every = kinds(&Offer::ALL);
         assert_eq!(kinds_reached_with(&Offer::ALL, &[map]), every, "{map:?}");
-        assert_eq!(kinds_reached_with(APP, &[map]), app, "{map:?}");
+        assert_eq!(kinds_reached_with(APP, &[map]), kinds(APP), "{map:?}");
     }
 }
 

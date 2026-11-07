@@ -111,3 +111,27 @@ fn a_refused_plan_reads_nothing_of_what_it_names() {
         "{lines:?}"
     );
 }
+
+#[test]
+fn a_remote_menu_destroys_and_plans_to_destroy_snapshots_of_boot_environments_alone() {
+    let fake = shown();
+    let destroy =
+        |names: &[&str]| Action::Destroy(names.iter().map(|name| name.parse().unwrap()).collect());
+    let environment = Some("the machine has no such boot environment");
+
+    for (action, refused) in [
+        (destroy(&["tank/ROOT/be@old", "tank/ROOT/be@new"]), None),
+        (destroy(&["tank/ROOT@old"]), environment),
+        (destroy(&["tank/ROOT/be/home@old"]), environment),
+        // The first names a boot environment, the second does not.
+        (destroy(&["tank/ROOT/be@old", "tank/ROOT@old"]), environment),
+        (destroy(&["tank/gone@old"]), environment),
+    ] {
+        assert_eq!(refusal_of(&fake, &action).as_deref(), refused, "{action:?}");
+        assert_eq!(
+            refusal_of(&fake, &plan(action.clone())).as_deref(),
+            refused,
+            "{action:?}"
+        );
+    }
+}

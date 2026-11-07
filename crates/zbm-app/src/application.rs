@@ -472,6 +472,7 @@ impl<'a> App<'a> {
             Offer::DefaultKernel,
             Offer::CreateSnapshot,
             Offer::Rollback,
+            Offer::Destroy,
             Offer::Clone,
             Offer::Duplicate,
             Offer::Diff,

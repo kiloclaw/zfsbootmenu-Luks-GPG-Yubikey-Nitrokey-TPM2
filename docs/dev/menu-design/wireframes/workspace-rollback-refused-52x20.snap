@@ -13,7 +13,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ WHAT IS LOST 1 to 2 of 7          1.6 GiB in all │
 │ autosnap_2026-10-18_daily                 69 MiB │
 │ autosnap_2026-10-19_daily                 56 MiB │
-│ Kept: 393 older snapshots.                       │
+│ Kept: 393 older snapshots, 2 older bookmarks.    │
 │ STEPS                                            │
 │ 1. Roll zroot/ROOT/void back to autosnap_2026-1… │
 │    zfs rollback -r zroot/ROOT/void@autosnap_202… │

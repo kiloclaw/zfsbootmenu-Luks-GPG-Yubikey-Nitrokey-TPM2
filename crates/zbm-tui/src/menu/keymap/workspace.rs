@@ -6,7 +6,8 @@
 //! Boot tab, binds no character but `?`: the others wait for the next
 //! dialog, as the first keys of a passphrase. The review page of a change,
 //! the workspace's alone, takes text, and `Tab` and `Shift-Tab` move among
-//! its field and its buttons.
+//! its field and its buttons. `Delete` destroys snapshots, which the classic
+//! map does not.
 
 use zbm_display::keys::Key;
 
@@ -160,8 +161,19 @@ pub const WORKSPACE: &[Binding] = &[
 
 /// The bindings of the workspace that come after the classic map's in the
 /// toolbar, as they do less than its keys of the same view: `z` folds the
-/// group of the timeline the selection is in.
-const WORKSPACE_LAST: &[Binding] = &[key('z', &[Snapshots], Intent::Fold)];
+/// group of the timeline the selection is in; `Delete`, which the toolbar
+/// leaves out, destroys the marked snapshots, or the selected one, after
+/// its review page.
+const WORKSPACE_LAST: &[Binding] = &[
+    key('z', &[Snapshots], Intent::Fold),
+    bind(
+        Key::Delete,
+        NONE,
+        Scope::Only(&[Snapshots]),
+        Intent::Destroy,
+        Footer::Hidden,
+    ),
+];
 
 /// Letters of the classic map that the workspace leaves unbound: the pools
 /// are a tab.
