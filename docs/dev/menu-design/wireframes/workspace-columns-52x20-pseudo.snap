@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 BBóótt] 2 SSñáppshóóts  3 PPóólls  4 LLóg   ! 6
+ tank › tank/ROOT/arch › 6.10.10-arch1-1
+┌ KKÉRÑÑÉLSS ─────────────────────────────────── 2 ┐
+│   6.11.5-arch1-1                                 │
+│ ▶ 6.10.10-arch1-1                                │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ 6.10.10-arch1-1 ─────────────────────────────────┐
+│ ÉÉñvííróññméññt  tank/ROOT/arch                  │
+│       PPóóll  tank · DEGRADED · rréádd-óñllý     │
+│ ÇÇómmmáñdd Líññé  rw quiet splash · ssét hhéréé  │
+│                                                  │
+│ ÑÑÉXTT STÉÉPS                                    │
+│   e éédítt               d ddéfááúltt            │
+│   / ffílttér             : ççómmmáñdds           │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér BBóótt   e ÉÉdítt                 ? MMóréé

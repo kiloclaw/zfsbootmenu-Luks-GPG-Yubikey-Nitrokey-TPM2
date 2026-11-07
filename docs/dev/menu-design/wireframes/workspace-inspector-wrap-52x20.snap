@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 6
+ tank › tank/ROOT/arch › 6.11.5-arch1-1
+┌ KERNELS ────────────────────────────────────── 2 ┐
+│ ▶ 6.11.5-arch1-1                                 │
+│   6.10.10-arch1-1                                │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ 6.11.5-arch1-1 ─────────────────────────── boots ┐
+│  Environment  tank/ROOT/arch                     │
+│         Pool  tank · DEGRADED · read-only        │
+│ Command Line  rw quiet splash loglevel=3         │
+│               rd.udev.log_level=3                │
+│               systemd.show_status=auto           │
+│               zfs.zfs_arc_max=8589934592         │
+│               init_on_alloc=1                    │
+└──────────────────────────────────────────────────┘
+ Enter Boot   e Edit   d Default             ? More

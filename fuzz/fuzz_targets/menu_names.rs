@@ -139,13 +139,15 @@ fuzz_target!(|data: &[u8]| {
         });
         check(&model, width, height);
     }
-    // The workspace's Boot tab, with what needs attention, and its help,
+    // The workspace's Boot tab, with what needs attention, its kernels
+    // column under the path, with the inspector that wraps, and its help,
     // under the ZFS version; a host ID that is not one is none.
     model.snapshot.zfs_version = Some(next());
     model.snapshot.host = next().parse().ok();
     model.map = Map::Workspace;
     model.editor = None;
-    for screen in [Screen::Main, Screen::Help(Context::Main)] {
+    model.refresh();
+    for screen in [Screen::Main, Screen::Kernels, Screen::Help(Context::Main)] {
         model.screen = screen;
         check(&model, width, height);
     }

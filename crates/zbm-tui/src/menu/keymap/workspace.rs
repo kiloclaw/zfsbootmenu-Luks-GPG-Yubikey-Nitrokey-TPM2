@@ -63,6 +63,9 @@ const TABBED: &[Context] = &[
     Main, Snapshots, Kernels, Pools, Recovery, Log, Diff, Packages, Help,
 ];
 
+/// The views of the Boot tab's columns, which the arrows go into and out of.
+const COLUMNS: &[Context] = &[Main, Kernels];
+
 /// A digit that chooses `tab`.
 const fn digit(c: char, tab: Tab) -> Binding {
     bind(
@@ -95,6 +98,22 @@ pub const WORKSPACE: &[Binding] = &[
     mover('k', Intent::Up),
     // Out of a column, as Escape.
     mover('h', Intent::Back),
+    // The arrows go into the kernels column and out of it, as `l` and `h`;
+    // in the changes they still go from one segment to the other.
+    bind(
+        Key::Right,
+        NONE,
+        Scope::Only(COLUMNS),
+        Intent::Kernels,
+        Footer::Hidden,
+    ),
+    bind(
+        Key::Left,
+        NONE,
+        Scope::Only(COLUMNS),
+        Intent::Back,
+        Footer::Hidden,
+    ),
     digit('1', Tab::Boot),
     digit('2', Tab::Snapshots),
     digit('3', Tab::Pools),
@@ -120,14 +139,16 @@ pub const WORKSPACE: &[Binding] = &[
 const FREED: &[char] = &['p'];
 
 /// Whether the workspace drops `binding` of the current map: it binds the
-/// same key, or frees it.
+/// same key in a view where `binding` works too, or frees it.
 fn is_taken(binding: &Binding) -> bool {
     let freed =
         binding.modifiers == NONE && matches!(binding.key, Key::Char(c) if FREED.contains(&c));
     freed
-        || WORKSPACE
-            .iter()
-            .any(|own| own.key == binding.key && own.modifiers == binding.modifiers)
+        || WORKSPACE.iter().any(|own| {
+            own.key == binding.key
+                && own.modifiers == binding.modifiers
+                && own.scope.has_context_in_common(binding.scope)
+        })
 }
 
 impl Map {

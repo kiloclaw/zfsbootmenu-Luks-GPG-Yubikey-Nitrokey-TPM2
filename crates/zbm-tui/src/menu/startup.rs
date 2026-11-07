@@ -73,6 +73,8 @@ where
     ) -> io::Result<StartupView<B, I>> {
         let mut model = Model::new(snapshot, theme);
         model.map = map;
+        // The workspace groups the environments by pool.
+        model.refresh();
         let mut view = StartupView {
             model: Some(model),
             frontend,

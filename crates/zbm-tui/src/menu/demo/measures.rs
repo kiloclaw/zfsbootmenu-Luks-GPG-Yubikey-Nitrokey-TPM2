@@ -199,10 +199,11 @@ fn workspace_tasks() -> Vec<Task> {
         Task {
             name: "workspace: T2 boot another environment",
             options: workspace(),
+            // The environments are grouped by pool: the default's first.
             steps: &[Press(Char('j')), Press(Enter)],
             measured: 2,
             budget: 4,
-            done: |s| boots(s, "tank/ROOT/arch"),
+            done: |s| boots(s, "zroot/ROOT/ubuntu"),
         },
         Task {
             name: "workspace: T3 boot another kernel",

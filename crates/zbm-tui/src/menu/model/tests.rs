@@ -135,3 +135,57 @@ fn snapshots_are_ranked_again_only_when_their_list_changed() {
     model.refresh();
     assert_eq!(model.snapshots.matches.len(), 10);
 }
+
+#[test]
+fn the_workspace_groups_the_environments_by_pool_under_unnumbered_headers() {
+    let mut model = model();
+    model.map = Map::Workspace;
+    model.refresh();
+    let order: Vec<&str> = model
+        .environments
+        .matches
+        .iter()
+        .map(|r| model.snapshot.environments[r.index].name.as_str())
+        .collect();
+    let headers: Vec<Option<String>> = (0..5)
+        .map(|position| model.group_at(position).map(|pool| pool.to_string()))
+        .collect();
+
+    // The default's pool first, and the default first in it.
+    assert_eq!(
+        order,
+        [
+            "zroot/ROOT/void",
+            "zroot/ROOT/ubuntu",
+            "tank/ROOT/arch",
+            "tank/ROOT/debian"
+        ]
+    );
+    let zroot = Some("zroot".to_owned());
+    let tank = Some("tank".to_owned());
+    assert_eq!(headers, [zroot, None, tank, None, None]);
+    // A filter ranks by match, and the current map has no groups.
+    model.environments.filter = "o".to_owned();
+    model.refresh();
+    assert_eq!(model.group_at(0), None);
+    model.environments.filter.clear();
+    model.map = Map::Classic;
+    model.refresh();
+    assert_eq!(model.group_at(0), None);
+}
+
+#[test]
+fn the_path_names_the_pool_the_environment_and_the_kernel_open() {
+    let mut model = model();
+    model.screen = Screen::Main;
+    assert_eq!(model.path(), ["zroot", "zroot/ROOT/void"]);
+
+    model.focus = Some("tank/ROOT/arch".parse().unwrap());
+    model.screen = Screen::Kernels;
+    model.refresh();
+    model.kernels.selected = 1;
+    assert_eq!(model.path(), ["tank", "tank/ROOT/arch", "6.10.10-arch1-1"]);
+
+    model.screen = Screen::Log;
+    assert!(model.path().is_empty());
+}

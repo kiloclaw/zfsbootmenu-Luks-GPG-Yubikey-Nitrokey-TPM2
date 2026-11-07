@@ -35,8 +35,19 @@ pub(crate) fn plain(line: &Line<'_>) -> String {
     text.trim_end().to_owned()
 }
 
-/// The title of the current screen.
+/// The title of the current screen; in the workspace's Boot tab, then the
+/// path of what its columns select.
 pub(crate) fn title(model: &Model) -> String {
+    let title = screen_title(model);
+    let path = model.path();
+    if model.map != keymap::Map::Workspace || path.is_empty() {
+        return title;
+    }
+    text!("lines-path", title = title, path = path.join(" > "))
+}
+
+/// The title of the current screen alone.
+fn screen_title(model: &Model) -> String {
     match model.screen {
         Screen::Startup => text!("view-startup"),
         Screen::Main => text!("view-main"),

@@ -1,9 +1,9 @@
 //! The Boot tab of the workspace (ADR 0007,
 //! `docs/dev/menu-design/information-architecture.md`): from 110 columns a
 //! sidebar of the pools, the volumes and what needs attention, beside the
-//! boot environments and the inspector; narrower, as over a serial line at
-//! 80×24, what needs attention as one line above the list, and the
-//! inspector below it; at 52×20, the list and the inspector alone.
+//! path, the columns and the inspector; narrower, as over a serial line at
+//! 80×24, what needs attention as one line above the path, and the
+//! inspector below the columns; at 52×20, the deepest column alone.
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -32,6 +32,9 @@ const ATTENTION_LINE_FROM: u16 = 80;
 /// How many next steps the inspector lists.
 const NEXT_STEPS: usize = 4;
 
+mod columns;
+mod path;
+
 /// Something that needs attention, and the tab that leads to it.
 struct Item {
     glyph: Glyph,
@@ -40,32 +43,33 @@ struct Item {
     tab: Tab,
 }
 
-/// Draws the Boot tab.
+/// Draws the Boot tab: its environments, or its kernels once open.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let area = main_view::render_banner(model, frame, area);
+    let path = path::height(model);
     if area.width >= SIDEBAR_FROM {
-        let [side, list, detail] = Layout::horizontal([
-            Constraint::Length(SIDEBAR),
-            Constraint::Fill(5),
-            Constraint::Fill(4),
-        ])
-        .areas(area);
+        let [side, rest] =
+            Layout::horizontal([Constraint::Length(SIDEBAR), Constraint::Fill(1)]).areas(area);
         render_sidebar(model, frame, side);
-        main_view::render_list(model, frame, list);
-        main_view::render_detail(model, frame, detail);
+        let [top, rest] =
+            Layout::vertical([Constraint::Length(path), Constraint::Min(1)]).areas(rest);
+        path::render(model, frame, top);
+        columns::render(model, frame, rest, true);
         return;
     }
     let items = attention(model);
     let line = u16::from(!items.is_empty() && area.width >= ATTENTION_LINE_FROM);
-    let [note, rest] = Layout::vertical([Constraint::Length(line), Constraint::Min(1)]).areas(area);
+    let [note, top, rest] = Layout::vertical([
+        Constraint::Length(line),
+        Constraint::Length(path),
+        Constraint::Min(1),
+    ])
+    .areas(area);
     if line > 0 {
         frame.render_widget(Paragraph::new(attention_line(model, &items, note)), note);
     }
-    let lines = if rest.height >= 17 { 9 } else { 5 };
-    let [list, detail] =
-        Layout::vertical([Constraint::Min(4), Constraint::Length(lines)]).areas(rest);
-    main_view::render_list(model, frame, list);
-    main_view::render_detail(model, frame, detail);
+    path::render(model, frame, top);
+    columns::render(model, frame, rest, false);
 }
 
 /// What needs attention: pools not imported or not healthy, their missing
@@ -402,15 +406,16 @@ fn attention_lines(model: &Model, items: &[Item], width: usize) -> Vec<Line<'sta
         .collect()
 }
 
-/// The inspector's next steps in the workspace: the keys of the Boot tab
-/// after `Enter`, two to a line; none with the current map.
+/// The inspector's next steps in the workspace: the keys of the column
+/// with the focus after `Enter`, two to a line; none with the current map.
 pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
     if model.map != Map::Workspace {
         return Vec::new();
     }
     let theme = model.theme;
-    let offered = |intent| keymap::is_offered(Context::Main, intent, model);
-    let steps: Vec<(String, String)> = keymap::bindings(model.map, Context::Main, &offered)
+    let context = model.context();
+    let offered = |intent| keymap::is_offered(context, intent, model);
+    let steps: Vec<(String, String)> = keymap::bindings(model.map, context, &offered)
         .into_iter()
         .filter(|(intent, ..)| !matches!(intent, Intent::Primary | Intent::Help))
         .take(NEXT_STEPS)

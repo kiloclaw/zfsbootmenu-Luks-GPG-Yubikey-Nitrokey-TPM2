@@ -4,24 +4,24 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
  [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED | 3/3 open | ! 6
 + KEYS, UP/DOWN TO SCROLL ---------------------------------------- ZFS 2.2.6-1 +
 | THIS VIEW                                                                    |
-|            Enter  Boot                                                       |
-|                l  Kernels                                                    |
-|  j, Down, Ctrl-N  Select                                                     |
-|    k, Up, Ctrl-P  Select                                                     |
-|   h, Esc, Ctrl-C  Back                                                       |
-|                1  Boot                                                       |
-|                2  Snapshots                                                  |
-|                3  Pools                                                      |
-|                4  Log                                                        |
-|              Tab  Next Tab                                                   |
-|        Shift-Tab  Previous Tab                                               |
-|                b  Boot                                                       |
-|                s  Snapshots                                                  |
-|                e  Edit                                                       |
-|                d  Default                                                    |
-|                n  Snapshot                                                   |
-|                w  Read/Write                                                 |
-|                /  Filter                                                     |
+|                Enter  Boot                                                   |
+|             l, Right  Kernels                                                |
+|      j, Down, Ctrl-N  Select                                                 |
+|        k, Up, Ctrl-P  Select                                                 |
+| h, Left, Esc, Ctrl-C  Back                                                   |
+|                    1  Boot                                                   |
+|                    2  Snapshots                                              |
+|                    3  Pools                                                  |
+|                    4  Log                                                    |
+|                  Tab  Next Tab                                               |
+|            Shift-Tab  Previous Tab                                           |
+|                    b  Boot                                                   |
+|                    s  Snapshots                                              |
+|                    e  Edit                                                   |
+|                    d  Default                                                |
+|                    n  Snapshot                                               |
+|                    w  Read/Write                                             |
+|                    /  Filter                                                 |
 +------------------------------------------------------------------------------+
  : commands   / filter   ? every key
  Esc Back   Up/Down Scroll

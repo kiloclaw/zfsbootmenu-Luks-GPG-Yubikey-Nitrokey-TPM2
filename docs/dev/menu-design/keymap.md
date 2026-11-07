@@ -22,12 +22,15 @@ Decision 18, for both maps:
 4. **The command line knows every language.** It matches the command names of the catalogue in the menu's language
    and the English names.
 
-A test checks rule 2 and one meaning per key on both tables. Rule 1's commands and rule 4 come with the command line
+A test checks rule 2 on both tables, and one meaning per key: in the whole current map, and in each view of the
+workspace's. Rule 1's commands and rule 4 come with the command line
 (UI14), rule 3 with UI15.
 
 ## The workspace's map
 
-One meaning per key in the whole workspace, no capital letters, and the classic `MOD+key` aliases below.
+One meaning per key in each view, no capital letters, and the classic `MOD+key` aliases below. Only the arrows mean
+two things: `Right` and `Left` go into and out of the kernels in the Boot tab, as `l` and `h` do, and from one segment
+to the other in the changes.
 
 | Where | Keys |
 | --- | --- |
@@ -43,7 +46,9 @@ leaves `h` for the import page, and the log leaves `l` for its tab; the pools ar
 the next tab, so `Space` alone marks.
 
 **In the prototype** (`keymap/workspace.rs`): its bindings come before the current map's, whose bindings of the same
-keys and `p` it drops: `j` `k` `h` move, `l` goes into the kernels, `1` to `4`, `Tab` and `Shift-Tab` choose the tab.
+keys in a view where both work, and `p`, it drops: `j` `k` `h` move, `l` and `Right` go into the kernels and `Left`
+out of them, `1` to `4`, `Tab` and `Shift-Tab` choose the tab; the changes keep the current map's `Left` and
+`Right`.
 The other keys are the current map's until UI10: `!` opens the recovery tools, and the pools keep `i`, `u` and `w`;
 the rewind, which the current map has on `h`, waits for the import page of UI10.
 

@@ -91,6 +91,18 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 /// The facts of a row: problems, `next boot`, `locked`, `default`, and the
 /// kernel that boots.
 pub(super) fn facts(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
+    let mut facts = labels(model, environment);
+    let kernel = environment.boot_kernel().map_or_else(
+        || text!("kernel-none"),
+        |k| k.version.printable().to_string(),
+    );
+    facts.push(Span::styled(kernel, model.theme.style(Role::Muted)));
+    facts
+}
+
+/// The labels of a row, each followed by two spaces: problems, `next
+/// boot`, `locked` and `default`.
+pub(super) fn labels(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
     let theme = model.theme;
     let mut facts = health::badges(model, environment);
     if environment.encryption == Encryption::Locked {
@@ -105,48 +117,64 @@ pub(super) fn facts(model: &Model, environment: &Environment) -> Vec<Span<'stati
             theme.style(Role::Default),
         ));
     }
-    let kernel = environment.boot_kernel().map_or_else(
-        || text!("kernel-none"),
-        |k| k.version.printable().to_string(),
-    );
-    facts.push(Span::styled(kernel, theme.style(Role::Muted)));
     facts
+}
+
+/// The inspector with nothing selected.
+fn render_nothing(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    let theme = model.theme;
+    let block = lists::block(theme, &text!("details-title"));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let title = text!("details-none");
+    lists::empty_state(theme, frame, inner, (title.as_str(), ""));
+}
+
+/// The inspector's box: `title`, and `label` on the right.
+fn inspector(model: &Model, title: &str, label: Option<String>) -> Block<'static> {
+    let theme = model.theme;
+    let block = Block::bordered()
+        .border_set(theme.border())
+        .border_style(theme.style(Role::Border))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(format!(" {title} "), theme.style(Role::Title)));
+    match label {
+        Some(label) => {
+            let label = Span::styled(format!(" {label} "), theme.style(Role::Default));
+            block.title_top(Line::from(label).right_aligned())
+        }
+        None => block,
+    }
+}
+
+/// The facts as the inspector draws them in lines `width` columns wide:
+/// in the workspace their values wrap, else they are cut.
+fn fact_lines(model: &Model, facts: Vec<Fact>, width: usize) -> Vec<Line<'static>> {
+    let ascii = model.theme.is_ascii();
+    if model.map == Map::Workspace {
+        return facts
+            .into_iter()
+            .flat_map(|(label, value)| wrapped_fact(model, &label, &value, width))
+            .collect();
+    }
+    facts
+        .into_iter()
+        .map(|(label, value)| lists::clip(fact(model, &label, value), width, ascii))
+        .collect()
 }
 
 /// The inspector of the selected environment: its name as the title,
 /// `default` on the right, the facts that decide whether to boot it; in
 /// the workspace, its next steps first when tall.
 pub(super) fn render_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    let theme = model.theme;
     let Some(environment) = model.selected_environment() else {
-        let block = lists::block(theme, &text!("details-title"));
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-        let title = text!("details-none");
-        lists::empty_state(theme, frame, inner, (title.as_str(), ""));
+        render_nothing(model, frame, area);
         return;
     };
-    let mut block = Block::bordered()
-        .border_set(theme.border())
-        .border_style(theme.style(Role::Border))
-        .padding(Padding::horizontal(1))
-        .title(Span::styled(
-            format!(" {} ", environment.name),
-            theme.style(Role::Title),
-        ));
-    if environment.is_default {
-        let label = Span::styled(
-            format!(" {} ", text!("label-default")),
-            theme.style(Role::Default),
-        );
-        block = block.title_top(Line::from(label).right_aligned());
-    }
+    let default = environment.is_default.then(|| text!("label-default"));
+    let block = inspector(model, environment.name.as_str(), default);
     let width = usize::from(area.width.saturating_sub(4));
-    let clip = |line| lists::clip(line, width, theme.is_ascii());
-    let mut lines: Vec<Line<'static>> = detail_lines(model, environment)
-        .into_iter()
-        .map(clip)
-        .collect();
+    let mut lines = fact_lines(model, detail_facts(model, environment), width);
     let room = usize::from(area.height.saturating_sub(2));
     for section in [
         super::workspace::next_steps(model, width),
@@ -230,6 +258,43 @@ fn snapshot_lines(model: &Model, environment: &Environment, width: usize) -> Vec
     lines
 }
 
+/// The inspector of the kernel the workspace's kernels column selects:
+/// its version as the title, `default` or `boots` on the right, its
+/// environment and the command line it boots with, then its next steps
+/// when they fit.
+pub(super) fn render_kernel_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    let (Some(environment), Some(kernel)) = (model.focused(), model.selected_kernel()) else {
+        render_nothing(model, frame, area);
+        return;
+    };
+    let boots = environment.boot_kernel() == Some(kernel);
+    let label = if kernel.is_default {
+        Some(text!("label-default"))
+    } else {
+        boots.then(|| text!("label-boots"))
+    };
+    let version = kernel.version.printable().to_string();
+    let block = inspector(model, &version, label);
+    let width = usize::from(area.width.saturating_sub(4));
+    let mut facts = vec![(
+        text!("fact-environment"),
+        vec![Span::raw(environment.name.to_string())],
+    )];
+    facts.extend(pool_fact(model, environment));
+    facts.push((text!("fact-command-line"), command_line(model, environment)));
+    let mut lines = fact_lines(model, facts, width);
+    let steps = super::workspace::next_steps(model, width);
+    let room = usize::from(area.height.saturating_sub(2));
+    if !steps.is_empty() && lines.len() + steps.len() < room {
+        lines.push(Line::default());
+        lines.extend(steps);
+    }
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// A fact of the inspector: its label, and its value.
+type Fact = (String, Vec<Span<'static>>);
+
 /// One row of the inspector: the label right-aligned and secondary, then
 /// the value.
 fn fact(model: &Model, label: &str, value: Vec<Span<'static>>) -> Line<'static> {
@@ -241,15 +306,72 @@ fn fact(model: &Model, label: &str, value: Vec<Span<'static>>) -> Line<'static> 
     Line::from(spans)
 }
 
+/// The rows of a fact of the workspace's inspector, `width` columns wide:
+/// the label as [`fact`] draws it, then the value, which wraps between
+/// words, or within one too long for a line, each line after the first
+/// under the start of the value, however wide the label.
+fn wrapped_fact(
+    model: &Model,
+    label: &str,
+    value: &[Span<'static>],
+    width: usize,
+) -> Vec<Line<'static>> {
+    let lead = Span::styled(format!("{label:>LABEL$}  "), model.theme.style(Role::Muted));
+    let indent = lead.width();
+    let mut lead = Some(lead);
+    wrapped(value, width.saturating_sub(indent))
+        .into_iter()
+        .map(|spans| {
+            let indent = lead.take().unwrap_or_else(|| Span::raw(" ".repeat(indent)));
+            Line::from([vec![indent], spans].concat())
+        })
+        .collect()
+}
+
+/// `spans` in lines of `width` columns, broken at a space where one is,
+/// which the break drops, else within a word; each line's characters keep
+/// their style.
+fn wrapped(spans: &[Span<'static>], width: usize) -> Vec<Vec<Span<'static>>> {
+    let mut left: Vec<(char, ratatui::style::Style)> = spans
+        .iter()
+        .flat_map(|span| span.content.chars().map(|c| (c, span.style)))
+        .collect();
+    let width = width.max(1);
+    let mut lines = Vec::new();
+    loop {
+        if left.len() <= width {
+            lines.push(styled(&left));
+            return lines;
+        }
+        let space = left
+            .get(..=width)
+            .unwrap_or_default()
+            .iter()
+            .rposition(|(c, _)| *c == ' ')
+            .filter(|at| *at > 0);
+        let (end, next) = space.map_or((width, width), |at| (at, at + 1));
+        lines.push(styled(left.get(..end).unwrap_or_default()));
+        left.drain(..next.min(left.len()));
+    }
+}
+
+/// `chars` as spans, one for each run of one style.
+fn styled(chars: &[(char, ratatui::style::Style)]) -> Vec<Span<'static>> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    for (c, style) in chars {
+        match spans.last_mut() {
+            Some(span) if span.style == *style => span.content.to_mut().push(*c),
+            _ => spans.push(Span::styled(c.to_string(), *style)),
+        }
+    }
+    spans
+}
+
 /// The facts of an environment, most important first: the pane shows as
 /// many as fit.
-fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> {
-    let theme = model.theme;
-    let dot = theme.dot();
-    let mut lines: Vec<Line<'static>> = health::facts(model, environment)
-        .into_iter()
-        .map(|(label, value)| fact(model, &label, value))
-        .collect();
+fn detail_facts(model: &Model, environment: &Environment) -> Vec<Fact> {
+    let dot = model.theme.dot();
+    let mut lines = health::facts(model, environment);
     lines.extend(pool_fact(model, environment));
     let kernel = environment.boot_kernel().map_or_else(
         || text!("value-none"),
@@ -257,9 +379,8 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
     );
     let count = environment.kernels.len();
     let kernels = text!("fact-kernel.count", count = count);
-    lines.push(fact(
-        model,
-        &text!("fact-kernel"),
+    lines.push((
+        text!("fact-kernel"),
         vec![Span::raw(format!("{kernel}{dot}{kernels}"))],
     ));
     lines.extend(last_boot(model, environment));
@@ -275,27 +396,15 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         ),
         None => text!("value-none"),
     };
-    lines.push(fact(
-        model,
-        &text!("fact-snapshots"),
-        vec![Span::raw(snapshots)],
-    ));
-    lines.push(fact(
-        model,
-        &text!("fact-encryption"),
-        encryption(model, environment),
-    ));
-    lines.push(fact(
-        model,
-        &text!("fact-command-line"),
-        command_line(model, environment),
-    ));
+    lines.push((text!("fact-snapshots"), vec![Span::raw(snapshots)]));
+    lines.push((text!("fact-encryption"), encryption(model, environment)));
+    lines.push((text!("fact-command-line"), command_line(model, environment)));
     lines
 }
 
 /// When the workspace's boot history last saw `environment` loaded, and
 /// with which kernel, from its newest record of it.
-fn last_boot(model: &Model, environment: &Environment) -> Option<Line<'static>> {
+fn last_boot(model: &Model, environment: &Environment) -> Option<Fact> {
     if model.map != Map::Workspace {
         return None;
     }
@@ -305,15 +414,11 @@ fn last_boot(model: &Model, environment: &Environment) -> Option<Line<'static>> 
         when = history::when(record.time),
         kernel = history::kernel(record)
     );
-    Some(fact(
-        model,
-        &text!("fact-last-boot"),
-        vec![Span::raw(loaded)],
-    ))
+    Some((text!("fact-last-boot"), vec![Span::raw(loaded)]))
 }
 
 /// The pool of an environment, its health and whether it is writable.
-fn pool_fact(model: &Model, environment: &Environment) -> Option<Line<'static>> {
+fn pool_fact(model: &Model, environment: &Environment) -> Option<Fact> {
     let theme = model.theme;
     let dot = theme.dot();
     let pool = model
@@ -331,9 +436,8 @@ fn pool_fact(model: &Model, environment: &Environment) -> Option<Line<'static>> 
     } else {
         text!("pool-read-only")
     };
-    Some(fact(
-        model,
-        &text!("fact-pool"),
+    Some((
+        text!("fact-pool"),
         vec![
             Span::raw(format!("{}{dot}", pool.name)),
             Span::styled(pool.health.as_str(), theme.style(role)),

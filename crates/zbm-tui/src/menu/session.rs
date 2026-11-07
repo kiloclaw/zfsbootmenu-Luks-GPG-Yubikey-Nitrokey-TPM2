@@ -49,6 +49,8 @@ impl<M: Machine> Session<M> {
     pub fn on(machine: M, theme: Theme, map: Map) -> Session<M> {
         let mut model = Model::new(machine.snapshot().clone(), theme);
         model.map = map;
+        // The workspace groups the environments by pool.
+        model.refresh();
         Session {
             model: Some(model),
             machine,

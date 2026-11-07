@@ -93,7 +93,7 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
 fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     match model.screen {
         Screen::Startup => screens::startup(model, frame, area),
-        Screen::Main if model.map == keymap::Map::Workspace => {
+        Screen::Main | Screen::Kernels if model.map == keymap::Map::Workspace => {
             workspace::render(model, frame, area);
         }
         Screen::Main => main_view::render(model, frame, area),

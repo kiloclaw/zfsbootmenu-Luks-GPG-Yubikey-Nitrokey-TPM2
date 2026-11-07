@@ -12,8 +12,8 @@ use crate::menu::format::{age, date, fit, size};
 use crate::menu::keymap::{self, Context, Map};
 use crate::menu::model::{Column, Model, RECOVERY, recovery_tools};
 use crate::menu::theme::{Glyph, Role};
-use crate::menu::world::{Health, Level, PoolHost, StageState, VolumeState};
-use crate::text::{self, Id, text};
+use crate::menu::world::{Health, Kernel, Level, PoolHost, StageState, VolumeState};
+use crate::text::{self, text};
 
 /// Start-up as a checklist (rule 10): each stage with a glyph, and the
 /// step count in the header.
@@ -127,7 +127,6 @@ pub(super) fn snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 
 /// The kernels of the focused environment, the default labelled.
 pub(super) fn kernels(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    let theme = model.theme;
     let Some(environment) = model.focused() else {
         return;
     };
@@ -138,21 +137,7 @@ pub(super) fn kernels(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .iter()
         .filter_map(|ranked| {
             let kernel = environment.kernels.get(ranked.index)?;
-            let facts = if kernel.is_default {
-                vec![Span::styled(
-                    text!("label-default"),
-                    theme.style(Role::Default),
-                )]
-            } else {
-                Vec::new()
-            };
-            Some(lists::row(
-                theme,
-                &kernel.version.printable().to_string(),
-                &ranked.positions,
-                width,
-                facts,
-            ))
+            Some(kernel_row(model, kernel, &ranked.positions, width))
         })
         .collect();
     let (title, hint) = (text!("kernels-none"), text!("kernels-none.text"));
@@ -160,6 +145,37 @@ pub(super) fn kernels(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let header = text!("kernels-title");
     let total = (header.as_str(), environment.kernels.len());
     lists::render(model, frame, area, total, &model.kernels, rows, empty);
+}
+
+/// The row of `kernel`, `width` columns wide: its version, with the
+/// characters at `positions` matched, and `default` when it is. In the
+/// workspace the version is cut when both do not fit.
+pub(super) fn kernel_row(
+    model: &Model,
+    kernel: &Kernel,
+    positions: &[usize],
+    width: usize,
+) -> Line<'static> {
+    let theme = model.theme;
+    let facts = if kernel.is_default {
+        vec![Span::styled(
+            text!("label-default"),
+            theme.style(Role::Default),
+        )]
+    } else {
+        Vec::new()
+    };
+    let mut version = kernel.version.printable().to_string();
+    if model.map == Map::Workspace {
+        let labels = facts.iter().map(Span::width).sum::<usize>();
+        let room = if labels == 0 {
+            width
+        } else {
+            width.saturating_sub(labels + 2)
+        };
+        version = fit(&version, room.max(1), theme.is_ascii());
+    }
+    lists::row(theme, &version, positions, width, facts)
 }
 
 /// The command line editor.
@@ -357,33 +373,7 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Context) {
     let theme = model.theme;
     let workspace = model.map == Map::Workspace;
-    let mut lines = Vec::new();
-    let mut section = |title: String, rows: Vec<(String, Id)>| {
-        if rows.is_empty() {
-            return;
-        }
-        if !lines.is_empty() {
-            lines.push(Line::default());
-        }
-        lines.push(Line::styled(title, theme.style(Role::Header)));
-        for (keys, what) in rows {
-            lines.push(Line::from(vec![
-                Span::styled(format!("{keys:>16}  "), theme.style(Role::Key)),
-                Span::raw(text::title(what)),
-            ]));
-        }
-    };
-    let offered = |intent| keymap::is_offered(context, intent, model);
-    section(
-        text!("help-this-view"),
-        keymap::help(model.map, context, &offered),
-    );
-    let aliases = if workspace {
-        text!("help-aliases")
-    } else {
-        text!("help-classic")
-    };
-    section(aliases, keymap::classic_bindings(context, &offered));
+    let lines = help_lines(model, context);
     let shown = usize::from(area.height.saturating_sub(2));
     let scroll = model.scroll.min(lines.len().saturating_sub(shown));
     let header = if lines.len() > shown {
@@ -411,6 +401,44 @@ pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Co
             .scroll((scrolled(scroll), 0)),
         area,
     );
+}
+
+/// The lines of the help view: the bindings of `context`, then the
+/// aliases or the classic bindings, each section under its header. In the
+/// workspace the keys' column is as wide as its widest keys.
+fn help_lines(model: &Model, context: Context) -> Vec<Line<'static>> {
+    let theme = model.theme;
+    let workspace = model.map == Map::Workspace;
+    let offered = |intent| keymap::is_offered(context, intent, model);
+    let aliases = if workspace {
+        text!("help-aliases")
+    } else {
+        text!("help-classic")
+    };
+    let sections = [
+        (
+            text!("help-this-view"),
+            keymap::help(model.map, context, &offered),
+        ),
+        (aliases, keymap::classic_bindings(context, &offered)),
+    ];
+    let longest = sections.iter().flat_map(|(_, rows)| rows);
+    let longest = longest.map(|(keys, _)| keys.chars().count()).max();
+    let column = longest.filter(|_| workspace).unwrap_or(0).max(16);
+    let mut lines = Vec::new();
+    for (title, rows) in sections.into_iter().filter(|(_, rows)| !rows.is_empty()) {
+        if !lines.is_empty() {
+            lines.push(Line::default());
+        }
+        lines.push(Line::styled(title, theme.style(Role::Header)));
+        for (keys, what) in rows {
+            lines.push(Line::from(vec![
+                Span::styled(format!("{keys:>column$}  "), theme.style(Role::Key)),
+                Span::raw(text::title(what)),
+            ]));
+        }
+    }
+    lines
 }
 
 /// A scroll offset as ratatui takes it.

@@ -31,6 +31,7 @@ fn machine() -> Snapshot {
 fn menu(map: Map) -> Model {
     let mut model = Model::new(machine(), Theme::new(Capabilities::FULL));
     model.map = map;
+    model.refresh();
     events::start(&mut model);
     model.countdown = Some(10_000);
     model
@@ -216,7 +217,8 @@ fn the_inspector_says_when_the_environment_was_last_loaded() {
         ),
     ]));
 
-    let shown = screen(&model, 160, 40);
+    // Wide enough for the fact not to wrap.
+    let shown = screen(&model, 200, 40);
 
     assert!(
         shown.contains("Last Boot  Loaded 2026-10-22 19:00 with 6.12.9_1"),

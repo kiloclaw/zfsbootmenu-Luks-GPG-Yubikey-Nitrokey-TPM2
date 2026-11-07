@@ -69,11 +69,13 @@ pub enum Glyph {
     Ellipsis,
     /// A list item in a message.
     Bullet,
+    /// Between the parts of a path: `zroot › zroot/ROOT/void`.
+    Path,
 }
 
 impl Glyph {
     /// Every glyph, for tests.
-    pub const ALL: [Glyph; 10] = [
+    pub const ALL: [Glyph; 11] = [
         Glyph::Back,
         Glyph::Selected,
         Glyph::Marked,
@@ -84,6 +86,7 @@ impl Glyph {
         Glyph::Warning,
         Glyph::Ellipsis,
         Glyph::Bullet,
+        Glyph::Path,
     ];
 
     /// Its Unicode form.
@@ -97,6 +100,7 @@ impl Glyph {
             Glyph::Failed => "×",
             Glyph::Skipped => "–",
             Glyph::Warning => "!",
+            Glyph::Path => "›",
         }
     }
 
@@ -106,7 +110,7 @@ impl Glyph {
             Glyph::Back => "<",
             Glyph::Marked => "+",
             Glyph::Done => "*",
-            Glyph::Selected | Glyph::Running => ">",
+            Glyph::Selected | Glyph::Running | Glyph::Path => ">",
             Glyph::Failed => "x",
             Glyph::Skipped | Glyph::Bullet => "-",
             Glyph::Warning => "!",

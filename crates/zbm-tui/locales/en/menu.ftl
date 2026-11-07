@@ -376,6 +376,7 @@ fact-checks = Checks
 fact-boot-tries = Boot Tries
 fact-next-boot = Next Boot
 fact-pool = Pool
+fact-environment = Environment
 fact-kernel = Kernel
     .count = { $count ->
         [one] { $count } kernel
@@ -660,6 +661,9 @@ lines-stage-skipped = { $stage }: skipped
 lines-stage-failed = { $stage }: failed, { $reason }
 lines-go = ok: { $go }
 lines-stop = back: { $stop }
+# In the workspace's Boot tab: the view, then what its columns select, as
+# zroot > zroot/ROOT/void > 6.12.9_1.
+lines-path = { $title }: { $path }
 lines-number = Type a number to choose it, or a number and a key, as 2 k.
 lines-text = Type it, then Enter; a blank line goes back.
 lines-keys = Keys: { $keys }

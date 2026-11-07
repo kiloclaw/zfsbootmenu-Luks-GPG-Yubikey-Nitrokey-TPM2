@@ -110,6 +110,29 @@ pub(super) fn render_window(
     (first, rows): (usize, Vec<Line<'static>>),
     empty: Empty<'_>,
 ) {
+    let selected = Some(state.selected.saturating_sub(first));
+    render_rows(
+        model,
+        frame,
+        area,
+        (header, total),
+        state,
+        (selected, rows),
+        empty,
+    );
+}
+
+/// [`render`], with `rows` that may hold more than the matches, such as the
+/// headers of groups, and the selection the row at `selected`, if any.
+pub(super) fn render_rows(
+    model: &Model,
+    frame: &mut Frame<'_>,
+    area: Rect,
+    (header, total): (&str, usize),
+    state: &ListState,
+    (selected, rows): (Option<usize>, Vec<Line<'static>>),
+    empty: Empty<'_>,
+) {
     let theme = model.theme;
     let searching = is_searching(state);
     let count = if searching {
@@ -142,8 +165,7 @@ pub(super) fn render_window(
         .highlight_symbol(Line::from(format!("{} ", theme.glyph(Glyph::Selected))))
         .highlight_spacing(HighlightSpacing::Always)
         .highlight_style(theme.style(Role::Selected));
-    let selected = state.selected.saturating_sub(first);
-    let mut widget = WidgetState::default().with_selected(Some(selected));
+    let mut widget = WidgetState::default().with_selected(selected);
     frame.render_stateful_widget(list, list_area, &mut widget);
 }
 

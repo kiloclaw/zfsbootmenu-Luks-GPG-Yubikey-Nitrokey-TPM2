@@ -253,6 +253,12 @@ fn with_health(mut environment: Environment, options: &DemoOptions) -> Environme
     environment
 }
 
+/// The command line of `tank/ROOT/arch` with
+/// [`DemoOptions::long_command_line`].
+const LONG_COMMAND_LINE: &str = "rw quiet splash loglevel=3 rd.udev.log_level=3 \
+    systemd.show_status=auto zfs.zfs_arc_max=8589934592 init_on_alloc=1 \
+    nvidia-drm.modeset=1 resume=/dev/mapper/luks-swap";
+
 fn environments(options: &DemoOptions) -> Vec<Environment> {
     let environment = |name: &str, is_default, encryption, kernels, command_line| Environment {
         name: dataset(name),
@@ -293,7 +299,11 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
             Encryption::None,
             kernels(&["6.11.5-arch1-1", "6.10.10-arch1-1"], None),
             CommandLine {
-                value: untrusted("rw quiet splash"),
+                value: untrusted(if options.long_command_line {
+                    LONG_COMMAND_LINE
+                } else {
+                    "rw quiet splash"
+                }),
                 origin: Origin::Local,
             },
         ),

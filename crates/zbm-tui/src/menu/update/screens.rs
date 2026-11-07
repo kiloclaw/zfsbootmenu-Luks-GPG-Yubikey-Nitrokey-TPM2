@@ -3,7 +3,7 @@
 use zbm_types::{ImportPolicy, PoolName, Untrusted};
 
 use super::dialogs;
-use crate::menu::keymap::{Context, Intent, Tab};
+use crate::menu::keymap::{Context, Intent, Map, Tab};
 use crate::menu::model::{
     Choice, Column, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then,
 };
@@ -89,19 +89,31 @@ pub(super) fn guarded(model: &mut Model, action: Action) -> Vec<Action> {
 }
 
 /// Opens `screen` on `environment`: its snapshots, which the machine is
-/// asked for, its kernels or its command line.
+/// asked for, its kernels or its command line. In the workspace a column
+/// keeps its selection, and the marks, while it shows the same environment
+/// (ADR 0007, decision 2), and the environments select the one it shows;
+/// the kernels select the default kernel until the user moves in them.
 pub(super) fn focus(
     model: &mut Model,
     environment: zbm_types::DatasetName,
     screen: Screen,
 ) -> Vec<Action> {
+    let workspace = model.map == Map::Workspace;
+    let kept = workspace && model.focus.as_ref() == Some(&environment);
+    if workspace {
+        model.select_environment(&environment);
+    }
     model.focus = Some(environment);
-    model.snapshots = ListState::default();
-    model.rank_again();
-    model.kernels = ListState::default();
-    model.marked.clear();
+    if !kept {
+        model.snapshots = ListState::default();
+        model.rank_again();
+        model.kernels = ListState::default();
+        model.marked.clear();
+    }
     model.refresh();
-    if screen == Screen::Kernels {
+    // The workspace's kernels open on the default kernel until the user
+    // moves in them, whatever screen the focus changed on.
+    if !kept && (workspace || screen == Screen::Kernels) {
         let default = model
             .focused()
             .and_then(|environment| environment.kernels.iter().position(|k| k.is_default));

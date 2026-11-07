@@ -280,6 +280,9 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
     );
 }
 
+/// One meaning per key: in every view with the current map, in each view
+/// with the workspace's, whose arrows go into a column in the Boot tab and
+/// from segment to segment in the changes.
 #[test]
 fn every_key_has_one_meaning_and_no_letter_depends_on_case() {
     for map in [Map::Classic, Map::Workspace] {
@@ -289,6 +292,7 @@ fn every_key_has_one_meaning_and_no_letter_depends_on_case() {
                 other.key == binding.key
                     && other.modifiers == binding.modifiers
                     && other.intent != binding.intent
+                    && (map == Map::Classic || other.scope.has_context_in_common(binding.scope))
             });
             assert!(twice.is_none(), "{map:?}: {binding:?} has two meanings");
             let capital = matches!(binding.key, Key::Char(c) if c.is_uppercase());
@@ -336,4 +340,28 @@ fn the_workspace_alone_binds_a_key_to_each_tab() {
         ['1', '2', '3', '4'].map(|c| Some(Key::Char(c)))
     );
     assert_eq!(Tab::ALL.map(|tab| key(Map::Classic, tab)), [None; 4]);
+}
+
+#[test]
+fn the_workspace_s_arrows_go_into_and_out_of_the_kernels_and_still_switch_the_changes() {
+    let arrow = |key| press(key, NONE);
+    let intent = |intent| Some(Input::Intent(intent));
+    let cases = [
+        (Main, Key::Right, intent(Intent::Kernels)),
+        (Kernels, Key::Left, intent(Intent::Back)),
+        (Context::Diff, Key::Right, intent(Intent::Segment)),
+        (Context::Diff, Key::Left, intent(Intent::Segment)),
+        (Context::Packages, Key::Left, intent(Intent::Segment)),
+        (Snapshots, Key::Right, None),
+    ];
+
+    for (context, key, expected) in cases {
+        let found = input(Map::Workspace, context, arrow(key));
+        assert_eq!(found, expected, "{context:?} {key:?}");
+    }
+    assert_eq!(input(Map::Classic, Main, arrow(Key::Right)), None);
+    assert_eq!(
+        input(Map::Classic, Context::Diff, arrow(Key::Left)),
+        intent(Intent::Segment)
+    );
 }

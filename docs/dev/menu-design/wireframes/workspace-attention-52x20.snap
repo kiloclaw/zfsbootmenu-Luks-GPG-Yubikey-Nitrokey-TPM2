@@ -2,22 +2,22 @@
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
  [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 8
+ zroot › zroot/ROOT/void
 ┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐
+│   zroot · ONLINE                                 │
 │ ▶ zroot/ROOT/void              default  6.12.9_1 │
+│   zroot/ROOT/ubuntu             6.8.0-47-generic │
+│   tank · DEGRADED                                │
 │   tank/ROOT/arch       1 warning  6.11.5-arch1-1 │
 │   tank/ROOT/debian     1 problem  6.1.0-26-amd64 │
-│   zroot/ROOT/ubuntu             6.8.0-47-generic │
-│                                                  │
-│                                                  │
-│                                                  │
 └──────────────────────────────────────────────────┘
 ┌ zroot/ROOT/void ──────────────────────── default ┐
 │       Checks  √ all 5 passed                     │
 │   Boot Tries  3 of 3 left                        │
 │         Pool  zroot · ONLINE · read-only         │
 │       Kernel  6.12.9_1 · 3 kernels               │
-│    Last Boot  Loaded 2026-10-22 19:00 with 6.12… │
+│    Last Boot  Loaded 2026-10-22 19:00 with       │
+│               6.12.9_1                           │
 │    Snapshots  400 · newest pre-upgrade, 12 h ago │
-│   Encryption  key loaded                         │
 └──────────────────────────────────────────────────┘
  Enter Boot   l Kernels   s Snapshots        ? More

@@ -164,6 +164,20 @@ impl Scope {
             Scope::Only(contexts) => contexts.contains(&context),
         }
     }
+
+    /// Whether a binding scoped so and one scoped `other` both work in a
+    /// context: a key bound in both means one thing there.
+    pub(crate) fn has_context_in_common(self, other: Scope) -> bool {
+        match (self, other) {
+            (Scope::Everywhere, _) | (_, Scope::Everywhere) | (Scope::Views, Scope::Views) => true,
+            (Scope::Views, Scope::Only(contexts)) | (Scope::Only(contexts), Scope::Views) => {
+                contexts.iter().any(|context| *context != Context::Text)
+            }
+            (Scope::Only(own), Scope::Only(contexts)) => {
+                own.iter().any(|context| contexts.contains(context))
+            }
+        }
+    }
 }
 
 /// How a binding shows in the toolbar.

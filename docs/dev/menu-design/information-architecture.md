@@ -48,41 +48,49 @@ environment the Boot tab selected, or of the one whose kernels are shown.
 
 ## The Boot tab
 
-From 110 columns, three panes side by side; the wireframe is `workspace-120x40`:
+From 110 columns, the sidebar beside the path and two columns; from 120 columns the inspector shows beside them too,
+and narrower below them, so that the environments keep their room. The wireframe is `workspace-120x40`:
 
 ```text
-┌ POOLS ────────────── 2 ┐┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐┌ zroot/ROOT/void ────────────── default ┐
-│ zroot        ONLINE ro ││ ▶ zroot/ROOT/void              default  6.12.9_1 ││       Checks  √ all 5 passed           │
-│ tank       DEGRADED ro ││   tank/ROOT/arch       1 warning  6.11.5-arch1-1 ││   Boot Tries  3 of 3 left              │
-└────────────────────────┘│   tank/ROOT/debian     1 problem  6.1.0-26-amd64 ││         Pool  zroot · ONLINE · read-o… │
-┌ VOLUMES ─────── 3 of 3 ┐│   zroot/ROOT/ubuntu             6.8.0-47-generic ││       Kernel  6.12.9_1 · 3 kernels     │
-│ luks-zroot-a      open ││                                                  ││ …                                      │
-└────────────────────────┘│                                                  ││ NEXT STEPS                             │
-┌ ATTENTION ────────── 4 ┐│                                                  ││   l kernels         s snapshots        │
-│ ! tank DEGRADED        ││                                                  ││   e edit            d default          │
-│   3 Pools              ││                                                  ││                                        │
+┌ POOLS ────────────── 2 ┐ zroot › zroot/ROOT/void
+│ zroot        ONLINE ro │┌ BOOT ENVIRONMENTS ───────── 4 ┐┌ KERNELS ────────────── 3 ┐┌ zroot/ROOT/void ───── default ┐
+│ tank       DEGRADED ro ││   zroot · ONLINE              ││   6.12.9_1               ││       Checks  √ all 5 passed  │
+└────────────────────────┘│ ▶ zroot/ROOT/void     default ││   6.12.8_1               ││   Boot Tries  3 of 3 left     │
+┌ VOLUMES ─────── 3 of 3 ┐│   zroot/ROOT/ubuntu           ││   6.8.0_1                ││         Pool  zroot · ONLINE  │
+│ luks-zroot-a      open ││   tank · DEGRADED             ││                          ││               · read-only     │
+│ luks-zroot-b      open ││   tank/ROOT/arch    1 warning ││                          ││       Kernel  6.12.9_1 · 3    │
+│ luks-tank         open ││   tank/ROOT/debian  1 problem ││                          ││               kernels         │
+└────────────────────────┘│                               ││                          ││    Snapshots  400 · newest    │
+┌ ATTENTION ────────── 6 ┐│                               ││                          ││               pre-upgrade, 12 │
+│ ! tank DEGRADED        ││                               ││                          ││               h ago           │
 ```
 
 - **The sidebar**: the pools with their health and mode, or why they are not imported; the volumes, open or not; and
   what needs attention: pools not imported or not `ONLINE`, volumes not open, environments whose checks found
   something, the log's problems, each with the tab that leads to it.
-- **The columns**: the boot environments; `l` (or `Right`) goes into the kernels of the selection, `h` (or `Esc`) out.
-  The columns of UI10 group the environments by pool and add the last boot and the checks as columns.
-- **The inspector**: the facts that decide whether to boot, the next steps with their keys, then, when tall, the checks,
-  the kernels and the newest snapshots. Long values wrap in UI10; the prototype cuts them with `…`.
+- **The columns**: the boot environments, grouped by pool under a header that is not an item, the default's pool first
+  and the default first in its pool; `l` (or `Right`) goes into the kernels of the selection, `h` (or `Left`, `Esc`)
+  out, and each column keeps its selection. The path above them names what they select:
+  `zroot › zroot/ROOT/void › 6.12.9_1`. Beside the sidebar, and from 80 columns, the kernels show beside the
+  environments; at 52 columns the deepest column shows alone.
+- **The inspector**: of the deepest column, an environment or a kernel: the facts that decide whether to boot, the next
+  steps with their keys, then, when tall, the checks, the kernels and the newest snapshots. Long values wrap under their
+  label (`workspace-inspector-wrap`); the classic menu cuts them with `…`.
 
-At 80 columns, as over a serial line, the sidebar becomes one line of what needs attention above the list, and the
-inspector goes below it (`workspace-80x24`, `workspace-80x24-ascii`):
+At 80 columns, as over a serial line, the sidebar becomes one line of what needs attention above the path, and the
+inspector goes below the two columns (`workspace-80x24`, `workspace-80x24-ascii`):
 
 ```text
- [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 1
+ [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
  Booting zroot/ROOT/void in 10 s. Press any key to choose another.
- ! tank DEGRADED   ! arch: 1 warning   × debian: 1 problem           3 Pools
-┌ BOOT ENVIRONMENTS ──────────────────────────────────────────────────────── 4 ┐
-│ ▶ zroot/ROOT/void                                          default  6.12.9_1 │
+ ! tank DEGRADED   ! tank: sdb2 UNAVAIL   ! tank: checkpoint         3 Pools
+ zroot › zroot/ROOT/void
+┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐┌ KERNELS ────────────── 3 ┐
+│   zroot · ONLINE                                 ││   6.12.9_1               │
+│ ▶ zroot/ROOT/void                        default ││   6.12.8_1               │
 ```
 
-At 52×20 the list and the inspector alone, and the tab bar counts what needs attention.
+At 52×20 the deepest column and the inspector alone, and the tab bar counts what needs attention.
 
 ## The command line and review pages
 

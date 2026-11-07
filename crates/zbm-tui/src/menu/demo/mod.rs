@@ -55,6 +55,9 @@ pub struct DemoOptions {
     pub exported: bool,
     /// `zbm.save_logs` is given: the menu reads the boots it kept.
     pub save_logs: bool,
+    /// `tank/ROOT/arch` boots with a command line as long as a desktop's,
+    /// which the workspace's inspector wraps.
+    pub long_command_line: bool,
 }
 
 impl Default for DemoOptions {
@@ -70,6 +73,7 @@ impl Default for DemoOptions {
             workspace: false,
             exported: false,
             save_logs: true,
+            long_command_line: false,
         }
     }
 }
