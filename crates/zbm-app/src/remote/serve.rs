@@ -149,7 +149,7 @@ fn answer(
         ToSession::Console { action } => {
             let mut events = (served.console)(&action);
             if let Some(snapshot) = served.service.read() {
-                events.insert(0, Event::Changed(snapshot));
+                events.insert(0, Event::Changed(Box::new(snapshot)));
             }
             for event in events {
                 ToMenu::Event(Box::new(event)).send(connection)?;

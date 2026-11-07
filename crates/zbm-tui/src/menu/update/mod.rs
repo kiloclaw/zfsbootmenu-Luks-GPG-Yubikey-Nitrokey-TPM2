@@ -176,14 +176,15 @@ fn back(model: &mut Model) {
     }
 }
 
-/// Time passed: the countdown runs, as start-up's dialog's does; and the
-/// first time after the main view opened with no countdown running, the
-/// menu asks the machine to scan the pools, which the views list once it
-/// answers, and the workspace asks for the boot history, which its
-/// inspector shows. While the countdown runs, nothing is read: the boot it
-/// ends with would wait for the scan, and Escape would cancel the scan
-/// instead of stopping the countdown.
+/// Time passed: the tab bar's clock advances, the countdown runs, as
+/// start-up's dialog's does; and the first time after the main view opened
+/// with no countdown running, the menu asks the machine to scan the pools,
+/// which the views list once it answers, and the workspace asks for the
+/// boot history, which its inspector shows. While the countdown runs,
+/// nothing is read: the boot it ends with would wait for the scan, and
+/// Escape would cancel the scan instead of stopping the countdown.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
+    model.ticked = model.ticked.saturating_add(ms);
     let mut actions = count_down(model, ms);
     let counting = model.countdown.is_some();
     if actions.is_empty() && model.started && !counting && !model.scanned {

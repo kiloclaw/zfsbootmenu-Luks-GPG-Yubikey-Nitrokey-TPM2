@@ -1,6 +1,9 @@
 //! The navigation bar (`docs/dev/menu-design/apple-hig.md`, rule 1): the
 //! back label on the left, the title in the middle, the status of the
-//! machine on the right; shorter forms on narrow screens.
+//! machine on the right; shorter forms on narrow screens. The workspace
+//! draws its tab bar instead (ADR 0016 point 11): the tabs, the worst
+//! pool, the volumes open and what needs attention, and from 120 columns
+//! the host ID and the time.
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -20,8 +23,15 @@ const NARROW: u16 = 100;
 /// The letters a long tab name keeps on narrow screens.
 const SHORT_TAB: usize = 4;
 
+/// From this width the tab bar shows the host ID and the time too.
+const WIDE: u16 = 120;
+
 /// Text with its role.
 type Part = (String, Role);
+
+/// A form of the tab bar: the tabs, each with whether it is the current
+/// one, and the status.
+type Form = (Vec<(String, bool)>, Vec<Part>);
 
 /// Draws the navigation bar, or the tab bar of the workspace once start-up
 /// is over.
@@ -61,9 +71,10 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 }
 
 /// The forms of the tabs, longest first: the program's name and the tabs'
-/// names, the names alone, the short names, the digits.
+/// names, the names alone, the short names, the keys alone.
 fn tab_forms(model: &Model) -> Vec<Vec<(String, bool)>> {
     let current = model.tab();
+    let key = |tab: Tab| super::workspace::tab_key(model.map, tab);
     let name = |tab: Tab, short: bool| {
         let what = keymap::describe(Context::Main, Intent::Tab(tab));
         let title = crate::text::title(what);
@@ -73,7 +84,7 @@ fn tab_forms(model: &Model) -> Vec<Vec<(String, bool)>> {
         } else {
             title
         };
-        format!("{} {title}", tab.digit())
+        format!("{} {title}", key(tab))
     };
     let tabs = |short: bool| -> Vec<(String, bool)> {
         Tab::ALL
@@ -83,11 +94,11 @@ fn tab_forms(model: &Model) -> Vec<Vec<(String, bool)>> {
     };
     let mut named = vec![(text!("workspace-name"), false)];
     named.extend(tabs(false));
-    let digits = Tab::ALL
+    let keys = Tab::ALL
         .iter()
-        .map(|tab| (tab.digit().to_string(), *tab == current))
+        .map(|tab| (key(*tab), *tab == current))
         .collect();
-    vec![named, tabs(false), tabs(true), digits]
+    vec![named, tabs(false), tabs(true), keys]
 }
 
 /// The columns `tabs` take, the current one in brackets.
@@ -98,42 +109,61 @@ fn tabs_width(tabs: &[(String, bool)]) -> usize {
         + 1
 }
 
-/// The tab bar of the workspace: the tabs on the left, the current one in
-/// brackets, and the status on the right, in the longest forms that fit;
-/// narrow, the status is the count of what needs attention.
-fn tab_bar(model: &Model, width: u16) -> Line<'static> {
-    let theme = model.theme;
-    let width = usize::from(width);
-    let full = facts(model, width < usize::from(NARROW));
-    let count = super::workspace::attention_count(model);
-    let counted: Vec<Part> = if count > 0 {
-        vec![(
-            format!("{} {count}", theme.glyph(Glyph::Warning)),
-            Role::Warning,
-        )]
-    } else {
-        Vec::new()
-    };
+/// The forms of the tab bar at `width`, longest first. From 120 columns
+/// the host ID and the time join the status: the program's name goes
+/// first, then the host ID. Below 120 columns neither shows and the name
+/// has room again; narrower, the name goes, then the status becomes the
+/// count of what needs attention, the tabs take their short names, then
+/// their keys alone.
+fn candidates(model: &Model, width: usize) -> Vec<Form> {
+    let full = tab_status(model, width < usize::from(NARROW));
+    let counted: Vec<Part> = attention(model).into_iter().collect();
     let forms = tab_forms(model);
     let form = |index: usize| forms.get(index).cloned().unwrap_or_default();
-    let candidates = [
+    let mut candidates = Vec::new();
+    if width >= usize::from(WIDE) {
+        let clock = time(model);
+        let plus = |extra: Vec<Part>| -> Vec<Part> { full.iter().cloned().chain(extra).collect() };
+        let both = plus(host(model).into_iter().chain(clock.clone()).collect());
+        candidates.push((form(0), both.clone()));
+        candidates.push((form(1), both));
+        candidates.push((form(1), plus(clock.into_iter().collect())));
+    }
+    candidates.extend([
         (form(0), full.clone()),
         (form(1), full.clone()),
         (form(1), counted.clone()),
         (form(2), full),
         (form(2), counted.clone()),
         (form(3), counted),
-    ];
-    let fits = |(tabs, status): &(Vec<(String, bool)>, Vec<Part>)| {
+    ]);
+    candidates
+}
+
+/// The tab bar of the workspace: the tabs on the left, the current one in
+/// brackets, and the status on the right, in the longest form that fits.
+fn tab_bar(model: &Model, width: u16) -> Line<'static> {
+    let width = usize::from(width);
+    let fits = |(tabs, status): &Form| {
         tabs_width(tabs) + joined(model, status).chars().count() + 2 <= width
     };
-    let (tabs, status) = candidates
+    let (tabs, status) = candidates(model, width)
         .into_iter()
         .find(fits)
-        .unwrap_or_else(|| (form(3), Vec::new()));
+        .unwrap_or_else(|| (tab_forms(model).pop().unwrap_or_default(), Vec::new()));
+    tab_line(model, (&tabs, &status), width)
+}
+
+/// The tab bar of `tabs` and `status`, `width` wide.
+fn tab_line(
+    model: &Model,
+    (tabs, status): (&[(String, bool)], &[Part]),
+    width: usize,
+) -> Line<'static> {
+    let theme = model.theme;
     let program = text!("workspace-name");
     let mut spans = vec![Span::raw(" ")];
-    for (text, current) in &tabs {
+    for (text, current) in tabs {
         let (text, role) = if *text == program {
             (format!("{text} "), Role::Title)
         } else if *current {
@@ -143,7 +173,7 @@ fn tab_bar(model: &Model, width: u16) -> Line<'static> {
         };
         spans.push(Span::styled(text, theme.style(role)));
     }
-    let right = joined(model, &status);
+    let right = joined(model, status);
     let used: usize = spans.iter().map(Span::width).sum();
     let gap = width.saturating_sub(used + right.chars().count() + 1);
     spans.push(Span::raw(" ".repeat(gap.max(1))));
@@ -256,6 +286,22 @@ fn titles(model: &Model) -> Vec<String> {
 /// The status: the worst pool, the volumes, the log; each with the role of
 /// what it says.
 fn facts(model: &Model, short: bool) -> Vec<Part> {
+    let mut parts = machine(model, short);
+    parts.extend(log_problems(model, short));
+    parts
+}
+
+/// The status of the tab bar: the worst pool, the volumes, and how many
+/// things need attention, of which the log's problems are some.
+fn tab_status(model: &Model, short: bool) -> Vec<Part> {
+    let mut parts = machine(model, short);
+    parts.extend(attention(model));
+    parts
+}
+
+/// The worst pool and the volumes open, each with the role of what it
+/// says.
+fn machine(model: &Model, short: bool) -> Vec<Part> {
     let snapshot = &model.snapshot;
     let mut parts = Vec::new();
     match worst_pool(snapshot) {
@@ -300,15 +346,52 @@ fn facts(model: &Model, short: bool) -> Vec<Part> {
         };
         parts.push((text, role));
     }
-    let problems = snapshot.log.count(Level::Warning) + snapshot.log.count(Level::Error);
-    if problems > 0 {
-        let glyph = model.theme.glyph(Glyph::Warning);
-        let text = if short {
-            format!("{glyph} {problems}")
-        } else {
-            format!("{glyph} {}", text!("status-log-problems", count = problems))
-        };
-        parts.push((text, Role::Warning));
-    }
     parts
 }
+
+/// The warnings and errors of the log, if any.
+fn log_problems(model: &Model, short: bool) -> Option<Part> {
+    let log = &model.snapshot.log;
+    let problems = log.count(Level::Warning) + log.count(Level::Error);
+    if problems == 0 {
+        return None;
+    }
+    let glyph = model.theme.glyph(Glyph::Warning);
+    let text = if short {
+        format!("{glyph} {problems}")
+    } else {
+        format!("{glyph} {}", text!("status-log-problems", count = problems))
+    };
+    Some((text, Role::Warning))
+}
+
+/// How many things need attention, if any: `! 4`.
+fn attention(model: &Model) -> Option<Part> {
+    let count = super::workspace::attention_count(model);
+    (count > 0).then(|| {
+        let glyph = model.theme.glyph(Glyph::Warning);
+        (format!("{glyph} {count}"), Role::Warning)
+    })
+}
+
+/// The host ID ZFS uses, if the machine said.
+fn host(model: &Model) -> Option<Part> {
+    let host = model.snapshot.host.as_ref()?;
+    Some((text!("status-host", id = host.as_str()), Role::Muted))
+}
+
+/// The time of day in UTC, the boot image having no time zone: the
+/// snapshot's time and the ticks counted since; none before the machine
+/// said its time, as in start-up's snapshot.
+fn time(model: &Model) -> Option<Part> {
+    let now = model.snapshot.now;
+    if now == 0 {
+        return None;
+    }
+    let minutes = now.saturating_add(model.ticked / 1000) / 60 % (24 * 60);
+    let time = format!("{:02}:{:02}", minutes / 60, minutes % 60);
+    Some((text!("status-time", time = time), Role::Muted))
+}
+
+#[cfg(test)]
+mod tests;

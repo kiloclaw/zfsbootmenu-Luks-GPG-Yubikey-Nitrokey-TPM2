@@ -377,8 +377,9 @@ impl Action {
 /// What the machine tells the menu.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Event {
-    /// The snapshot changed.
-    Changed(Snapshot),
+    /// The snapshot changed; boxed, as it is many times larger than the
+    /// other events.
+    Changed(Box<Snapshot>),
     /// What [`Action::ScanPools`] found: every pool, those imported and
     /// those that could be imported, which replace the snapshot's. The
     /// countdown goes on.

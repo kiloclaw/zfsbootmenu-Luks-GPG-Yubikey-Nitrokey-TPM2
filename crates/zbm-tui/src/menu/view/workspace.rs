@@ -240,10 +240,19 @@ pub(super) fn attention_count(model: &Model) -> usize {
     attention(model).len()
 }
 
-/// The key that opens `tab`, with its name: `3 Pools`.
-fn tab_key(tab: Tab) -> String {
+/// The key that opens `tab` in the key map `map`: `3`; none when it binds
+/// none.
+pub(super) fn tab_key(map: Map, tab: Tab) -> String {
+    map.binding(Intent::Tab(tab))
+        .map(|binding| keymap::key_name(binding.key, binding.modifiers))
+        .unwrap_or_default()
+}
+
+/// The key that opens `tab` in the key map `map`, with the tab's name:
+/// `3 Pools`.
+pub(super) fn tab_label(map: Map, tab: Tab) -> String {
     let what = keymap::describe(Context::Main, Intent::Tab(tab));
-    format!("{} {}", tab.digit(), text::title(what))
+    format!("{} {}", tab_key(map, tab), text::title(what))
 }
 
 /// What needs attention as one line, as wide as `area`: each item with its
@@ -253,7 +262,7 @@ fn attention_line(model: &Model, items: &[Item], area: Rect) -> Line<'static> {
     let width = usize::from(area.width).saturating_sub(2);
     let key = items
         .first()
-        .map(|item| tab_key(item.tab))
+        .map(|item| tab_label(model.map, item.tab))
         .unwrap_or_default();
     let mut room = width.saturating_sub(key.chars().count() + 3);
     let mut spans = vec![Span::raw(" ")];
@@ -384,7 +393,10 @@ fn attention_lines(model: &Model, items: &[Item], width: usize) -> Vec<Line<'sta
             let what = format!("{} {}", theme.glyph(item.glyph), item.what);
             [
                 Line::styled(fit(&what, width, theme.is_ascii()), theme.style(item.role)),
-                Line::styled(format!("  {}", tab_key(item.tab)), theme.style(Role::Muted)),
+                Line::styled(
+                    format!("  {}", tab_label(model.map, item.tab)),
+                    theme.style(Role::Muted),
+                ),
             ]
         })
         .collect()

@@ -23,6 +23,9 @@ loads them and an event delivers them.
 | `keyboard` | the layouts typing can be translated into, the console's own first, and whether keys come from the machine's keyboard or a serial terminal | `zbm-config` |
 | `log` | the warnings and errors since start, counted apart | `zbm-trace` |
 | `offers` | the kinds of action the machine performs now (`Offer`): the menu shows and sends only these, and a key of another kind says so in the status line (ADR 0016, point 2); none when not given | `zbm-app` |
+| `host` | the host ID ZFS uses now (the SPL module's, `/etc/hostid`'s, or the one import matched), for the tab bar from 120 columns; none when there is none | `zbm-pool` |
+| `zfs_version` | the version of the ZFS module running, untrusted text, for the help view's header; none when it cannot be read | `/sys/module/zfs/version` |
+| `now` | the time the snapshot was read, after its kernels, in seconds since the epoch: for ages and the tab bar's clock, which counts on from it | the clock |
 | `loaded` | every snapshot (name, creation, used) of the column open: the environment whose snapshots `LoadSnapshots` read last, read again with each snapshot of the machine; none until a column opens, or once its environment is gone | `zbm-zfs` |
 
 ## Actions

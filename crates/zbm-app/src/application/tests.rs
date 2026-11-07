@@ -11,6 +11,9 @@ fn the_snapshot_reads_the_machine_and_what_the_runtime_holds() {
     let fake = FakeSystem::new();
     fake.runner.respond_program("zpool", 0, "");
     fake.runner.respond_program("zfs", 0, "");
+    fake.files
+        .file("/sys/module/zfs/version", "2.2.6-1\n")
+        .file("/etc/hostid", [0x0c, 0xb1, 0xba, 0x00]);
     fake.files.file("/layouts/layouts", "us\nde\n").file(
         "/zfsbootmenu/journal.jsonl",
         "{\"level\":\"WARN\",\"message\":\"slow\"}\n",
@@ -39,8 +42,27 @@ fn the_snapshot_reads_the_machine_and_what_the_runtime_holds() {
     assert!(!snapshot.keyboard.local);
     assert_eq!(snapshot.log.count(Level::Warning), 1);
     assert!(snapshot.volumes.is_empty() && snapshot.now > 0);
+    assert_eq!(snapshot.zfs_version.unwrap().get(), "2.2.6-1");
+    assert_eq!(snapshot.host.unwrap().as_str(), "00bab10c");
     assert_eq!(Runtime::default().layouts, Path::new(LAYOUTS));
     assert_eq!(Runtime::default().base, Path::new("/zfsbootmenu"));
+}
+
+#[test]
+fn the_snapshot_s_time_is_when_its_kernels_were_read() {
+    let fake = FakeSystem::new();
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "");
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+
+    let mut snapshot = app.snapshot().unwrap();
+    let read = snapshot.now;
+    fake.clock.advance(std::time::Duration::from_secs(8));
+    app.read_kernels(&mut snapshot, fake.system());
+
+    assert!(read > 0);
+    assert_eq!(snapshot.now, read + 8);
 }
 
 /// A recovery that opens no shell.

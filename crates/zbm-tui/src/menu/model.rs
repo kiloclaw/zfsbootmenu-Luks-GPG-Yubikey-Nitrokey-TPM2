@@ -253,6 +253,9 @@ pub struct Model {
     pub layout: usize,
     /// The key map: the current one, or the workspace's.
     pub map: Map,
+    /// The milliseconds the ticks counted since the snapshot's time: the
+    /// tab bar's clock is that time and these.
+    pub ticked: u64,
 }
 
 impl Model {
@@ -293,6 +296,7 @@ impl Model {
             reading_history: false,
             layout: 0,
             map: Map::default(),
+            ticked: 0,
             snapshot,
         };
         model.refresh();
@@ -375,6 +379,9 @@ impl Model {
             snapshots::sort_lists(&mut new.loaded, self.sort);
             if new.loaded != self.snapshot.loaded {
                 self.generation = self.generation.wrapping_add(1);
+            }
+            if new.now != self.snapshot.now {
+                self.ticked = 0;
             }
             self.snapshot = new;
         }

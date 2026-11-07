@@ -128,7 +128,7 @@ impl<'a> MenuFront<'a> {
     /// snapshot shown later, with a volume added, keeps the stages' progress.
     fn show(&self, event: Event) {
         match &event {
-            Event::Changed(snapshot) => *lock(&self.known) = snapshot.clone(),
+            Event::Changed(snapshot) => *lock(&self.known) = (**snapshot).clone(),
             Event::StageStarted(name) => reached(&mut lock(&self.known), name, StageState::Running),
             Event::StageFinished { stage, state } => {
                 reached(&mut lock(&self.known), stage, state.clone());

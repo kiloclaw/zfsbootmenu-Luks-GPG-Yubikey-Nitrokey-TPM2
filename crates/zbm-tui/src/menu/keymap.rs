@@ -156,7 +156,8 @@ pub enum Scope {
 }
 
 impl Scope {
-    fn contains(self, context: Context) -> bool {
+    /// Whether its bindings work in `context`.
+    pub(crate) fn contains(self, context: Context) -> bool {
         match self {
             Scope::Everywhere => true,
             Scope::Views => context != Context::Text,

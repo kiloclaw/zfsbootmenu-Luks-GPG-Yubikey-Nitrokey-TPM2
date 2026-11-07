@@ -93,7 +93,7 @@ impl<'a, 'r> RealMachine<'a, 'r> {
         match event {
             Event::Changed(snapshot) => {
                 snapshot.timeout = Timeout::Wait;
-                self.snapshot = snapshot.clone();
+                self.snapshot = (**snapshot).clone();
             }
             Event::PoolsScanned(pools) => self.snapshot.pools.clone_from(pools),
             _ => {}
@@ -163,7 +163,7 @@ impl Machine for RealMachine<'_, '_> {
             return self.reports();
         }
         self.sent = true;
-        vec![Event::Changed(self.snapshot.clone())]
+        vec![Event::Changed(Box::new(self.snapshot.clone()))]
     }
 
     fn poll(&mut self) -> Vec<Event> {
@@ -210,7 +210,7 @@ impl Machine for RealMachine<'_, '_> {
             && let Ok(snapshot) = read(self.app, self.console, Countdown::Skip)
         {
             self.snapshot = snapshot.clone();
-            events.insert(0, Event::Changed(snapshot));
+            events.insert(0, Event::Changed(Box::new(snapshot)));
         }
         events
     }

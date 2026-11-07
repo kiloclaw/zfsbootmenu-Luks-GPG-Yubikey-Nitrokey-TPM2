@@ -26,7 +26,7 @@ impl Machine for Recorded {
     }
 
     fn tick(&mut self) -> Vec<Event> {
-        vec![Event::Changed(self.snapshot.clone())]
+        vec![Event::Changed(Box::new(self.snapshot.clone()))]
     }
 
     fn apply(&mut self, action: Action) -> Vec<Event> {

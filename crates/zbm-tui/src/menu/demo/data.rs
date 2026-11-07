@@ -43,6 +43,9 @@ pub const FOREIGN_POOL: &str = "backup";
 /// The machine's host ID.
 pub const HOSTID: &str = "00bab10c";
 
+/// The version of the machine's ZFS module.
+const ZFS_VERSION: &str = "2.2.6-1";
+
 /// The host ID that last imported the foreign pool.
 pub const FOREIGN_HOSTID: &str = "deadbeef";
 
@@ -115,6 +118,8 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         // The demo answers every action.
         offers: Offer::ALL.into_iter().collect(),
         loaded: Vec::new(),
+        host: HOSTID.parse().ok(),
+        zfs_version: Some(untrusted(ZFS_VERSION)),
     };
     super::snapshots::Lists::new(snapshots(options)).show(&mut snapshot);
     snapshot

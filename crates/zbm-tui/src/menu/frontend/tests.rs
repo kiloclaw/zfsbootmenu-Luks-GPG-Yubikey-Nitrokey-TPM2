@@ -128,7 +128,7 @@ impl Machine for Shell {
         if self.ran {
             vec![Event::Leaving(String::new())]
         } else {
-            vec![Event::Changed(self.snapshot.clone())]
+            vec![Event::Changed(Box::new(self.snapshot.clone()))]
         }
     }
 

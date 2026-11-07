@@ -22,7 +22,7 @@ mod unlock;
 use std::collections::BTreeSet;
 
 use zbm_types::Untrusted;
-use zbm_types::{DatasetName, PoolName};
+use zbm_types::{DatasetName, HostId, PoolName};
 
 pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
 pub use self::devices::{Device, DeviceErrors, DeviceLog, DeviceState, PoolHost};
@@ -89,6 +89,14 @@ pub struct Snapshot {
     /// opens.
     #[serde(default)]
     pub loaded: Vec<SnapshotList>,
+    /// The host ID ZFS uses now, which decides whether a pool is another
+    /// host's. None when it cannot be read.
+    #[serde(default)]
+    pub host: Option<HostId>,
+    /// The version of the ZFS module running, from
+    /// `/sys/module/zfs/version`. None when it cannot be read.
+    #[serde(default)]
+    pub zfs_version: Option<Untrusted<String>>,
 }
 
 /// One stage of start-up.

@@ -7,10 +7,11 @@
 //! numbered, and what can be typed; it prints again only when that
 //! changed, never in place, and the countdown says its seconds once a
 //! second. A line typed is a number, which chooses that item, a number and
-//! a key (`2 k`), one of the key map's keys, or `ok`, `back` and `help`;
-//! in a field that takes text, the line is the text, and a blank line goes
-//! back. The terminal keeps its own line editing and echo, which is off
-//! while a secret is typed.
+//! a key (`2 k`), one of the key map's keys, or `ok`, `back` and `help`,
+//! and in the workspace's views with the tab bar `boot`, `snapshots`,
+//! `pools` and `log` for its tabs; in a field that takes text, the line is
+//! the text, and a blank line goes back. The terminal keeps its own line
+//! editing and echo, which is off while a secret is typed.
 
 use std::io;
 use std::time::Duration;
@@ -20,7 +21,7 @@ use zbm_platform::Clock;
 use zbm_platform::console::{Console, Timed};
 
 use super::frontend::TICK;
-use super::keymap::{Context, Map};
+use super::keymap::{self, Context, Intent, Map, Tab};
 use super::machine::{Machine, RealMachine};
 use super::model::Model;
 use super::screen::MenuScreen;
@@ -49,9 +50,10 @@ fn choose(number: usize) -> Vec<KeyPress> {
     keys
 }
 
-/// The key of a word or a character typed alone: `ok`, `back`, `help`, or
-/// one of the key map's characters.
-fn key_of(word: &str) -> Option<KeyPress> {
+/// The key of a word or a character typed alone in `context`: `ok`, `back`,
+/// `help`, the name of a tab where the key map `map` binds a key to it
+/// there, or one of the key map's characters.
+fn key_of(word: &str, context: Context, map: Map) -> Option<KeyPress> {
     if word == text!("lines-word-ok") {
         return Some(KeyPress::new(Key::Enter));
     }
@@ -61,6 +63,11 @@ fn key_of(word: &str) -> Option<KeyPress> {
     if word == text!("lines-word-help") {
         return Some(KeyPress::new(Key::Char('?')));
     }
+    if let Some(tab) = Tab::ALL.into_iter().find(|tab| word == tab_word(*tab)) {
+        return map
+            .binding_in(Intent::Tab(tab), context)
+            .map(|binding| keymap::press(binding.key, binding.modifiers));
+    }
     let mut chars = word.chars();
     match (chars.next(), chars.next()) {
         (Some(c), None) => Some(KeyPress::new(Key::Char(c))),
@@ -68,9 +75,19 @@ fn key_of(word: &str) -> Option<KeyPress> {
     }
 }
 
-/// What `line` asks for, typed where the menu takes text when `is_text`.
-pub fn typed(line: &str, is_text: bool) -> Typed {
-    if is_text {
+/// The word that chooses `tab`: `pools`.
+fn tab_word(tab: Tab) -> String {
+    match tab {
+        Tab::Boot => text!("lines-word-boot"),
+        Tab::Snapshots => text!("lines-word-snapshots"),
+        Tab::Pools => text!("lines-word-pools"),
+        Tab::Log => text!("lines-word-log"),
+    }
+}
+
+/// What `line` asks for, typed in `context` with the key map `map`.
+pub fn typed(line: &str, context: Context, map: Map) -> Typed {
+    if context == Context::Text {
         let text = line.trim_end_matches(['\r', '\n']);
         if text.is_empty() {
             return Typed::Keys(vec![KeyPress::new(Key::Escape)]);
@@ -99,12 +116,12 @@ pub fn typed(line: &str, is_text: bool) -> Typed {
                 keys.push(KeyPress::new(Key::Enter));
                 Typed::Keys(keys)
             }
-            None => key_of(word).map_or_else(
+            None => key_of(word, context, map).map_or_else(
                 || Typed::Unknown(line.trim().to_owned()),
                 |key| Typed::Keys(vec![key]),
             ),
         },
-        [first, second] => match (number(first), key_of(second)) {
+        [first, second] => match (number(first), key_of(second, context, map)) {
             (Some(number), Some(key)) => {
                 let mut keys = choose(number);
                 keys.push(key);
@@ -129,6 +146,15 @@ fn numbered(items: &[String]) -> Vec<String> {
 /// palette, the command line.
 fn is_text(model: &Model) -> bool {
     model.context() == Context::Text
+}
+
+/// Whether the names of the tabs choose them where `model` is: in the
+/// workspace, in a view with the tab bar.
+fn has_tab_words(model: &Model) -> bool {
+    model
+        .map
+        .binding_in(Intent::Tab(Tab::Boot), model.context())
+        .is_some()
 }
 
 /// The page of `model`: everything the line view says of it, but the
@@ -156,14 +182,23 @@ pub fn page(model: &Model) -> Vec<String> {
     if is_text(model) {
         page.push(text!("lines-text"));
     } else {
+        let workspace = model.map == Map::Workspace;
         if is_numbered || dialog.is_some_and(|said| !said.choices.is_empty()) {
-            page.push(text!("lines-number"));
+            page.push(if workspace {
+                text!("lines-number-workspace")
+            } else {
+                text!("lines-number")
+            });
         }
         let keys = words::commands(model).join(", ");
         if !keys.is_empty() {
             page.push(text!("lines-keys", keys = keys));
         }
-        page.push(text!("lines-words"));
+        page.push(if has_tab_words(model) {
+            text!("lines-words-workspace")
+        } else {
+            text!("lines-words")
+        });
     }
     page
 }
@@ -250,7 +285,7 @@ impl<'a> LineFront<'a> {
                     self.write("\n")?;
                 }
                 let text = String::from_utf8_lossy(line.expose());
-                Ok(Some(typed(&text, is_text(model))))
+                Ok(Some(typed(&text, model.context(), model.map)))
             }
         }
     }

@@ -21,8 +21,10 @@ with a dry run first, and what cannot be undone opens a review page. Nothing is 
 
 - **Tab bar** (always shown once start-up is over): the program's name, the four tabs with their digits, the current
   one in brackets so that it shows without colour, and the status of the machine on the right: the worst pool and its
-  health, the LUKS volumes open, the warnings and errors of the log. Narrower, the name goes, then the status becomes
-  the count of what needs attention (`! 4`), then the tabs take their short names (`2 Snap`), then their digits.
+  health, the LUKS volumes open, the count of what needs attention (`! 4`), and from 120 columns the host ID and the
+  time in UTC. From 120 columns, when they do not all fit, the name goes first, then the host ID. Below 120 columns
+  neither the host ID nor the time shows, and the name has room again. Narrower still, the name goes, then the
+  status becomes the count alone, then the tabs take their short names (`2 Snap`), then their digits.
 - **Banner**: the countdown while it runs; any key stops it.
 - **Notification line**: the outcome of the last action, with a glyph and a word (`√ Done`, `! Warning`, `× Failed`);
   it stays until the next key press, and the log keeps it.

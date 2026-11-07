@@ -46,16 +46,6 @@ impl Tab {
             .copied()
             .unwrap_or(Tab::Boot)
     }
-
-    /// Its digit, from 1.
-    pub fn digit(self) -> char {
-        match self {
-            Tab::Boot => '1',
-            Tab::Snapshots => '2',
-            Tab::Pools => '3',
-            Tab::Log => '4',
-        }
-    }
 }
 
 /// Which key map the menu reads keys with.
@@ -150,5 +140,22 @@ impl Map {
                 .chain(KEYMAP.iter().filter(|binding| !is_taken(binding)))
                 .collect(),
         }
+    }
+
+    /// The first of its bindings that asks for `intent`, if one does: the
+    /// key a label or a word of the line view names, such as the digit of a
+    /// tab.
+    pub(crate) fn binding(self, intent: Intent) -> Option<&'static Binding> {
+        self.table()
+            .into_iter()
+            .find(|binding| binding.intent == intent)
+    }
+
+    /// The first of its bindings that asks for `intent` in `context`, if
+    /// one does: the key a word of the line view types there.
+    pub(crate) fn binding_in(self, intent: Intent, context: Context) -> Option<&'static Binding> {
+        self.table()
+            .into_iter()
+            .find(|binding| binding.intent == intent && binding.scope.contains(context))
     }
 }

@@ -98,16 +98,16 @@ fn a_cancelled_load_says_not_read_and_the_next_snapshot_asks_again() {
         ["Snapshots Not Read: Open the snapshots again to read them."]
     );
 
-    let (model, actions) = step(model, event(Event::Changed(snapshot.clone())));
+    let (model, actions) = step(model, event(Event::Changed(Box::new(snapshot.clone()))));
     assert_eq!(actions, [Action::LoadSnapshots(void())]);
     assert_eq!(model.column(), Column::Reading);
     // While the load runs, another snapshot does not ask again; one that
     // carries the column fills it.
-    let (model, actions) = step(model, event(Event::Changed(snapshot.clone())));
+    let (model, actions) = step(model, event(Event::Changed(Box::new(snapshot.clone()))));
     assert!(actions.is_empty());
     let mut carried = snapshot;
     carried.loaded = vec![list];
-    let (model, actions) = step(model, event(Event::Changed(carried)));
+    let (model, actions) = step(model, event(Event::Changed(Box::new(carried))));
     assert!(actions.is_empty());
     assert_eq!(model.column(), Column::Loaded);
 }
@@ -120,7 +120,7 @@ fn no_snapshots_are_asked_for_while_the_countdown_runs() {
     model.screen = Screen::Snapshots;
     model.countdown = Some(5_000);
 
-    let (model, actions) = step(model, event(Event::Changed(snapshot)));
+    let (model, actions) = step(model, event(Event::Changed(Box::new(snapshot))));
 
     assert!(actions.is_empty());
     assert_eq!(model.column(), Column::NotRead);
@@ -140,7 +140,7 @@ fn the_rollback_counts_the_newer_snapshots_of_the_latest_read() {
         environment: void(),
         snapshots: oldest,
     }];
-    let (mut model, _) = step(model, event(Event::Changed(carried)));
+    let (mut model, _) = step(model, event(Event::Changed(Box::new(carried))));
     model.snapshots.selected = 1;
 
     let (model, _) = step(model, key('r'));
@@ -230,7 +230,7 @@ fn a_load_that_failed_is_asked_again_only_by_opening_its_column() {
 
     let (model, _) = step(model, event(Event::SnapshotsUnread(void())));
     assert_eq!(model.column(), Column::NotRead);
-    let (model, actions) = step(model, event(Event::Changed(snapshot.clone())));
+    let (model, actions) = step(model, event(Event::Changed(Box::new(snapshot.clone()))));
     assert!(actions.is_empty(), "{actions:?}");
     let (model, _) = step(model, Message::Busy(false));
 

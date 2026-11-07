@@ -49,7 +49,7 @@ impl MenuFront<'_> {
             }
             snapshot
         };
-        self.show(Event::Changed(snapshot));
+        self.show(Event::Changed(Box::new(snapshot)));
     }
 }
 

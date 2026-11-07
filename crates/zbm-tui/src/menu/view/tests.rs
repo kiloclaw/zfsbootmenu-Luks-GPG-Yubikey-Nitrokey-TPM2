@@ -252,3 +252,61 @@ fn hostile_names_are_shown_escaped() {
         assert!(!text.lines().any(raw), "{text:?}");
     }
 }
+
+#[test]
+fn the_workspace_s_help_says_the_zfs_version_and_names_the_aliases_apart() {
+    let mut model = started(Capabilities::FULL).into_model();
+    model.screen = Screen::Help(crate::menu::keymap::Context::Main);
+    let classic = screen(&model, 80, 90);
+    model.map = crate::menu::keymap::Map::Workspace;
+    let workspace = screen(&model, 80, 90);
+    model.snapshot.zfs_version = Some(Untrusted::new("2.2\u{1b}[2J".to_owned()));
+    let hostile = screen(&model, 80, 90);
+    model.snapshot.zfs_version = None;
+    let unknown = screen(&model, 80, 90);
+
+    assert!(!classic.contains("ZFS 2.2.6-1"), "{classic}");
+    assert!(classic.contains("CLASSIC BINDINGS"), "{classic}");
+    assert!(workspace.contains("ZFS 2.2.6-1"), "{workspace}");
+    assert!(workspace.contains("FZF ALIASES"), "{workspace}");
+    assert!(!workspace.contains("CLASSIC"), "{workspace}");
+    assert!(hostile.contains("ZFS 2.2\\x1b[2J"), "{hostile}");
+    assert!(!unknown.contains("ZFS "), "{unknown}");
+}
+
+#[test]
+fn the_zfs_version_stays_in_the_help_header_when_it_scrolls() {
+    let mut model = started(Capabilities::FULL).into_model();
+    model.screen = Screen::Help(crate::menu::keymap::Context::Main);
+    model.map = crate::menu::keymap::Map::Workspace;
+    model.scroll = 5;
+    let scrolled = screen(&model, 52, 20);
+    let header = |text: &str| {
+        text.lines()
+            .find(|line| line.contains("KEYS"))
+            .unwrap_or_default()
+            .to_owned()
+    };
+    model.snapshot.zfs_version = Some(Untrusted::new("2".repeat(80)));
+    let long = screen(&model, 52, 20);
+
+    assert!(header(&scrolled).contains("ZFS 2.2.6-1"), "{scrolled}");
+    assert!(header(&long).contains("ZFS 222"), "{long}");
+    assert!(header(&long).contains("KEYS, UP/DOWN TO SCROLL"), "{long}");
+    assert!(header(&long).contains('…'), "{long}");
+}
+
+#[test]
+fn the_line_view_s_help_says_the_zfs_version_in_the_workspace_only() {
+    let mut model = started(Capabilities::FULL).into_model();
+    model.screen = Screen::Help(crate::menu::keymap::Context::Main);
+    let (classic, _) = super::words::rows(&model);
+    model.map = crate::menu::keymap::Map::Workspace;
+    let (workspace, _) = super::words::rows(&model);
+
+    assert!(
+        !classic.iter().any(|row| row.starts_with("ZFS ")),
+        "{classic:#?}"
+    );
+    assert_eq!(workspace.first().map(String::as_str), Some("ZFS 2.2.6-1"));
+}

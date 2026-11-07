@@ -9,7 +9,7 @@ use zbm_types::Printable;
 
 use super::lists;
 use crate::menu::format::{age, date, fit, size};
-use crate::menu::keymap::{self, Context};
+use crate::menu::keymap::{self, Context, Map};
 use crate::menu::model::{Column, Model, RECOVERY, recovery_tools};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Level, PoolHost, StageState, VolumeState};
@@ -351,9 +351,12 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 }
 
 /// Help: the keys of the view it was opened from, then the classic
-/// bindings, each section under its header.
+/// bindings, each section under its header; in the workspace, the version
+/// of the ZFS module running on the right of the header, and the classic
+/// bindings named as the aliases they are.
 pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Context) {
     let theme = model.theme;
+    let workspace = model.map == Map::Workspace;
     let mut lines = Vec::new();
     let mut section = |title: String, rows: Vec<(String, Id)>| {
         if rows.is_empty() {
@@ -375,10 +378,12 @@ pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Co
         text!("help-this-view"),
         keymap::help(model.map, context, &offered),
     );
-    section(
-        text!("help-classic"),
-        keymap::classic_bindings(context, &offered),
-    );
+    let aliases = if workspace {
+        text!("help-aliases")
+    } else {
+        text!("help-classic")
+    };
+    section(aliases, keymap::classic_bindings(context, &offered));
     let shown = usize::from(area.height.saturating_sub(2));
     let scroll = model.scroll.min(lines.len().saturating_sub(shown));
     let header = if lines.len() > shown {
@@ -386,7 +391,20 @@ pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Co
     } else {
         text!("help-keys")
     };
-    let block = lists::block(theme, &header);
+    let block = match model.snapshot.zfs_version.as_ref().filter(|_| workspace) {
+        Some(version) => {
+            // The header keeps its room: the corners, the spaces around
+            // both and one column of border between them.
+            let room =
+                usize::from(area.width).saturating_sub(header.to_uppercase().chars().count() + 7);
+            let version = text!(
+                "help-zfs-version",
+                version = version.printable().to_string()
+            );
+            lists::counted(theme, &header, &fit(&version, room, theme.is_ascii()))
+        }
+        None => lists::block(theme, &header),
+    };
     frame.render_widget(
         Paragraph::new(lines)
             .block(block)

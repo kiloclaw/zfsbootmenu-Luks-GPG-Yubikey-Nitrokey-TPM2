@@ -37,9 +37,10 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `unlock-layout` | typing with the German layout, what is typed shown with `Ctrl-R` |
 | `reseal-confirm` | the alert that seals the TPM2 key again, once the volume is open |
 | `pools-tpm-changed` | a volume whose TPM2 key is out of date, in the pools view |
-| `workspace` | the workspace's Boot tab (`--workspace`): the tab bar, the sidebar of pools, volumes and what needs attention, the boot environments, the inspector with its next steps |
+| `workspace` | the workspace's Boot tab (`--workspace`): the tab bar, with the host ID and the time at 120 columns, the sidebar of pools, volumes and what needs attention, the boot environments, the inspector with its next steps |
 | `workspace-kernels` | `l` from the Boot tab: the kernels column of the second environment |
 | `workspace-pools` | `3`: the Pools tab |
+| `workspace-help` | `?` on the Boot tab: the version of the ZFS module on the right of its header, and the `MOD+key` aliases of the `fzf` menu |
 | `workspace-attention` | once the scan after the first frame found the pools start-up left alone, one of them another host's: what needs attention, worst first, each with the tab that shows it |
 | `workspace-device-log` | the dialog of `tank` in the Pools tab, then its lost disk `sdb2`: the kernel's messages about it and its disk below the pools, the escape bytes in them drawn as text |
 | `log-history` | `4`: the Log tab with the boot history `zbm.save_logs` kept above the log since start: a measured boot, one saved without a record, one whose record a newer runtime wrote, and one whose kernel's name holds escape bytes, drawn as text |

@@ -18,9 +18,9 @@ use zbm_config::options::ZbmOptions;
 use zbm_luks::device::is_open;
 use zbm_luks::tokens::list_tokens;
 use zbm_luks::unlocker::Unlocker;
-use zbm_platform::Files;
+use zbm_platform::{Clock, Files};
 use zbm_state::State;
-use zbm_types::{DatasetName, PoolName};
+use zbm_types::{DatasetName, HostId, PoolName};
 use zbm_zfs::{Source, Zfs, ZfsError};
 
 use crate::Encryption;
@@ -307,6 +307,33 @@ pub fn log(files: &dyn Files, base: &Path) -> Log {
         })
         .collect();
     Log { entries }
+}
+
+/// The wall-clock time on `clock`, in seconds since the epoch; 0 before it.
+pub(crate) fn now(clock: &dyn Clock) -> u64 {
+    clock
+        .wall()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |time| time.as_secs())
+}
+
+/// The version of the ZFS module running.
+const ZFS_VERSION: &str = "/sys/module/zfs/version";
+
+/// The version of the ZFS module running: the first line of
+/// `/sys/module/zfs/version`; `None` when it cannot be read or is blank.
+pub(crate) fn zfs_version(files: &dyn Files) -> Option<Untrusted<String>> {
+    let text = files.read_to_string(Path::new(ZFS_VERSION)).ok()?;
+    let line = text.lines().next()?.trim();
+    (!line.is_empty()).then(|| Untrusted::new(line.to_owned()))
+}
+
+/// The host ID ZFS uses now: the SPL module's, `/etc/hostid`'s, or the one
+/// pool import matched; `None` when there is none.
+pub(crate) fn host(files: &dyn Files, state: &State<'_>) -> Option<HostId> {
+    let mut sources = Vec::new();
+    let apparent = zbm_pool::hostid::apparent_hostid(files, state, &mut sources)?;
+    HostId::from_hex(apparent.trim_start_matches("0x"))
 }
 
 mod device_log;

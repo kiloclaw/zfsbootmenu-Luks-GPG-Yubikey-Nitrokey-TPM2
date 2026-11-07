@@ -25,8 +25,9 @@ to; none on the main view), the title in the middle in bold, and the status of t
 bar (deference). On narrow screens the back label shortens to `‹`, then the status takes its short forms.
 
 In the workspace ([ADR 0007](../adr/0007-menu-workspace.md)) the line is a **tab bar** instead, as a macOS window's
-toolbar of segments: the tabs with their digits, the current one in brackets, and the same status on the right. A tab
-replaces the back label: `Esc` still goes back one step within the tab.
+toolbar of segments: the tabs with their digits, the current one in brackets, and the status on the right, with the
+count of what needs attention (`! 4`) and, from 120 columns, the host ID and the time. A tab replaces the back label:
+`Esc` still goes back one step within the tab.
 
 ### 2. Banners for what happens without asking
 

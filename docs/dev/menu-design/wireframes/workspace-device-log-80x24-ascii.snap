@@ -1,7 +1,7 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
-  1 Boot  2 Snapshots [3 Pools] 4 Log            tank DEGRADED | 3/3 open | ! 1
+  1 Boot  2 Snapshots [3 Pools] 4 Log            tank DEGRADED | 3/3 open | ! 6
 + POOLS AND LUKS VOLUMES --------------------------------------------------- 5 +
 |   Pool    zroot                                         read-only | ONLINE   |
 | > Pool    tank                                          read-only | DEGRADED |

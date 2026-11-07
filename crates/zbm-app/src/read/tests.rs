@@ -299,3 +299,39 @@ fn the_stages_are_done_once_the_state_directory_records_them() {
         .collect();
     assert_eq!(names.len(), zbm_types::Stage::ALL.len());
 }
+
+#[test]
+fn the_zfs_version_is_the_first_line_the_module_gives() {
+    let fake = FakeSystem::new();
+    fake.files
+        .file("/sys/module/zfs/version", "2.2.6-1\x1b[2J\nsecond\n");
+
+    let version = zfs_version(&fake.files).unwrap();
+
+    assert_eq!(version.get(), "2.2.6-1\x1b[2J");
+    assert_eq!(version.printable().to_string(), "2.2.6-1\\x1b[2J");
+}
+
+#[test]
+fn without_the_module_s_version_file_the_zfs_version_is_unknown() {
+    let fake = FakeSystem::new();
+    assert_eq!(zfs_version(&fake.files), None);
+    fake.files.file("/sys/module/zfs/version", " \n2.2.6\n");
+    assert_eq!(zfs_version(&fake.files), None);
+}
+
+#[test]
+fn the_host_is_the_host_id_zfs_uses() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    assert_eq!(host(&fake.files, &state), None);
+
+    state.set_spl_hostid("00bab10c").unwrap();
+    assert_eq!(host(&fake.files, &state), HostId::from_hex("00bab10c"));
+    fake.files.file("/etc/hostid", [0xef, 0xbe, 0xad, 0xde]);
+    assert_eq!(host(&fake.files, &state), HostId::from_hex("deadbeef"));
+    fake.files
+        .file("/sys/module/spl/parameters/spl_hostid", "3054399729\n");
+    assert_eq!(host(&fake.files, &state), HostId::from_hex("b60e70f1"));
+}

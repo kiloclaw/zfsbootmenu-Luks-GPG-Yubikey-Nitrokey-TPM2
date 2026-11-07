@@ -91,7 +91,7 @@ impl<'s> RemoteMachine<'s> {
         match event {
             Event::Changed(snapshot) => {
                 snapshot.timeout = Timeout::Wait;
-                self.snapshot = snapshot.clone();
+                self.snapshot = (**snapshot).clone();
             }
             Event::PoolsScanned(pools) => self.snapshot.pools.clone_from(pools),
             _ => {}
@@ -205,7 +205,7 @@ impl Machine for RemoteMachine<'_> {
             return self.received();
         }
         self.sent = true;
-        vec![Event::Changed(self.snapshot.clone())]
+        vec![Event::Changed(Box::new(self.snapshot.clone()))]
     }
 
     fn poll(&mut self) -> Vec<Event> {

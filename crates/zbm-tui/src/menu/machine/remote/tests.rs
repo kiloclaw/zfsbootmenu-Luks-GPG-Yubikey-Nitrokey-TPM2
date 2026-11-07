@@ -82,7 +82,7 @@ fn the_menu_reads_the_machine_and_its_actions_are_performed_meanwhile() {
         move |session| {
             attached(session, &[ToMenu::Snapshot(Some(Box::new(counting())))]);
             assert_eq!(next(session), ToSession::Send { action: sent });
-            ToMenu::Event(Box::new(Event::Changed(counting())))
+            ToMenu::Event(Box::new(Event::Changed(Box::new(counting()))))
                 .send(session)
                 .unwrap();
             ToMenu::Event(Box::new(Event::Finished(Outcome::Cancelled)))

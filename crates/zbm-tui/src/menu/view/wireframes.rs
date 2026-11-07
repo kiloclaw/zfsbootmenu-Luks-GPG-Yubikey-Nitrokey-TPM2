@@ -82,8 +82,9 @@ fn workspace() -> DemoOptions {
 /// it goes into; what needs attention once the scan, which waits for a
 /// key to stop the countdown, found the pools start-up left alone, one of
 /// them another host's; the kernel's messages about the disk `tank`
-/// lost, chosen in its pool's dialog; and the Log tab with the boot
-/// history `zbm.save_logs` kept, and without the option.
+/// lost, chosen in its pool's dialog; the Log tab with the boot history
+/// `zbm.save_logs` kept, and without the option; and help, under the ZFS
+/// version.
 fn workspace_wireframes() -> Vec<Wireframe> {
     use Step::{Char, Code, Tick};
     let frame = |name, keys| Wireframe {
@@ -104,6 +105,7 @@ fn workspace_wireframes() -> Vec<Wireframe> {
         frame("workspace", &[]),
         frame("workspace-kernels", &[Code(Key::Down), Char('l')]),
         frame("workspace-pools", &[Char('3')]),
+        frame("workspace-help", &[Char('?')]),
         Wireframe {
             name: "workspace-attention",
             options: exported,

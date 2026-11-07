@@ -117,7 +117,8 @@ The menu's map today, which the sessions compare with the workspace's.
 
 [Decision 8](../../../ROADMAP.md#decisions) asked whether to offer a second profile close to the `fzf`
 menu. The proposal: no profile to choose, but every `MOD+key` binding of the `fzf` menu (`MOD` is `Alt` or `Ctrl`)
-keeps working, with its old meaning in its old view, as an alias that the help view lists under *classic*:
+keeps working, with its old meaning in its old view, as an alias that the help view lists under *classic*, and the
+workspace's under *fzf aliases*, a name apart from `zbm.menu=classic`:
 
 | Classic | Main | Snapshots | Kernels | Pools |
 | --- | --- | --- | --- | --- |

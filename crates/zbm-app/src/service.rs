@@ -118,7 +118,7 @@ impl<'a> MachineService<'a> {
         if !action.is_read()
             && let Some(snapshot) = self.read()
         {
-            events.insert(0, Event::Changed(snapshot));
+            events.insert(0, Event::Changed(Box::new(snapshot)));
         }
         events
     }

@@ -421,6 +421,10 @@ fn a_devices_messages_close_when_the_tab_is_left_or_the_machine_changes() {
     model.screen = Screen::Pools;
     let model = loaded(model);
     let snapshot = model.snapshot.clone();
-    let model = super::update(model, Message::Event(Box::new(Event::Changed(snapshot)))).0;
+    let model = super::update(
+        model,
+        Message::Event(Box::new(Event::Changed(Box::new(snapshot)))),
+    )
+    .0;
     assert_eq!(model.device_log, None);
 }

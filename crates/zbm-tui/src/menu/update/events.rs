@@ -15,7 +15,7 @@ pub(super) fn apply(model: &mut Model, event: Event) -> Vec<Action> {
     model.progress = None;
     match event {
         Event::Progress(what) => model.progress = Some(what),
-        Event::Changed(snapshot) => return changed(model, snapshot),
+        Event::Changed(snapshot) => return changed(model, *snapshot),
         // The countdown goes on.
         Event::PoolsScanned(pools) => {
             model.replace_pools(pools);

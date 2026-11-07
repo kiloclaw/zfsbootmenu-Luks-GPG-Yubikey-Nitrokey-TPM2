@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [1 Boot] 2 Snapshots  3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+┌ KEYS, UP/DOWN TO SCROLL ──────────────────────────────────────────────────────────────────────────────── ZFS 2.2.6-1 ┐
+│ THIS VIEW                                                                                                            │
+│            Enter  Boot                                                                                               │
+│                l  Kernels                                                                                            │
+│  j, Down, Ctrl-N  Select                                                                                             │
+│    k, Up, Ctrl-P  Select                                                                                             │
+│   h, Esc, Ctrl-C  Back                                                                                               │
+│                1  Boot                                                                                               │
+│                2  Snapshots                                                                                          │
+│                3  Pools                                                                                              │
+│                4  Log                                                                                                │
+│              Tab  Next Tab                                                                                           │
+│        Shift-Tab  Previous Tab                                                                                       │
+│                b  Boot                                                                                               │
+│                s  Snapshots                                                                                          │
+│                e  Edit                                                                                               │
+│                d  Default                                                                                            │
+│                n  Snapshot                                                                                           │
+│                w  Read/Write                                                                                         │
+│                /  Filter                                                                                             │
+│                :  Commands                                                                                           │
+│                !  Recovery                                                                                           │
+│                x  Power                                                                                              │
+│            ?, F1  Help                                                                                               │
+│             PgUp  Move                                                                                               │
+│             PgDn  Move                                                                                               │
+│             Home  Move                                                                                               │
+│              End  Move                                                                                               │
+│           Ctrl-L  Redraw                                                                                             │
+│                                                                                                                      │
+│ FZF ALIASES (MOD IS ALT OR CTRL)                                                                                     │
+│            MOD+K  Kernels                                                                                            │
+│            MOD+S  Snapshots                                                                                          │
+│            MOD+D  Default                                                                                            │
+│            MOD+E  Edit                                                                                               │
+│            MOD+T  Revert                                                                                             │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Esc Back   Up/Down Scroll

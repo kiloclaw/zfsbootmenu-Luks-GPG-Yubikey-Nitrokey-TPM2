@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 BBóótt] 2 SSñáppshóóts  3 PPóólls  4 LLóg   ! 6
+┌ KKÉÝSS, ÚP/DDÓWÑÑ TÓ SSÇRÓÓLL ───── ZZFS 2.2.6-1 ┐
+│ TTHÍSS VÍÉÉW                                     │
+│          ÉÉñtéér  BBóótt                         │
+│                l  KKérññélss                     │
+│ j, DDówññ, ÇÇtrll-N  SSélééçt                    │
+│ k, ÚÚp, ÇÇtrll-P  SSélééçt                       │
+│ h, ÉÉsç, ÇÇtrll-C  BBáçkk                        │
+│                1  BBóótt                         │
+│                2  SSñáppshóóts                   │
+│                3  PPóólls                        │
+│                4  LLóg                           │
+│             TTáb  ÑÑéxtt Tább                    │
+│     SShífft-Tááb  PPrévvíóúús Tááb               │
+│                b  BBóótt                         │
+│                s  SSñáppshóóts                   │
+│                e  ÉÉdítt                         │
+│                d  DDéfááúltt                     │
+└──────────────────────────────────────────────────┘
+ ÉÉsç BBáçkk   ÚÚp/Dóówñ SSçróóll

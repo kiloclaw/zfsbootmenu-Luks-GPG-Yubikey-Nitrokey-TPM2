@@ -275,6 +275,10 @@ help-keys = Keys
 help-keys-scroll = Keys, Up/Down to Scroll
 help-this-view = THIS VIEW
 help-classic = CLASSIC BINDINGS (MOD IS ALT OR CTRL)
+# The workspace's help: the version of the ZFS module running, and the
+# `MOD+key` aliases of the fzf menu, named apart from `zbm.menu=classic`.
+help-zfs-version = ZFS { $version }
+help-aliases = FZF ALIASES (MOD IS ALT OR CTRL)
 
 ## Sizes and ages.
 
@@ -315,6 +319,10 @@ status-pools-ok = { $count } pools ok
 status-volumes-open = { $open }/{ $total } volumes open
     .short = { $open }/{ $total } open
 status-log-problems = { $count } in the log
+# The tab bar of the workspace, from 120 columns: the host ID ZFS uses and
+# the time of day, in UTC as the boot image has no time zone.
+status-host = host { $id }
+status-time = { $time } UTC
 
 ## The workspace of the redesign (ADR 0007): its tab bar, sidebar and
 ## command hint.
@@ -656,9 +664,17 @@ lines-number = Type a number to choose it, or a number and a key, as 2 k.
 lines-text = Type it, then Enter; a blank line goes back.
 lines-keys = Keys: { $keys }
 lines-words = Words: ok, back, help; a blank line shows this again.
+# The workspace's: k moves up there, l goes into the kernels, and the
+# tabs have words.
+lines-number-workspace = Type a number to choose it, or a number and a key, as 2 l.
+lines-words-workspace = Words: ok, back, help, boot, snapshots, pools, log; a blank line shows this again.
 lines-unknown = Unknown: { $typed }. Type help for the keys.
 lines-none = Nothing here.
 lines-countdown-stopped = The countdown stopped.
 lines-word-ok = ok
 lines-word-back = back
 lines-word-help = help
+lines-word-boot = boot
+lines-word-snapshots = snapshots
+lines-word-pools = pools
+lines-word-log = log

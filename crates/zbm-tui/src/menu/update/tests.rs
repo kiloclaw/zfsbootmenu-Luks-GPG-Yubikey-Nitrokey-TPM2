@@ -501,7 +501,7 @@ fn a_new_snapshot_keeps_the_selection_by_name() {
     newcomer.is_default = false;
     snapshot.environments.insert(0, newcomer);
 
-    let event = crate::menu::world::Event::Changed(snapshot);
+    let event = crate::menu::world::Event::Changed(Box::new(snapshot));
     let (model, _) = super::update(model, super::Message::Event(Box::new(event)));
 
     assert!(chosen.is_some());

@@ -108,7 +108,7 @@ The workspace's Boot tab ([ADR 0007](../adr/0007-menu-workspace.md)) keeps its p
 
 | Size class | Sidebar | Inspector | Tab bar | Command hint |
 | --- | --- | --- | --- | --- |
-| wide, 110 columns and more | pools, volumes and what needs attention, 26 columns | right of the list, with the next steps, the checks, the kernels and snapshots when tall | the name, the tabs, the full status | from 24 rows |
+| wide, 110 columns and more | pools, volumes and what needs attention, 26 columns | right of the list, with the next steps, the checks, the kernels and snapshots when tall | the name, the tabs, the full status; from 120 columns the host ID and the time too, the name going first when they do not fit | from 24 rows |
 | regular, 80×24, as over a serial line | what needs attention as one line above the list, with the tab of the first | below the list | the tabs, the short status | from 24 rows |
 | compact, down to 52×20 | none | below the list | the tabs and the count of what needs attention, then short names, then digits | none |
 

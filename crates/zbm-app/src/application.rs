@@ -128,7 +128,8 @@ pub trait Application {
 
     /// Fills in the kernels of the environments of `snapshot` whose keys
     /// are loaded, which mounts each read-only on `console`, the front
-    /// end's whole system; the snapshot alone mounts nothing.
+    /// end's whole system; the snapshot alone mounts nothing. Its time
+    /// becomes the time the kernels were read.
     fn read_kernels(&self, snapshot: &mut Snapshot, console: System<'_>);
 
     /// Applies `action` through `through`; what happened comes back as
@@ -514,12 +515,6 @@ impl Application for App<'_> {
     fn snapshot(&self) -> Result<Snapshot, AppError> {
         let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
         let files = self.context.files();
-        let now = self
-            .context
-            .clock()
-            .wall()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |time| time.as_secs());
         let state = zbm_state::State::new(files, &self.runtime.base);
         let pools = self.pools(&zfs).map_err(SnapshotError::from)?;
         // The default stands on an imported pool: none once it is exported.
@@ -542,10 +537,13 @@ impl Application for App<'_> {
             timeout: read::timeout(&self.runtime.options),
             log: read::log(files, &self.runtime.base),
             keyboard: self.keyboard(),
-            now,
             bootfs,
             menu_locked: self.is_menu_locked(files),
             offers: self.offers(files),
+            host: read::host(files, &state),
+            zfs_version: read::zfs_version(files),
+            // Last: the clock of the tab bar counts on from it.
+            now: read::now(self.context.clock()),
             ..Snapshot::default()
         })
     }
@@ -563,6 +561,7 @@ impl Application for App<'_> {
                 environment.kernels = boot.kernels(&environment.name);
             }
         }
+        snapshot.now = read::now(self.context.clock());
     }
 
     /// Applies `action`, then, when it may have imported, exported or

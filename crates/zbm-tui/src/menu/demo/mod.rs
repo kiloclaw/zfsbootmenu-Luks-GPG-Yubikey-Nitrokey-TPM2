@@ -200,7 +200,7 @@ impl FakeMachine {
     }
 
     fn changed(&self) -> Event {
-        Event::Changed(self.snapshot.clone())
+        Event::Changed(Box::new(self.snapshot.clone()))
     }
 
     /// Does what `action` asks, and says what happened.
@@ -261,7 +261,7 @@ impl FakeMachine {
         let outcome = storage::restore(&mut self.snapshot, &mut self.lists, snapshot, paths.len());
         self.restored.extend(paths);
         vec![
-            Event::Changed(self.snapshot.clone()),
+            Event::Changed(Box::new(self.snapshot.clone())),
             Event::DiffReady {
                 from: snapshot.clone(),
                 to: None,

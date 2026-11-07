@@ -50,7 +50,10 @@ pub(super) fn apply(snapshot: &mut Snapshot, lists: &mut Lists, action: Action) 
         _ => return Vec::new(),
     };
     lists.show(snapshot);
-    vec![Event::Changed(snapshot.clone()), Event::Finished(outcome)]
+    vec![
+        Event::Changed(Box::new(snapshot.clone())),
+        Event::Finished(outcome),
+    ]
 }
 
 /// What the last frame says when the machine boots.

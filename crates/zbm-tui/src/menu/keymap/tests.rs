@@ -326,5 +326,14 @@ fn the_tabs_go_round() {
     assert_eq!(Tab::Boot.next(), Tab::Snapshots);
     assert_eq!(Tab::Log.next(), Tab::Boot);
     assert_eq!(Tab::Boot.previous(), Tab::Log);
-    assert_eq!(Tab::ALL.map(Tab::digit), ['1', '2', '3', '4']);
+}
+
+#[test]
+fn the_workspace_alone_binds_a_key_to_each_tab() {
+    let key = |map: Map, tab| map.binding(Intent::Tab(tab)).map(|binding| binding.key);
+    assert_eq!(
+        Tab::ALL.map(|tab| key(Map::Workspace, tab)),
+        ['1', '2', '3', '4'].map(|c| Some(Key::Char(c)))
+    );
+    assert_eq!(Tab::ALL.map(|tab| key(Map::Classic, tab)), [None; 4]);
 }

@@ -214,14 +214,27 @@ fn log(model: &Model) -> Vec<String> {
         .collect()
 }
 
-/// Help: the keys of the view it was opened from.
+/// Help: the keys of the view it was opened from; in the workspace, after
+/// the version of the ZFS module running, as its header says.
 fn help(model: &Model, context: keymap::Context) -> Vec<String> {
-    keymap::help(model.map, context, &|intent| {
+    let workspace = model.map == keymap::Map::Workspace;
+    let version = model.snapshot.zfs_version.as_ref().filter(|_| workspace);
+    let keys = keymap::help(model.map, context, &|intent| {
         keymap::is_offered(context, intent, model)
-    })
-    .into_iter()
-    .map(|(keys, what)| format!("{keys}: {}", text::title(what)))
-    .collect()
+    });
+    version
+        .map(|version| {
+            text!(
+                "help-zfs-version",
+                version = version.printable().to_string()
+            )
+        })
+        .into_iter()
+        .chain(
+            keys.into_iter()
+                .map(|(keys, what)| format!("{keys}: {}", text::title(what))),
+        )
+        .collect()
 }
 
 /// The changes of the differences view: files or packages, as shown.

@@ -3,10 +3,12 @@
 //! programs supply (A2, A3) reaches the screen. The input, split at its
 //! newlines, gives the kernel versions, the command line, the LUKS volumes'
 //! names and devices, the names and notes of the pools' devices, the name
-//! of the host that used a pool not imported, and the log; with the demo's
-//! snapshots read, every screen is drawn with them, the workspace's too,
-//! at one of three sizes that the first byte picks. Drawing may not panic,
-//! and no cell may hold a character that acts on a terminal.
+//! of the host that used a pool not imported, the log, the version of the
+//! ZFS module and the host ID; with the demo's snapshots read, every screen
+//! is drawn with them, the workspace's Boot tab and help too, at one of
+//! three sizes that the first byte picks, the largest wide enough for the
+//! host ID and the time. Drawing may not panic, and no cell may hold a
+//! character that acts on a terminal.
 
 #![no_main]
 
@@ -18,7 +20,7 @@ use ratatui::backend::TestBackend;
 use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::demo::DemoOptions;
 use zbm_tui::menu::demo::data::{machine, snapshots};
-use zbm_tui::menu::keymap::Map;
+use zbm_tui::menu::keymap::{Context, Map};
 use zbm_tui::menu::model::{Editor, Model, Screen};
 use zbm_tui::menu::theme::Theme;
 use zbm_tui::menu::view::view;
@@ -137,9 +139,14 @@ fuzz_target!(|data: &[u8]| {
         });
         check(&model, width, height);
     }
-    // The workspace's Boot tab, with what needs attention.
+    // The workspace's Boot tab, with what needs attention, and its help,
+    // under the ZFS version; a host ID that is not one is none.
+    model.snapshot.zfs_version = Some(next());
+    model.snapshot.host = next().parse().ok();
     model.map = Map::Workspace;
-    model.screen = Screen::Main;
     model.editor = None;
-    check(&model, width, height);
+    for screen in [Screen::Main, Screen::Help(Context::Main)] {
+        model.screen = screen;
+        check(&model, width, height);
+    }
 });

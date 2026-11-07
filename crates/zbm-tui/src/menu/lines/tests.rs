@@ -12,9 +12,31 @@ use crate::menu::world::Action;
 
 /// The demo machine's menu, started.
 fn started() -> Session<crate::menu::demo::FakeMachine> {
-    let mut session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::ASCII));
+    started_with(&DemoOptions::default())
+}
+
+/// The demo machine's menu with `options`, started.
+fn started_with(options: &DemoOptions) -> Session<crate::menu::demo::FakeMachine> {
+    let mut session = Session::new(options, Theme::new(Capabilities::ASCII));
     session.start();
     session
+}
+
+/// The tab of the workspace's menu after `words` are typed, one line each.
+fn tab_after(words: &[&str]) -> Tab {
+    let mut session = started_with(&DemoOptions {
+        workspace: true,
+        ..DemoOptions::default()
+    });
+    for word in words {
+        let Typed::Keys(keys) = typed(word, Context::Main, Map::Workspace) else {
+            panic!("{word} is not a word");
+        };
+        for key in keys {
+            session.press(key);
+        }
+    }
+    session.model().tab()
 }
 
 fn key(code: Key) -> KeyPress {
@@ -25,32 +47,137 @@ fn key(code: Key) -> KeyPress {
 fn a_number_chooses_an_item_and_a_word_or_a_key_does_what_it_says() {
     let down = key(Key::Down);
     assert_eq!(
-        typed("3", false),
+        typed("3", Context::Main, Map::Classic),
         Typed::Keys(vec![key(Key::Home), down, down, key(Key::Enter)])
     );
     assert_eq!(
-        typed(" 2  k ", false),
+        typed(" 2  k ", Context::Main, Map::Classic),
         Typed::Keys(vec![key(Key::Home), down, key(Key::Char('k'))])
     );
-    assert_eq!(typed("k", false), Typed::Keys(vec![key(Key::Char('k'))]));
-    assert_eq!(typed("ok", false), Typed::Keys(vec![key(Key::Enter)]));
-    assert_eq!(typed("back", false), Typed::Keys(vec![key(Key::Escape)]));
-    assert_eq!(typed("help", false), Typed::Keys(vec![key(Key::Char('?'))]));
-    assert_eq!(typed("", false), Typed::Again);
-    assert_eq!(typed("0", false), Typed::Unknown("0".to_owned()));
     assert_eq!(
-        typed("boot it now", false),
+        typed("k", Context::Main, Map::Classic),
+        Typed::Keys(vec![key(Key::Char('k'))])
+    );
+    assert_eq!(
+        typed("ok", Context::Main, Map::Classic),
+        Typed::Keys(vec![key(Key::Enter)])
+    );
+    assert_eq!(
+        typed("back", Context::Main, Map::Classic),
+        Typed::Keys(vec![key(Key::Escape)])
+    );
+    assert_eq!(
+        typed("help", Context::Main, Map::Classic),
+        Typed::Keys(vec![key(Key::Char('?'))])
+    );
+    assert_eq!(typed("", Context::Main, Map::Classic), Typed::Again);
+    assert_eq!(
+        typed("0", Context::Main, Map::Classic),
+        Typed::Unknown("0".to_owned())
+    );
+    assert_eq!(
+        typed("boot it now", Context::Main, Map::Classic),
         Typed::Unknown("boot it now".to_owned())
     );
     assert_eq!(
-        typed("2 back x", false),
+        typed("2 back x", Context::Main, Map::Classic),
         Typed::Unknown("2 back x".to_owned())
     );
 }
 
 #[test]
+fn in_the_workspace_boot_opens_the_boot_tab() {
+    assert_eq!(tab_after(&["log", "boot"]), Tab::Boot);
+}
+
+#[test]
+fn in_the_workspace_snapshots_opens_the_snapshots_tab() {
+    assert_eq!(tab_after(&["snapshots"]), Tab::Snapshots);
+}
+
+#[test]
+fn in_the_workspace_pools_opens_the_pools_tab() {
+    assert_eq!(tab_after(&["pools"]), Tab::Pools);
+}
+
+#[test]
+fn in_the_workspace_log_opens_the_log_tab() {
+    assert_eq!(tab_after(&["log"]), Tab::Log);
+    assert_eq!(
+        typed("log", Context::Main, Map::Workspace),
+        Typed::Keys(vec![key(Key::Char('4'))])
+    );
+}
+
+#[test]
+fn the_classic_map_keeps_the_digits_and_has_no_tab_words() {
+    let down = key(Key::Down);
+    for map in [Map::Classic, Map::Workspace] {
+        assert_eq!(
+            typed("2", Context::Main, map),
+            Typed::Keys(vec![key(Key::Home), down, key(Key::Enter)])
+        );
+    }
+    for word in ["boot", "snapshots", "pools", "log"] {
+        assert_eq!(
+            typed(word, Context::Main, Map::Classic),
+            Typed::Unknown(word.to_owned())
+        );
+    }
+}
+
+#[test]
+fn the_workspace_s_page_names_its_own_keys_and_words() {
+    let session = started_with(&DemoOptions {
+        workspace: true,
+        ..DemoOptions::default()
+    });
+    let page = page(session.model());
+
+    assert!(page.contains(&text!("lines-number-workspace")), "{page:#?}");
+    assert!(page.contains(&text!("lines-words-workspace")), "{page:#?}");
+    assert!(!page.contains(&text!("lines-number")), "{page:#?}");
+    assert!(!page.contains(&text!("lines-words")), "{page:#?}");
+}
+
+#[test]
+fn tab_words_are_unknown_where_no_tab_can_be_chosen() {
+    for context in [Context::Choose, Context::Startup] {
+        for word in ["boot", "snapshots", "pools", "log"] {
+            assert_eq!(
+                typed(word, context, Map::Workspace),
+                Typed::Unknown(word.to_owned()),
+                "{context:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_workspace_s_page_offers_tab_words_only_where_they_choose_a_tab() {
+    let machine = crate::menu::demo::FakeMachine::new(&DemoOptions::default());
+    let snapshot = machine.snapshot().clone();
+    let mut model = Model::new(snapshot, Theme::new(Capabilities::ASCII));
+    model.map = Map::Workspace;
+    let offers_tabs = |model: &Model| page(model).contains(&text!("lines-words-workspace"));
+
+    assert_eq!(model.context(), Context::Startup);
+    assert!(!offers_tabs(&model), "{:#?}", page(&model));
+    model.screen = crate::menu::model::Screen::Main;
+    assert!(offers_tabs(&model), "{:#?}", page(&model));
+    model.dialog = Some(crate::menu::model::Dialog::Error {
+        what: "It failed".to_owned(),
+        why: Vec::new(),
+        next: Vec::new(),
+    });
+    assert_eq!(model.context(), Context::Choose);
+    assert!(!offers_tabs(&model), "{:#?}", page(&model));
+    assert!(page(&model).contains(&text!("lines-words")));
+}
+
+#[test]
 fn in_a_field_the_line_is_the_text_and_a_blank_one_goes_back() {
-    let Typed::Keys(keys) = typed("pw 1\n", true) else {
+    let Typed::Keys(keys) = typed("pw 1\n", Context::Text, Map::Classic) else {
         panic!("keys");
     };
     assert_eq!(keys[0], key(Key::Char('u')).with_ctrl());
@@ -63,7 +190,10 @@ fn in_a_field_the_line_is_the_text_and_a_blank_one_goes_back() {
         .collect();
     assert_eq!(typed_text, "pw 1");
     assert_eq!(keys.last(), Some(&key(Key::Enter)));
-    assert_eq!(typed("", true), Typed::Keys(vec![key(Key::Escape)]));
+    assert_eq!(
+        typed("", Context::Text, Map::Classic),
+        Typed::Keys(vec![key(Key::Escape)])
+    );
 }
 
 #[test]
