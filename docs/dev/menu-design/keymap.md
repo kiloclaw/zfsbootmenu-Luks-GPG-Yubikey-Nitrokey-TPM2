@@ -12,7 +12,8 @@ Decision 18, for both maps:
 
 1. **No action needs one character only.** The arrows, `Enter`, `Esc`, `Tab` and the command line reach every action:
    each action bound to a character is also a command and an entry of the `Enter` menu of what it applies to. `j` `k`
-   `h` `l` move as the arrows do; the digits only shorten the way to a tab or a start-up choice.
+   `h` `l` move as the arrows do; the digits only shorten the way to a tab or a start-up choice. Between start-up's
+   choices, on the Boot tab, no character but `?` is bound: one typed there is the first key of a passphrase.
 2. **No action depends on case.** A letter and its capital are one key; Shift and Caps Lock change no action. Risky
    actions open their review page instead of hiding behind Shift.
 3. **Keys by position on the display console.** A character the map does not bind counts as the character the same key
@@ -38,7 +39,7 @@ to the other in the changes.
 | Boot | `b` boot the selection; `e` edit the command line once; `d` make it the default; `s` its snapshots; `n` a new snapshot |
 | Snapshots | `Enter` what to do with it; `b` boot it as a clone; `c` clone…; `m` clone and promote…; `y` duplicate…; `r` roll back…; `f` the files and packages changed since, or between the marked ones, and restoring them; `Space` mark; `z` fold or unfold; `o` sort; `n` a new snapshot |
 | Pools | `i` import…: read-only, read/write, as the host that owns it, at its checkpoint, or forced; `w` read/write…; `u` unlock…; `Enter` on a device: its kernel messages |
-| Start-up | `1` to `9` a choice, as do `j` `k` and `Enter`; between choices, as the Boot tab, only `1` to `4` and `Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), `j` `k` and the arrows move, `?` opens help; any other key starts typing ahead of the next dialog |
+| Start-up | `1` to `9` a choice, as do `j` `k` and `Enter`; between choices, as the Boot tab, only `Tab` and `Shift-Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), the arrows, `Ctrl-P` and `Ctrl-N` move, `?` and `F1` open help; any other key, the digits and `j` `k` included, starts typing ahead of the next dialog, and the tab bar names no digit. On another tab during start-up, `1` to `4` choose a tab |
 | Text fields | `Tab` completes; `Ctrl-W` deletes a word; `Ctrl-R` searches the history (the command line) or shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout |
 
 Against the classic map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind
@@ -48,7 +49,10 @@ the next tab, so `Space` alone marks.
 **In the code** (`keymap/workspace.rs`): its bindings come before the classic map's, whose bindings of the same
 keys in a view where both work, and `p`, it drops: `j` `k` `h` move, `l` and `Right` go into the kernels and `Left`
 out of them, `1` to `4`, `Tab` and `Shift-Tab` choose the tab; the changes keep the classic map's `Left` and
-`Right`.
+`Right`. `Map::is_bound` narrows start-up's view (`Context::Startup`) to `Tab`, `Shift-Tab`, the moves up and down
+(the arrows, `Ctrl-P`, `Ctrl-N`) and help, with no character but `?`, so that a key typed ahead of a passphrase's
+dialog waits for it (`StartupView`'s `typed_ahead`); the tab bar takes its keys from `Map::binding_in` there, so it
+names none of the digits.
 The other keys are the classic map's: `!` opens the recovery tools, the shell first, and the pools keep `i`, `u` and
 `w`; the rewind, which the classic map has on `h`, is among the imports of `i`.
 

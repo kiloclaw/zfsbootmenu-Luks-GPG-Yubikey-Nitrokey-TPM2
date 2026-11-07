@@ -2,7 +2,9 @@
 //! which the usability sessions compare with the classic one (decision 8):
 //! `j` `k` `h` `l` move as the arrows do, `h` and `l` out of and into a
 //! column, the digits and `Tab` choose a tab. Its bindings come before the
-//! classic map's, whose bindings of the same keys it drops.
+//! classic map's, whose bindings of the same keys it drops. Start-up, as the
+//! Boot tab, binds no character but `?`: the others wait for the next
+//! dialog, as the first keys of a passphrase.
 
 use zbm_display::keys::Key;
 
@@ -60,7 +62,7 @@ pub enum Map {
 }
 
 /// The views with the tab bar, whose keys choose a tab: start-up, as the
-/// Boot tab, binds few other keys ([`Map::is_bound`]).
+/// Boot tab, binds only `Tab` and `Shift-Tab` of them ([`Map::is_bound`]).
 const TABBED: &[Context] = &[
     Startup, Main, Snapshots, Kernels, Pools, Recovery, Log, Diff, Packages, Help,
 ];
@@ -159,27 +161,28 @@ fn is_taken(binding: &Binding) -> bool {
 }
 
 /// Whether the workspace's start-up view, outside a dialog, binds
-/// `intent`: the tabs, moving and help. Nothing else is offered there, and
-/// a key of something else would say so until the next key.
-fn is_bound_at_startup(intent: Intent) -> bool {
-    matches!(
-        intent,
-        Intent::Tab(_)
-            | Intent::NextTab
-            | Intent::PreviousTab
-            | Intent::Up
-            | Intent::Down
-            | Intent::Help
-    )
+/// `binding`: `Tab` and `Shift-Tab` choose a tab, the arrows, `Ctrl-P` and
+/// `Ctrl-N` move, `?` and F1 open help. Nothing else is offered there, and
+/// a key of something else would say so until the next key. No character
+/// is bound but `?`, not the digits nor `j` `k`: a key typed there waits
+/// for the next dialog, as the first key of a passphrase.
+fn is_bound_at_startup(binding: &Binding) -> bool {
+    let types = binding.modifiers == NONE && matches!(binding.key, Key::Char(c) if c != '?');
+    !types
+        && matches!(
+            binding.intent,
+            Intent::NextTab | Intent::PreviousTab | Intent::Up | Intent::Down | Intent::Help
+        )
 }
 
 impl Map {
     /// Whether `binding` of its table works in `context`: where its scope
-    /// says, but for the workspace's start-up view, which binds only the
-    /// keys of the tabs, moving and help.
+    /// says, but for the workspace's start-up view, which binds only `Tab`,
+    /// `Shift-Tab`, the moves up and down and help, and no character but
+    /// `?`.
     pub(crate) fn is_bound(self, binding: &Binding, context: Context) -> bool {
         binding.scope.contains(context)
-            && (self == Map::Classic || context != Startup || is_bound_at_startup(binding.intent))
+            && (self == Map::Classic || context != Startup || is_bound_at_startup(binding))
     }
 
     /// Its bindings, in the order of the toolbar.

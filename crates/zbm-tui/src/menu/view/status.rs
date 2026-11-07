@@ -71,10 +71,12 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 }
 
 /// The forms of the tabs, longest first: the program's name and the tabs'
-/// names, the names alone, the short names, the keys alone.
+/// names, the names alone, the short names, the keys alone. A tab no key
+/// opens, as on start-up's view, shows without one: its short name stands
+/// for its key.
 fn tab_forms(model: &Model) -> Vec<Vec<(String, bool)>> {
     let current = model.tab();
-    let key = |tab: Tab| super::workspace::tab_key(model.map, tab);
+    let key = |tab: Tab| super::workspace::tab_key(model, tab);
     let name = |tab: Tab, short: bool| {
         let what = keymap::describe(Context::Main, Intent::Tab(tab));
         let title = crate::text::title(what);
@@ -84,7 +86,10 @@ fn tab_forms(model: &Model) -> Vec<Vec<(String, bool)>> {
         } else {
             title
         };
-        format!("{} {title}", key(tab))
+        match key(tab) {
+            key if key.is_empty() => title,
+            key => format!("{key} {title}"),
+        }
     };
     let tabs = |short: bool| -> Vec<(String, bool)> {
         Tab::ALL
@@ -96,7 +101,10 @@ fn tab_forms(model: &Model) -> Vec<Vec<(String, bool)>> {
     named.extend(tabs(false));
     let keys = Tab::ALL
         .iter()
-        .map(|tab| (key(*tab), *tab == current))
+        .map(|tab| match key(*tab) {
+            key if key.is_empty() => (name(*tab, true), *tab == current),
+            key => (key, *tab == current),
+        })
         .collect();
     vec![named, tabs(false), tabs(true), keys]
 }

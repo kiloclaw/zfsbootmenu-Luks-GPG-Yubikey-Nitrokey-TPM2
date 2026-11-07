@@ -14,7 +14,7 @@ use zbm_types::Printable;
 use super::{lists, main_view, screens};
 use crate::menu::format::fit;
 use crate::menu::keymap::{self, Context, Intent, Map, Tab};
-use crate::menu::model::{Model, disk_name};
+use crate::menu::model::{Model, Screen, disk_name};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{
     Device, DeviceState, Environment, Health, Level, Log, Pool, StageState, Verdict, VolumeState,
@@ -303,25 +303,35 @@ pub(super) fn attention_count(model: &Model) -> usize {
     attention(model).len()
 }
 
-/// The key that opens `tab` in the key map `map`: `3`; none when it binds
-/// none.
-pub(super) fn tab_key(map: Map, tab: Tab) -> String {
-    intent_key(map, Intent::Tab(tab))
+/// The key that opens `tab` in the view of `model`: `3`; none when it
+/// binds none, as start-up's view of the Boot tab, where a digit is the
+/// first key of a passphrase.
+pub(super) fn tab_key(model: &Model, tab: Tab) -> String {
+    intent_key(model, Intent::Tab(tab))
 }
 
-/// The key that asks for `intent` in the key map `map`: `!` for the
-/// recovery tools; none when it binds none.
-pub(super) fn intent_key(map: Map, intent: Intent) -> String {
-    map.binding(intent)
+/// The key that asks for `intent` in the view of `model`: `!` for the
+/// recovery tools; none when it binds none there. A dialog over the view
+/// does not hide the keys of the view, which work once it closes.
+pub(super) fn intent_key(model: &Model, intent: Intent) -> String {
+    let binding = if model.screen == Screen::Startup {
+        model.map.binding_in(intent, Context::Startup)
+    } else {
+        model.map.binding(intent)
+    };
+    binding
         .map(|binding| keymap::key_name(binding.key, binding.modifiers))
         .unwrap_or_default()
 }
 
-/// The key that opens `tab` in the key map `map`, with the tab's name:
-/// `3 Pools`.
-pub(super) fn tab_label(map: Map, tab: Tab) -> String {
-    let what = keymap::describe(Context::Main, Intent::Tab(tab));
-    format!("{} {}", tab_key(map, tab), text::title(what))
+/// The key that opens `tab` in the view of `model`, with the tab's name:
+/// `3 Pools`; the name alone where no key opens it.
+pub(super) fn tab_label(model: &Model, tab: Tab) -> String {
+    let what = text::title(keymap::describe(Context::Main, Intent::Tab(tab)));
+    match tab_key(model, tab) {
+        key if key.is_empty() => what,
+        key => format!("{key} {what}"),
+    }
 }
 
 /// What needs attention as one line, as wide as `area`: each item with its
@@ -331,7 +341,7 @@ fn attention_line(model: &Model, items: &[Item], area: Rect) -> Line<'static> {
     let width = usize::from(area.width).saturating_sub(2);
     let key = items
         .first()
-        .map(|item| tab_label(model.map, item.tab))
+        .map(|item| tab_label(model, item.tab))
         .unwrap_or_default();
     let mut room = width.saturating_sub(key.chars().count() + 3);
     let mut spans = vec![Span::raw(" ")];
@@ -463,7 +473,7 @@ fn attention_lines(model: &Model, items: &[Item], width: usize) -> Vec<Line<'sta
             [
                 Line::styled(fit(&what, width, theme.is_ascii()), theme.style(item.role)),
                 Line::styled(
-                    format!("  {}", tab_label(model.map, item.tab)),
+                    format!("  {}", tab_label(model, item.tab)),
                     theme.style(Role::Muted),
                 ),
             ]

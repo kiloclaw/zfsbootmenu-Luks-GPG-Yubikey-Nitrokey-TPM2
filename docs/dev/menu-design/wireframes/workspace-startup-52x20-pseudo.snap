@@ -1,7 +1,7 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- [1 BBóótt] 2 SSñáppshóóts  3 PPóólls  4 LLóg   ! 6
+ [BBóótt] SSñáppshóóts  PPóólls  LLóg           ! 6
 ┌ SSTÁRRTÍÑÑG ZFFSBÓÓÓTMMÉÑÚÚ ──────────── 3 óóf 5 ┐
 │ √  Load the ZFS module                           │
 │ √  Set the host ID                               │

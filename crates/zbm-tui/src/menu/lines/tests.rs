@@ -161,9 +161,10 @@ fn the_workspace_s_page_offers_tab_words_only_where_they_choose_a_tab() {
     model.map = Map::Workspace;
     let offers_tabs = |model: &Model| page(model).contains(&text!("lines-words-workspace"));
 
-    // Start-up is the Boot tab: its keys choose a tab too.
+    // Start-up, the Boot tab, binds no digit: a digit there waits for a
+    // passphrase's dialog.
     assert_eq!(model.context(), Context::Startup);
-    assert!(offers_tabs(&model), "{:#?}", page(&model));
+    assert!(!offers_tabs(&model), "{:#?}", page(&model));
     model.screen = crate::menu::model::Screen::Main;
     assert!(offers_tabs(&model), "{:#?}", page(&model));
     model.dialog = Some(crate::menu::model::Dialog::Error {

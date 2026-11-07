@@ -83,7 +83,7 @@ fn served(view: View, calls: usize) -> SessionScreen<TestBackend, Scripted> {
 #[test]
 fn the_workspace_reads_keys_between_questions_and_a_tab_change_is_presence() {
     let keys = Scripted::default();
-    keys.typed("4");
+    keys.press(Key::BackTab);
     let view = workspace(&keys);
 
     let screen = served(view, 2);
@@ -188,6 +188,160 @@ fn a_passphrase_typed_before_its_dialog_waits_for_it_and_the_countdown() {
     assert_eq!(model.countdown_seconds(), Some(10));
 }
 
+/// The secret of the unlock dialog `view` asks with the keys typed ahead.
+fn unlocked_with(view: &mut View) -> Vec<u8> {
+    let answer = view.ask(&unlock_requested(None), &mut || None).unwrap();
+    let Action::Unlock { secret, .. } = answer else {
+        panic!("no secret: {answer:?}");
+    };
+    secret.unwrap().expose().to_vec()
+}
+
+#[test]
+fn a_passphrase_whose_first_key_is_a_digit_waits_for_its_dialog() {
+    let keys = Scripted::default();
+    keys.typed("4hunter");
+    keys.press(Key::Enter);
+    let mut view = workspace(&keys);
+
+    read_keys(&mut view, 8);
+    // No tab was chosen: nobody is marked away.
+    assert_eq!(
+        (view.model().screen, view.model().away, view.model().keys),
+        (Screen::Startup, None, 0)
+    );
+
+    assert_eq!(unlocked_with(&mut view), b"4hunter");
+    assert!(view.typed_ahead.is_empty());
+    stages_end(&mut view, StageState::Done);
+    let model = menu(&mut view);
+    assert_eq!(model.screen, Screen::Main);
+    assert_eq!(model.countdown_seconds(), Some(10));
+}
+
+#[test]
+fn a_passphrase_whose_first_key_is_a_question_mark_opens_help_and_is_lost() {
+    let keys = Scripted::default();
+    keys.typed("?4ab");
+    let mut view = workspace(&keys);
+
+    read_keys(&mut view, 1);
+    assert_eq!(view.model().screen, Screen::Help(Context::Startup));
+    // Help reads the next keys: its digit chooses a tab, which holds no
+    // keys typed ahead either.
+    read_keys(&mut view, 3);
+    let model = view.model();
+    assert_eq!((model.screen, model.away), (Screen::Log, Some(Tab::Log)));
+    assert!(view.typed_ahead.is_empty());
+}
+
+#[test]
+fn j_and_k_typed_before_a_prompt_wait_for_it() {
+    for first in ["jade", "kiwi"] {
+        let keys = Scripted::default();
+        keys.typed(first);
+        keys.press(Key::Enter);
+        let mut view = workspace(&keys);
+
+        read_keys(&mut view, 5);
+        assert_eq!(
+            (view.model().screen, view.model().away, view.model().keys),
+            (Screen::Startup, None, 0)
+        );
+
+        assert_eq!(unlocked_with(&mut view), first.as_bytes());
+        assert!(view.typed_ahead.is_empty());
+    }
+}
+
+#[test]
+fn only_tab_and_shift_tab_change_tabs_during_start_up() {
+    // Tab passes over the Snapshots tab, shut until start-up is over.
+    let chosen = [(Key::Tab, Screen::Pools), (Key::BackTab, Screen::Log)];
+    for (code, screen) in chosen {
+        let keys = Scripted::default();
+        keys.press(code);
+        let mut view = workspace(&keys);
+
+        read_keys(&mut view, 1);
+        assert_eq!(view.model().screen, screen, "{code:?}");
+        assert!(view.typed_ahead.is_empty(), "{code:?}");
+    }
+    for digit in ['1', '2', '3', '4'] {
+        let keys = Scripted::default();
+        keys.typed(&digit.to_string());
+        let mut view = workspace(&keys);
+
+        read_keys(&mut view, 1);
+        let model = view.model();
+        assert_eq!(
+            (model.screen, model.away, model.notification.as_ref()),
+            (Screen::Startup, None, None),
+            "{digit}"
+        );
+        assert_eq!(view.typed_ahead.len(), 1, "{digit}");
+    }
+}
+
+#[test]
+fn a_digit_on_another_tab_during_start_up_still_chooses_a_tab() {
+    let keys = Scripted::default();
+    keys.press(Key::BackTab);
+    keys.typed("31");
+    let mut view = workspace(&keys);
+    let mailbox = Mailbox::<ToView>::new().unwrap();
+    let mut last_tick = view.frontend.now();
+    let mut read = |view: &mut View| {
+        view.read_key(mailbox.as_fd(), &mut last_tick).unwrap();
+        view.model().screen
+    };
+
+    assert_eq!(read(&mut view), Screen::Log);
+    assert_eq!(read(&mut view), Screen::Pools);
+    assert_eq!(read(&mut view), Screen::Startup);
+    assert!(view.typed_ahead.is_empty());
+    // The tab left for first is kept.
+    assert_eq!(view.model().away, Some(Tab::Log));
+}
+
+#[test]
+fn start_ups_view_shows_no_digit_and_the_other_tabs_show_theirs() {
+    let keys = Scripted::default();
+    keys.press(Key::BackTab);
+    let mut view = workspace(&keys);
+
+    // The tab bar names no key on start-up's view, where a digit is the
+    // first key of a passphrase.
+    let text = shown(&view);
+    let bar = text.lines().find(|line| line.contains("[Boot]")).unwrap();
+    assert!(bar.contains("[Boot] Snapshots  Pools  Log"), "{text}");
+    for digit in ['1', '2', '3', '4'] {
+        assert!(!bar.contains(digit), "{text}");
+    }
+    // On another tab during start-up the digits choose a tab, and show.
+    read_keys(&mut view, 1);
+    view.draw().unwrap();
+    let text = shown(&view);
+    assert!(
+        text.contains("1 Boot  2 Snapshots  3 Pools [4 Log]"),
+        "{text}"
+    );
+}
+
+#[test]
+fn start_up_help_lists_no_digits() {
+    let said = |intent| crate::menu::keymap::describe(Context::Startup, intent);
+    let help = crate::menu::keymap::help(Map::Workspace, Context::Startup, &|_| true, &said);
+    let keys: Vec<&str> = help.iter().flat_map(|(keys, _)| keys.split(", ")).collect();
+
+    for typed in ["1", "2", "3", "4", "j", "k"] {
+        assert!(!keys.contains(&typed), "{typed}: {keys:?}");
+    }
+    for key in [text!("key-tab"), text!("key-shift-tab"), "?".to_owned()] {
+        assert!(keys.contains(&key.as_str()), "{key}: {keys:?}");
+    }
+}
+
 #[test]
 fn keys_typed_ahead_of_no_dialog_go_nowhere() {
     let keys = Scripted::default();
@@ -208,7 +362,8 @@ fn keys_typed_ahead_of_no_dialog_go_nowhere() {
 #[test]
 fn a_key_another_tab_does_not_bind_is_not_typed_ahead() {
     let keys = Scripted::default();
-    keys.typed("4q1");
+    keys.press(Key::BackTab);
+    keys.typed("q1");
     let mut view = workspace(&keys);
 
     read_keys(&mut view, 3);
@@ -223,8 +378,8 @@ fn a_key_another_tab_does_not_bind_is_not_typed_ahead() {
 #[test]
 fn the_snapshots_tab_waits_for_start_up_and_tab_passes_it_over() {
     let keys = Scripted::default();
-    keys.typed("2");
     keys.press(Key::Tab);
+    keys.typed("2");
     keys.press(Key::BackTab);
     keys.press(Key::BackTab);
     keys.press(Key::Tab);
@@ -236,21 +391,22 @@ fn the_snapshots_tab_waits_for_start_up_and_tab_passes_it_over() {
         view.model().screen
     };
 
-    // Start-up has no boot environment to show the snapshots of yet.
-    assert_eq!(read(&mut view), Screen::Startup);
-    let model = view.model();
-    assert_eq!(model.away, None);
+    // Tab passes over the Snapshots tab, and its digit, pressed on another
+    // tab, says why: start-up has no boot environment to show the
+    // snapshots of yet.
+    assert_eq!(read(&mut view), Screen::Pools);
+    assert_eq!(view.model().notification, None);
+    assert_eq!(read(&mut view), Screen::Pools);
     let later = Outcome::Warning(text!("snapshots-after-startup"));
-    assert_eq!(model.notification, Some(later));
+    assert_eq!(view.model().notification, Some(later));
     view.draw().unwrap();
     let text = shown(&view);
     assert!(
         text.contains("snapshots show once start-up is over"),
         "{text}"
     );
-    assert_eq!(read(&mut view), Screen::Pools);
-    assert_eq!(view.model().notification, None);
     assert_eq!(read(&mut view), Screen::Startup);
+    assert_eq!(view.model().notification, None);
     assert_eq!(read(&mut view), Screen::Log);
     assert_eq!(read(&mut view), Screen::Startup);
     assert_eq!(view.model().away, Some(Tab::Pools));
@@ -259,7 +415,7 @@ fn the_snapshots_tab_waits_for_start_up_and_tab_passes_it_over() {
 #[test]
 fn a_tab_left_during_start_up_holds_the_countdown_and_stays_open() {
     let keys = Scripted::default();
-    keys.typed("4");
+    keys.press(Key::BackTab);
     let mut view = workspace(&keys);
     let mailbox = Mailbox::<ToView>::new().unwrap();
     let mut last_tick = view.frontend.now();
@@ -290,11 +446,10 @@ fn a_tab_left_during_start_up_holds_the_countdown_and_stays_open() {
 #[test]
 fn back_and_the_boot_tab_return_to_start_up_while_it_runs() {
     let keys = Scripted::default();
-    keys.typed("3");
-    keys.press(Key::Escape);
-    keys.typed("4");
     keys.press(Key::Tab);
-    keys.typed("?");
+    keys.press(Key::Escape);
+    keys.press(Key::BackTab);
+    keys.typed("1?");
     let mut view = workspace(&keys);
     let mailbox = Mailbox::<ToView>::new().unwrap();
     let mut last_tick = view.frontend.now();
@@ -328,7 +483,7 @@ fn a_failed_stage_needs_attention_on_the_boot_tab() {
     view.send(failed).unwrap();
 
     let text = shown(&view);
-    assert!(text.contains("[1 Boot]"), "{text}");
+    assert!(text.contains("[Boot]"), "{text}");
     assert!(text.contains("! 1"), "{text}");
     assert!(text.contains("Unlocking LUKS volumes failed"), "{text}");
     assert!(text.contains("Unlocking LUKS volumes: no key"), "{text}");

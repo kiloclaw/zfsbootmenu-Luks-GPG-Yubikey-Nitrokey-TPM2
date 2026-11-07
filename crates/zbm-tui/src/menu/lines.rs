@@ -158,7 +158,8 @@ fn is_text(model: &Model) -> bool {
 }
 
 /// Whether the names of the tabs choose them where `model` is: in the
-/// workspace, in a view with the tab bar.
+/// workspace, in a view whose digits choose a tab, which start-up, the Boot
+/// tab, is not.
 fn has_tab_words(model: &Model) -> bool {
     model
         .map

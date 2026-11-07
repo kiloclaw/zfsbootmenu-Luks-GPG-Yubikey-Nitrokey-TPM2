@@ -122,8 +122,8 @@ pub(super) fn render_environments(model: &Model, frame: &mut Frame<'_>, area: Re
     let title = text!("environments-none");
     let hint = text!(
         "environments-none-workspace",
-        pools = super::tab_key(model.map, Tab::Pools),
-        recovery = super::intent_key(model.map, Intent::Recovery)
+        pools = super::tab_key(model, Tab::Pools),
+        recovery = super::intent_key(model, Intent::Recovery)
     );
     let empty = (title.as_str(), hint.as_str());
     let header = if facts == Facts::Nothing {

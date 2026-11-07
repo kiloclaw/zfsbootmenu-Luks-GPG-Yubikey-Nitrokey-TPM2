@@ -404,6 +404,8 @@ fn a_devices_messages_close_when_the_tab_is_left_or_the_machine_changes() {
     use zbm_display::keys::{Key, KeyPress};
     let mut model = pools();
     model.map = Map::Workspace;
+    // Start-up is over: the Boot tab's digit is bound.
+    model.started = true;
     let log = crate::menu::world::DeviceLog {
         device: zbm_types::Untrusted::new("/dev/sdb2".to_owned()),
         ..crate::menu::world::DeviceLog::default()

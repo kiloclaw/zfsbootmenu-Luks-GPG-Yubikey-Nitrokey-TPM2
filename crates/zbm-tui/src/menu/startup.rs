@@ -205,10 +205,11 @@ where
     }
 
     /// Whether the view reads keys between questions: under the workspace,
-    /// while the stages run and no dialog is open, where the keys of the
-    /// tabs, moving and help work. With the classic map, and once the
-    /// stages are over, keys wait for the menu, which a key stops the
-    /// countdown of.
+    /// while the stages run and no dialog is open, on any tab. Start-up's
+    /// view of the Boot tab binds `Tab`, `Shift-Tab`, the moves up and down
+    /// and help; the other tabs and help bind their own keys, the digits
+    /// among them. With the classic map, and once the stages are over, keys
+    /// wait for the menu, which a key stops the countdown of.
     fn is_reading_keys(&self) -> bool {
         let model = self.model();
         model.map == Map::Workspace && model.dialog.is_none() && !model.started
@@ -216,10 +217,10 @@ where
 
     /// Whether `key` is typed ahead of a dialog, as a passphrase typed
     /// before its prompt: a key the Boot tab's start-up view does not
-    /// bind, and every key after it, until a dialog reads them. As under
-    /// the classic map, they wait for the dialog; with no dialog, nothing
-    /// reads them, and the menu, once start-up is over, never sees them:
-    /// they do not stop its countdown.
+    /// bind, as any character but `?`, and every key after it, until a
+    /// dialog reads them. As under the classic map, they wait for the
+    /// dialog; with no dialog, nothing reads them, and the menu, once
+    /// start-up is over, never sees them: they do not stop its countdown.
     fn is_typing_ahead(&self, key: KeyPress) -> bool {
         let model = self.model();
         !self.typed_ahead.is_empty()

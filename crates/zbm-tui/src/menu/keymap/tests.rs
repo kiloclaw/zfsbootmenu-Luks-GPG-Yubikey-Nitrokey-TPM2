@@ -269,33 +269,8 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
         (Snapshots, plain('z'), intent(Intent::Fold)),
         (Main, plain('z'), None),
         (Context::Diff, plain('z'), None),
-        // Text fields still type the letters. Start-up, the Boot tab,
-        // chooses tabs, moves and opens help, and binds nothing else: no key
-        // there says that what it asks for is not offered.
+        // Text fields still type the letters.
         (Context::Text, plain('j'), Some(Input::Type('j'))),
-        (
-            Context::Startup,
-            plain('2'),
-            intent(Intent::Tab(Tab::Snapshots)),
-        ),
-        (
-            Context::Startup,
-            press(Key::Tab, NONE),
-            intent(Intent::NextTab),
-        ),
-        (Context::Startup, plain('j'), intent(Intent::Down)),
-        (Context::Startup, press(Key::Up, NONE), intent(Intent::Up)),
-        (Context::Startup, plain('?'), intent(Intent::Help)),
-        (Context::Startup, plain('!'), None),
-        (Context::Startup, plain('x'), None),
-        (Context::Startup, plain(':'), None),
-        (Context::Startup, press(Key::Enter, NONE), None),
-        (Context::Startup, press(Key::Escape, NONE), None),
-        (
-            Context::Startup,
-            press(Key::Char('l'), Modifiers::ALT),
-            None,
-        ),
     ];
 
     for (context, event, expected) in cases {
@@ -316,6 +291,72 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
         input(Map::Classic, Main, plain('j')),
         intent(Intent::Chroot)
     );
+}
+
+/// Start-up, the Boot tab, binds `Tab` and `Shift-Tab`, the arrows and help,
+/// and no character but `?`: a digit or `j` `k` there is the first key of a
+/// passphrase, and no key says that what it asks for is not offered. The
+/// digits still choose a tab in the other views of start-up.
+#[test]
+fn start_up_binds_tab_shift_tab_the_arrows_and_help_and_no_character_but_a_question_mark() {
+    let workspace = |context, event| input(Map::Workspace, context, event);
+    let intent = |intent| Some(Input::Intent(intent));
+    let cases = [
+        (
+            Context::Startup,
+            press(Key::Tab, NONE),
+            intent(Intent::NextTab),
+        ),
+        (
+            Context::Startup,
+            press(Key::BackTab, NONE),
+            intent(Intent::PreviousTab),
+        ),
+        (Context::Startup, press(Key::Up, NONE), intent(Intent::Up)),
+        (
+            Context::Startup,
+            press(Key::Down, NONE),
+            intent(Intent::Down),
+        ),
+        (
+            Context::Startup,
+            press(Key::Char('n'), CTRL),
+            intent(Intent::Down),
+        ),
+        (Context::Startup, plain('?'), intent(Intent::Help)),
+        (
+            Context::Startup,
+            press(Key::F(1), NONE),
+            intent(Intent::Help),
+        ),
+        (Context::Startup, plain('1'), None),
+        (Context::Startup, plain('2'), None),
+        (Context::Startup, plain('4'), None),
+        (Context::Startup, plain('j'), None),
+        (Context::Startup, plain('k'), None),
+        (Context::Startup, plain('h'), None),
+        (Context::Startup, plain('!'), None),
+        (Context::Startup, plain('x'), None),
+        (Context::Startup, plain(':'), None),
+        (Context::Startup, press(Key::Enter, NONE), None),
+        (Context::Startup, press(Key::Escape, NONE), None),
+        (
+            Context::Startup,
+            press(Key::Char('l'), Modifiers::ALT),
+            None,
+        ),
+        // Another tab or help during start-up still takes the digits.
+        (Context::Log, plain('1'), intent(Intent::Tab(Tab::Boot))),
+        (Pools, plain('4'), intent(Intent::Tab(Tab::Log))),
+        (
+            Context::Help,
+            plain('2'),
+            intent(Intent::Tab(Tab::Snapshots)),
+        ),
+    ];
+    for (context, event, expected) in cases {
+        assert_eq!(workspace(context, event), expected, "{context:?} {event:?}");
+    }
 }
 
 /// One meaning per key: in every view with the classic map, in each view

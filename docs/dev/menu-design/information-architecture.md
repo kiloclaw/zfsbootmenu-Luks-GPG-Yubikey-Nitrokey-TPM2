@@ -176,12 +176,15 @@ Planned for UI14 and UI10; the mockups show them.
 
 Under the workspace map start-up is the Boot tab until it is over (ADR 0016, point 9): the tab bar, the stages where
 the columns go, beside the sidebar from 110 columns or under what needs attention narrower, and a stage that failed
-among what needs attention. Between its questions the start-up view reads keys: the digits and `Tab` choose a tab,
-`j` `k` and the arrows move, `?` opens help, and no other key is bound, so none says that what it asks for is not
-offered. The other tabs show what start-up knows; the Log tab shows the stages so far, and says that the log since
-start shows once start-up is over. The Snapshots tab has no boot environment yet: `2` says that its snapshots show
-once start-up is over, and `Tab` and `Shift-Tab` pass over it. Nothing is read from the machine before then: the menu
-reads it.
+among what needs attention. Between its questions the start-up view reads keys: `Tab` and `Shift-Tab` choose a tab,
+the arrows, `Ctrl-P` and `Ctrl-N` move, `?` and `F1` open help, and no other key is bound, so none says that what it
+asks for is not offered. No character but `?` is bound there, not the digits nor `j` `k`: a passphrase may begin with
+any of them. So the tab bar and what needs attention name no digit there (`[Boot] Snapshots  Pools  Log`,
+`workspace-startup-80x24`). The other tabs show what start-up knows, and their digits choose a tab and show in the
+tab bar; the Log tab shows the stages so far, and says that the
+log since start shows once start-up is over. The Snapshots tab has no boot environment yet: `Tab` and `Shift-Tab`
+pass over it, and `2` on another tab says that its snapshots show once start-up is over. Nothing is read from the
+machine before then: the menu reads it.
 
 On the Boot tab, a key it does not bind starts typing ahead, as a passphrase typed before its prompt: that key and
 every key after it wait for the next dialog, which reads them first, as the classic map's dialogs read what was typed
@@ -191,8 +194,9 @@ The countdown after start-up runs as before, unless the person left the Boot tab
 then someone is there, looking at something, and the menu opens on their tab without a countdown, the Boot tab's
 main view behind it. Keys typed into a dialog or ahead of one, such as a passphrase or a PIN, and noise on a serial
 line never count, so the unattended boot is never held otherwise. A passphrase typed ahead is kept only from its first
-key the Boot tab does not bind: one that begins with a digit, `j`, `k` or `?` works those keys first. A secret typed
-during start-up is never shown, whatever the tab.
+key the Boot tab does not bind: one that begins with a digit, `j` or `k` waits whole for its dialog, but one that
+begins with `?` opens help, and the keys after it are the help's and then those of the tab a digit chooses, which hold
+no keys typed ahead: that passphrase is lost and typed again into its dialog. A secret typed during start-up is never shown, whatever the tab.
 
 Not built yet: the frame between the end of start-up and the menu's first frame, which the setup hooks and the
 machine's first read leave blank; start-up over SSH, which the session's socket yields, so the SSH menu never shows

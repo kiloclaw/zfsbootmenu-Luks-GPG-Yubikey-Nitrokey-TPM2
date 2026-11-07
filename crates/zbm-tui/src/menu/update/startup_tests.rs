@@ -31,8 +31,14 @@ fn workspace() -> DemoOptions {
 fn tabs_left_during_start_up_ask_the_machine_nothing_and_hold_the_countdown() {
     let mut session = powered_on(&workspace());
 
+    // On the Boot tab a digit is the first key of a passphrase: Tab and
+    // Shift-Tab choose a tab there.
     session.key(Key::Char('2'));
+    assert_eq!(session.model().screen, Screen::Startup);
+    assert_eq!(session.model().away, None);
+    session.key(Key::Tab);
     assert_eq!(session.model().screen, Screen::Snapshots);
+    // Another tab still takes the digits.
     session.key(Key::Char('4'));
     assert_eq!(session.model().screen, Screen::Log);
     let model = session.model();
@@ -63,7 +69,13 @@ fn tabs_left_during_start_up_ask_the_machine_nothing_and_hold_the_countdown() {
 fn help_and_moving_during_start_up_leave_the_countdown_armed() {
     let mut session = powered_on(&workspace());
 
+    session.key(Key::Down);
+    // `j` and `k` do not move there: they are the first key of a
+    // passphrase.
     session.key(Key::Char('j'));
+    session.key(Key::Char('k'));
+    assert_eq!(session.model().screen, Screen::Startup);
+    assert_eq!(session.model().away, None);
     session.key(Key::Char('?'));
     assert_eq!(session.model().screen, Screen::Help(Context::Startup));
     session.key(Key::Escape);
@@ -85,7 +97,8 @@ fn a_secret_asked_while_another_tab_is_open_stays_hidden() {
         tpm_changed: true,
         ..workspace()
     });
-    session.key(Key::Char('3'));
+    session.key(Key::BackTab);
+    session.key(Key::BackTab);
 
     session.start();
     let reveal = |session: &mut Session| {

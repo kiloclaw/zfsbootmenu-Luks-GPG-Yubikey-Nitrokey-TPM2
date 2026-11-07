@@ -309,9 +309,18 @@ value; and the classic wireframes keep their names.
     the volumes under their pool or no pool; `Enter` on a device shows its kernel messages, and the pool dialog's
     choice of a device is gone.
   - **start-up as the Boot tab:** the tab bar above the stages, which stand where the columns go, a failed stage among
-    what needs attention, and the tabs, moving and help bound between questions. It holds only where the start-up
-    view runs: not in the line view, not over SSH, not after `--resume`, not when the view fails to open, and not in
-    the gap of the setup hooks between the view's end and the menu's first frame.
+    what needs attention, and `Tab`, `Shift-Tab`, the arrows and help bound between questions, with no character but
+    `?`. It holds only where the start-up view runs: not in the line view, not over SSH, not after `--resume`, not when
+    the view fails to open, and not in the gap of the setup hooks between the view's end and the menu's first frame.
+    The keys are the 7 November decision (UI10d-1), a narrowing of the accepted "only `Tab` and `Shift-Tab`": UI10c-6
+    bound the digits and `j` `k` there too, so a passphrase typed before its prompt lost its first key when it was one
+    of them, and a digit left the Boot tab and held the countdown. Now the digits and `j` `k` are unbound on start-up's
+    view of the Boot tab (`Context::Startup`) and wait with the rest of the passphrase for its dialog; `Tab`,
+    `Shift-Tab`, the arrows and `?` stay, and the digits still choose a tab on the other tabs during start-up, which
+    hold no keys typed ahead. The tab bar and what needs attention name the keys of the view they are on, so start-up's
+view of the Boot tab shows no digit (`[Boot] Snapshots  Pools  Log`; the six `workspace-startup-*` and
+`workspace-import-problem-*` wireframes changed). A passphrase that begins with `?` still opens help, whose keys then
+read the rest of it, as a digit chooses a tab: it is lost, and typed again into its dialog.
   - **the keys:** the map spans `keymap/` (`workspace.rs`, `classic.rs`, `labels.rs`, `offers.rs`), and keys are also
     named by strings: the line view's words and hints, and the hint of an empty Boot tab, whose key comes from the
     map. A change of decision 8 is a change of `keymap/` and those strings. `!` still opens the recovery tools, the

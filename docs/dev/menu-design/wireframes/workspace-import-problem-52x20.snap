@@ -1,7 +1,7 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 7
+ [Boot] Snapshots  Pools  Log                   ! 7
 ┌ STARTING ZFSBOOTMENU ──────────────────── 4 of 5 ┐
 │ √  Load the ZFS module                           │
 │ √  Set the host ID                               │
