@@ -15,10 +15,13 @@ use crate::model::{
 use crate::rows::Readable as _;
 
 mod snapshots;
+mod time;
 mod vdevs;
 
 pub use snapshots::{holds, reclaim, snapshot_details};
 pub use vdevs::{checkpoint, importable, pool_config, status};
+
+pub(crate) use time::ctime;
 
 /// What was wrong with a line of output.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

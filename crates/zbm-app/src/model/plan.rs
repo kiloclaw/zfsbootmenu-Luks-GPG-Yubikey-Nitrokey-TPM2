@@ -1,13 +1,13 @@
-//! What an action would do, step by step, with the command each step runs:
-//! the menu's dry run (ROADMAP.md, PM8, UI14). [`Action::Plan`] asks for
-//! it; [`Event::Planned`] brings it.
+//! What an action would do, step by step, with the command each step runs,
+//! and its [`Review`]: the menu's review pages and dry run (ROADMAP.md,
+//! PM8, UI14). [`Action::Plan`] asks for it; [`Event::Planned`] brings it.
 //!
 //! [`Action::Plan`]: super::Action::Plan
 //! [`Event::Planned`]: super::Event::Planned
 
 use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
-use super::{ImportOptions, Outcome};
+use super::{ImportOptions, Outcome, Review};
 
 /// What a step does.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -114,6 +114,9 @@ pub struct Plan {
     pub steps: Vec<Step>,
     /// How it would end, as far as can be told without doing it: a step
     /// it would refuse, such as a rollback to a snapshot with no kernel,
-    /// fails the plan.
+    /// fails the plan, and so does a [`Review::stops`].
     pub outcome: Outcome,
+    /// What it loses, keeps and allows.
+    #[serde(default)]
+    pub review: Review,
 }

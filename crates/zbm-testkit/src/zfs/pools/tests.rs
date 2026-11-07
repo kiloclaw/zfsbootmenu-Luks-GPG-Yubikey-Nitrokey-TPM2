@@ -160,3 +160,32 @@ fn reads_fail_as_planned() {
     assert_eq!(failed(zfs.importable().map(drop)), "no scan");
     assert_eq!(failed(zfs.pool_host(7).map(drop)), "no label");
 }
+
+#[test]
+fn a_pool_imported_elsewhere_now_is_active_and_foreign() {
+    let zfs = FakeZfs::new()
+        .exported("tank", 1)
+        .exported("data", 2)
+        .active("tank");
+
+    let listed = zfs.importable().unwrap();
+
+    assert!(listed[0].active && listed[0].foreign);
+    assert!(!listed[1].active && !listed[1].foreign);
+}
+
+#[test]
+fn a_checkpoint_has_the_time_a_test_gave() {
+    let zfs = FakeZfs::new()
+        .pool("tank")
+        .pool_setting("tank", "checkpoint", "524288")
+        .checkpoint_created("tank", "Fri Nov  6 12:00:00 2026");
+
+    let checkpoint = zfs.checkpoint(&pool("tank")).unwrap().unwrap();
+
+    assert_eq!(
+        checkpoint.created.map(Untrusted::into_inner).as_deref(),
+        Some("Fri Nov  6 12:00:00 2026")
+    );
+    assert_eq!(checkpoint.space, Some(524_288));
+}

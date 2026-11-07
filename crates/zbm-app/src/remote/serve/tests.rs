@@ -590,3 +590,4 @@ fn a_remote_menu_loads_the_snapshots_of_a_boot_environment_alone() {
 }
 
 mod history;
+mod plans;

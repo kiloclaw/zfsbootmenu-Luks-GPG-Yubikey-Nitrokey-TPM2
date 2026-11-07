@@ -182,10 +182,14 @@ fn is_gone(error: &io::Error) -> bool {
 /// machine has, named as the menu names them; reads the messages of the
 /// disks of the pools it shows alone, and the snapshots of the machine's
 /// boot environments alone; the boot history, which takes nothing from the
-/// menu, is read as on the console. A change such as an export is the
-/// service's to refuse, as the lock keeps it.
+/// menu, is read as on the console. A plan reads what its review needs,
+/// which the lock leaves free: only that of a change to a boot environment
+/// or to a pool the menu shows ([`planned_refusal`]), never that of a
+/// volume's opening or closing. A change such as an
+/// export is the service's to refuse, as the lock keeps it.
 fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
     match action {
+        Action::Plan(planned) => planned_refusal(served, planned),
         Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_) => {
             Some("an answer goes with the question it answers".to_owned())
         }
@@ -213,6 +217,27 @@ fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
             .then(|| "the machine has no such boot environment".to_owned()),
         _ => None,
     }
+}
+
+/// Why the session does not plan `planned` for a remote menu, if it does
+/// not: it must be a change, of a boot environment of the machine or of a
+/// pool the menu shows, the one of the identifier it names, if it names
+/// one. Nothing else has a plan, and is refused before it is read.
+fn planned_refusal(served: &Served<'_, '_>, planned: &Action) -> Option<String> {
+    if let Some(environment) = planned.changed_environment() {
+        return (!served.service.is_environment(environment))
+            .then(|| "the machine has no such boot environment".to_owned());
+    }
+    let (pool, id) = match planned {
+        Action::Import(pool, options) => (pool, options.id),
+        Action::Export(pool) => (pool, None),
+        _ => return Some("only a change has a plan".to_owned()),
+    };
+    let pools = served.service.pools();
+    let known = pools
+        .iter()
+        .any(|shown| shown.name == *pool && id.is_none_or(|id| shown.id == Some(id)));
+    (!known).then(|| "the machine shows no such pool".to_owned())
 }
 
 /// What the action performed asks the menu now: the number of its

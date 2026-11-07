@@ -34,12 +34,12 @@ pub(super) fn may_move_pools(action: &Action) -> bool {
 impl App<'_> {
     /// Applies `action` without taking the console: the volumes', the
     /// changes of package D ([`Action::is_change`]) whose pool is writable
-    /// and whose key is loaded, and what only reads the machine, as the
-    /// dry runs of [`Action::Plan`] ([`App::plan`]), the scan of the pools,
+    /// and whose key is loaded, and what only reads the machine
+    /// ([`Action::is_read`]), which the lock leaves free: the dry runs and
+    /// reviews of [`Action::Plan`] ([`App::plan`]), the scan of the pools,
     /// a device's kernel messages, the snapshots of an environment and the
-    /// boot history, which the lock leaves free. The history's partition is
-    /// unmounted by `console`'s runner, which the action's token does not
-    /// cancel.
+    /// boot history. The history's partition is unmounted by `console`'s
+    /// runner, which the action's token does not cancel.
     pub(super) fn quietly(&self, action: &Action, console: System<'_>) -> Vec<Event> {
         match action {
             Action::Plan(planned) => return self.planned(planned, console),

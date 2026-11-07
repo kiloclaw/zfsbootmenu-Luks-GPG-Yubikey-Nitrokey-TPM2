@@ -78,9 +78,9 @@ impl Offer {
 
 impl Action {
     /// The kind of the action, which the machine must offer for the menu
-    /// to send it; `None` for a reply to a request, the dry run, what only
-    /// reads the machine ([`Action::is_read`]), and the actions of `zluks`
-    /// alone, which the menu never sends.
+    /// to send it; `None` for a reply to a request, what only reads the
+    /// machine ([`Action::is_read`]), the dry run of a change among it, and
+    /// the actions of `zluks` alone, which the menu never sends.
     pub fn offer(&self) -> Option<Offer> {
         Some(match self {
             Action::Boot { .. } => Offer::Boot,

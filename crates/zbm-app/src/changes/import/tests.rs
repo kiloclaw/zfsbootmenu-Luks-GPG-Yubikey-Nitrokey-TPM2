@@ -76,12 +76,14 @@ fn with_checkpoint(fake: &FakeSystem) {
         .respond("zpool get -H -o value checkpoint tank", 0, "1.50M\n");
 }
 
-/// The `zpool export` and `zpool import` lines `fake` ran.
+/// The `zpool export` and `zpool import` lines `fake` ran, without the
+/// scan of the pools that could be imported, `zpool import` alone.
 fn moves(fake: &FakeSystem) -> Vec<String> {
     fake.runner
         .lines()
         .into_iter()
         .filter(|line| line.starts_with("zpool export") || line.starts_with("zpool import"))
+        .filter(|line| line != "zpool import")
         .collect()
 }
 
@@ -544,4 +546,5 @@ fn a_host_id_that_cannot_be_recorded_still_imports() {
     assert_eq!(state.spl_hostid(), None);
 }
 
+mod active;
 mod ids;

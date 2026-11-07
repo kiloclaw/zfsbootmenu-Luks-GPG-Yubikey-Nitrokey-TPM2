@@ -324,3 +324,17 @@ fn holds_and_bookmarks_go_with_their_pool_and_holds_move_with_a_promotion() {
 fn a_bookmark_of_a_missing_snapshot_is_a_mistake() {
     let _ = machine().bookmark("zroot/ROOT/void@none", "zroot/ROOT/void#none");
 }
+
+#[test]
+fn a_listing_planned_to_fail_fails() {
+    let zfs = FakeZfs::new()
+        .pool("zroot")
+        .filesystem("zroot/ROOT/void", &[])
+        .failing("snapshot_details", "out of memory");
+
+    let error = zfs
+        .snapshot_details(&dataset("zroot/ROOT/void"))
+        .unwrap_err();
+
+    assert!(error.to_string().contains("out of memory"), "{error}");
+}

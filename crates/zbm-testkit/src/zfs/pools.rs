@@ -45,6 +45,9 @@ pub(super) struct Described {
     /// The host of each pool not imported that a test named, by its
     /// numeric identifier.
     hosts: BTreeMap<u64, PoolHost>,
+    /// When the checkpoint of each imported pool that a test named was
+    /// taken, as `zpool status` prints it.
+    checkpoints: BTreeMap<PoolName, String>,
 }
 
 /// `vdev` and the vdevs below it without error counts, as `zpool import`
@@ -233,6 +236,40 @@ impl FakeZfs {
         zfs
     }
 
+    /// Makes the pools named `pool` that could be imported imported by
+    /// another system now, which `zpool import -f` refuses to take.
+    #[must_use]
+    pub fn active(self, pool: &str) -> FakeZfs {
+        {
+            let mut state = self.state.borrow_mut();
+            let pool: PoolName = name(pool);
+            for listed in &mut state.described.importable {
+                if listed.name == pool {
+                    listed.foreign = true;
+                    listed.active = true;
+                    listed.status = Some(Untrusted::new(
+                        "The pool is currently imported by another system.".to_owned(),
+                    ));
+                }
+            }
+        }
+        self
+    }
+
+    /// Says that the checkpoint of `pool`, which
+    /// [`FakeZfs::pool_setting`] gives with its space, was taken at
+    /// `created`, as `zpool status` prints it (`Fri Nov  6 12:00:00
+    /// 2026`).
+    #[must_use]
+    pub fn checkpoint_created(self, pool: &str, created: &str) -> FakeZfs {
+        self.state
+            .borrow_mut()
+            .described
+            .checkpoints
+            .insert(name(pool), created.to_owned());
+        self
+    }
+
     pub(super) fn with_pool(self, pool: &str, change: impl FnOnce(&mut FakePool)) -> FakeZfs {
         {
             let mut state = self.state.borrow_mut();
@@ -311,7 +348,8 @@ pub(super) fn planned(state: &State, operation: &str, command: &str) -> Result<(
 }
 
 /// The checkpoint of the imported `pool`: the `checkpoint` a test set
-/// ([`FakeZfs::pool_setting`]), its space in bytes, without a time.
+/// ([`FakeZfs::pool_setting`]), its space in bytes, with the time a test
+/// gave ([`FakeZfs::checkpoint_created`]).
 pub(super) fn checkpoint(state: &State, pool: &PoolName) -> Result<Option<Checkpoint>, ZfsError> {
     let fake = state.pools.get(pool).ok_or_else(|| ZfsError::Failed {
         command: format!("zpool status -p {pool}"),
@@ -323,7 +361,11 @@ pub(super) fn checkpoint(state: &State, pool: &PoolName) -> Result<Option<Checkp
         .get("checkpoint")
         .and_then(|space| space.parse().ok())
         .map(|space| Checkpoint {
-            created: None,
+            created: state
+                .described
+                .checkpoints
+                .get(pool)
+                .map(|created| Untrusted::new(created.clone())),
             space: Some(space),
             discarding: false,
         }))

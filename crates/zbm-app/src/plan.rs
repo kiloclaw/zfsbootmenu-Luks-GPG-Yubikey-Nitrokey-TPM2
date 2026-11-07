@@ -1,7 +1,8 @@
 //! The dry run of a change (ROADMAP.md, PM8): the change itself, run
 //! against a ZFS port that plans what it would make ([`zbm_zfs::DryRun`])
 //! and needs that plan what they would do ([`Planning`]), so that the plan
-//! is what the change does, with the commands the adapters would run.
+//! is what the change does, with the commands the adapters would run; then
+//! its review, read from the machine ([`review`]).
 
 use std::sync::Mutex;
 
@@ -11,6 +12,8 @@ use zbm_zfs::{DryRun, ZfsChange, ZfsCli};
 use crate::App;
 use crate::changes::{Changes, OnMachine, Planning};
 use crate::model::{Action, Event, Outcome, Plan, Step, StepKind};
+
+mod review;
 
 /// The step of `change`, with its command.
 fn step(change: ZfsChange) -> Step {
@@ -50,7 +53,9 @@ impl App<'_> {
     /// front end's whole system, without doing it: nothing is changed,
     /// imported or unlocked. The boot of a snapshot is its clone's steps,
     /// then the boot, when the clone would be made. `None` for an action
-    /// that changes nothing, such as the differences of a snapshot.
+    /// that changes nothing, such as the differences of a snapshot. What
+    /// it loses, keeps and allows comes with it ([`Plan::review`]), and
+    /// what stops it fails it.
     pub fn plan(&self, action: &Action, console: System<'_>) -> Option<Plan> {
         let boots = match action {
             Action::BootSnapshot(_, target) => Some(target),
@@ -91,6 +96,8 @@ impl App<'_> {
             _ => None,
         });
         let outcome = finished.unwrap_or_else(|| Outcome::Done(String::new()));
+        let review = review::review(&real, action);
+        let outcome = review::refused(outcome, &review);
         let mut steps = steps.into_inner().unwrap_or_default();
         if let (Some(target), Outcome::Done(_)) = (boots, &outcome) {
             steps.push(Step {
@@ -98,17 +105,27 @@ impl App<'_> {
                 command: None,
             });
         }
-        Some(Plan { steps, outcome })
+        Some(Plan {
+            steps,
+            outcome,
+            review,
+        })
     }
 
-    /// The events of [`Action::Plan`] of `action`.
+    /// The events of [`Action::Plan`] of `action`: its plan, or, for an
+    /// action that has none, a failure; the action itself is never
+    /// performed, so that a plan of a volume's opening opens nothing.
     pub(crate) fn planned(&self, action: &Action, console: System<'_>) -> Vec<Event> {
         match self.plan(action, console) {
             Some(plan) => vec![Event::Planned {
                 action: Box::new(action.clone()),
                 plan,
             }],
-            None => self.alone(action),
+            None => vec![Event::Finished(Outcome::Failed {
+                what: "nothing to plan".to_owned(),
+                why: vec!["only a change has a plan".to_owned()],
+                next: Vec::new(),
+            })],
         }
     }
 }

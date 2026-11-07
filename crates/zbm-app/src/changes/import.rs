@@ -13,7 +13,8 @@
 //!   host ID does not own is imported with the host ID of the host that
 //!   last imported it, which is recorded for the boot, as start-up does.
 //!   A read/write import or a rewind then follows as for an imported
-//!   pool, with its checks, under the options' policy.
+//!   pool, with its checks, under the options' policy. A forced import of
+//!   a pool another system has imported now is refused.
 //!
 //! A pool that shares its name with another is named to `zpool import` by
 //! its identifier ([`ImportOptions::id`]), and, under
@@ -36,8 +37,9 @@ use zbm_types::{ImportPolicy, PoolName};
 use zbm_zfs::{Stderr, Zfs as _, ZfsChange, ZfsCli, ZfsText};
 
 use super::needs::OnMachine;
+use super::stops::why;
 use super::{Changes, Failure, done};
-use crate::model::{Access, Event, ImportOptions, Step, StepKind};
+use crate::model::{Access, Event, ImportOptions, Step, StepKind, Stop};
 use crate::volumes::causes;
 
 impl Changes<'_, '_> {
@@ -132,6 +134,9 @@ pub(super) fn import(
     let policy = if is_imported(machine.system.runner, pool, options.id)? {
         machine.settings.import_policy
     } else {
+        if options.policy == ImportPolicy::Force {
+            not_active(machine.system.runner, pool, options.id)?;
+        }
         first(machine, pool, options)?;
         if is_read_only(options) {
             return Ok(());
@@ -139,6 +144,25 @@ pub(super) fn import(
         options.policy
     };
     again(machine, pool, options, policy)
+}
+
+/// Refuses to force the import of `pool`, the one whose identifier is `id`
+/// when given, when another system has it imported now, as `zpool import`
+/// lists it. A scan that fails refuses nothing: `zpool import -f` still
+/// refuses such a pool.
+fn not_active(runner: &dyn Runner, pool: &PoolName, id: Option<u64>) -> Result<(), Vec<String>> {
+    let listed = ZfsCli::new(runner).importable().unwrap_or_default();
+    let active = listed
+        .iter()
+        .any(|listed| listed.active && id.map_or(listed.name == *pool, |id| listed.id == id));
+    if !active {
+        return Ok(());
+    }
+    let stop = Stop::Active {
+        pool: pool.clone(),
+        host: None,
+    };
+    Err(vec![why(&stop)])
 }
 
 /// Imports `pool`, which is not imported, read-only under the policy of

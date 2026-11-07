@@ -20,12 +20,16 @@ fn machine(readonly: &str) -> FakeSystem {
     fake
 }
 
-/// The lines that would have changed the machine.
+/// The lines that would have changed the machine: not the scan of the
+/// pools, `zpool import` alone, nor the count of a destroy, `zfs destroy
+/// -n`.
 fn changes(fake: &FakeSystem) -> Vec<String> {
     let writes = [
         "zfs snapshot",
         "zfs set",
         "zfs inherit",
+        "zfs rollback",
+        "zfs destroy",
         "zpool set",
         "zpool import",
         "zpool export",
@@ -34,6 +38,7 @@ fn changes(fake: &FakeSystem) -> Vec<String> {
         .lines()
         .into_iter()
         .filter(|line| writes.iter().any(|write| line.starts_with(write)))
+        .filter(|line| line != "zpool import" && !line.starts_with("zfs destroy -n "))
         .collect()
 }
 
@@ -406,4 +411,51 @@ fn a_snapshot_boot_plans_its_clone_then_the_boot_and_does_neither() {
     let plan = app.plan(&elsewhere, fake.system()).unwrap();
     assert!(matches!(plan.outcome, Outcome::Failed { .. }), "{plan:?}");
     assert!(plan.steps.is_empty(), "{plan:?}");
+}
+
+mod reviews;
+
+#[test]
+fn a_plan_of_a_volume_opens_and_closes_nothing_even_on_a_locked_menu() {
+    let fake = crate::volumes::tests::machine();
+    fake.files.dir("/zfsbootmenu");
+    let runtime = Runtime::default().with_base(Path::new("/zfsbootmenu"));
+    let mut settings = zbm_luks::unlocker::Settings::new("/zfsbootmenu");
+    settings.open_check = zbm_luks::device::OpenCheck::Markers("/fake/holders".into());
+    let luks = zbm_luks::unlocker::Luks {
+        context: fake.context(),
+        settings: &settings,
+        interaction: &crate::read::tests::NoPrompts,
+    };
+    let authority = crate::auth::Authority::new(crate::auth::Lock::On("hash".to_owned()));
+    let app = App::new(Context::new(fake.system()), &runtime)
+        .with_luks(luks)
+        .with_authority(&authority);
+    let key_file = Action::OpenWithKeyFile {
+        device: "/dev/sdb2".parse().unwrap(),
+        name: "b1".parse().unwrap(),
+        key_file: "/etc/key".into(),
+        options: zbm_crypt::OpenOptions::default(),
+    };
+    let open = Action::Open {
+        device: "/dev/sdb2".to_owned(),
+        name: None,
+    };
+    let unplanned = vec![Event::Finished(Outcome::Failed {
+        what: "nothing to plan".to_owned(),
+        why: vec!["only a change has a plan".to_owned()],
+        next: Vec::new(),
+    })];
+
+    for action in [Action::Close(None), Action::UnlockAll, key_file, open] {
+        let plan = Action::Plan(Box::new(action.clone()));
+        let events = app.apply(&plan, Through::Quietly(fake.system()));
+        assert_eq!(events, unplanned, "{action:?}");
+    }
+    // Not even the volumes are listed.
+    let lines = fake.runner.lines();
+    assert!(
+        lines.iter().all(|line| !line.starts_with("blkid")),
+        "{lines:?}"
+    );
 }

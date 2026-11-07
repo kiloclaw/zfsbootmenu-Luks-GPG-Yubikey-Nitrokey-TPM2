@@ -142,8 +142,9 @@ pub enum Action {
     Reboot,
     /// Power off.
     PowerOff,
-    /// What a change would do, step by step, without doing it: the dry
-    /// run, which [`Event::Planned`] brings.
+    /// What a change would do, step by step, and what it would lose, keep
+    /// and allow, without doing it: the review page and the dry run, which
+    /// [`Event::Planned`] brings. It only reads ([`Action::is_read`]).
     Plan(Box<Action>),
     /// Look for the pools that could be imported, on every device, which
     /// can take seconds: [`Event::PoolsScanned`] brings them with the
@@ -166,11 +167,14 @@ pub enum Action {
 impl Action {
     /// Whether the action only reads the machine, which it leaves as it
     /// was: what it reads comes in its own event, and the snapshot is not
-    /// read again after it.
+    /// read again after it. The dry run of a change ([`Action::Plan`]) is
+    /// one: it changes nothing, and a front end does not record it among
+    /// the actions it asked for.
     pub fn is_read(&self) -> bool {
         matches!(
             self,
-            Action::ScanPools
+            Action::Plan(_)
+                | Action::ScanPools
                 | Action::LoadDeviceLog(_)
                 | Action::LoadSnapshots(_)
                 | Action::LoadHistory

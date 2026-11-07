@@ -7,7 +7,8 @@
 //! - a new default: `zpool set bootfs=`;
 //! - a default kernel: `zfs set org.zfsbootmenu:kernel=`, or `zfs inherit`;
 //! - a snapshot: `zfs snapshot`;
-//! - a rollback, to a snapshot that has kernels: `zfs rollback -r`;
+//! - a rollback, to a snapshot that has kernels, when no newer snapshot
+//!   has a clone or a hold ([`stops`]): `zfs rollback -r`;
 //! - a clone, promoted or not: `zfs clone` with the environment's own
 //!   properties, then `zfs promote`; the boot of a snapshot clones it so,
 //!   unpromoted, before the boot;
@@ -32,6 +33,7 @@ mod import;
 mod needs;
 mod pools;
 mod restore;
+pub(crate) mod stops;
 
 pub(crate) use needs::{Needs, OnMachine, Planning};
 
@@ -196,6 +198,12 @@ impl Changes<'_, '_> {
                 format!("{snapshot} has no kernels, will not roll back"),
                 vec!["use a recovery shell to roll back by hand".to_owned()],
             ));
+        }
+        // Before the pool is imported read/write for it.
+        let stops = stops::of_rollback(self.zfs, snapshot);
+        if !stops.is_empty() {
+            let why = stops.iter().map(stops::why).collect();
+            return Err(Failure::new(format!("unable to {what}"), why));
         }
         self.writable(&snapshot.pool(), &what)?;
         self.load_key(snapshot.dataset(), &what)?;

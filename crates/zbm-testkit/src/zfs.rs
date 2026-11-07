@@ -182,8 +182,9 @@ impl FakeZfs {
     }
 
     /// Makes the change `operation`, such as `rollback`, or the read
-    /// `status`, `importable`, `pool_host`, `checkpoint`, `holds` or
-    /// `destroy_space`, fail with `message`.
+    /// `status`, `importable`, `pool_host`, `checkpoint`,
+    /// `snapshot_details`, `holds` or `destroy_space`, fail with
+    /// `message`.
     #[must_use]
     pub fn failing(self, operation: &str, message: &str) -> FakeZfs {
         self.state
@@ -420,7 +421,10 @@ impl Zfs for FakeZfs {
 
     fn snapshot_details(&self, dataset: &DatasetName) -> Result<Vec<SnapshotDetail>, ZfsError> {
         self.record(format!("snapshot_details {dataset}"));
-        snapshots::snapshot_details(&self.state.borrow(), dataset)
+        let state = self.state.borrow();
+        let command = "zfs list -t snapshot,bookmark -o name,createtxg";
+        pools::planned(&state, "snapshot_details", command)?;
+        snapshots::snapshot_details(&state, dataset)
     }
 
     fn holds(&self, snapshots: &[SnapshotName]) -> Result<Vec<Hold>, ZfsError> {

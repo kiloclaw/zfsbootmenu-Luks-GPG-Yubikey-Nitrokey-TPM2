@@ -359,3 +359,92 @@ fn the_longest_history_read_fits_in_a_message() {
     let message = ToMenu::Event(Box::new(Event::HistoryLoaded(history)));
     assert!(message.encode().unwrap().len() <= MAX_LENGTH);
 }
+
+#[test]
+fn a_plan_crosses_with_its_review_and_one_without_reads_as_reviewed_empty() {
+    use crate::model::{
+        Keep, Loss, Outcome, Plan, PoolHost, PoolUse, Review, Safer, Step, StepKind, Stop,
+    };
+    use zbm_types::Untrusted;
+
+    let snapshot = |name: &str| -> zbm_types::SnapshotName { name.parse().unwrap() };
+    let pool: zbm_types::PoolName = "tank".parse().unwrap();
+    let hostile = || Untrusted::new("x\u{1b}[2J".to_owned());
+    let review = Review {
+        loses: vec![
+            Loss::Snapshot {
+                name: snapshot("tank/ROOT/be@new"),
+                used: Some(4096),
+            },
+            Loss::Bookmark {
+                dataset: dataset("tank/ROOT/be"),
+                name: "new".to_owned(),
+            },
+            Loss::Written {
+                since: snapshot("tank/ROOT/be@old"),
+                bytes: None,
+            },
+            Loss::Newer(snapshot("tank/ROOT/be@old")),
+            Loss::SinceCheckpoint {
+                created: Some(hostile()),
+                space: Some(1),
+                discarding: true,
+                datasets: Some(vec![dataset("tank/new")]),
+                snapshots: None,
+            },
+        ],
+        freed: Some(4096),
+        keeps: vec![Keep::Snapshots(2), Keep::Bookmarks(1)],
+        undo: Some(Box::new(Action::Export(pool.clone()))),
+        safer: Some(Safer::Clone(snapshot("tank/ROOT/be@old"))),
+        stops: vec![
+            Stop::Clone {
+                snapshot: snapshot("tank/ROOT/be@new"),
+                clone: hostile(),
+            },
+            Stop::Hold {
+                snapshot: snapshot("tank/ROOT/be@new"),
+                tag: None,
+            },
+            Stop::Active {
+                pool,
+                host: Some(PoolHost {
+                    hostid: None,
+                    hostname: Some(hostile()),
+                }),
+            },
+        ],
+        pool_use: Some(PoolUse {
+            written: Some(1_700_000_000),
+            active: true,
+            ..PoolUse::default()
+        }),
+    };
+    let rollback = Action::Rollback(snapshot("tank/ROOT/be@old"));
+    let plan = Plan {
+        steps: vec![Step {
+            kind: StepKind::Rollback(snapshot("tank/ROOT/be@old")),
+            command: Some("zfs rollback -r tank/ROOT/be@old".to_owned()),
+        }],
+        outcome: Outcome::Done(String::new()),
+        review,
+    };
+    let planned = Event::Planned {
+        action: Box::new(rollback),
+        plan: plan.clone(),
+    };
+    let message = ToMenu::Event(Box::new(planned));
+    assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
+    let safer = Safer::Import(Box::new(Action::Reboot));
+    let encoded = serde_json::to_string(&safer).unwrap();
+    assert_eq!(serde_json::from_str::<Safer>(&encoded).unwrap(), safer);
+
+    // A plan of the same version, 2, without a review, as one sent before
+    // reviews came, reads as one that reviews nothing.
+    let bare = serde_json::json!({
+        "steps": [],
+        "outcome": {"Done": "x"},
+    });
+    let read: Plan = serde_json::from_value(bare).unwrap();
+    assert_eq!(read.review, Review::default());
+}

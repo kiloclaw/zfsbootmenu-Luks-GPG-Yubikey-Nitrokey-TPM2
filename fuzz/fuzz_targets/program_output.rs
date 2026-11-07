@@ -1,8 +1,9 @@
 //! The output of `zpool` and `zfs` (JSON and text), of a failed import, of
 //! the status of pools and the listing of those not imported, of a pool's
 //! configuration and uberblock that `zdb` prints, of the snapshots, holds
-//! and destroys a review reads, and the state file of LUKS mappings
-//! (inputs I9 and I11 of docs/dev/threat-model.md): pools and devices that
+//! and destroys a review reads, the time a checkpoint was taken, and the
+//! state file of LUKS mappings (inputs I9 and I11 of
+//! docs/dev/threat-model.md): pools and devices that
 //! someone else controls (A2, A3) shape what the programs print, vdev
 //! names, host names, clone names and hold tags included, and hooks can
 //! write the state file. Parsing must never panic.
@@ -12,7 +13,8 @@
 use libfuzzer_sys::fuzz_target;
 use zbm_luks::mappings::parse_mappings;
 use zbm_pool::hostid::scrape_hostid;
-use zbm_zfs::{json, parse_table, text};
+use zbm_types::Untrusted;
+use zbm_zfs::{Checkpoint, json, parse_table, text};
 
 fuzz_target!(|data: &[u8]| {
     let text = String::from_utf8_lossy(data);
@@ -33,6 +35,11 @@ fuzz_target!(|data: &[u8]| {
     let _ = text::importable(&text);
     let _ = text::pool_config(&text);
     let _ = text::checkpoint(&text);
+    let _ = Checkpoint {
+        created: Some(Untrusted::new(text.to_string())),
+        ..Checkpoint::default()
+    }
+    .created_at();
     let _ = text::snapshot_details(&text);
     let _ = text::holds(&text);
     let _ = text::reclaim(&text);

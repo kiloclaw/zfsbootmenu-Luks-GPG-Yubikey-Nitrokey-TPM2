@@ -202,3 +202,14 @@ pub struct Checkpoint {
     /// Whether it is being discarded.
     pub discarding: bool,
 }
+
+impl Checkpoint {
+    /// When it was taken, in seconds since 1970, with [`Checkpoint::created`]
+    /// read as UTC; `None` without it, or when it is not a time as
+    /// `ctime(3)` prints one.
+    pub fn created_at(&self) -> Option<u64> {
+        self.created
+            .as_ref()
+            .and_then(|created| crate::text::ctime(created.get()))
+    }
+}
