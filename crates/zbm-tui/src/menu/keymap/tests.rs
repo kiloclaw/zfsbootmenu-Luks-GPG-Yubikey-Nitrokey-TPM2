@@ -225,6 +225,7 @@ fn every_action_has_a_title() {
         Context::Packages,
         Context::Choose,
         Context::Text,
+        Context::Review,
     ];
     for context in contexts {
         let tables = Map::Classic.table().into_iter();
@@ -447,4 +448,33 @@ fn the_workspace_s_arrows_go_into_and_out_of_the_kernels_and_still_switch_the_ch
         input(Map::Classic, Context::Diff, arrow(Key::Left)),
         intent(Intent::Segment)
     );
+}
+
+#[test]
+fn a_review_page_takes_its_name_as_text_and_tab_moves_among_its_buttons() {
+    let review = |press| input(Map::Workspace, Context::Review, press);
+    let intent = |intent| Some(Input::Intent(intent));
+    assert_eq!(review(plain('r')), Some(Input::Type('r')));
+    assert_eq!(review(plain('2')), Some(Input::Type('2')));
+    assert_eq!(review(plain('?')), Some(Input::Type('?')));
+    assert_eq!(review(press(Key::Tab, NONE)), intent(Intent::NextTab));
+    assert_eq!(
+        review(press(Key::BackTab, NONE)),
+        intent(Intent::PreviousTab)
+    );
+    assert_eq!(review(press(Key::PageDown, NONE)), intent(Intent::PageDown));
+    assert_eq!(review(press(Key::Enter, NONE)), intent(Intent::Primary));
+    assert_eq!(review(press(Key::Escape, NONE)), intent(Intent::Back));
+    // `Home` and `End`, which move in a view, do nothing in its field.
+    assert_eq!(review(press(Key::Home, NONE)), None);
+    assert_eq!(
+        describe(Context::Review, Intent::NextTab),
+        id!("action-next-place")
+    );
+    // The views keep `Tab` for the tabs.
+    assert_eq!(
+        input(Map::Workspace, Main, press(Key::Tab, NONE)),
+        intent(Intent::NextTab)
+    );
+    assert!(!Scope::Views.contains(Context::Review));
 }

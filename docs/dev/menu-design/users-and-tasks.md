@@ -56,7 +56,7 @@ Each scenario is a script for the [usability sessions](usability.md) and a VM te
 2. **The bad upgrade.** Yesterday's upgrade broke the graphics driver. The desktop user stops the countdown, finds
    yesterday's snapshot of the root, and boots it, first as a clone to check it, then by rolling back. *Watch for:*
    whether they find the snapshots from the main view; whether they understand what a rollback destroys before they
-   confirm; whether the safety snapshot is noticed.
+   confirm; whether the review page's safer action, a clone, is noticed.
 3. **The disk swap.** The administrator replaced a failed disk over a serial console at 80×24 without colour. The
    pool imports `DEGRADED`; another pool belongs to a host with a different host ID. They read the pool status, import
    the foreign pool with the matching host ID, and boot. *Watch for:* whether the start-up view explains the import

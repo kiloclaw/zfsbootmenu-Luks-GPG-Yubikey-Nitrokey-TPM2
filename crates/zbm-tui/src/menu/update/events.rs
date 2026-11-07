@@ -61,8 +61,8 @@ pub(super) fn apply(model: &mut Model, event: Event) -> Vec<Action> {
                 model.dialog = None;
             }
         }
-        // The dry run's pages come with the command line (ROADMAP.md, UI14).
-        Event::Planned { .. } => {}
+        // Its review page's; the dry run's come with UI14.
+        Event::Planned { action, plan } => super::review::planned(model, &action, plan),
         Event::StageStarted(name) => stage(model, name, StageState::Running),
         Event::StageFinished { stage: name, state } => stage(model, name, state),
         Event::UnlockFinished { volume, outcome } => {
@@ -90,19 +90,20 @@ fn finished(model: &mut Model, outcome: Outcome) {
 }
 
 /// The machine changed: its new `snapshot`. A device's messages were read
-/// before, as an export of its pool shows: they close. The snapshots of
-/// the column open come with it; when they do not, as after a load that
-/// was cancelled, the machine is asked for them again
-/// ([`Model::needs_load`]).
+/// before, as an export of its pool shows: they close. A review page plans
+/// its change again. The snapshots of the column open come with it; when
+/// they do not, as after a load that was cancelled, the machine is asked
+/// for them again ([`Model::needs_load`]).
 fn changed(model: &mut Model, snapshot: Snapshot) -> Vec<Action> {
     model.device_log = None;
     model.replace_snapshot(snapshot);
     start(model);
     super::text::palette_again(model);
+    let mut actions = super::review::again(model);
     if model.tab() == Tab::Snapshots && model.needs_load() {
-        return super::snapshots::load(model);
+        actions.extend(super::snapshots::load(model));
     }
-    Vec::new()
+    actions
 }
 
 /// Opens the differences `view`, keeping the selection and the segment of
@@ -206,7 +207,7 @@ fn import_problem(model: &mut Model, pool: &zbm_types::PoolName, reason: String)
         ),
         act(
             text!("pool-force-import"),
-            super::dialogs::force_import(pool),
+            super::dialogs::force_import(model.map, pool),
         ),
         act(text!("import-shell"), Then::Act(Action::Shell)),
     ];

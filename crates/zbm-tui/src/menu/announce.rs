@@ -3,17 +3,19 @@
 //! shows on its status line and writes for `brltty` (`Announce`). A dialog
 //! or a question that opens, the outcome of an action, the countdown that
 //! starts or stops, and the menu that is back after the programs had the
-//! screen; not the selection, which the screen shows already.
+//! screen; what a review page asks, when its plan comes; not the
+//! selection, which the screen shows already.
 
-use super::model::Model;
+use super::model::{Dialog, Model};
 use super::view::words;
 use crate::text::text;
 
 /// What was said last, to say only what changed.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Announcer {
-    /// The title of the dialog over the screen.
-    dialog: Option<String>,
+    /// The title of the dialog over the screen, and what a review page
+    /// asks.
+    dialog: Option<(String, Option<String>)>,
     /// The notification line.
     notification: Option<String>,
     /// Whether the countdown ran.
@@ -35,7 +37,13 @@ impl Announcer {
             said.push(words::title(model));
         }
         let dialog = words::dialog(model);
-        let title = dialog.as_ref().map(|said| said.title.clone());
+        // A review page is said again when what it asks changes: its plan
+        // came, or refuses the change.
+        let review = matches!(model.dialog, Some(Dialog::Review(_)));
+        let title = dialog.as_ref().map(|said| {
+            let asks = said.lines.first().filter(|_| review).cloned();
+            (said.title.clone(), asks)
+        });
         if let Some(dialog) = dialog.as_ref().filter(|_| title != self.dialog) {
             said.push(match dialog.lines.first() {
                 Some(first) => format!("{}: {first}", dialog.title),

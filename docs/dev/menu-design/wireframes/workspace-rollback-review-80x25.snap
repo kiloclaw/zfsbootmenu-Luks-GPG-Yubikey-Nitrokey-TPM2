@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+┌──────────────────────────────────────────────────────────────────────────────┐
+│            Roll Back zroot/ROOT/void to autosnap_2026-10-20_daily            │
+│ WHAT IS LOST                                                  1.4 GiB in all │
+│ autosnap_2026-10-21_daily                                             30 MiB │
+│ autosnap_2026-10-22_daily                                             17 MiB │
+│ pre-upgrade                                                          1.1 GiB │
+│ what was written since autosnap_2026-10-20_daily                     230 MiB │
+│ Destroying the snapshots frees 1.2 GiB.                                      │
+│ Kept: 396 older snapshots.                                                   │
+│ STEPS                                                                        │
+│ 1. Roll zroot/ROOT/void back to autosnap_2026-10-20_daily                    │
+│    zfs rollback -r zroot/ROOT/void@autosnap_2026-10-20_daily                 │
+│ No undo: what is lost cannot be brought back.                                │
+│ Safer: clone autosnap_2026-10-20_daily as a new boot environment, and keep   │
+│ everything.                                                                  │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│ Type void to confirm:                                                        │
+│ ▶ vo                                                                         │
+│                                [ Cancel ]  [ Clone Instead… ]  [ Roll Back ] │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Confirm   Tab Next   Esc Cancel   Up/Down Scroll

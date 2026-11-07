@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+┌──────────────────────────────────────────────────────────────────────────────┐
+│            Roll Back zroot/ROOT/void to autosnap_2026-10-17_daily            │
+│ ZFS would refuse this:                                                       │
+│ autosnap_2026-10-18_daily has the clone zroot/ROOT/void-test: destroy or     │
+│ promote the clone first.                                                     │
+│ autosnap_2026-10-19_daily is held by backup-keep: release the hold first.    │
+│ WHAT IS LOST                                                  1.6 GiB in all │
+│ autosnap_2026-10-18_daily                                             69 MiB │
+│ autosnap_2026-10-19_daily                                             56 MiB │
+│ autosnap_2026-10-20_daily                                             43 MiB │
+│ autosnap_2026-10-21_daily                                             30 MiB │
+│ autosnap_2026-10-22_daily                                             17 MiB │
+│ pre-upgrade                                                          1.1 GiB │
+│ what was written since autosnap_2026-10-17_daily                     230 MiB │
+│ Kept: 393 older snapshots.                                                   │
+│ STEPS                                                                        │
+│ 1. Roll zroot/ROOT/void back to autosnap_2026-10-17_daily                    │
+│    zfs rollback -r zroot/ROOT/void@autosnap_2026-10-17_daily                 │
+│ No undo: what is lost cannot be brought back.                                │
+│                                                                              │
+│                                                                              │
+│                                                                       [ OK ] │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Close   Esc Cancel   Up/Down Scroll

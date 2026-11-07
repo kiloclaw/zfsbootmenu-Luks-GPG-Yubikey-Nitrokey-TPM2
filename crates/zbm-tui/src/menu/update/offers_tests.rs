@@ -119,10 +119,12 @@ fn menu((snapshot, diff): &(Snapshot, Event), map: Map, place: Place) -> Model {
     model
 }
 
-/// What `then` asks for, once named or confirmed.
+/// What `then` asks for, once named, confirmed or reviewed.
 fn then_action(model: &Model, then: &Then) -> Option<Action> {
     match then {
-        Then::Act(action) | Then::Confirm { action, .. } => Some(action.clone()),
+        Then::Act(action) | Then::Confirm { action, .. } | Then::Review(action) => {
+            Some(action.clone())
+        }
         Then::Name(naming) => naming.action(),
         Then::Focus(name, Screen::CommandLine) => {
             let environment = model
@@ -137,14 +139,15 @@ fn then_action(model: &Model, then: &Then) -> Option<Action> {
 }
 
 /// The actions `sent`, and those what is now open can end in: the entries
-/// of a menu or of the palette, the action a confirmation or a name
-/// dialog asks for, the boot of the command line editor.
+/// of a menu or of the palette, the action a confirmation, a review page
+/// or a name dialog asks for, the boot of the command line editor.
 fn reached(model: &Model, mut sent: Vec<Action>) -> Vec<Action> {
     match &model.dialog {
         Some(Dialog::Choose { choices, .. }) => {
             sent.extend(choices.iter().filter_map(|c| then_action(model, &c.then)));
         }
         Some(Dialog::Confirm { action, .. }) => sent.push(action.clone()),
+        Some(Dialog::Review(reviewing)) => sent.push(reviewing.action.clone()),
         Some(Dialog::Name(naming)) => sent.extend(naming.action()),
         _ => {}
     }

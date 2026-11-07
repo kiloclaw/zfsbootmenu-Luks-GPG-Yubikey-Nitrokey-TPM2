@@ -31,6 +31,8 @@ pub(super) enum Kind {
     Destructive,
     /// A button that cannot be pressed yet.
     Disabled,
+    /// A button that cannot be pressed yet but has the focus.
+    Waiting,
 }
 
 /// An alert: a title, a message, buttons.
@@ -66,6 +68,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             typed,
             action,
         }) => confirm(theme, frame, area, (title, lines, name, typed, action)),
+        Some(Dialog::Review(reviewing)) => super::review::render(model, frame, area, reviewing),
         Some(Dialog::Name(naming)) => name(theme, frame, area, naming),
         Some(Dialog::Error { what, why, next }) => error(theme, frame, area, (what, why, next)),
         None => palette(model, frame, area),
@@ -95,7 +98,7 @@ fn alert_width(area: Rect) -> u16 {
 /// The rows `lines` take wrapped in `width` columns, as the paragraph that
 /// draws them wraps them: at word boundaries, so that a dialog is tall
 /// enough for its last line, the typed confirmation of a destructive one.
-fn wrapped(lines: &[Line<'_>], width: u16) -> u16 {
+pub(super) fn wrapped(lines: &[Line<'_>], width: u16) -> u16 {
     let rows = Paragraph::new(lines.to_vec())
         .wrap(Wrap { trim: false })
         .line_count(width.max(1));
@@ -103,7 +106,7 @@ fn wrapped(lines: &[Line<'_>], width: u16) -> u16 {
 }
 
 /// The frame of an alert or sheet: borders, red for danger, margins.
-fn frame_block(theme: Theme, danger: bool) -> Block<'static> {
+pub(super) fn frame_block(theme: Theme, danger: bool) -> Block<'static> {
     let role = if danger { Role::Danger } else { Role::Border };
     Block::bordered()
         .border_set(theme.border())
@@ -112,7 +115,7 @@ fn frame_block(theme: Theme, danger: bool) -> Block<'static> {
 }
 
 /// The buttons, right-aligned, drawn `[ Label ]`.
-fn buttons(theme: Theme, buttons: &[(String, Kind)]) -> Line<'static> {
+pub(super) fn buttons(theme: Theme, buttons: &[(String, Kind)]) -> Line<'static> {
     let mut spans = Vec::new();
     for (index, (label, kind)) in buttons.iter().enumerate() {
         if index > 0 {
@@ -123,6 +126,7 @@ fn buttons(theme: Theme, buttons: &[(String, Kind)]) -> Line<'static> {
             Kind::Default => theme.style(Role::Selected),
             Kind::Destructive => theme.style(Role::Danger).add_modifier(Modifier::REVERSED),
             Kind::Disabled => theme.style(Role::Muted),
+            Kind::Waiting => theme.style(Role::Muted).add_modifier(Modifier::REVERSED),
         };
         spans.push(Span::styled(format!("[ {label} ]"), style));
     }
@@ -235,19 +239,19 @@ fn actions(
 }
 
 /// The line of an action: title case, `…` when it asks for more first,
-/// and red when that is a confirmation.
+/// and red when that is a confirmation or a review page.
 fn action_line(theme: Theme, choice: &Choice) -> Line<'static> {
     let label = choice.label.clone();
     let more = format!("{label}{}", theme.glyph(Glyph::Ellipsis));
     match choice.then {
-        Then::Confirm { .. } => Line::styled(more, theme.style(Role::Danger)),
+        Then::Confirm { .. } | Then::Review(_) => Line::styled(more, theme.style(Role::Danger)),
         Then::Name(_) => Line::from(more),
         _ => Line::from(label),
     }
 }
 
 /// The verb of the button that does `action`.
-fn verb(action: &Action) -> String {
+pub(super) fn verb(action: &Action) -> String {
     match action {
         Action::Rollback { .. } => text!("button-roll-back"),
         Action::CloneAndPromote(..) => text!("button-promote"),

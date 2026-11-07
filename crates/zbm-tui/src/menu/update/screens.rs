@@ -333,7 +333,8 @@ fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
                 text!("rewind", pool = pool.name.to_string()),
                 text!("rewind.discarded"),
             ];
-            model.dialog = Some(dialogs::confirm(dialogs::rewind(named, lines)));
+            let then = dialogs::rewind(model.map, named, lines);
+            return dialogs::follow(model, then);
         }
         _ => {}
     }
@@ -387,7 +388,7 @@ fn import_choices(model: &mut Model, pool: &Pool) {
             ];
             choices.push(Choice {
                 label: text!("pool-rewind"),
-                then: dialogs::rewind(named, lines),
+                then: dialogs::rewind(model.map, named, lines),
             });
         }
         choices
@@ -414,7 +415,7 @@ fn import_choices(model: &mut Model, pool: &Pool) {
             },
             Choice {
                 label: text!("pool-force-import"),
-                then: dialogs::force_import(named),
+                then: dialogs::force_import(model.map, named),
             },
         ]
     };

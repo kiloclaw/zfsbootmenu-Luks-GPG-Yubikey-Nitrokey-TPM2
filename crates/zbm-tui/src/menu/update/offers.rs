@@ -10,7 +10,7 @@ use crate::text::text;
 /// The kind of action `then` leads to; `None` when it leads to none.
 fn offer_of(then: &Then) -> Option<Offer> {
     match then {
-        Then::Act(action) | Then::Confirm { action, .. } => action.offer(),
+        Then::Act(action) | Then::Confirm { action, .. } | Then::Review(action) => action.offer(),
         Then::Name(naming) => Some(match naming.make {
             Make::Snapshot(_) => Offer::CreateSnapshot,
             Make::Clone(_) | Make::Promote(_) => Offer::Clone,

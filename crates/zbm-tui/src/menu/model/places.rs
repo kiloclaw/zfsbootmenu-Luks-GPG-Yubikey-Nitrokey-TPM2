@@ -41,7 +41,8 @@ impl Model {
         }
     }
 
-    /// The key map context of the focus.
+    /// The key map context of the focus: a review page's is
+    /// [`Context::Review`] while it shows its field.
     pub fn context(&self) -> Context {
         match &self.dialog {
             Some(Dialog::Unlock(_) | Dialog::Confirm { .. } | Dialog::Name(_)) => {
@@ -50,6 +51,9 @@ impl Model {
             Some(Dialog::Choose { .. } | Dialog::Error { .. } | Dialog::Question(_)) => {
                 return Context::Choose;
             }
+            // A page that refuses the change has no field: `Enter` closes it.
+            Some(Dialog::Review(reviewing)) if reviewing.has_field() => return Context::Review,
+            Some(Dialog::Review(_)) => return Context::Choose,
             None => {}
         }
         if self.palette.is_some()

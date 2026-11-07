@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot  2 Snapshots [3 Pools] 4 Log            tank DEGRADED · 3/3 open · ! 6
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         Rewind tank to Its Checkpoint                        │
+│ WHAT IS LOST                                                  3.0 GiB in all │
+│ every write since the checkpoint of Tue Sep 15 08:00:00 2026         3.0 GiB │
+│ the snapshot tank/ROOT/arch@2026-10-01, taken since                          │
+│ STEPS                                                                        │
+│ 1. Export tank                                                               │
+│    zpool export tank                                                         │
+│ 2. Import tank rewound to its checkpoint                                     │
+│    zpool import -N -o readonly=off --rewind-to-checkpoint tank               │
+│ No undo: what is lost cannot be brought back.                                │
+│ Safer: import it read-only, without the rewind, and lose nothing.            │
+│ WHO ELSE MAY USE IT                                                          │
+│ This host has it imported: no other host uses it now.                        │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│ Type tank to confirm:                                                        │
+│ ▶                                                                            │
+│                                 [ Cancel ]  [ Import Read-Only ]  [ Rewind ] │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Confirm   Tab Next   Esc Cancel   Up/Down Scroll

@@ -1,9 +1,10 @@
-//! Dialogs: choosing, confirming, errors; unlocking is in `unlock`.
+//! Dialogs: choosing, confirming, errors; unlocking is in `unlock`, the
+//! review page of a change in `review`.
 
 use zbm_types::{Answer, ImportPolicy, PoolName};
 
 use super::screens;
-use crate::menu::keymap::{Input, Intent};
+use crate::menu::keymap::{Input, Intent, Map};
 use crate::menu::model::{
     Asking, Choice, Dialog, Make, Model, Naming, Then, host_text, is_name_char,
 };
@@ -114,9 +115,10 @@ pub(super) fn import<'p>(
     })
 }
 
-/// The confirmation of the rewind of `pool` to its checkpoint, which
-/// imports it read/write, as the legacy menu's rewind did.
-pub(super) fn rewind<'p>(pool: impl Into<Named<'p>>, lines: Vec<String>) -> Then {
+/// The rewind of `pool` to its checkpoint, which imports it read/write,
+/// as the legacy menu's rewind did: its review page under the workspace's
+/// map `map`, the classic map's confirmation, with `lines`, else.
+pub(super) fn rewind<'p>(map: Map, pool: impl Into<Named<'p>>, lines: Vec<String>) -> Then {
     let pool = pool.into();
     let options = ImportOptions {
         access: Access::ReadWrite,
@@ -124,20 +126,29 @@ pub(super) fn rewind<'p>(pool: impl Into<Named<'p>>, lines: Vec<String>) -> Then
         rewind: true,
         id: None,
     };
+    let action = pool.import(options);
+    if map == Map::Workspace {
+        return Then::Review(action);
+    }
     Then::Confirm {
-        action: pool.import(options),
+        action,
         title: text!("rewind.title", pool = pool.name.to_string()),
         lines,
         name: pool.name.to_string(),
     }
 }
 
-/// The confirmation of a forced import.
-pub(super) fn force_import<'p>(pool: impl Into<Named<'p>>) -> Then {
+/// A forced import: its review page under the workspace's map `map`, the
+/// classic map's confirmation else.
+pub(super) fn force_import<'p>(map: Map, pool: impl Into<Named<'p>>) -> Then {
     let pool = pool.into();
     let name = pool.name.to_string();
+    let action = import(pool, Access::ReadOnly, ImportPolicy::Force);
+    if map == Map::Workspace {
+        return Then::Review(action);
+    }
     Then::Confirm {
-        action: import(pool, Access::ReadOnly, ImportPolicy::Force),
+        action,
         title: text!("force-import.title", pool = name.as_str()),
         lines: vec![
             text!("force-import", pool = name.as_str()),
@@ -147,12 +158,13 @@ pub(super) fn force_import<'p>(pool: impl Into<Named<'p>>) -> Then {
     }
 }
 
-/// Does what `then` says: asks for an action, opens a confirmation or a
-/// screen.
+/// Does what `then` says: asks for an action, opens a confirmation, a
+/// review page, which asks for the plan of its change, or a screen.
 pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
     match then {
         Then::Act(action) => return vec![action],
         Then::Confirm { .. } => model.dialog = Some(confirm(then)),
+        Then::Review(action) => return super::review::open(model, action),
         Then::Name(naming) => model.dialog = Some(Dialog::Name(naming)),
         Then::Open(screen) => {
             model.screen = screen;
@@ -208,13 +220,14 @@ pub(super) fn pool_details(model: &mut Model, pool: &Pool) {
         });
         choices.push(Choice {
             label: text!("pool-force-import"),
-            then: force_import(named),
+            then: force_import(model.map, named),
         });
     }
     if pool.checkpoint == Some(true) {
+        let lines = vec![text!("rewind", pool = name.to_string())];
         choices.push(Choice {
             label: text!("pool-rewind"),
-            then: rewind(named, vec![text!("rewind", pool = name.to_string())]),
+            then: rewind(model.map, named, lines),
         });
     }
     let choices = super::offers::offered(model, choices);
@@ -261,6 +274,7 @@ pub(super) fn handle(model: &mut Model, input: Input) -> Vec<Action> {
             typed,
             action,
         } => confirmed(model, input, (title, lines, name, typed, action)),
+        Dialog::Review(reviewing) => super::review::handle(model, input, reviewing),
         Dialog::Name(naming) => named(model, input, naming),
         Dialog::Error { .. } => {
             if !matches!(input, Input::Intent(Intent::Primary | Intent::Back)) {

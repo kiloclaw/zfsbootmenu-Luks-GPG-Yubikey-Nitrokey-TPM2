@@ -72,7 +72,7 @@ fn choices(model: &Model) -> Vec<Action> {
 
 fn action(choice: &Choice) -> Action {
     match &choice.then {
-        Then::Act(action) | Then::Confirm { action, .. } => action.clone(),
+        Then::Act(action) | Then::Confirm { action, .. } | Then::Review(action) => action.clone(),
         other => panic!("not an import: {other:?}"),
     }
 }

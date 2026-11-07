@@ -3,7 +3,7 @@
 //! of something else does nothing but say so.
 
 use super::{Context, Intent, Map};
-use crate::menu::model::{Kind, Model, RECOVERY, Segment};
+use crate::menu::model::{Dialog, Kind, Model, RECOVERY, Segment};
 use crate::menu::world::Offer;
 use crate::text::{Id, id};
 use Context::{Diff, Kernels, Main, Pools, Recovery, Snapshots};
@@ -125,12 +125,22 @@ pub(crate) fn is_shown(context: Context, intent: Intent, model: &Model) -> bool 
 
 /// What `intent` does in `context`, as the toolbar, the help and the line
 /// view say it of `model`'s selection: `Enter` on a device of the
-/// workspace's tree shows the kernel's messages about it; elsewhere as
+/// workspace's tree shows the kernel's messages about it, and on a review
+/// page that refuses its change closes it; elsewhere as
 /// [`describe`](super::describe) says.
 pub(crate) fn label(context: Context, intent: Intent, model: &Model) -> Id {
     let is_device = || (model.selected_node()).is_some_and(|node| node.kind == Kind::Device);
     if context == Pools && intent == Intent::Primary && model.map == Map::Workspace && is_device() {
         return id!("action-messages");
+    }
+    // A review page that refuses the change has no field: `Enter` closes
+    // it, and the arrows scroll what it would lose.
+    if context == Context::Choose && matches!(model.dialog, Some(Dialog::Review(_))) {
+        match intent {
+            Intent::Primary => return id!("action-close"),
+            Intent::Up | Intent::Down => return id!("action-scroll"),
+            _ => {}
+        }
     }
     super::describe(context, intent)
 }

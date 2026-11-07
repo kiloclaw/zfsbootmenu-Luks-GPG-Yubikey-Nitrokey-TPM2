@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [BBóótt] SSñáppshóóts  PPóólls  LLóg           ! 7
+┌──────────────────────────────────────────────────┐
+│         FFórççé thhé Ímmpórrt óff backup         │
+│ WWHÁTT ÍS LLÓSTT                                 │
+│ ÑÑóthhíñgg.                                      │
+│ SSTÉPPS                                          │
+│ 1. Ffórççé thhé ímmpórrt óff backup rréádd-óñllý │
+│    zpool import -N -f -o readonly=on backup      │
+│ ÚÚñdóó: éxppórtt backup.                         │
+│ WWHÓ ÉÉLSÉÉ MÁÝÝ ÚSÉÉ ÍT                         │
+│ LLástt ímppórttéd bbý hhóstt backup-server       │
+│ (deadbeef).                                      │
+│ LLástt wrííttééñ 2 dd ágóó, óóñ 2026-10-21.      │
+│                                                  │
+│                                                  │
+│ TTýpéé backup ttó çóóñfíírm:                     │
+│ ▶ back                                           │
+│               [ ÇÇáñççél ]  [ FFórççé Ímmpórrt ] │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   TTáb ÑÑéxtt   ÉÉsç ÇÇáñççél

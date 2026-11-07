@@ -8,7 +8,7 @@ use zbm_display::keys::{Key, KeyPress};
 use super::demo::FakeMachine;
 use super::keymap::Map;
 use super::machine::Machine;
-use super::model::Model;
+use super::model::{Dialog, Model};
 use super::theme::Theme;
 use super::update::{Message, update};
 use super::world::{Action, Event};
@@ -29,6 +29,10 @@ pub struct Session<M = FakeMachine> {
     /// Actions that take the console, waiting for the front end to hand it
     /// over ([`Session::console_action`]).
     console: VecDeque<Action>,
+    /// Whether the last action sent is a plan the machine took while it
+    /// performed nothing else: closing its review page cancels it then,
+    /// and only then, as a cancel reaches every action not done.
+    plan_alone: bool,
 }
 
 /// `action` as the session records it: an unlock without the secret typed.
@@ -56,6 +60,7 @@ impl<M: Machine> Session<M> {
             machine,
             actions: Vec::new(),
             console: VecDeque::new(),
+            plan_alone: false,
         }
     }
 
@@ -67,6 +72,7 @@ impl<M: Machine> Session<M> {
             machine,
             actions: Vec::new(),
             console: VecDeque::new(),
+            plan_alone: false,
         }
     }
 
@@ -108,7 +114,9 @@ impl<M: Machine> Session<M> {
     }
 
     fn apply(&mut self, action: Action) {
+        let alone = matches!(action, Action::Plan(_)) && !self.machine.is_busy();
         let events = self.machine.apply(action);
+        self.plan_alone = alone;
         self.events(events);
     }
 
@@ -150,13 +158,22 @@ impl<M: Machine> Session<M> {
     }
 
     /// A key press. While the machine performs an action, Escape cancels
-    /// it, unless a dialog is open.
+    /// it, unless a dialog is open; a review page that closes while the
+    /// machine plans its change, and performs nothing else, cancels the
+    /// plan.
     pub fn press(&mut self, key: KeyPress) {
         if key.key == Key::Escape && self.machine.is_busy() && self.model().dialog.is_none() {
             self.machine.cancel();
             return;
         }
+        let planning = matches!(
+            &self.model().dialog,
+            Some(Dialog::Review(reviewing)) if reviewing.plan.is_none()
+        );
         self.step(Message::Key(key));
+        if planning && self.plan_alone && self.model().dialog.is_none() && self.machine.is_busy() {
+            self.machine.cancel();
+        }
         let model = self.model();
         if model.is_starting_up() && model.dialog.is_none() {
             self.machine.reask();

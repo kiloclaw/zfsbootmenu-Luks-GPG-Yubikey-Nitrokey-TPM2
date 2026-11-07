@@ -159,15 +159,28 @@ indented lines, numbers its stops as the arrows go, and says a device's messages
 
 ## The command line and review pages
 
-Planned for UI14 and UI10; the mockups show them.
+The review pages are built under the workspace map (UI10d); the command line comes with UI14.
 
 - **`:` opens the command line** with fuzzy completion, grouped as actions, items and help, each with its key and what
   it costs, and a history (`Ctrl-R`). Before anything runs it shows the dry run: the steps of the action's plan, the
   command each runs (`zfs snapshot …`, `zfs rollback …`), the effect, the undo, and what the plan needs (a pool
   writable, a key). The prototype's `:` opens the command palette, which finds environments, snapshots and actions.
-- **A review page** for a rollback, a forced import, a destroy or a rewind: what is lost, what is kept, the steps with
-  their commands, the undo, a safer alternative (boot a clone, restore single files), and a confirmation by typing the
-  target's name. It replaces the alerts below for these actions.
+- **A review page** for a rollback, a forced import or a rewind (a destroy comes next): the whole view in the danger
+  colour, which opens and asks the machine for the change's plan (`Plan`), and says so until it comes. Then, from the
+  top: the title; what stops the change (a clone or a hold of a newer snapshot, a host that has the pool imported now),
+  first, in place of the field: the page refuses it, and `Enter` closes it; what is lost, which scrolls (`PgUp`, `PgDn`,
+  the arrows), its sizes right-aligned under their total; the space destroying them frees and what is kept; the steps,
+  their commands muted; the undo, or that there is none; the safer action (a clone of the snapshot, named first, for a
+  rollback; the read-only import for a rewind; none for a forced import); who else may use the pool (its last host's ID
+  and name and when it was last written, or this host); and at the bottom the field that wants the target's name (the
+  last component of the environment rolled back, as the classic map asks, the pool's name) and the buttons. `Tab` and
+  `Shift-Tab` go from the field to the safer action and the change, the button `Enter` presses shown as such; the change
+  is sent only with the plan, nothing that stops it, and the name typed as it is; `Esc` closes the page and sends
+  nothing, and cancels the plan if the machine reads nothing else meanwhile. A change of the machine while it is open
+  plans it again. The line view says the page as lines, the first 20 rows of what is lost and how many more, takes the
+  name as a field does, and cannot scroll or take the safer action, as its help line says; `Announce` says what the page
+  asks when it opens and when its plan comes. They replace the alerts below for these actions under the workspace; the
+  classic map keeps the alerts. No safety snapshot is taken before a rollback.
 - **Start-up decides nothing silently**: a problem stops one step of the start-up timeline and offers choices with the
   commands they run (`1` to `9`), and a safe default after a time-out, which any key holds, such as continuing
   without a foreign pool that no boot environment needs.
@@ -228,9 +241,11 @@ Dialogs open over a view and return to it:
 - **Re-seal** (an alert): after the TPM kept a key, what changed and the risk of trusting it; the volume's name typed.
 - **Import problem**: which pool, why it did not import (another host, missing devices, unsupported features), and the
   choices that apply (retry, wait for devices, import read-only, match the host ID, force, shell).
-- **Confirm** (an alert): for destructive actions (rollback, destroy, promote, force import): what will happen, what will be lost
-  (snapshots newer than the target, with their sizes), whether a safety snapshot will be taken, and a field that wants
-  the short name of the target typed.
+- **Confirm** (an alert): for destructive actions of the classic map (rollback, force import, rewind), and of both maps
+  for a promotion, a re-seal and a restore of files: what will happen, what will be lost (snapshots newer than the
+  target, with their sizes), and a field that wants the short name of the target typed. Only the restore of files
+  takes a safety snapshot first, and says so; a rollback takes none. Under the workspace a rollback, a rewind and a
+  forced import open their review page instead.
 - **Choose** (an action sheet, with **Cancel** set apart): the actions for a snapshot (boot a clone, roll back, clone, duplicate, clone and promote, diff, chroot).
 - **May not boot** (an action sheet): booting an environment whose checks found a failure says what failed and
   what to do, with **Boot Anyway** and **Cancel** ([boot health](boot-health.md)).

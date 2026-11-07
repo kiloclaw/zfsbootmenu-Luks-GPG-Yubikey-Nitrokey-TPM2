@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+┌──────────────────────────────────────────────────┐
+│ Roll Back zroot/ROOT/void to autosnap_2026-10-1… │
+│ ZFS would refuse this:                           │
+│ autosnap_2026-10-18_daily has the clone          │
+│ zroot/ROOT/void-test: destroy or promote the     │
+│ clone first.                                     │
+│ autosnap_2026-10-19_daily is held by             │
+│ backup-keep: release the hold first.             │
+│ WHAT IS LOST 1 to 2 of 7          1.6 GiB in all │
+│ autosnap_2026-10-18_daily                 69 MiB │
+│ autosnap_2026-10-19_daily                 56 MiB │
+│ Kept: 393 older snapshots.                       │
+│ STEPS                                            │
+│ 1. Roll zroot/ROOT/void back to autosnap_2026-1… │
+│    zfs rollback -r zroot/ROOT/void@autosnap_202… │
+│ No undo: what is lost cannot be brought back.    │
+│                                           [ OK ] │
+└──────────────────────────────────────────────────┘
+ Enter Close   Esc Cancel   Up/Down Scroll

@@ -26,8 +26,17 @@ fn workspace() -> DemoOptions {
 /// `zbm.save_logs` kept, and without the option; and help, under the ZFS
 /// version; the Snapshots tab as the timeline of the default environment,
 /// its months folded and the oldest selected, and while the machine reads
-/// them; and start-up as the Boot tab ([`startup_wireframes`]).
+/// them; start-up as the Boot tab ([`startup_wireframes`]); and the
+/// review pages of changes ([`review_wireframes`]).
 pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
+    let mut all = startup_wireframes();
+    all.extend(review_wireframes());
+    all.extend(view_wireframes());
+    all
+}
+
+/// The views of the workspace's tabs, and help ([`workspace_wireframes`]).
+fn view_wireframes() -> Vec<Wireframe> {
     use Step::{Char, Code, Tick, Unanswered};
     let frame = |name, keys| Wireframe {
         name,
@@ -47,8 +56,7 @@ pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
         long_command_line: true,
         ..workspace()
     };
-    let mut all = startup_wireframes();
-    all.extend([
+    vec![
         frame("workspace", &[]),
         frame("workspace-kernels", &[Code(Key::Down), Char('l')]),
         frame(
@@ -126,8 +134,7 @@ pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
             ticks: 50,
             keys: &[Char('4')],
         },
-    ]);
-    all
+    ]
 }
 
 /// Start-up as the Boot tab, its third stage running, and the pool it
@@ -149,6 +156,83 @@ fn startup_wireframes() -> Vec<Wireframe> {
             options: foreign,
             ticks: 50,
             keys: &[],
+        },
+    ]
+}
+
+/// The review pages of the changes that lose what cannot be brought back
+/// (ADR 0016, points 12 to 15): the rollback to the daily snapshot of 20
+/// October, the environment's name typed in part; the rollback to that of
+/// 17 October, which a clone and a hold of newer snapshots stop; the rewind
+/// of `tank` to its checkpoint, from the imports of `i`; and the forced
+/// import of the pool of another host start-up could not import.
+fn review_wireframes() -> Vec<Wireframe> {
+    use Step::{Char, Code, Text};
+    let frame = |name, keys| Wireframe {
+        name,
+        options: workspace(),
+        ticks: 50,
+        keys,
+    };
+    let foreign = DemoOptions {
+        foreign: true,
+        ..workspace()
+    };
+    vec![
+        frame(
+            "workspace-rollback-review",
+            &[
+                Char('2'),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Char('r'),
+                Text("vo"),
+            ],
+        ),
+        frame(
+            "workspace-rollback-refused",
+            &[
+                Char('2'),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Char('r'),
+            ],
+        ),
+        frame(
+            "workspace-rewind-review",
+            &[
+                Char('3'),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Char('i'),
+                Code(Key::Down),
+                Code(Key::Enter),
+            ],
+        ),
+        Wireframe {
+            name: "workspace-force-import-review",
+            options: foreign,
+            ticks: 50,
+            keys: &[
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Enter),
+                Text("back"),
+            ],
         },
     ]
 }

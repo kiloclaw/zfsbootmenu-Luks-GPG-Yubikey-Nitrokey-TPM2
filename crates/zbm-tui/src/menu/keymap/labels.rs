@@ -10,6 +10,9 @@ use Context::{Diff, Kernels, Main, Packages, Pools, Recovery, Snapshots, Startup
 /// What a key does for an intent in a context, as the toolbar and the
 /// help view say it: a message of the catalogue with a `.title`.
 pub fn describe(context: Context, intent: Intent) -> Id {
+    if context == Context::Review {
+        return on_review_page(intent);
+    }
     match (context, intent) {
         (Main | Kernels, Intent::Primary) | (_, Intent::Boot) => id!("action-boot"),
         (Snapshots | Context::Choose, Intent::Primary) => id!("action-choose"),
@@ -63,6 +66,19 @@ pub fn describe(context: Context, intent: Intent) -> Id {
         (_, Intent::Tab(Tab::Log)) => id!("action-tab-log"),
         (_, Intent::NextTab) => id!("action-next-tab"),
         (_, Intent::PreviousTab) => id!("action-previous-tab"),
+    }
+}
+
+/// What a key does for an intent on a review page: it confirms the
+/// change, cancels it, scrolls what it loses, or moves among its buttons.
+fn on_review_page(intent: Intent) -> Id {
+    match intent {
+        Intent::Primary => id!("action-confirm"),
+        Intent::Back => id!("action-cancel"),
+        Intent::Up | Intent::Down | Intent::PageUp | Intent::PageDown => id!("action-scroll"),
+        Intent::NextTab => id!("action-next-place"),
+        Intent::PreviousTab => id!("action-previous-place"),
+        other => describe(Context::Choose, other),
     }
 }
 

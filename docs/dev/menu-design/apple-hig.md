@@ -14,7 +14,7 @@ the design follow it; where they differ, this page wins.
 | **Depth**: layers and motion convey hierarchy | A navigation bar says where you are and where `Esc` goes; dialogs float over a dimmed view |
 | **Consistency**: familiar standards and paradigms | The same layout, keys and words on every view: `Enter` does the default, `Esc` goes back or cancels, `/` searches |
 | **Feedback**: every action is acknowledged | A countdown banner, a start-up checklist, and a notification after each action |
-| **Forgiveness**: actions are reversible where they can be | A safety snapshot before a rollback, and the confirmation says how to undo |
+| **Forgiveness**: actions are reversible where they can be | A review page before what cannot be undone: what is lost, the undo or that there is none, and a safer action (a clone instead of a rollback) |
 
 ## The rules
 

@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [Boot] Snapshots  Pools  Log        tank DEGRADED · 3/3 open · ! 7
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          Force the Import of backup                          │
+│ WHAT IS LOST                                                                 │
+│ Nothing.                                                                     │
+│ STEPS                                                                        │
+│ 1. Force the import of backup read-only                                      │
+│    zpool import -N -f -o readonly=on backup                                  │
+│ Undo: export backup.                                                         │
+│ WHO ELSE MAY USE IT                                                          │
+│ Last imported by host backup-server (deadbeef).                              │
+│ Last written 2 d ago, on 2026-10-21.                                         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│ Type backup to confirm:                                                      │
+│ ▶ back                                                                       │
+│                                                 [ Cancel ]  [ Force Import ] │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Confirm   Tab Next   Esc Cancel   Up/Down Scroll

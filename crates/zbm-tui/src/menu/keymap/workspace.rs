@@ -4,12 +4,16 @@
 //! column, the digits and `Tab` choose a tab. Its bindings come before the
 //! classic map's, whose bindings of the same keys it drops. Start-up, as the
 //! Boot tab, binds no character but `?`: the others wait for the next
-//! dialog, as the first keys of a passphrase.
+//! dialog, as the first keys of a passphrase. The review page of a change,
+//! the workspace's alone, takes text, and `Tab` and `Shift-Tab` move among
+//! its field and its buttons.
 
 use zbm_display::keys::Key;
 
 use super::{Binding, Context, Footer, Intent, KEYMAP, NONE, Scope, bind, key};
-use Context::{Diff, Help, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots, Startup};
+use Context::{
+    Diff, Help, Kernels, Log, Main, Packages, Pools, Recovery, Review, Snapshots, Startup,
+};
 
 /// The tabs of the workspace.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -133,6 +137,22 @@ pub const WORKSPACE: &[Binding] = &[
         Key::BackTab,
         NONE,
         Scope::Only(TABBED),
+        Intent::PreviousTab,
+        Footer::Hidden,
+    ),
+    // On a review page they go from the field to the buttons and back;
+    // `PgUp` and `PgDn`, which every view binds, scroll what it loses.
+    bind(
+        Key::Tab,
+        NONE,
+        Scope::Only(&[Review]),
+        Intent::NextTab,
+        Footer::Key,
+    ),
+    bind(
+        Key::BackTab,
+        NONE,
+        Scope::Only(&[Review]),
         Intent::PreviousTab,
         Footer::Hidden,
     ),

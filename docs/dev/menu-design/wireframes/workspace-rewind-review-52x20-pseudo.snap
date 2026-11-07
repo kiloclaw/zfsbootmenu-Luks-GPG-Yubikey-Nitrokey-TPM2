@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 BBóótt  2 SSñáppshóóts [3 PPóólls] 4 LLóg   ! 6
+┌──────────────────────────────────────────────────┐
+│       RRéwííñd tank ttó Ítts Çhhéçkkpóííñt       │
+│ WWHÁTT ÍS LLÓSTT               3.0 GGíB ííñ álll │
+│ éévérrý wrrítéé síññçé tthé ççhéççkpó…  3.0 GGíB │
+│ tthé ssñáppshóót tank/ROOT/arch@2026-10-01, t…   │
+│ SSTÉPPS                                          │
+│ 1. Ééxpóórt tank                                 │
+│    zpool export tank                             │
+│ 2. Íímpóórt tank rréwóóúñdd tó ííts ççhéççkpóóí… │
+│    zpool import -N -o readonly=off --rewind-to-… │
+│ ÑÑó úññdó: wwhátt ís llóstt çáñññótt bé bbróúúg… │
+│ SSáféér: ímmpórrt ítt réáád-óññlý, wwíthhóútt t… │
+│ WWHÓ ÉÉLSÉÉ MÁÝÝ ÚSÉÉ ÍT                         │
+│ TThíss hósst háás ítt ímppórttéd: ññó ótthérr h… │
+│ TTýpéé tank ttó çóóñfíírm:                       │
+│ ▶                                                │
+│          [ ÍÍmpóórt RRéádd-Óñllý ]  [ RRéwííñd ] │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   TTáb ÑÑéxtt   ÉÉsç ÇÇáñççél

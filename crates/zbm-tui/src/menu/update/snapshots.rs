@@ -1,5 +1,5 @@
-//! The snapshots view: the actions on a snapshot, with a typed confirmation
-//! for those that lose data.
+//! The snapshots view: the actions on a snapshot, with a review page, or
+//! under the classic map a typed confirmation, for those that lose data.
 
 use zbm_types::{DatasetName, SnapshotName};
 
@@ -144,10 +144,14 @@ pub(super) fn load(model: &mut Model) -> Vec<Action> {
     vec![Action::LoadSnapshots(environment)]
 }
 
-/// The confirmation of a rollback: what is lost, from the snapshots read
-/// with the last snapshot of the machine or after it, and the name to
-/// type.
+/// A rollback: under the workspace its review page, which the machine
+/// plans; under the classic map its confirmation: what is lost, from the
+/// snapshots read with the last snapshot of the machine or after it, and
+/// the name to type.
 fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
+    if model.map == Map::Workspace {
+        return Then::Review(Action::Rollback(snapshot.name.clone()));
+    }
     let environment = snapshot.name.dataset();
     let newer: Vec<&SnapshotInfo> = model
         .loaded_snapshots(environment)
@@ -196,7 +200,7 @@ pub(super) fn new_snapshot(model: &Model, environment: DatasetName) -> Then {
 }
 
 /// The name of a clone of `name`.
-fn clone(model: &Model, name: &SnapshotName) -> Then {
+pub(super) fn clone(model: &Model, name: &SnapshotName) -> Then {
     Then::Name(Naming::new(
         Make::Clone(name.clone()),
         model.snapshot.now,

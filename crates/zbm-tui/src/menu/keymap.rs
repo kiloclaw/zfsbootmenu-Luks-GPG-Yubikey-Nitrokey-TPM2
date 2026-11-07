@@ -38,6 +38,9 @@ pub enum Context {
     /// A field that takes text: the filter, the palette, the command line,
     /// a secret, a typed confirmation.
     Text,
+    /// The review page of a change: its field takes the target's name, and
+    /// `Tab` and `Shift-Tab` move among the field and the buttons.
+    Review,
 }
 
 /// What a bound key asks for.
@@ -151,7 +154,7 @@ pub enum Input {
 pub enum Scope {
     /// Every view, text fields too.
     Everywhere,
-    /// Every view but text fields (letters type there).
+    /// Every view but text fields and review pages (letters type there).
     Views,
     /// These views only.
     Only(&'static [Context]),
@@ -162,7 +165,7 @@ impl Scope {
     pub(crate) fn contains(self, context: Context) -> bool {
         match self {
             Scope::Everywhere => true,
-            Scope::Views => context != Context::Text,
+            Scope::Views => !is_text(context),
             Scope::Only(contexts) => contexts.contains(&context),
         }
     }
@@ -173,13 +176,19 @@ impl Scope {
         match (self, other) {
             (Scope::Everywhere, _) | (_, Scope::Everywhere) | (Scope::Views, Scope::Views) => true,
             (Scope::Views, Scope::Only(contexts)) | (Scope::Only(contexts), Scope::Views) => {
-                contexts.iter().any(|context| *context != Context::Text)
+                contexts.iter().any(|context| !is_text(*context))
             }
             (Scope::Only(own), Scope::Only(contexts)) => {
                 own.iter().any(|context| contexts.contains(context))
             }
         }
     }
+}
+
+/// Whether `context` takes text, where letters type: a text field, or
+/// the field of a review page.
+fn is_text(context: Context) -> bool {
+    matches!(context, Context::Text | Context::Review)
 }
 
 /// How a binding shows in the toolbar.
@@ -510,7 +519,7 @@ pub fn input(map: Map, context: Context, press: KeyPress) -> Option<Input> {
     if let Some(binding) = bound {
         return Some(Input::Intent(binding.intent));
     }
-    if context == Context::Text {
+    if is_text(context) {
         return text(press);
     }
     classic(context, press)

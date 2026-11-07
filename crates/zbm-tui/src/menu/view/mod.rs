@@ -10,7 +10,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use super::keymap;
-use super::model::{Model, Screen};
+use super::model::{Dialog, Model, Screen};
 use super::theme::{Glyph, Role};
 use super::world::Outcome;
 use crate::text::text;
@@ -24,6 +24,7 @@ mod lists;
 mod main_view;
 mod packages;
 mod question;
+mod review;
 mod screens;
 mod status;
 mod unlock;
@@ -58,6 +59,7 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
     let hint = u16::from(
         model.map == keymap::Map::Workspace
             && model.screen != Screen::Startup
+            && !matches!(model.dialog, Some(Dialog::Review(_)))
             && area.height >= HINT_FROM,
     );
     let [top, body, note, command, bottom] = Layout::vertical([

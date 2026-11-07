@@ -122,12 +122,13 @@ fn the_line_view_numbers_the_snapshots_and_not_the_headers() {
         session.press(key);
     }
     assert_eq!(selected(session.model()), daily(21));
-    let Some(Dialog::Confirm { action, .. }) = &session.model().dialog else {
+    let Some(Dialog::Review(reviewing)) = &session.model().dialog else {
         panic!("{:?}", session.model().dialog);
     };
     assert!(
-        matches!(action, Action::Rollback(name) if name.name() == daily(21)),
-        "{action:?}"
+        matches!(&reviewing.action, Action::Rollback(name) if name.name() == daily(21)),
+        "{:?}",
+        reviewing.action
     );
 }
 
@@ -307,13 +308,16 @@ fn the_actions_on_a_snapshot_start_from_the_timeline() {
     press(&mut session, Key::Down, 7);
 
     session.key(Key::Char('r'));
-    let Some(Dialog::Confirm { action, .. }) = &session.model().dialog else {
+    let Some(Dialog::Review(reviewing)) = &session.model().dialog else {
         panic!("{:?}", session.model().dialog);
     };
     assert_eq!(
-        *action,
+        reviewing.action,
         Action::Rollback(format!("zroot/ROOT/void@{}", daily(14)).parse().unwrap())
     );
+    // The demo planned it, and the page asks for the environment's name.
+    assert!(reviewing.plan.is_some());
+    assert_eq!(reviewing.name, "void");
     session.key(Key::Escape);
     session.key(Key::Enter);
     assert!(

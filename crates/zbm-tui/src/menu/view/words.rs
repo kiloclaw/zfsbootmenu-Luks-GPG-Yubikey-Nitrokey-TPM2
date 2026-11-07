@@ -349,6 +349,7 @@ pub(crate) fn dialog(model: &Model) -> Option<Said> {
             .concat(),
             choices: Vec::new(),
         },
+        Dialog::Review(reviewing) => super::review::said(model, reviewing),
         Dialog::Name(naming) => named(naming),
         Dialog::Error { what, why, next } => {
             let mut lines = why.clone();

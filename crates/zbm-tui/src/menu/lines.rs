@@ -10,8 +10,11 @@
 //! a key (`2 k`), one of the key map's keys, or `ok`, `back` and `help`,
 //! and in the workspace's views with the tab bar `boot`, `snapshots`,
 //! `pools` and `log` for its tabs; in a field that takes text, the line is
-//! the text, and a blank line goes back. The terminal keeps its own line
-//! editing and echo, which is off while a secret is typed.
+//! the text, and a blank line goes back. A review page takes the target's
+//! name as a field does; the line view says the first rows of what it
+//! loses, and cannot scroll it or take its safer action. The terminal
+//! keeps its own line editing and echo, which is off while a secret is
+//! typed.
 
 use std::io;
 use std::time::Duration;
@@ -87,7 +90,7 @@ fn tab_word(tab: Tab) -> String {
 
 /// What `line` asks for, typed in `context` with the key map `map`.
 pub fn typed(line: &str, context: Context, map: Map) -> Typed {
-    if context == Context::Text {
+    if matches!(context, Context::Text | Context::Review) {
         let text = line.trim_end_matches(['\r', '\n']);
         if text.is_empty() {
             return Typed::Keys(vec![KeyPress::new(Key::Escape)]);
@@ -189,7 +192,9 @@ pub fn page(model: &Model) -> Vec<String> {
         page.extend(numbered(&said.choices, &[]));
     }
     page.push(String::new());
-    if is_text(model) {
+    if model.context() == Context::Review {
+        page.push(text!("lines-review"));
+    } else if is_text(model) {
         page.push(text!("lines-text"));
     } else {
         let workspace = model.map == Map::Workspace;

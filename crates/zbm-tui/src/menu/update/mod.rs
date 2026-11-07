@@ -16,6 +16,7 @@ mod events;
 mod history;
 mod lists;
 mod offers;
+mod review;
 mod screens;
 mod snapshots;
 mod text;
@@ -250,6 +251,8 @@ mod import_tests;
 mod offers_tests;
 #[cfg(test)]
 mod question_tests;
+#[cfg(test)]
+mod review_tests;
 #[cfg(test)]
 mod snapshot_tests;
 #[cfg(test)]

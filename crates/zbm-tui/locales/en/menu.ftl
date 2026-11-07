@@ -108,6 +108,15 @@ action-next-tab = the next tab
     .title = Next Tab
 action-previous-tab = the previous tab
     .title = Previous Tab
+# Enter on a review page that refuses its change.
+action-close = close
+    .title = Close
+# Tab and Shift-Tab on a review page: from the field to the buttons and
+# back to the field.
+action-next-place = the next button, or the field
+    .title = Next
+action-previous-place = the previous button, or the field
+    .title = Previous
 action-more = more
     .title = More
 
@@ -684,6 +693,88 @@ promote = The clone takes over the snapshots of { $environment } up to { $snapsh
     .title = Clone and Promote { $snapshot }
     .depends = { $environment } then depends on the clone, and cannot be destroyed without it.
 
+## The review page of a change (ADR 0016, points 12 to 15): what it loses,
+## keeps and allows, as the machine plans it, then the target's name typed.
+
+review-title = Review the Change
+review-rollback = Roll Back { $environment } to { $snapshot }
+review-planning = Reading what it would change…
+review-wait = wait for what it would change to be read
+review-refused = ZFS would refuse this:
+review-refused-clone = { $snapshot } has the clone { $clone }: destroy or promote the clone first.
+review-refused-hold = { $snapshot } is held by { $tag }: release the hold first.
+review-refused-held = { $snapshot } is held: release its holds first.
+review-refused-active = { $pool } is imported by { $host } now: forcing the import would corrupt it.
+# Headers, in capitals as the other sections of the menu.
+review-lost = WHAT IS LOST
+review-steps = STEPS
+review-pool-use = WHO ELSE MAY USE IT
+# Which rows of what is lost show, when not all do.
+review-lost-rows = { $first } to { $last } of { $count }
+review-total = { $size } in all
+review-lost-none = Nothing.
+review-lost-bookmark = the bookmark { $bookmark }
+review-lost-written = what was written since { $snapshot }
+review-lost-newer = every snapshot and bookmark newer than { $snapshot }, which could not be listed
+review-lost-checkpoint = every write since the checkpoint of { $created }
+review-lost-checkpoint-unknown = every write since the checkpoint
+review-lost-discarding = the checkpoint is being discarded: the rewind may fail
+review-lost-dataset = the filesystem { $dataset }, made since
+review-lost-datasets-unknown = the filesystems made since, which could not be listed
+review-lost-snapshot = the snapshot { $snapshot }, taken since
+review-lost-snapshots-unknown = the snapshots taken since, which could not be listed
+# The line view's rows of what is lost stop after 20; what stops a change,
+# where the page has no more room.
+review-more = and { $count } more
+review-freed = Destroying the snapshots frees { $size }.
+review-kept = Kept: { $kept }.
+review-kept-snapshots = { $count ->
+    [one] one older snapshot
+   *[other] { $count } older snapshots
+}
+review-kept-bookmarks = { $count ->
+    [one] one older bookmark
+   *[other] { $count } older bookmarks
+}
+review-no-undo = No undo: what is lost cannot be brought back.
+review-undo = It can be undone.
+review-undo-export = Undo: export { $pool }.
+review-safer-clone = Safer: clone { $snapshot } as a new boot environment, and keep everything.
+review-safer-import = Safer: import it read-only, without the rewind, and lose nothing.
+review-button-clone = Clone Instead
+review-button-read-only = Import Read-Only
+review-this-host = This host has it imported: no other host uses it now.
+review-host = Last imported by { $host }.
+review-host-unknown = The host that last imported it is unknown.
+review-written = Last written { $age }, on { $date }.
+review-active = Another host has it imported now.
+# The steps of a change, each followed by its command.
+review-step-read-write = import { $pool } read/write
+review-step-load-key = load the key of { $dataset }
+review-step-default = make { $environment } the default of { $pool }
+review-step-set = set { $property } of { $target }
+review-step-inherit = { $dataset } inherits { $property }
+review-step-snapshot = take { $snapshot }
+review-step-rollback = roll { $dataset } back to { $snapshot }
+review-step-destroy = { $count ->
+    [one] destroy one snapshot
+   *[other] destroy { $count } snapshots
+}
+review-step-clone = copy { $snapshot } as { $target }
+review-step-promote = promote { $dataset }
+review-step-inherit-key = { $dataset } takes its parent's key
+review-step-export = export { $pool }
+# $access is pool-read-only or pool-read-write.
+review-step-import = import { $pool } { $access }
+review-step-force-import = force the import of { $pool } { $access }
+review-step-rewind = import { $pool } rewound to its checkpoint
+review-step-adopt-hostid = take the host ID that last imported { $pool }
+review-step-boot = boot { $environment }
+review-step-restore = { $count ->
+    [one] restore one path from { $snapshot }
+   *[other] restore { $count } paths from { $snapshot }
+}
+
 ## Naming a new snapshot or boot environment.
 
 # Before the name being typed.
@@ -748,6 +839,9 @@ lines-stop = back: { $stop }
 lines-path = { $title }: { $path }
 lines-number = Type a number to choose it, or a number and a key, as 2 k.
 lines-text = Type it, then Enter; a blank line goes back.
+# A review page in the line view, which says only the first rows of what
+# is lost.
+lines-review = Type the name, then Enter; a blank line goes back. The line view says only the first 20 rows of what is lost, and cannot take the safer action: go back, and take it from its menu.
 lines-keys = Keys: { $keys }
 lines-words = Words: ok, back, help; a blank line shows this again.
 # The workspace's: k moves up there, l goes into the kernels, and the

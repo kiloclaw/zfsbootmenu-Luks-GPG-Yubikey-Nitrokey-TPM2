@@ -12,6 +12,7 @@ mod places;
 mod pools;
 mod prompt;
 mod recovery;
+mod review;
 mod snapshots;
 mod sort;
 mod timeline;
@@ -25,6 +26,8 @@ pub(crate) use self::pools::{disk_name, host_text, pool_mode, pool_name};
 pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
 pub use self::recovery::{RECOVERY, RecoveryTool};
+pub use self::review::Reviewing;
+pub(crate) use self::review::{Focus, Lost};
 pub(crate) use self::snapshots::Column;
 pub use self::sort::Sort;
 use self::timeline::Folds;
@@ -95,6 +98,9 @@ pub enum Then {
         /// What has to be typed.
         name: String,
     },
+    /// Open the review page of this change, under the workspace: what it
+    /// loses, keeps and allows, then its target's name typed; then act.
+    Review(Action),
     /// Ask for the name of something new, then act.
     Name(Naming),
     /// Open this screen.
@@ -135,6 +141,9 @@ pub enum Dialog {
         /// The action.
         action: Action,
     },
+    /// The review page of a change, which fills the view; boxed, as its
+    /// plan is large.
+    Review(Box<Reviewing>),
     /// The name of something new.
     Name(Naming),
     /// What failed, why, and the next steps.

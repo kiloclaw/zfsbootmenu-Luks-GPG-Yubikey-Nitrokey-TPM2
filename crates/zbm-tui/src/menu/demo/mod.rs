@@ -1,6 +1,7 @@
 //! A fake machine for `zbm-tui --demo` and for the tests of the menu: it
 //! runs start-up stage by stage and answers every [`Action`] by changing its
-//! [`Snapshot`] and sending [`Event`]s, as `zbm-app` will.
+//! [`Snapshot`] and sending [`Event`]s, as `zbm-app` will; the plan of a
+//! change, with its review, at once.
 //!
 //! The demo's secrets: the passphrase `demo`, the TPM2 PIN `1234`; the
 //! security key is never plugged in.
@@ -9,6 +10,7 @@ pub mod data;
 mod health;
 mod history;
 mod keyboard;
+mod review;
 mod session;
 mod snapshots;
 mod storage;
@@ -239,6 +241,7 @@ impl FakeMachine {
                 packages: Some(health::packages()),
             }],
             Action::Reseal(volume) => self.reseal(&volume),
+            Action::Plan(action) => vec![review::planned(&self.snapshot, &self.lists, *action)],
             Action::RestoreFiles { snapshot, paths } => self.restore(&snapshot, paths),
             other => storage::apply(&mut self.snapshot, &mut self.lists, other),
         }
