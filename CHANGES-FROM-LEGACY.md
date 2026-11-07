@@ -559,6 +559,18 @@ takes over from a menu already running.
 - **Why:** after a boot that went wrong, the menu should say what was booted last and how (ADR 0016, point 7);
   reading a partition the user did not name for logs would mount it for nothing.
 
+### `zbm.menu`: lines, a screen, or the classic menu
+
+- **Before:** the menu was `fzf`'s, drawn on the terminal, with nothing to choose.
+- **Now:** `zbm.menu=lines` shows the menu as numbered lines a screen reader reads in order, and `zbm.menu=screen`
+  as a screen; without either, the lines show by themselves when `TERM` is dumb or unset, or `speakup` is loaded.
+  `zbm.menu=classic` is for the workspace, a later menu with tabs for boot environments, snapshots, pools and the
+  log and keys of its own: once the workspace becomes the menu, `classic` keeps the menu described above, its
+  screens and keys, for one more release, and the lines still show by themselves where they would. Until then the
+  menu is the classic one, and `classic` changes nothing.
+- **Why:** the lines serve screen readers and terminals that cannot draw a screen (ADR 0011); `classic` leaves a
+  release to learn the workspace's keys, for users and for scripts that type into the menu (ADR 0016, point 10).
+
 ### When the menu cannot start
 
 - **Before:** the countdown of the start-up program booted the default environment before the menu ran, so a menu

@@ -44,9 +44,11 @@ fn recorded(action: &Action) -> Action {
 }
 
 impl<M: Machine> Session<M> {
-    /// The menu on `machine`, as it reads at first.
-    pub fn on(machine: M, theme: Theme) -> Session<M> {
-        let model = Model::new(machine.snapshot().clone(), theme);
+    /// The menu on `machine` in `theme`, as it reads at first, reading keys
+    /// with the key map `map`.
+    pub fn on(machine: M, theme: Theme, map: Map) -> Session<M> {
+        let mut model = Model::new(machine.snapshot().clone(), theme);
+        model.map = map;
         Session {
             model: Some(model),
             machine,
@@ -73,13 +75,6 @@ impl<M: Machine> Session<M> {
     )]
     pub fn model(&self) -> &Model {
         self.model.as_ref().unwrap_or_else(|| unreachable!())
-    }
-
-    /// Reads keys with the key map `map` from now on.
-    pub fn set_map(&mut self, map: Map) {
-        if let Some(model) = self.model.as_mut() {
-            model.map = map;
-        }
     }
 
     /// The menu, taken out of the session; the model is not `Clone`, as an

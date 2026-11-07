@@ -8,6 +8,7 @@ use zbm_testkit::fakes::FakeSystem;
 use super::real::Countdown;
 use super::*;
 use crate::menu::caps::Capabilities;
+use crate::menu::keymap::Map;
 use crate::menu::session::Session;
 use crate::menu::theme::Theme;
 use crate::menu::world::{Offer, Outcome, Timeout};
@@ -55,7 +56,7 @@ fn actions_that_take_the_console_wait_for_the_front_end() {
         },
         applied: Vec::new(),
     };
-    let mut session = Session::on(machine, theme());
+    let mut session = Session::on(machine, theme(), Map::default());
     session.tick(0);
     // The recovery shell: the first of the recovery tools.
     session.key(Key::Char('!'));
@@ -216,7 +217,7 @@ fn the_menu_draws_and_counts_while_an_action_runs_and_escape_cancels_it() {
         running: None,
         outbox: Vec::new(),
     };
-    let mut session = Session::on(machine, theme());
+    let mut session = Session::on(machine, theme(), Map::default());
     session.start();
     let snapshots = session.model().snapshot.environments[0].snapshot_count;
     session.key(Key::Char('s'));
@@ -438,7 +439,7 @@ fn the_scan_waits_for_the_countdown_to_stop_so_that_its_boot_never_waits() {
     let shells = Shells::default();
     let stop = || false;
     let machine = RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run).unwrap();
-    let mut session = Session::on(machine, theme());
+    let mut session = Session::on(machine, theme(), Map::default());
     assert_eq!(app.reads.load(std::sync::atomic::Ordering::Relaxed), 1);
 
     // The first tick opens the main view, which counts down: nothing is
@@ -479,7 +480,7 @@ fn a_countdown_that_ends_boots_without_scanning() {
     let shells = Shells::default();
     let stop = || false;
     let machine = RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run).unwrap();
-    let mut session = Session::on(machine, theme());
+    let mut session = Session::on(machine, theme(), Map::default());
 
     session.tick(0);
     session.tick(10_000);
@@ -504,7 +505,7 @@ fn the_menu_scans_only_once_start_up_is_over_and_again_in_a_new_round() {
         snapshot: snapshot.clone(),
         applied: Vec::new(),
     };
-    let mut session = Session::on(recorded, theme());
+    let mut session = Session::on(recorded, theme(), Map::default());
     // Start-up is not over: no scan.
     session.tick(0);
     assert!(!session.model().scanned);
@@ -527,4 +528,19 @@ fn the_menu_scans_only_once_start_up_is_over_and_again_in_a_new_round() {
     let mut model = session.into_model();
     model.begin_round();
     assert!(!model.scanned);
+}
+
+#[test]
+fn a_session_goes_on_from_a_model_with_its_map_through_a_new_round() {
+    let recorded = || Recorded {
+        snapshot: Snapshot::default(),
+        applied: Vec::new(),
+    };
+    let session = Session::on(recorded(), theme(), Map::Workspace);
+    let mut model = session.into_model();
+
+    model.begin_round();
+    let session = Session::with_model(recorded(), model);
+
+    assert_eq!(session.model().map, Map::Workspace);
 }

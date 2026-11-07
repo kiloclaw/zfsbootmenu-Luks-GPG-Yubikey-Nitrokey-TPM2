@@ -6,6 +6,7 @@
 use std::io;
 
 use super::frontend::{Frontend, Input, Surface};
+use super::keymap::Map;
 use super::machine::RealMachine;
 use super::model::Model;
 use super::session::Session;
@@ -23,27 +24,32 @@ pub trait MenuScreen {
 }
 
 /// The screen on a front end, with the model the menu goes on with: the
-/// start-up view's, or, without one, a new one in `theme`.
+/// start-up view's, or, without one, a new one in `theme` with the key map
+/// `map`.
 pub struct SessionScreen<B: Surface, I: Input> {
     frontend: Frontend<B, I>,
     model: Option<Model>,
     theme: Theme,
+    map: Map,
 }
 
 impl<B: Surface, I: Input> SessionScreen<B, I>
 where
     B::Error: Send + Sync + 'static,
 {
-    /// The screen on `frontend`, going on from `model` when there is one.
+    /// The screen on `frontend`, going on from `model` when there is one,
+    /// with its key map; else a new menu in `theme` with the key map `map`.
     pub fn new(
         frontend: Frontend<B, I>,
         model: Option<Model>,
         theme: Theme,
+        map: Map,
     ) -> SessionScreen<B, I> {
         SessionScreen {
             frontend,
             model,
             theme,
+            map,
         }
     }
 
@@ -64,7 +70,7 @@ where
                 model.begin_round();
                 Session::with_model(machine, model)
             }
-            None => Session::on(machine, self.theme),
+            None => Session::on(machine, self.theme, self.map),
         };
         let why = self.frontend.run(&mut session);
         self.model = Some(session.into_model());
@@ -73,4 +79,4 @@ where
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

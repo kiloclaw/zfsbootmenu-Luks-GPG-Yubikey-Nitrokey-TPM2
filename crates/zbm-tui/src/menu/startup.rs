@@ -21,6 +21,7 @@ use zbm_types::Answer;
 
 use super::frontend::Frontend;
 pub use super::frontend::{Input, Surface, TICK};
+use super::keymap::Map;
 use super::model::Model;
 use super::screen::{MenuScreen, SessionScreen};
 use super::theme::Theme;
@@ -57,7 +58,9 @@ impl<B: Surface, I: Input> StartupView<B, I>
 where
     B::Error: Send + Sync + 'static,
 {
-    /// The view of `snapshot` on `frontend`, drawn at once.
+    /// The view of `snapshot` on `frontend` in `theme`, drawn at once; its
+    /// menu reads keys with the key map `map`, as the menu that goes on
+    /// from it.
     ///
     /// # Errors
     ///
@@ -66,9 +69,12 @@ where
         frontend: Frontend<B, I>,
         snapshot: Snapshot,
         theme: Theme,
+        map: Map,
     ) -> io::Result<StartupView<B, I>> {
+        let mut model = Model::new(snapshot, theme);
+        model.map = map;
         let mut view = StartupView {
-            model: Some(Model::new(snapshot, theme)),
+            model: Some(model),
             frontend,
         };
         view.draw()?;
@@ -264,8 +270,9 @@ where
                 ToView::Close { done } => {
                     self.give_back()?;
                     done.send(());
-                    let theme = self.model().theme;
-                    return Ok(Some(SessionScreen::new(self.frontend, self.model, theme)));
+                    let (theme, map) = (self.model().theme, self.model().map);
+                    let screen = SessionScreen::new(self.frontend, self.model, theme, map);
+                    return Ok(Some(screen));
                 }
             }
         }

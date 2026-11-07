@@ -14,6 +14,7 @@ use ratatui::layout::Size;
 
 use super::cells::{self, CellKeys, CellSurface};
 use super::frontend::Frontend;
+use super::keymap::Map;
 use super::machine::Machine;
 use super::screen::{MenuScreen, SessionScreen};
 use super::secret::Marker;
@@ -82,11 +83,11 @@ pub fn run<M: Machine>(
     frontend.run(&mut session)
 }
 
-/// The start-up view of `snapshot` on the console's cells, when `cells`
-/// names the descriptor of a client channel the console answers on;
-/// otherwise on standard output, of `size` (columns and rows) until the
-/// terminal says otherwise, with the keys of the terminal, the rest of
-/// whose sequences may take `escape_wait`
+/// The start-up view of `snapshot`, in `theme` with the key map `map`, on
+/// the console's cells, when `cells` names the descriptor of a client
+/// channel the console answers on; otherwise on standard output, of `size`
+/// (columns and rows) until the terminal says otherwise, with the keys of
+/// the terminal, the rest of whose sequences may take `escape_wait`
 /// ([`super::term_keys::CONSOLE_ESCAPE_WAIT`],
 /// [`super::term_keys::SERIAL_ESCAPE_WAIT`]).
 ///
@@ -95,37 +96,37 @@ pub fn run<M: Machine>(
 /// When the terminal cannot be set up or drawn on.
 pub fn startup_view(
     snapshot: Snapshot,
-    theme: Theme,
+    (theme, map): (Theme, Map),
     (size, cells): ((u16, u16), Option<&str>),
     escape_wait: Duration,
 ) -> io::Result<Box<dyn StartupScreen>> {
     if let Some(frontend) = on_cells(cells)? {
-        return Ok(Box::new(StartupView::new(frontend, snapshot, theme)?));
+        return Ok(Box::new(StartupView::new(frontend, snapshot, theme, map)?));
     }
     let frontend = on_terminal(size, escape_wait)?;
-    Ok(Box::new(StartupView::new(frontend, snapshot, theme)?))
+    Ok(Box::new(StartupView::new(frontend, snapshot, theme, map)?))
 }
 
 /// The menu's screen in the session, without the start-up view: as it
-/// opens after `--resume`. On the console's cells or standard output, its
-/// keys and size as [`startup_view`]'s; the screen is the programs' until
-/// the menu takes it.
+/// opens after `--resume`, in `theme` with the key map `map`. On the
+/// console's cells or standard output, its keys and size as
+/// [`startup_view`]'s; the screen is the programs' until the menu takes it.
 ///
 /// # Errors
 ///
 /// When the terminal cannot be set up.
 pub fn menu_screen(
-    theme: Theme,
+    (theme, map): (Theme, Map),
     (size, cells): ((u16, u16), Option<&str>),
     escape_wait: Duration,
 ) -> io::Result<Box<dyn MenuScreen>> {
     if let Some(mut frontend) = on_cells(cells)? {
         frontend.give_back()?;
-        return Ok(Box::new(SessionScreen::new(frontend, None, theme)));
+        return Ok(Box::new(SessionScreen::new(frontend, None, theme, map)));
     }
     let mut frontend = on_terminal(size, escape_wait)?;
     frontend.give_back()?;
-    Ok(Box::new(SessionScreen::new(frontend, None, theme)))
+    Ok(Box::new(SessionScreen::new(frontend, None, theme, map)))
 }
 
 /// The size to draw in: the terminal's, else `fallback`.

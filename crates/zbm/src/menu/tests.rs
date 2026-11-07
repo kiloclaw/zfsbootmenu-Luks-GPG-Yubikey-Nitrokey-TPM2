@@ -375,28 +375,94 @@ fn without_a_session_that_serves_menus_zfsbootmenu_runs_its_own() {
     assert_eq!(status, None);
 }
 
+/// Whether the menu of `fake` shows as lines on a terminal of
+/// `capabilities`.
+fn is_lines_wanted(fake: &FakeSystem, capabilities: Capabilities) -> bool {
+    menu_wanted(&fake.system(), &conf(), capabilities).0
+}
+
+/// A terminal that runs no full-screen program: `TERM` dumb or unset.
+const DUMB: Capabilities = Capabilities {
+    interactive: false,
+    ..Capabilities::ASCII
+};
+
 #[test]
 fn the_menu_shows_as_lines_where_asked_or_where_a_screen_reader_is_likely() {
     let fake = FakeSystem::new();
-    let conf = conf();
     let screen = Capabilities::ASCII;
-    let dumb = Capabilities {
-        interactive: false,
-        ..Capabilities::ASCII
-    };
 
-    assert!(!is_lines_wanted(&fake.system(), &conf, screen));
-    assert!(is_lines_wanted(&fake.system(), &conf, dumb));
+    assert!(!is_lines_wanted(&fake, screen));
+    assert!(is_lines_wanted(&fake, DUMB));
     fake.files.file("/sys/accessibility/speakup", "");
-    assert!(is_lines_wanted(&fake.system(), &conf, screen));
+    assert!(is_lines_wanted(&fake, screen));
     fake.files
         .file("/zfsbootmenu/zbm.cmdline", "quiet zbm.menu=screen\n");
-    assert!(!is_lines_wanted(&fake.system(), &conf, dumb));
+    assert!(!is_lines_wanted(&fake, DUMB));
     fake.files
         .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=lines\n");
     let fresh = FakeSystem::new();
     fresh
         .files
         .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=lines\n");
-    assert!(is_lines_wanted(&fresh.system(), &conf, screen));
+    assert!(is_lines_wanted(&fresh, screen));
+}
+
+#[test]
+fn the_classic_menu_shows_as_lines_on_a_dumb_terminal_or_with_a_screen_reader() {
+    let fake = FakeSystem::new();
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=classic\n");
+    let wanted = |capabilities| menu_wanted(&fake.system(), &conf(), capabilities);
+
+    // On a terminal that draws a screen, the screen.
+    assert_eq!(wanted(Capabilities::ASCII), (false, Map::Classic));
+    // On a dumb terminal, the lines.
+    assert_eq!(wanted(DUMB), (true, Map::Classic));
+    // With speakup, the lines.
+    fake.files.file("/sys/accessibility/speakup", "");
+    assert_eq!(wanted(Capabilities::ASCII), (true, Map::Classic));
+}
+
+#[test]
+fn lines_and_screen_keep_the_menu_s_key_map() {
+    let fake = FakeSystem::new();
+    let wanted = |capabilities| menu_wanted(&fake.system(), &conf(), capabilities);
+
+    assert_eq!(wanted(Capabilities::ASCII), (false, Map::default()));
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=lines\n");
+    assert_eq!(wanted(Capabilities::ASCII), (true, Map::default()));
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=screen\n");
+    assert_eq!(wanted(DUMB), (false, Map::default()));
+    // Until the workspace becomes the menu, the classic map.
+    assert_eq!(Map::default(), Map::Classic);
+}
+
+#[test]
+fn a_zbm_menu_value_it_does_not_know_shows_the_screen_with_the_default_map() {
+    let fake = FakeSystem::new();
+    let wanted = |capabilities| menu_wanted(&fake.system(), &conf(), capabilities);
+
+    for line in ["zbm.menu=Classic\n", "zbm.menu=\n", "zbm.menu\n"] {
+        fake.files.file("/zfsbootmenu/zbm.cmdline", line);
+        assert_eq!(wanted(DUMB), (false, Map::default()), "{line}");
+    }
+}
+
+#[test]
+fn the_menu_over_ssh_reads_keys_with_the_map_it_is_given() {
+    let theme = Theme::new(Capabilities::ASCII);
+    for map in [Map::Workspace, Map::Classic] {
+        let shown = |machine: RemoteMachine<'_>| {
+            assert_eq!(Session::on(machine, theme, map).model().map, map);
+            Ok(String::new())
+        };
+        let name = format!("map-{map:?}");
+        assert_eq!(
+            remotely(&name, Some(&serving), shown),
+            (Some(0), String::new())
+        );
+    }
 }

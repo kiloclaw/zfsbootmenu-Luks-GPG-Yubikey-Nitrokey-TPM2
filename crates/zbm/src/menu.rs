@@ -31,6 +31,7 @@ use zbm_startup::program::Startup;
 use zbm_startup::program::menu::{Menu, SessionMenu};
 use zbm_sys::{Signal, SignalSet, Signals};
 use zbm_tui::menu::caps::Capabilities;
+use zbm_tui::menu::keymap::Map;
 use zbm_tui::menu::lines::{self, LineFront};
 use zbm_tui::menu::machine::{Countdown, Machine, RealMachine, RemoteMachine};
 use zbm_tui::menu::screen::MenuScreen;
@@ -47,24 +48,33 @@ pub(crate) const FALLBACK_SIZE: (u16, u16) = (80, 24);
 /// Where the `speakup` screen reader shows that it is loaded.
 const SPEAKUP: &str = "/sys/accessibility/speakup";
 
-/// Whether the menu on `system`, whose terminal can draw `capabilities`,
-/// shows as lines (ROADMAP.md UI8, ADR 0011): as `zbm.menu` of this boot's
-/// command line asks, or where a screen reader is likely.
-pub(crate) fn is_lines_wanted(
+/// How the menu on `system`, whose terminal can draw `capabilities`, shows:
+/// whether as lines (ROADMAP.md UI8, ADR 0011), as `zbm.menu` of this
+/// boot's command line asks or where a screen reader is likely; and the key
+/// map it reads keys with: the classic one with `zbm.menu=classic` (ADR
+/// 0016, point 10), which leaves the choice of lines to the terminal, else
+/// the default map.
+pub(crate) fn menu_wanted(
     system: &System<'_>,
     conf: &Conf,
     capabilities: Capabilities,
-) -> bool {
+) -> (bool, Map) {
     let base = preinit::base(conf);
     let kcl = system
         .files
         .read_to_string(&base.join("zbm.cmdline"))
         .unwrap_or_default();
-    let asked = ZbmArgs::from_cmdline(&kcl)
-        .lookup(&MENU, &mut Vec::new())
-        .map(|view| view == "lines");
+    let view = ZbmArgs::from_cmdline(&kcl).lookup(&MENU, &mut Vec::new());
+    let (asked, map) = match view.as_deref() {
+        None => (None, Map::default()),
+        Some("classic") => (None, Map::Classic),
+        Some(view) => (Some(view == "lines"), Map::default()),
+    };
     let speakup = system.files.exists(Path::new(SPEAKUP));
-    lines::is_wanted(asked, capabilities.interactive, speakup)
+    (
+        lines::is_wanted(asked, capabilities.interactive, speakup),
+        map,
+    )
 }
 
 /// Runs the menu on a machine until it ends; why it ended.
@@ -278,7 +288,8 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         let theme = Theme::new(capabilities);
         let clock = SystemClock::new();
         let line_view: LineView<'_> = (system.console, &clock);
-        let line_view = is_lines_wanted(&system, conf, capabilities).then_some(line_view);
+        let (lines, map) = menu_wanted(&system, conf, capabilities);
+        let line_view = lines.then_some(line_view);
         let escape_wait = crate::startup::escape_wait(&ZbmOptions::from_conf(conf).control_term);
         // The session's menu, when it serves one; else this process's.
         let stop = || is_signalled(signals.as_ref());
@@ -287,7 +298,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             // The session performs the actions: this process needs no more
             // than its terminal and the sockets.
             confine_remote(&base, sockets.unwrap_or(Path::new("/")));
-            show_session(Session::on(machine, theme), line_view, escape_wait)
+            show_session(Session::on(machine, theme, map), line_view, escape_wait)
         };
         let (input, output) = (io::stdin(), io::stdout());
         let served = Remote {
@@ -300,7 +311,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         }
         // The menu as lines, or on the terminal's screen.
         let mut show = |machine: RealMachine<'_, '_>| {
-            show_session(Session::on(machine, theme), line_view, escape_wait)
+            show_session(Session::on(machine, theme, map), line_view, escape_wait)
         };
         let show = (&mut show as Show<'_>, Countdown::Skip);
         menu(system, conf, show, signals.as_ref()).unwrap_or_else(|error| {

@@ -20,7 +20,7 @@ use zbm_platform::Clock;
 use zbm_platform::console::{Console, Timed};
 
 use super::frontend::TICK;
-use super::keymap::Context;
+use super::keymap::{Context, Map};
 use super::machine::{Machine, RealMachine};
 use super::model::Model;
 use super::screen::MenuScreen;
@@ -303,16 +303,24 @@ pub struct LineScreen<'a> {
     console: &'a dyn Console,
     clock: &'a dyn Clock,
     theme: Theme,
+    map: Map,
     model: Option<Model>,
 }
 
 impl<'a> LineScreen<'a> {
-    /// The line view on `console`, whose time passes on `clock`, in `theme`.
-    pub fn new(console: &'a dyn Console, clock: &'a dyn Clock, theme: Theme) -> LineScreen<'a> {
+    /// The line view on `console`, whose time passes on `clock`, in `theme`
+    /// with the key map `map`.
+    pub fn new(
+        console: &'a dyn Console,
+        clock: &'a dyn Clock,
+        theme: Theme,
+        map: Map,
+    ) -> LineScreen<'a> {
         LineScreen {
             console,
             clock,
             theme,
+            map,
             model: None,
         }
     }
@@ -325,7 +333,7 @@ impl MenuScreen for LineScreen<'_> {
                 model.begin_round();
                 Session::with_model(machine, model)
             }
-            None => Session::on(machine, self.theme),
+            None => Session::on(machine, self.theme, self.map),
         };
         let why = LineFront::new(self.console, self.clock).run(&mut session);
         self.model = Some(session.into_model());

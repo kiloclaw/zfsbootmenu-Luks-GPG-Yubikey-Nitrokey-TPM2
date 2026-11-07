@@ -1,23 +1,24 @@
 //! How the menu shows: as a screen, or as lines for screen readers
-//! (ROADMAP.md UI8, ADR 0011).
+//! (ROADMAP.md UI8, ADR 0011), and the classic menu kept for a release (ADR
+//! 0016, point 10).
 
 use super::super::{Doc, OptionSpec, Reader, Source, Value};
 
-/// `zbm.menu`: the menu as a screen, or as lines.
+/// `zbm.menu`: the menu as a screen, as lines, or the classic menu.
 pub static MENU: OptionSpec = OptionSpec {
     name: "zbm.menu",
     aliases: &[],
     source: Source::KernelCommandLine,
-    value: Value::Choice(&["lines", "screen"]),
+    value: Value::Choice(&["lines", "screen", "classic"]),
     default: None,
-    summary: "The menu as lines, for screen readers and simple terminals, or as a screen",
+    summary: "Lines for screen readers and simple terminals, a screen, or the classic menu",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: "**zbm.menu=lines**",
+        heading: "**zbm.menu=<lines|screen|classic>**",
         body: MENU_DOC,
     },
     deprecation: None,
-    examples: &["zbm.menu=lines", "zbm.menu=screen"],
+    examples: &["zbm.menu=lines", "zbm.menu=screen", "zbm.menu=classic"],
 };
 
 const MENU_DOC: &str = r"
@@ -29,4 +30,9 @@ kernels of the second), one of the keys the view names, or *ok*, *back* and *hel
 that takes text, the line is the text, and a blank line goes back. Passphrases are typed without
 echo. The lines show by themselves when **TERM** is *dumb* or unset, and when the *speakup* screen
 reader is loaded; **zbm.menu=screen** shows the screen even then.
+
+A later menu, the workspace, puts boot environments, snapshots, pools and the log on tabs of one
+screen and reads other keys. Once it becomes the menu, **zbm.menu=classic** keeps the menu of
+this release, its screens and its keys, for one more release; the lines still show by themselves
+where they would. Until then the menu is the classic one, and *classic* changes nothing.
 ";

@@ -1,9 +1,12 @@
 use pretty_assertions::assert_eq;
-use zbm_testkit::fakes::{FakeClock, FakeConsole};
+use zbm_app::{App, Runtime};
+use zbm_testkit::fakes::{FakeClock, FakeConsole, FakeSystem};
 
 use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::DemoOptions;
+use crate::menu::machine::Countdown;
+use crate::menu::screen::tests::NoShell;
 use crate::menu::theme::Theme;
 use crate::menu::world::Action;
 
@@ -226,4 +229,30 @@ fn the_lines_show_where_asked_or_where_a_screen_reader_is_likely() {
     assert!(is_wanted(None, false, false));
     assert!(is_wanted(None, true, true));
     assert!(!is_wanted(None, true, false));
+}
+
+#[test]
+fn the_line_screen_s_menu_reads_keys_with_its_map_from_one_round_to_the_next() {
+    let fake = FakeSystem::new();
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "");
+    let clock = FakeClock::new();
+    let console = FakeConsole::new().with_clock(clock.clone());
+    let theme = Theme::new(Capabilities::ASCII);
+    let mut screen = LineScreen::new(&console, &clock, theme, Map::Workspace);
+
+    assert_eq!(round(&fake, &mut screen), io::ErrorKind::UnexpectedEof);
+    // The next round begins on the same model, its map kept.
+    assert_eq!(round(&fake, &mut screen), io::ErrorKind::UnexpectedEof);
+    assert_eq!(screen.model.map(|model| model.map), Some(Map::Workspace));
+}
+
+/// One round of the menu on `screen`, on the machine `fake`; it ends at
+/// once, as the console's input did: how.
+fn round(fake: &FakeSystem, screen: &mut LineScreen<'_>) -> io::ErrorKind {
+    let stop = || false;
+    let runtime = Runtime::default();
+    let app = App::new(zbm_platform::Context::new(fake.system()), &runtime);
+    let machine = RealMachine::new(&app, fake.system(), &NoShell, &stop, Countdown::Skip).unwrap();
+    screen.run(machine).unwrap_err().kind()
 }

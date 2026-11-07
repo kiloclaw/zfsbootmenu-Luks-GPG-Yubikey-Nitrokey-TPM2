@@ -10,7 +10,7 @@ use zbm_types::Answer;
 
 use super::*;
 use crate::menu::caps::Capabilities;
-use crate::menu::keymap::{Modifiers, press};
+use crate::menu::keymap::{Map, Modifiers, press};
 use crate::menu::world::{Method, Question, Stage, StageState};
 
 /// What a read of the terminal gives.
@@ -109,11 +109,16 @@ fn snapshot() -> Snapshot {
 }
 
 fn view(keys: &Scripted) -> StartupView<TestBackend, Scripted> {
+    view_with(keys, Map::Classic)
+}
+
+/// The view on `keys`, whose menu reads keys with `map`.
+fn view_with(keys: &Scripted, map: Map) -> StartupView<TestBackend, Scripted> {
     let frontend = Frontend::new(TestBackend::new(80, 25), keys.clone())
         .unwrap()
         .with_clock(keys.clock.clone());
     let theme = Theme::new(Capabilities::FULL);
-    StartupView::new(frontend, snapshot(), theme).unwrap()
+    StartupView::new(frontend, snapshot(), theme, map).unwrap()
 }
 
 /// What the terminal of `view` shows.
@@ -368,4 +373,21 @@ fn the_view_ends_when_the_stages_did_and_tells_them_it_is_gone() {
     link.lend();
     link.close();
     assert_eq!(*keys.modes.borrow(), ["release"]);
+}
+
+#[test]
+fn the_view_s_menu_reads_keys_with_its_map_and_hands_it_to_the_menu() {
+    for map in [Map::Workspace, Map::Classic] {
+        let keys = Scripted::default();
+        let view = view_with(&keys, map);
+        assert_eq!(view.model().map, map);
+        let mailbox = Mailbox::new().unwrap();
+        let (done, closed) = zbm_platform::event::reply();
+        mailbox.sender().send(ToView::Close { done }).unwrap();
+
+        let screen = view.serve(mailbox, &|| true).unwrap().unwrap();
+
+        assert!(closed.wait(None).is_ok());
+        assert_eq!(screen.model().map(|model| model.map), Some(map));
+    }
 }

@@ -8,7 +8,7 @@ use zbm_testkit::{Shared, TempDir};
 use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine};
-use crate::menu::keymap::press;
+use crate::menu::keymap::{Map, press};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Action, Event, Offer, Snapshot};
 
@@ -92,6 +92,7 @@ fn the_demo_runs_on_any_surface_and_its_keys_are_logged() {
     let mut session = Session::on(
         FakeMachine::new(&DemoOptions::default()),
         Theme::new(Capabilities::FULL),
+        Map::default(),
     );
 
     let why = frontend(&input)
@@ -158,6 +159,7 @@ fn the_console_is_lent_to_what_takes_it_and_the_size_followed() {
             ran: false,
         },
         Theme::new(Capabilities::FULL),
+        Map::default(),
     );
     let mut frontend = frontend(&input);
     frontend.draw(session.model()).unwrap();

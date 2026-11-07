@@ -378,7 +378,7 @@ pub fn run_in_menu(
     let capabilities = Capabilities::detect(|name| environment.var(name));
     // The menu as lines, for a screen reader or a simple terminal (ADR
     // 0011): the stages on the plain console, then the lines.
-    let lines = crate::menu::is_lines_wanted(&system, conf, capabilities);
+    let (lines, map) = crate::menu::menu_wanted(&system, conf, capabilities);
     if (!capabilities.interactive && !lines) || !has_menu(&system) {
         return None;
     }
@@ -391,13 +391,15 @@ pub fn run_in_menu(
     // passed.
     let cells = environment.var(zbm_tui::menu::cells::CELLS_FD);
     let cells = cells.as_deref();
-    let open =
-        |snapshot, theme| terminal::startup_view(snapshot, theme, (sized()?, cells), escape_wait);
+    let open = |snapshot, theme| {
+        terminal::startup_view(snapshot, (theme, map), (sized()?, cells), escape_wait)
+    };
     let open_menu = |theme| -> io::Result<Box<dyn MenuScreen + '_>> {
         if lines {
-            return Ok(Box::new(LineScreen::new(system.console, &clock, theme)));
+            let screen = LineScreen::new(system.console, &clock, theme, map);
+            return Ok(Box::new(screen));
         }
-        terminal::menu_screen(theme, (sized()?, cells), escape_wait)
+        terminal::menu_screen((theme, map), (sized()?, cells), escape_wait)
     };
     let screens: Screens<'_> = (Theme::new(capabilities), &open, &open_menu, lines);
     let Some((socket, token)) = listen(Path::new(session::SOCKET)) else {

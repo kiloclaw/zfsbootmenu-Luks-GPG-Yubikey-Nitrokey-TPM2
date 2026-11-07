@@ -292,7 +292,7 @@ impl Model {
             history: None,
             reading_history: false,
             layout: 0,
-            map: Map::Classic,
+            map: Map::default(),
             snapshot,
         };
         model.refresh();
