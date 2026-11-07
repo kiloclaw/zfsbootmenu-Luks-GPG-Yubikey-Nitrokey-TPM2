@@ -7,22 +7,25 @@
 //! question opens its dialog ([`StartupView::ask`]), which reads keys until
 //! it gives an answer, sent back on the question's reply: start-up waits
 //! for it, as it waits at a console prompt. The view never draws the main
-//! view; the menu does, once start-up is over.
+//! view; the menu does, once start-up is over. Under the workspace the view
+//! is the Boot tab, and the person may look at the other tabs meanwhile.
 
 pub mod link;
 
 use std::collections::VecDeque;
 use std::io;
 use std::os::fd::{AsFd as _, BorrowedFd};
+use std::time::Duration;
 
 use ratatui::Terminal;
+use zbm_display::keys::KeyPress;
 use zbm_platform::event::Mailbox;
 use zbm_types::Answer;
 
 use super::frontend::Frontend;
 pub use super::frontend::{Input, Surface, TICK};
-use super::keymap::Map;
-use super::model::Model;
+use super::keymap::{self, Map};
+use super::model::{Model, Screen};
 use super::screen::{MenuScreen, SessionScreen};
 use super::theme::Theme;
 use super::update::{Message, update};
@@ -52,7 +55,14 @@ pub trait StartupScreen {
 pub struct StartupView<B: Surface, I: Input> {
     model: Option<Model>,
     frontend: Frontend<B, I>,
+    /// The keys typed ahead of a dialog, which it reads first
+    /// ([`StartupView::is_typing_ahead`]).
+    typed_ahead: VecDeque<KeyPress>,
 }
+
+/// The most keys typed ahead that are kept: more go nowhere, as noise
+/// would.
+const TYPED_AHEAD: usize = 512;
 
 impl<B: Surface, I: Input> StartupView<B, I>
 where
@@ -78,6 +88,7 @@ where
         let mut view = StartupView {
             model: Some(model),
             frontend,
+            typed_ahead: VecDeque::new(),
         };
         view.draw()?;
         Ok(view)
@@ -159,7 +170,11 @@ where
             // A read can end before the tick with no key, as noise on a
             // serial line does: the dialog's time is the time that passed.
             let passed = self.frontend.now().saturating_sub(last_tick);
-            let mut answers = match self.frontend.key(TICK.saturating_sub(passed), wake)? {
+            let key = match self.typed_ahead.pop_front() {
+                Some(key) => Some(key),
+                None => self.frontend.key(TICK.saturating_sub(passed), wake)?,
+            };
+            let mut answers = match key {
                 Some(key) => self.step(Message::Key(key)),
                 None => Vec::new(),
             };
@@ -182,10 +197,59 @@ where
                 self.draw()?;
                 return Ok(answer);
             }
-            if self.model().dialog.is_none() {
+            let model = self.model();
+            if model.is_starting_up() && model.dialog.is_none() {
                 let _ = self.step(Message::Event(Box::new(event.clone())));
             }
         }
+    }
+
+    /// Whether the view reads keys between questions: under the workspace,
+    /// while the stages run and no dialog is open, where the keys of the
+    /// tabs, moving and help work. With the current map, and once the
+    /// stages are over, keys wait for the menu, which a key stops the
+    /// countdown of.
+    fn is_reading_keys(&self) -> bool {
+        let model = self.model();
+        model.map == Map::Workspace && model.dialog.is_none() && !model.started
+    }
+
+    /// Whether `key` is typed ahead of a dialog, as a passphrase typed
+    /// before its prompt: a key the Boot tab's start-up view does not
+    /// bind, and every key after it, until a dialog reads them. As under
+    /// the current map, they wait for the dialog; with no dialog, nothing
+    /// reads them, and the menu, once start-up is over, never sees them:
+    /// they do not stop its countdown.
+    fn is_typing_ahead(&self, key: KeyPress) -> bool {
+        let model = self.model();
+        !self.typed_ahead.is_empty()
+            || (model.screen == Screen::Startup
+                && keymap::input(model.map, model.context(), key).is_none())
+    }
+
+    /// Reads a key no longer than until the tick that started at
+    /// `last_tick` ends, or `wake` is readable, and steps it, unless it is
+    /// typed ahead of a dialog, which reads it then; then, once the tick
+    /// passed, steps the time that passed. A read can end before the tick
+    /// with no key, as noise on a serial line does: nothing changes. What
+    /// the steps ask for goes to nobody: the view has no machine, and the
+    /// menu asks again once it has one.
+    fn read_key(&mut self, wake: BorrowedFd<'_>, last_tick: &mut Duration) -> io::Result<()> {
+        let passed = self.frontend.now().saturating_sub(*last_tick);
+        if let Some(key) = self.frontend.key(TICK.saturating_sub(passed), Some(wake))? {
+            if !self.is_typing_ahead(key) {
+                let _ = self.step(Message::Key(key));
+            } else if self.typed_ahead.len() < TYPED_AHEAD {
+                self.typed_ahead.push_back(key);
+            }
+        }
+        let passed = self.frontend.now().saturating_sub(*last_tick);
+        if passed >= TICK {
+            *last_tick = self.frontend.now();
+            let ms = u64::try_from(passed.as_millis()).unwrap_or(u64::MAX);
+            let _ = self.step(Message::Tick(ms));
+        }
+        Ok(())
     }
 
     /// Leaves the terminal as it was before the view: cleared, with the
@@ -219,11 +283,14 @@ where
     /// Serves start-up's stages, which send their events and questions to
     /// `mailbox` from their thread, until they close the view, or `running`
     /// says they ended. A question opens its dialog, whose answer goes back
-    /// on its reply; one withdrawn closes it, unanswered. The view gives the
-    /// terminal back before it returns, and the mailbox, dropped, tells the
-    /// stages that nothing will answer any more. Once they closed it, its
-    /// front end and its model are the menu's screen
-    /// ([`SessionScreen`]); `None` when they ended without closing it.
+    /// on its reply; one withdrawn closes it, unanswered. Under the
+    /// workspace, keys are read between questions too, while the stages
+    /// run; those typed ahead of a dialog wait for it. The view gives the
+    /// terminal back before it returns, and the mailbox, dropped, tells
+    /// the stages that nothing will answer any more.
+    /// Once they closed it, its front end and its model are the menu's
+    /// screen ([`SessionScreen`]); `None` when they ended without closing
+    /// it.
     ///
     /// # Errors
     ///
@@ -238,9 +305,14 @@ where
         running: &dyn Fn() -> bool,
     ) -> io::Result<Option<SessionScreen<B, I>>> {
         let mut queue: VecDeque<ToView> = VecDeque::new();
+        let mut last_tick = self.frontend.now();
         loop {
             if queue.is_empty() {
-                let _ = zbm_sys::wait_readable(mailbox.as_fd(), Some(TICK));
+                if self.is_reading_keys() {
+                    self.read_key(mailbox.as_fd(), &mut last_tick)?;
+                } else {
+                    let _ = zbm_sys::wait_readable(mailbox.as_fd(), Some(TICK));
+                }
                 queue.extend(mailbox.take());
             }
             let Some(message) = queue.pop_front() else {
@@ -331,3 +403,5 @@ where
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod workspace_tests;

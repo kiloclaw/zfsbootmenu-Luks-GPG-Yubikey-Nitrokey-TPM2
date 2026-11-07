@@ -68,7 +68,8 @@ pub fn describe(context: Context, intent: Intent) -> Id {
 
 /// The bindings of `context` in the key map `map` shown in the toolbar, in
 /// order: (intent, key, what it does, as `said` says it). Only the intents
-/// `offered` says the machine offers are shown.
+/// `offered` says the machine offers are shown; not the arrows of the
+/// workspace's start-up, which has nothing to select.
 pub fn bindings(
     map: Map,
     context: Context,
@@ -76,10 +77,12 @@ pub fn bindings(
     said: &dyn Fn(Intent) -> Id,
 ) -> Vec<(Intent, String, Id)> {
     let idle = matches!(context, Context::Startup | Context::Help | Context::Log);
+    let still = map == Map::Workspace && context == Startup;
     map.table()
         .into_iter()
-        .filter(|binding| binding.scope.contains(context) && offered(binding.intent))
+        .filter(|binding| map.is_bound(binding, context) && offered(binding.intent))
         .filter(|binding| !(idle && binding.intent == Intent::Primary))
+        .filter(|binding| !(still && matches!(binding.intent, Intent::Up | Intent::Down)))
         .filter_map(|binding| {
             let key = match binding.footer {
                 Footer::Hidden => return None,
@@ -199,7 +202,7 @@ pub fn help(
     for binding in map
         .table()
         .into_iter()
-        .filter(|binding| binding.scope.contains(context) && offered(binding.intent))
+        .filter(|binding| map.is_bound(binding, context) && offered(binding.intent))
     {
         let name = key_name(binding.key, binding.modifiers);
         match lines

@@ -5,10 +5,12 @@
 //! names and devices, the names and notes of the pools' devices, the name
 //! of the host that used a pool not imported, the log, the version of the
 //! ZFS module and the host ID; with the demo's snapshots read, every screen
-//! is drawn with them, the workspace's Boot tab and help too, then the
-//! workspace's Snapshots tab: its timeline of the snapshots whose names
-//! the input gives, taken at times around now, after it and at the epoch,
-//! with a group folded, and in the line view's words; then the
+//! is drawn with them, the workspace's Boot tab and help too, start-up as
+//! its Boot tab, with a stage that failed for a reason the input gives,
+//! and its Log tab while start-up runs; then the workspace's Snapshots
+//! tab: its timeline of the snapshots whose names the input gives, taken
+//! at times around now, after it and at the epoch, with a group folded,
+//! and in the line view's words; then the
 //! workspace's Pools tab: the tree of pools the scan sends with the names
 //! of their vdevs and devices, their notes and what `zpool` says the input
 //! gives, a pool of another host, and volumes of no pool, each row
@@ -35,7 +37,7 @@ use zbm_tui::menu::theme::Theme;
 use zbm_tui::menu::view::view;
 use zbm_tui::menu::world::{
     Action, Device, DeviceClass, DeviceErrors, DeviceLog, DeviceState, Event, Health, Kernel,
-    Level, LogEntry, Pool, PoolHost, Snapshot, SnapshotInfo, SnapshotList,
+    Level, LogEntry, Pool, PoolHost, Snapshot, SnapshotInfo, SnapshotList, Stage, StageState,
 };
 use zbm_tui::menu::{Message, update};
 use zbm_types::{PoolName, Untrusted, must_escape};
@@ -164,6 +166,24 @@ fuzz_target!(|data: &[u8]| {
         model.screen = screen;
         check(&model, width, height);
     }
+    // Start-up as the Boot tab, a stage failed for a reason the input
+    // gives, and the Log tab while it runs.
+    let kept = std::mem::take(&mut model.snapshot.startup);
+    model.snapshot.startup = vec![
+        Stage {
+            name: next().into_inner(),
+            state: StageState::Failed(next().into_inner()),
+        },
+        Stage {
+            name: next().into_inner(),
+            state: StageState::Running,
+        },
+    ];
+    for screen in [Screen::Startup, Screen::Log] {
+        model.screen = screen;
+        check(&model, width, height);
+    }
+    model.snapshot.startup = kept;
     // The workspace's Snapshots tab: hostile names, taken at times that
     // cross the boundaries of the groups, one group folded.
     let now = model.snapshot.now;

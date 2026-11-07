@@ -7,7 +7,7 @@
 use zbm_display::keys::Key;
 
 use super::{Binding, Context, Footer, Intent, KEYMAP, NONE, Scope, bind, key};
-use Context::{Diff, Help, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots};
+use Context::{Diff, Help, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots, Startup};
 
 /// The tabs of the workspace.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,9 +58,10 @@ pub enum Map {
     Workspace,
 }
 
-/// The views with the tab bar.
+/// The views with the tab bar, whose keys choose a tab: start-up, as the
+/// Boot tab, binds few other keys ([`Map::is_bound`]).
 const TABBED: &[Context] = &[
-    Main, Snapshots, Kernels, Pools, Recovery, Log, Diff, Packages, Help,
+    Startup, Main, Snapshots, Kernels, Pools, Recovery, Log, Diff, Packages, Help,
 ];
 
 /// The views of the Boot tab's columns, which the arrows go into and out of.
@@ -156,7 +157,30 @@ fn is_taken(binding: &Binding) -> bool {
         })
 }
 
+/// Whether the workspace's start-up view, outside a dialog, binds
+/// `intent`: the tabs, moving and help. Nothing else is offered there, and
+/// a key of something else would say so until the next key.
+fn is_bound_at_startup(intent: Intent) -> bool {
+    matches!(
+        intent,
+        Intent::Tab(_)
+            | Intent::NextTab
+            | Intent::PreviousTab
+            | Intent::Up
+            | Intent::Down
+            | Intent::Help
+    )
+}
+
 impl Map {
+    /// Whether `binding` of its table works in `context`: where its scope
+    /// says, but for the workspace's start-up view, which binds only the
+    /// keys of the tabs, moving and help.
+    pub(crate) fn is_bound(self, binding: &Binding, context: Context) -> bool {
+        binding.scope.contains(context)
+            && (self == Map::Classic || context != Startup || is_bound_at_startup(binding.intent))
+    }
+
     /// Its bindings, in the order of the toolbar.
     pub fn table(self) -> Vec<&'static Binding> {
         match self {
@@ -183,6 +207,6 @@ impl Map {
     pub(crate) fn binding_in(self, intent: Intent, context: Context) -> Option<&'static Binding> {
         self.table()
             .into_iter()
-            .find(|binding| binding.intent == intent && binding.scope.contains(context))
+            .find(|binding| binding.intent == intent && self.is_bound(binding, context))
     }
 }

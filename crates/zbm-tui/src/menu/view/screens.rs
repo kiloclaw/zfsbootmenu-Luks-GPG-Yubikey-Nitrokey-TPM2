@@ -13,7 +13,7 @@ use crate::menu::format::{age, date, fit, size};
 use crate::menu::keymap::{self, Context, Map};
 use crate::menu::model::{Column, Model, RECOVERY, recovery_tools};
 use crate::menu::theme::{Glyph, Role};
-use crate::menu::world::{Health, Kernel, Level, PoolHost, StageState, VolumeState};
+use crate::menu::world::{Health, Kernel, Level, PoolHost, Stage, StageState, VolumeState};
 use crate::text::{self, text};
 
 /// Start-up as a checklist (rule 10): each stage with a glyph, and the
@@ -21,8 +21,32 @@ use crate::text::{self, text};
 pub(super) fn startup(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let stages = &model.snapshot.startup;
-    let lines: Vec<Line<'static>> = stages
+    let lines = stage_lines(model, stages.iter());
+    let current = stages
         .iter()
+        .position(|stage| matches!(stage.state, StageState::Pending | StageState::Running))
+        .map_or(stages.len(), |index| index + 1);
+    let count = text!("startup-step", current = current, total = stages.len());
+    let block = lists::counted(theme, &text!("startup-title"), &count);
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// A line per stage of `stages`: its glyph, its name, and why it failed,
+/// which may name a pool or a device: drawn printable under the workspace,
+/// and as it comes under the current map, which stays as it was.
+pub(super) fn stage_lines<'a>(
+    model: &Model,
+    stages: impl Iterator<Item = &'a Stage>,
+) -> Vec<Line<'static>> {
+    let theme = model.theme;
+    let shown = |text: &str| {
+        if model.map == Map::Workspace {
+            Printable(text).to_string()
+        } else {
+            text.to_owned()
+        }
+    };
+    stages
         .map(|stage| {
             let (glyph, role) = match &stage.state {
                 StageState::Pending => (" ", Role::Muted),
@@ -31,28 +55,22 @@ pub(super) fn startup(model: &Model, frame: &mut Frame<'_>, area: Rect) {
                 StageState::Failed(_) => (theme.glyph(Glyph::Failed), Role::Danger),
                 StageState::Skipped => (theme.glyph(Glyph::Skipped), Role::Muted),
             };
+            let name = shown(&stage.name);
             let name = if stage.state == StageState::Pending {
-                Span::styled(stage.name.clone(), theme.style(Role::Muted))
+                Span::styled(name, theme.style(Role::Muted))
             } else {
-                Span::raw(stage.name.clone())
+                Span::raw(name)
             };
             let mut spans = vec![Span::styled(format!("{glyph:<3}"), theme.style(role)), name];
             if let StageState::Failed(reason) = &stage.state {
                 spans.push(Span::styled(
-                    format!(": {reason}"),
+                    format!(": {}", shown(reason)),
                     theme.style(Role::Danger),
                 ));
             }
             Line::from(spans)
         })
-        .collect();
-    let current = stages
-        .iter()
-        .position(|stage| matches!(stage.state, StageState::Pending | StageState::Running))
-        .map_or(stages.len(), |index| index + 1);
-    let count = text!("startup-step", current = current, total = stages.len());
-    let block = lists::counted(theme, &text!("startup-title"), &count);
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+        .collect()
 }
 
 /// What the snapshots column says while its snapshots are not there: its

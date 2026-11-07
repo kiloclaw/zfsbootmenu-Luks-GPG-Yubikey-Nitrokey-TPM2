@@ -9,14 +9,15 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use zbm_types::Printable;
 
-use super::{lists, main_view};
+use super::{lists, main_view, screens};
 use crate::menu::format::fit;
 use crate::menu::keymap::{self, Context, Intent, Map, Tab};
 use crate::menu::model::{Model, disk_name};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{
-    Device, DeviceState, Environment, Health, Level, Log, Pool, Verdict, VolumeState,
+    Device, DeviceState, Environment, Health, Level, Log, Pool, StageState, Verdict, VolumeState,
 };
 use crate::text::{self, text};
 
@@ -74,6 +75,26 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     columns::render(model, frame, rest, false);
 }
 
+/// Draws the Boot tab while start-up runs: its stages where the columns
+/// go, beside the sidebar from 110 columns, under what needs attention as
+/// one line narrower, as the Boot tab draws them once it is over.
+pub(super) fn render_startup(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    if area.width >= SIDEBAR_FROM {
+        let [side, rest] =
+            Layout::horizontal([Constraint::Length(SIDEBAR), Constraint::Fill(1)]).areas(area);
+        render_sidebar(model, frame, side);
+        screens::startup(model, frame, rest);
+        return;
+    }
+    let items = attention(model);
+    let line = u16::from(!items.is_empty() && area.width >= ATTENTION_LINE_FROM);
+    let [note, rest] = Layout::vertical([Constraint::Length(line), Constraint::Min(1)]).areas(area);
+    if line > 0 {
+        frame.render_widget(Paragraph::new(attention_line(model, &items, note)), note);
+    }
+    screens::startup(model, frame, rest);
+}
+
 /// Draws the Snapshots tab: the timeline of the environment open.
 pub(super) fn render_snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     timeline::render(model, frame, area);
@@ -89,16 +110,37 @@ pub(super) fn pools_words(model: &Model) -> (Vec<String>, Vec<usize>) {
     tree::words(model)
 }
 
-/// What needs attention: pools not imported or not healthy, their missing
-/// devices and checkpoints, volumes not open, environments whose checks
-/// found something, and the log's errors, then its warnings.
+/// What needs attention: stages of start-up that failed, pools not
+/// imported or not healthy, their missing devices and checkpoints, volumes
+/// not open, environments whose checks found something, and the log's
+/// errors, then its warnings.
 fn attention(model: &Model) -> Vec<Item> {
     let snapshot = &model.snapshot;
-    let mut items = pool_items(model);
+    let mut items = stage_items(model);
+    items.extend(pool_items(model));
     items.extend(volume_items(model));
     items.extend(snapshot.environments.iter().filter_map(environment_item));
     items.extend(log_items(&snapshot.log));
     items
+}
+
+/// The stages of start-up that failed, whose reasons the Boot tab shows.
+fn stage_items(model: &Model) -> Vec<Item> {
+    model
+        .snapshot
+        .startup
+        .iter()
+        .filter(|stage| matches!(stage.state, StageState::Failed(_)))
+        .map(|stage| Item {
+            glyph: Glyph::Failed,
+            role: Role::Danger,
+            what: text!(
+                "attention-stage",
+                stage = Printable(&stage.name).to_string()
+            ),
+            tab: Tab::Boot,
+        })
+        .collect()
 }
 
 /// The log's errors, then its warnings, each counted.

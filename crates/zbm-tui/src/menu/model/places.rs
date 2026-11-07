@@ -2,9 +2,32 @@
 //! the list of the current screen.
 
 use super::{Dialog, DiffView, ListState, Model, Screen, Segment};
-use crate::menu::keymap::{Context, Tab};
+use crate::menu::keymap::{Context, Map, Tab};
 
 impl Model {
+    /// Whether start-up runs, as the menu shows it: its view is open, or,
+    /// under the workspace, its stages are not over while the person is on
+    /// another tab.
+    pub(crate) fn is_starting_up(&self) -> bool {
+        self.screen == Screen::Startup || self.is_running_stages()
+    }
+
+    /// Whether start-up's stages are not over, under the workspace, whose
+    /// Boot tab shows them meanwhile.
+    fn is_running_stages(&self) -> bool {
+        self.map == Map::Workspace && !self.started && !self.is_started()
+    }
+
+    /// The view of the Boot tab: start-up's while its stages run under the
+    /// workspace, else the main view.
+    pub(crate) fn boot_view(&self) -> Screen {
+        if self.is_running_stages() {
+            Screen::Startup
+        } else {
+            Screen::Main
+        }
+    }
+
     /// The tab of the workspace the current screen belongs to.
     pub fn tab(&self) -> Tab {
         use Context::{Diff, Packages};

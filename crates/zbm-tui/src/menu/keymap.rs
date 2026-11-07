@@ -505,9 +505,7 @@ pub const KEYMAP: &[Binding] = &[
 pub fn input(map: Map, context: Context, press: KeyPress) -> Option<Input> {
     let modifiers = Modifiers::of(&press);
     let bound = map.table().into_iter().find(|binding| {
-        binding.key == press.key
-            && binding.modifiers == modifiers
-            && binding.scope.contains(context)
+        binding.key == press.key && binding.modifiers == modifiers && map.is_bound(binding, context)
     });
     if let Some(binding) = bound {
         return Some(Input::Intent(binding.intent));
@@ -515,7 +513,9 @@ pub fn input(map: Map, context: Context, press: KeyPress) -> Option<Input> {
     if context == Context::Text {
         return text(press);
     }
-    classic(context, press).map(Input::Intent)
+    classic(context, press)
+        .filter(|_| map == Map::Classic || context != Context::Startup)
+        .map(Input::Intent)
 }
 
 /// What a key means in a text field.

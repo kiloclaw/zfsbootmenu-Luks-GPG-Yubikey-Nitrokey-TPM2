@@ -202,6 +202,9 @@ snapshots-reading = Reading the Snapshots...
     .text = The machine lists them; Esc stops it.
 snapshots-not-read = Snapshots Not Read
     .text = Open the snapshots again to read them.
+# The Snapshots tab chosen during start-up, which has no boot environment
+# to show the snapshots of yet.
+snapshots-after-startup = the snapshots show once start-up is over
 # The workspace's snapshots as a timeline, in groups by when they were
 # taken, newest first: today, the days of this week, the weeks of this
 # month, then the months. Each header says how many snapshots its group
@@ -309,6 +312,8 @@ log-title = Log Since Start
 log-info = info
 log-warning = warning
 log-error = error
+log-startup-title = Start-Up So Far
+log-startup-later = The log since start shows once start-up is over.
 
 ## The boot history, above the log in the workspace's Log tab.
 
@@ -409,6 +414,7 @@ attention-log-warnings = { $count ->
        *[other] { $count } warnings in the log
     }
 attention-failed = failed
+attention-stage = { $stage } failed
 details-next-steps = NEXT STEPS
 
 ## The main view: the list of boot environments and its inspector.

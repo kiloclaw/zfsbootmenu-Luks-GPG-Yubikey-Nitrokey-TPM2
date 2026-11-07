@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [1 Boot] 2 Snapshots  3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+┌ POOLS ────────────── 2 ┐┌ STARTING ZFSBOOTMENU ────────────────────────────────────────────────────────────── 3 of 5 ┐
+│ zroot        ONLINE ro ││ √  Load the ZFS module                                                                     │
+│ tank       DEGRADED ro ││ √  Set the host ID                                                                         │
+└────────────────────────┘│ …  Unlock LUKS volumes                                                                     │
+┌ VOLUMES ─────── 3 of 3 ┐│    Import pools                                                                            │
+│ luks-zroot-a      open ││    Find boot environments                                                                  │
+│ luks-zroot-b      open ││                                                                                            │
+│ luks-tank         open ││                                                                                            │
+└────────────────────────┘│                                                                                            │
+┌ ATTENTION ────────── 6 ┐│                                                                                            │
+│ ! tank DEGRADED        ││                                                                                            │
+│   3 Pools              ││                                                                                            │
+│ ! tank: sdb2 UNAVAIL   ││                                                                                            │
+│   3 Pools              ││                                                                                            │
+│ ! tank: checkpoint     ││                                                                                            │
+│   3 Pools              ││                                                                                            │
+│ ! arch: 1 warning      ││                                                                                            │
+│   1 Boot               ││                                                                                            │
+│ × debian: 1 problem    ││                                                                                            │
+│   1 Boot               ││                                                                                            │
+│ ! 1 warning in the log ││                                                                                            │
+│   4 Log                ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+└────────────────────────┘└────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                 ? More

@@ -33,10 +33,10 @@ type Part = (String, Role);
 /// one, and the status.
 type Form = (Vec<(String, bool)>, Vec<Part>);
 
-/// Draws the navigation bar, or the tab bar of the workspace once start-up
-/// is over.
+/// Draws the navigation bar, or the tab bar of the workspace, whose Boot
+/// tab start-up is.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    if model.map == Map::Workspace && model.screen != Screen::Startup {
+    if model.map == Map::Workspace {
         frame.render_widget(Paragraph::new(tab_bar(model, area.width)), area);
         return;
     }

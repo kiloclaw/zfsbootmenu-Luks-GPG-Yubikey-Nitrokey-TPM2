@@ -138,11 +138,49 @@ pub(super) fn focus(
 
 /// Opens the workspace's `tab`: the snapshots are those of the environment
 /// the snapshots or kernels show, else of the selected one, which the
-/// machine is asked for; without one the tab stays.
+/// machine is asked for; without one the tab stays, and during start-up,
+/// which has none yet, says when they show. A tab other than Boot opened
+/// during start-up says someone is there ([`Model::away`]).
 pub(super) fn open_tab(model: &mut Model, tab: Tab) -> Vec<Action> {
+    let actions = switch_tab(model, tab);
+    if tab == Tab::Snapshots && model.tab() != tab && !model.started {
+        let later = text!("snapshots-after-startup");
+        model.notification = Some(Outcome::Warning(later));
+    }
+    mark_away(model);
+    actions
+}
+
+/// Opens the tab `step` gives from the current one, as [`open_tab`] does;
+/// a tab that stays shut, as the Snapshots tab with no environment, is
+/// passed over for the one after it.
+pub(super) fn cycle_tab(model: &mut Model, step: fn(Tab) -> Tab) -> Vec<Action> {
+    let mut tab = model.tab();
+    let mut actions = Vec::new();
+    for _ in 1..Tab::ALL.len() {
+        tab = step(tab);
+        actions = switch_tab(model, tab);
+        if model.tab() == tab {
+            break;
+        }
+    }
+    mark_away(model);
+    actions
+}
+
+/// Marks someone there when, during start-up, a tab other than Boot is
+/// open ([`Model::away`]); the first such tab is kept.
+fn mark_away(model: &mut Model) {
+    if !model.started && model.tab() != Tab::Boot && model.away.is_none() {
+        model.away = Some(model.tab());
+    }
+}
+
+/// [`open_tab`], but for what it says.
+fn switch_tab(model: &mut Model, tab: Tab) -> Vec<Action> {
     match tab {
         Tab::Boot => {
-            model.screen = Screen::Main;
+            model.screen = model.boot_view();
             model.marked.clear();
             model.diff = None;
         }

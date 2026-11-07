@@ -142,14 +142,11 @@ fn the_workspace_s_page_names_its_own_keys_and_words() {
 
 #[test]
 fn tab_words_are_unknown_where_no_tab_can_be_chosen() {
-    for context in [Context::Choose, Context::Startup] {
-        for word in ["boot", "snapshots", "pools", "log"] {
-            assert_eq!(
-                typed(word, context, Map::Workspace),
-                Typed::Unknown(word.to_owned()),
-                "{context:?}"
-            );
-        }
+    for word in ["boot", "snapshots", "pools", "log"] {
+        assert_eq!(
+            typed(word, Context::Choose, Map::Workspace),
+            Typed::Unknown(word.to_owned())
+        );
     }
 }
 
@@ -161,8 +158,9 @@ fn the_workspace_s_page_offers_tab_words_only_where_they_choose_a_tab() {
     model.map = Map::Workspace;
     let offers_tabs = |model: &Model| page(model).contains(&text!("lines-words-workspace"));
 
+    // Start-up is the Boot tab: its keys choose a tab too.
     assert_eq!(model.context(), Context::Startup);
-    assert!(!offers_tabs(&model), "{:#?}", page(&model));
+    assert!(offers_tabs(&model), "{:#?}", page(&model));
     model.screen = crate::menu::model::Screen::Main;
     assert!(offers_tabs(&model), "{:#?}", page(&model));
     model.dialog = Some(crate::menu::model::Dialog::Error {

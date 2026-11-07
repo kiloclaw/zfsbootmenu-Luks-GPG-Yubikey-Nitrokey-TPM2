@@ -5,7 +5,7 @@ use zbm_types::{DatasetName, SnapshotName};
 
 use super::dialogs;
 use crate::menu::format::{age, size};
-use crate::menu::keymap::{self, Intent};
+use crate::menu::keymap::{self, Intent, Map};
 use crate::menu::model::{Choice, Make, Model, Naming, Then};
 use crate::menu::world::{Action, Outcome, SnapshotInfo};
 use crate::text::text;
@@ -128,12 +128,15 @@ fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
 /// its column shows once they come; never while the countdown runs, as
 /// the boot it ends with would wait for them, and Escape would cancel
 /// their load instead of stopping it; nor once the environment is gone,
-/// as after its pool's export.
+/// as after its pool's export; nor, under the workspace, before start-up
+/// is over: the start-up view has no machine to answer, and the menu's
+/// first snapshot asks for them ([`Model::needs_load`]).
 pub(super) fn load(model: &mut Model) -> Vec<Action> {
     let Some(environment) = model.focused().map(|e| e.name.clone()) else {
         return Vec::new();
     };
-    if model.countdown.is_some() {
+    let starting = model.map == Map::Workspace && !model.started;
+    if model.countdown.is_some() || starting {
         return Vec::new();
     }
     model.reading = Some(environment.clone());

@@ -15,7 +15,7 @@ use crate::menu::world::{Method, Question, Stage, StageState};
 
 /// What a read of the terminal gives.
 #[derive(Clone, Copy)]
-enum Read {
+pub(super) enum Read {
     /// A key.
     Key(KeyPress),
     /// No key before the read's time ran out: the time passes.
@@ -28,28 +28,28 @@ enum Read {
 /// waiting for them passes on, what was done to the terminal's mode, and the
 /// terminal's size, when known.
 #[derive(Clone, Default)]
-struct Scripted {
-    keys: Shared<VecDeque<Read>>,
-    clock: FakeClock,
-    modes: Shared<Vec<&'static str>>,
-    size: Shared<Option<(u16, u16)>>,
+pub(super) struct Scripted {
+    pub(super) keys: Shared<VecDeque<Read>>,
+    pub(super) clock: FakeClock,
+    pub(super) modes: Shared<Vec<&'static str>>,
+    pub(super) size: Shared<Option<(u16, u16)>>,
 }
 
 impl Scripted {
-    fn typed(&self, text: &str) {
+    pub(super) fn typed(&self, text: &str) {
         let mut keys = self.keys.borrow_mut();
         keys.extend(text.chars().map(|c| Read::Key(key(Key::Char(c)))));
     }
 
-    fn press(&self, code: Key) {
+    pub(super) fn press(&self, code: Key) {
         self.keys.borrow_mut().push_back(Read::Key(key(code)));
     }
 
-    fn ticks(&self, count: usize) {
+    pub(super) fn ticks(&self, count: usize) {
         self.reads(Read::Tick, count);
     }
 
-    fn noise(&self, count: usize) {
+    pub(super) fn noise(&self, count: usize) {
         self.reads(Read::Noise, count);
     }
 
@@ -97,7 +97,7 @@ impl Input for Scripted {
 }
 
 /// The stages of start-up, all pending.
-fn snapshot() -> Snapshot {
+pub(super) fn snapshot() -> Snapshot {
     let stage = |name: &str| Stage {
         name: name.to_owned(),
         state: StageState::Pending,
@@ -113,7 +113,7 @@ fn view(keys: &Scripted) -> StartupView<TestBackend, Scripted> {
 }
 
 /// The view on `keys`, whose menu reads keys with `map`.
-fn view_with(keys: &Scripted, map: Map) -> StartupView<TestBackend, Scripted> {
+pub(super) fn view_with(keys: &Scripted, map: Map) -> StartupView<TestBackend, Scripted> {
     let frontend = Frontend::new(TestBackend::new(80, 25), keys.clone())
         .unwrap()
         .with_clock(keys.clock.clone());
@@ -122,7 +122,7 @@ fn view_with(keys: &Scripted, map: Map) -> StartupView<TestBackend, Scripted> {
 }
 
 /// What the terminal of `view` shows.
-fn shown(view: &StartupView<TestBackend, Scripted>) -> String {
+pub(super) fn shown(view: &StartupView<TestBackend, Scripted>) -> String {
     let buffer = view.terminal().backend().buffer();
     let area = buffer.area;
     let mut text = String::new();
@@ -134,7 +134,7 @@ fn shown(view: &StartupView<TestBackend, Scripted>) -> String {
     text
 }
 
-fn unlock_requested(wait: Option<u64>) -> Event {
+pub(super) fn unlock_requested(wait: Option<u64>) -> Event {
     Event::UnlockRequested {
         volume: "cryptroot".into(),
         method: if wait.is_some() {

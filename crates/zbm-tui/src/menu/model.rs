@@ -31,7 +31,7 @@ use self::timeline::Folds;
 pub(crate) use self::timeline::{Group, Row, Timeline};
 
 use super::filter::Ranked;
-use super::keymap::{Context, Map};
+use super::keymap::{Context, Map, Tab};
 use super::theme::Theme;
 use super::world::{Action, DeviceLog, Environment, History, Outcome, Snapshot, Timeout};
 
@@ -237,6 +237,11 @@ pub struct Model {
     pub countdown: Option<u64>,
     /// Whether start-up finished and the main view opened.
     pub started: bool,
+    /// The tab the person left the Boot tab for during start-up, outside a
+    /// dialog, under the workspace: someone is there, looking at something,
+    /// and the menu opens without its countdown, on the tab they are on.
+    /// Keys typed into a dialog, such as a passphrase, do not count.
+    pub away: Option<Tab>,
     /// Whether the menu asked the machine to scan the pools, which it does
     /// once the main view is drawn and no countdown runs, so that neither
     /// the first frame nor the boot the countdown ends with waits for it.
@@ -302,6 +307,7 @@ impl Model {
             edited: Vec::new(),
             countdown: None,
             started: false,
+            away: None,
             scanned: false,
             notification: None,
             progress: None,
@@ -324,7 +330,10 @@ impl Model {
 
     /// Gets the model ready for another round of the menu, as the session
     /// runs it after the recovery shell: the menu's own view, without what
-    /// ended the last round.
+    /// ended the last round. Someone who left the Boot tab during start-up
+    /// stays on their tab, whose start-up view becomes the main view. The
+    /// boot history asked for and not answered is asked for again, of this
+    /// round's machine.
     pub fn begin_round(&mut self) {
         self.leaving = None;
         self.dialog = None;
@@ -333,13 +342,29 @@ impl Model {
         self.reading = None;
         self.countdown = None;
         if self.started {
-            self.screen = Screen::Main;
+            self.screen = if self.away.is_some() {
+                self.started_view()
+            } else {
+                Screen::Main
+            };
         }
+        self.reading_history = false;
         // The round's machine opens the main view again, with its own
         // countdown and scan: the start-up view only noted that start-up
         // ended.
         self.started = false;
         self.scanned = false;
+    }
+
+    /// The view once start-up is over: the main view. Under the workspace
+    /// the person stays on the tab they are on; the Boot tab's start-up
+    /// view, and its help, become those of its main view.
+    pub(crate) fn started_view(&self) -> Screen {
+        match (self.map, self.screen) {
+            (Map::Workspace, Screen::Help(Context::Startup)) => Screen::Help(Context::Main),
+            (Map::Workspace, Screen::Startup) | (Map::Classic, _) => Screen::Main,
+            (Map::Workspace, screen) => screen,
+        }
     }
 
     /// Takes the machine's new `snapshot`, keeping the environment and the

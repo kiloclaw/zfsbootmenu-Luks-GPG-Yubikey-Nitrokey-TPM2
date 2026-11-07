@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [1 Boot] 2 Snapshots  3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 7 · host 00bab10c · 08:00 UTC
+┌ POOLS ────────────── 3 ┐┌ STARTING ZFSBOOTMENU ────────────────────────────────────────────────────────────── 4 of 5 ┐
+│ zroot        ONLINE ro ││ √  Load the ZFS module                                                                     │
+│ tank       DEGRADED ro ││ √  Set the host ID                                                                         │
+│ backup    not imported ││ √  Unlock LUKS volumes                                                                     │
+└────────────────────────┘│ …  Import pools                                                                            │
+┌ VOLUMES ─────── 3 of 3 ┐│    Find boot environments                                                                  │
+│ luks-zroot-a      open ││                                                                                            │
+│ luks-zroot-b      open ││                                                                                            │
+│ luks-tank         open ││                                                                                            │
+└────────────────────────┘│                                                                                            │
+┌ ATTENTION ────────── 7 ┐│                                                                                            │
+│ ! tank DEGRADED        ││                                                                                            │
+│   3 Pools              ││                                                                                            │
+│ ! tank: sdb2 UNAVAIL   ││   ┌──────────────────────────────────────────────────────────┐                             │
+│   3 Pools              ││   │                   backup Did Not Import                  │                             │
+│ ! tank: checkpoint     ││   │ backup was last imported by host deadbeef, and this      │                             │
+│   3 Pools              ││   │ machine is host 00bab10c.                                │                             │
+│ ! backup: host deadbe… ││   │                                                          │                             │
+│   3 Pools              ││   │ ▶ Retry                                                  │                             │
+│ ! arch: 1 warning      ││   │   Import with Its Last Host ID                           │                             │
+│   1 Boot               ││   │   Force the Import…                                      │                             │
+│ × debian: 1 problem    ││   │   Open the Recovery Shell                                │                             │
+│   1 Boot               ││   │ ──────────────────────────────────────────────────────── │                             │
+│ ! 1 warning in the log ││   │   Cancel                                                 │                             │
+│   4 Log                ││   └──────────────────────────────────────────────────────────┘                             │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+└────────────────────────┘└────────────────────────────────────────────────────────────────────────────────────────────┘
+ Enter Choose   Esc Cancel   Up/Down Select

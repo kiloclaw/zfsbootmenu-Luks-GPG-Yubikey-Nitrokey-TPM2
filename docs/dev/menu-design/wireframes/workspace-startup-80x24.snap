@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+ ! tank DEGRADED   ! tank: sdb2 UNAVAIL   ! tank: checkpoint         3 Pools
+┌ STARTING ZFSBOOTMENU ──────────────────────────────────────────────── 3 of 5 ┐
+│ √  Load the ZFS module                                                       │
+│ √  Set the host ID                                                           │
+│ …  Unlock LUKS volumes                                                       │
+│    Import pools                                                              │
+│    Find boot environments                                                    │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                                                         ? More

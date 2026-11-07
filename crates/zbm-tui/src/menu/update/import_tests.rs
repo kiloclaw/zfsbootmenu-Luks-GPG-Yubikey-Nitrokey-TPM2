@@ -372,6 +372,8 @@ fn a_devices_messages_open_on_the_pools_view_and_back_closes_them_first() {
     use zbm_display::keys::{Key, KeyPress};
     let mut model = pools();
     model.map = crate::menu::keymap::Map::Workspace;
+    // Start-up is over: Back goes to the main view, not start-up's.
+    model.started = true;
     let log = crate::menu::world::DeviceLog {
         device: zbm_types::Untrusted::new("/dev/sdb2".to_owned()),
         ..crate::menu::world::DeviceLog::default()

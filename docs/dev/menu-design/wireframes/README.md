@@ -37,6 +37,8 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `unlock-layout` | typing with the German layout, what is typed shown with `Ctrl-R` |
 | `reseal-confirm` | the alert that seals the TPM2 key again, once the volume is open |
 | `pools-tpm-changed` | a volume whose TPM2 key is out of date, in the pools view |
+| `workspace-startup` | start-up as the Boot tab (`--workspace`): the tab bar, the sidebar from 110 columns, what needs attention as one line at 80 columns, and the stages where the columns go; only `?` in the toolbar, as start-up binds only the tabs, moving and help |
+| `workspace-import-problem` | the pool start-up could not import, another host's, its choices over start-up as the Boot tab |
 | `workspace` | the workspace's Boot tab (`--workspace`): the tab bar, with the host ID and the time at 120 columns, the sidebar of pools, volumes and what needs attention, the path, the boot environments grouped by pool, the kernels of the selection beside them from 80 columns, the inspector with its next steps |
 | `workspace-kernels` | `l` from the Boot tab: the kernels column of the second environment, its kernel in the path and the inspector |
 | `workspace-columns` | `Right` into the kernels of `tank/ROOT/arch`, the first environment of the second pool, and down one: the path `tank › tank/ROOT/arch › 6.10.10-arch1-1` |

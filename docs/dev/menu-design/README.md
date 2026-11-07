@@ -42,4 +42,6 @@ its snapshot tests, so the design and the prototype cannot drift apart.
 
 What the prototype does not have yet, and which UI10, UI14 and UI15 build: the snapshot timeline and the columns of
 the other tabs, the boot history, the command line with its dry run (`:` opens the command palette for now), the
-review pages, keys by position on the display console, and the start-up view as the Boot tab.
+review pages, and keys by position on the display console. Start-up is the Boot tab under the workspace map: its
+stages where the columns go, the tab bar above them, and a stage that failed among what needs attention; the person
+may look at the other tabs while it runs ([information-architecture.md](information-architecture.md), start-up).

@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 7
+ ! tank DEGRADED   ! tank: sdb2 UNAVAIL   ! tank: checkpoint         3 Pools
+┌ STARTING ZFSBOOTMENU ──────────────────────────────────────────────── 4 of 5 ┐
+│ √  Load the ZFS module                                                       │
+│ √  Set the host ID                                                           │
+│ √  Unlock LUKS volumes                                                       │
+│ …  Impor┌──────────────────────────────────────────────────────────┐         │
+│    Find │                   backup Did Not Import                  │         │
+│         │ backup was last imported by host deadbeef, and this      │         │
+│         │ machine is host 00bab10c.                                │         │
+│         │                                                          │         │
+│         │ ▶ Retry                                                  │         │
+│         │   Import with Its Last Host ID                           │         │
+│         │   Force the Import…                                      │         │
+│         │   Open the Recovery Shell                                │         │
+│         │ ──────────────────────────────────────────────────────── │         │
+│         │   Cancel                                                 │         │
+│         └──────────────────────────────────────────────────────────┘         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Choose   Esc Cancel   Up/Down Select

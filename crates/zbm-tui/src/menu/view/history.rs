@@ -8,7 +8,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Line;
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Wrap};
 use zbm_types::code::ErrorCode;
 use zbm_types::{BootRecord, Printable};
 
@@ -16,7 +16,7 @@ use super::{lists, screens};
 use crate::menu::format::{date, fit};
 use crate::menu::model::Model;
 use crate::menu::theme::Role;
-use crate::menu::world::{History, Recorded, SavedBoot};
+use crate::menu::world::{History, Recorded, SavedBoot, StageState};
 use crate::text::text;
 
 /// The fewest rows the history takes, with its borders.
@@ -41,6 +41,28 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     };
     frame.render_widget(Paragraph::new(lines).block(block), top);
     screens::log(model, frame, log);
+}
+
+/// Draws the Log tab while start-up runs: what its stages said so far, as
+/// the start-up view heard it, and that the log follows once it is over.
+pub(super) fn render_startup(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    let theme = model.theme;
+    let said = model
+        .snapshot
+        .startup
+        .iter()
+        .filter(|stage| stage.state != StageState::Pending);
+    let mut lines = screens::stage_lines(model, said);
+    lines.push(Line::default());
+    lines.push(Line::styled(
+        text!("log-startup-later"),
+        theme.style(Role::Muted),
+    ));
+    let block = lists::block(theme, &text!("log-startup-title"));
+    let text = Paragraph::new(lines)
+        .block(block)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(text, area);
 }
 
 /// The rows of the history, newest first, each with how it is drawn.

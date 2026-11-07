@@ -154,14 +154,17 @@ fn stage(model: &mut Model, name: String, reached: StageState) {
 }
 
 /// Opens the main view and arms the countdown once start-up is over and no
-/// dialog waits for the user.
+/// dialog waits for the user. Under the workspace the person stays on the
+/// tab they are on ([`Model::started_view`]), and someone who left the Boot
+/// tab during start-up gets no countdown: they are looking at something.
 pub(super) fn start(model: &mut Model) {
     if model.started || !model.is_started() || model.dialog.is_some() {
         return;
     }
     model.started = true;
-    model.screen = Screen::Main;
-    model.countdown = model.timeout_ms();
+    model.screen = model.started_view();
+    model.countdown = model.timeout_ms().filter(|_| model.away.is_none());
+    model.away = None;
     // What the countdown boots: the fallback of a default that used up its
     // tries, else the environment the running system asked for once, else
     // the one start-up chose.

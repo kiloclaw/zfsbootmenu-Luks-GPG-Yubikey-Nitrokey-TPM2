@@ -92,6 +92,9 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
 /// The view of the current screen.
 fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     match model.screen {
+        Screen::Startup if model.map == keymap::Map::Workspace => {
+            workspace::render_startup(model, frame, area);
+        }
         Screen::Startup => screens::startup(model, frame, area),
         Screen::Main | Screen::Kernels if model.map == keymap::Map::Workspace => {
             workspace::render(model, frame, area);
@@ -110,7 +113,11 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         }
         Screen::Pools => screens::pools(model, frame, area),
         Screen::Recovery => screens::recovery(model, frame, area),
-        // The boot history shows in the workspace alone.
+        // The boot history shows in the workspace alone; during start-up,
+        // what start-up said so far.
+        Screen::Log if model.map == keymap::Map::Workspace && model.is_starting_up() => {
+            history::render_startup(model, frame, area);
+        }
         Screen::Log if model.map == keymap::Map::Workspace => history::render(model, frame, area),
         Screen::Log => screens::log(model, frame, area),
         Screen::Help(context) => screens::help(model, frame, area, context),

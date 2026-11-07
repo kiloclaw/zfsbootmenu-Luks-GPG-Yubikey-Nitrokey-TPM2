@@ -10,9 +10,10 @@ use crate::menu::model::Model;
 use crate::menu::world::Action;
 
 /// Asks the machine for the boot history, unless the menu is not the
-/// workspace, the countdown runs, or the history came or is coming.
+/// workspace, start-up is not over, the countdown runs, or the history
+/// came or is coming. The start-up view has no machine to answer.
 pub(super) fn load(model: &mut Model) -> Vec<Action> {
-    let wanted = model.map == Map::Workspace && model.history.is_none();
+    let wanted = model.map == Map::Workspace && model.history.is_none() && model.started;
     if !wanted || model.countdown.is_some() || model.reading_history {
         return Vec::new();
     }

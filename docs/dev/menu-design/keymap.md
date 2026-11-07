@@ -38,7 +38,7 @@ to the other in the changes.
 | Boot | `b` boot the selection; `e` edit the command line once; `d` make it the default; `s` its snapshots; `n` a new snapshot |
 | Snapshots | `Enter` what to do with it; `b` boot it as a clone; `c` clone…; `m` clone and promote…; `y` duplicate…; `r` roll back…; `f` the files and packages changed since, or between the marked ones, and restoring them; `Space` mark; `z` fold or unfold; `o` sort; `n` a new snapshot |
 | Pools | `i` import…: read-only, read/write, as the host that owns it, at its checkpoint, or forced; `w` read/write…; `u` unlock…; `Enter` on a device: its kernel messages |
-| Start-up | `1` to `9` a choice, as do `j` `k` and `Enter` |
+| Start-up | `1` to `9` a choice, as do `j` `k` and `Enter`; between choices, as the Boot tab, only `1` to `4` and `Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), `j` `k` and the arrows move, `?` opens help; any other key starts typing ahead of the next dialog |
 | Text fields | `Tab` completes; `Ctrl-W` deletes a word; `Ctrl-R` searches the history (the command line) or shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout |
 
 Against the current map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind

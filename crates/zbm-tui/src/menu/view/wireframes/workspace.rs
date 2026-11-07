@@ -26,7 +26,7 @@ fn workspace() -> DemoOptions {
 /// `zbm.save_logs` kept, and without the option; and help, under the ZFS
 /// version; the Snapshots tab as the timeline of the default environment,
 /// its months folded and the oldest selected, and while the machine reads
-/// them.
+/// them; and start-up as the Boot tab ([`startup_wireframes`]).
 pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
     use Step::{Char, Code, Tick, Unanswered};
     let frame = |name, keys| Wireframe {
@@ -47,7 +47,8 @@ pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
         long_command_line: true,
         ..workspace()
     };
-    vec![
+    let mut all = startup_wireframes();
+    all.extend([
         frame("workspace", &[]),
         frame("workspace-kernels", &[Code(Key::Down), Char('l')]),
         frame(
@@ -124,6 +125,30 @@ pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
             options: no_history,
             ticks: 50,
             keys: &[Char('4')],
+        },
+    ]);
+    all
+}
+
+/// Start-up as the Boot tab, its third stage running, and the pool it
+/// could not import, another host's, asking what to do over it.
+fn startup_wireframes() -> Vec<Wireframe> {
+    let foreign = DemoOptions {
+        foreign: true,
+        ..workspace()
+    };
+    vec![
+        Wireframe {
+            name: "workspace-startup",
+            options: workspace(),
+            ticks: 5,
+            keys: &[],
+        },
+        Wireframe {
+            name: "workspace-import-problem",
+            options: foreign,
+            ticks: 50,
+            keys: &[],
         },
     ]
 }

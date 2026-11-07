@@ -19,12 +19,13 @@ with a dry run first, and what cannot be undone opens a review page. Nothing is 
  Enter Boot   l Kernels   s Snapshots   e Edit   d Default                              ? More    toolbar
 ```
 
-- **Tab bar** (always shown once start-up is over): the program's name, the four tabs with their digits, the current
-  one in brackets so that it shows without colour, and the status of the machine on the right: the worst pool and its
-  health, the LUKS volumes open, the count of what needs attention (`! 4`), and from 120 columns the host ID and the
-  time in UTC. From 120 columns, when they do not all fit, the name goes first, then the host ID. Below 120 columns
-  neither the host ID nor the time shows, and the name has room again. Narrower still, the name goes, then the
-  status becomes the count alone, then the tabs take their short names (`2 Snap`), then their digits.
+- **Tab bar** (always shown, start-up being the Boot tab until it is over): the program's name, the four tabs with
+  their digits, the current one in brackets so that it shows without colour, and the status of the machine on the
+  right: the worst pool and its health, the LUKS volumes open, the count of what needs attention (`! 4`), and from 120
+  columns the host ID and the time in UTC. From 120 columns, when they do not all fit, the name goes first, then the
+  host ID. Below 120 columns neither the host ID nor the time shows, and the name has room again. Narrower still, the
+  name goes, then the status becomes the count alone, then the tabs take their short names (`2 Snap`), then their
+  digits.
 - **Banner**: the countdown while it runs; any key stops it.
 - **Notification line**: the outcome of the last action, with a glyph and a word (`√ Done`, `! Warning`, `× Failed`);
   it stays until the next key press, and the log keeps it.
@@ -170,6 +171,33 @@ Planned for UI14 and UI10; the mockups show them.
 - **Start-up decides nothing silently**: a problem stops one step of the start-up timeline and offers choices with the
   commands they run (`1` to `9`), and a safe default after a time-out, which any key holds, such as continuing
   without a foreign pool that no boot environment needs.
+
+### Start-up as the Boot tab
+
+Under the workspace map start-up is the Boot tab until it is over (ADR 0016, point 9): the tab bar, the stages where
+the columns go, beside the sidebar from 110 columns or under what needs attention narrower, and a stage that failed
+among what needs attention. Between its questions the start-up view reads keys: the digits and `Tab` choose a tab,
+`j` `k` and the arrows move, `?` opens help, and no other key is bound, so none says that what it asks for is not
+offered. The other tabs show what start-up knows; the Log tab shows the stages so far, and says that the log since
+start shows once start-up is over. The Snapshots tab has no boot environment yet: `2` says that its snapshots show
+once start-up is over, and `Tab` and `Shift-Tab` pass over it. Nothing is read from the machine before then: the menu
+reads it.
+
+On the Boot tab, a key it does not bind starts typing ahead, as a passphrase typed before its prompt: that key and
+every key after it wait for the next dialog, which reads them first, as the current map's dialogs read what was typed
+ahead. If start-up ends with no dialog, they go nowhere: the menu never reads them, so they stop no countdown.
+
+The countdown after start-up runs as before, unless the person left the Boot tab during start-up, outside a dialog:
+then someone is there, looking at something, and the menu opens on their tab without a countdown, the Boot tab's
+main view behind it. Keys typed into a dialog or ahead of one, such as a passphrase or a PIN, and noise on a serial
+line never count, so the unattended boot is never held otherwise. A passphrase typed ahead is kept only from its first
+key the Boot tab does not bind: one that begins with a digit, `j`, `k` or `?` works those keys first. A secret typed
+during start-up is never shown, whatever the tab.
+
+Not built yet: the frame between the end of start-up and the menu's first frame, which the setup hooks and the
+machine's first read leave blank; start-up over SSH, which the session's socket yields, so the SSH menu never shows
+the stages; the line view, whose stages stay on the plain console; and `--resume`, which opens the menu at once. The
+current map's start-up view is unchanged, and reads no key between its questions.
 
 ## Views
 

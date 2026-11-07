@@ -6,7 +6,7 @@
 
 use zbm_display::keys::{Key, KeyPress};
 
-use super::keymap::{self, Input, Intent};
+use super::keymap::{self, Input, Intent, Tab};
 use super::model::{Dialog, Model, Screen};
 use super::world::{Action, Event, Outcome};
 
@@ -133,8 +133,8 @@ fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
         Intent::Redraw => {}
         Intent::Back => back(model),
         Intent::Tab(tab) => return Some(screens::open_tab(model, tab)),
-        Intent::NextTab => return Some(screens::open_tab(model, model.tab().next())),
-        Intent::PreviousTab => return Some(screens::open_tab(model, model.tab().previous())),
+        Intent::NextTab => return Some(screens::cycle_tab(model, Tab::next)),
+        Intent::PreviousTab => return Some(screens::cycle_tab(model, Tab::previous)),
         Intent::Filter => {
             if let Some(list) = model.list_mut() {
                 list.filtering = true;
@@ -154,8 +154,8 @@ fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
 }
 
 /// Back one step: clear the main view's filter, close a device's kernel
-/// messages, or return to the main view (help returns to the view it was
-/// opened from).
+/// messages, or return to the main view, under the workspace during
+/// start-up to its view (help returns to the view it was opened from).
 fn back(model: &mut Model) {
     match model.screen {
         Screen::Pools if model.device_log.is_some() => model.device_log = None,
@@ -170,7 +170,7 @@ fn back(model: &mut Model) {
             model.diff = None;
         }
         _ => {
-            model.screen = Screen::Main;
+            model.screen = model.boot_view();
             model.marked.clear();
         }
     }
@@ -252,6 +252,8 @@ mod offers_tests;
 mod question_tests;
 #[cfg(test)]
 mod snapshot_tests;
+#[cfg(test)]
+mod startup_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

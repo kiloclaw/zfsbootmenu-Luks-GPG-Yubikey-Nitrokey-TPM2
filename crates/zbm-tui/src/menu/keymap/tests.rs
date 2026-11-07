@@ -269,10 +269,33 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
         (Snapshots, plain('z'), intent(Intent::Fold)),
         (Main, plain('z'), None),
         (Context::Diff, plain('z'), None),
-        // Text fields still type the letters, and the start-up view has no
-        // tabs.
+        // Text fields still type the letters. Start-up, the Boot tab,
+        // chooses tabs, moves and opens help, and binds nothing else: no key
+        // there says that what it asks for is not offered.
         (Context::Text, plain('j'), Some(Input::Type('j'))),
-        (Context::Startup, plain('2'), None),
+        (
+            Context::Startup,
+            plain('2'),
+            intent(Intent::Tab(Tab::Snapshots)),
+        ),
+        (
+            Context::Startup,
+            press(Key::Tab, NONE),
+            intent(Intent::NextTab),
+        ),
+        (Context::Startup, plain('j'), intent(Intent::Down)),
+        (Context::Startup, press(Key::Up, NONE), intent(Intent::Up)),
+        (Context::Startup, plain('?'), intent(Intent::Help)),
+        (Context::Startup, plain('!'), None),
+        (Context::Startup, plain('x'), None),
+        (Context::Startup, plain(':'), None),
+        (Context::Startup, press(Key::Enter, NONE), None),
+        (Context::Startup, press(Key::Escape, NONE), None),
+        (
+            Context::Startup,
+            press(Key::Char('l'), Modifiers::ALT),
+            None,
+        ),
     ];
 
     for (context, event, expected) in cases {
@@ -284,6 +307,11 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
         intent(Intent::Kernels)
     );
     assert_eq!(input(Map::Classic, Snapshots, plain('z')), None);
+    assert_eq!(
+        input(Map::Classic, Context::Startup, plain('!')),
+        intent(Intent::Recovery)
+    );
+    assert_eq!(input(Map::Classic, Context::Startup, plain('2')), None);
     assert_eq!(
         input(Map::Classic, Main, plain('j')),
         intent(Intent::Chroot)

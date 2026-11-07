@@ -8,7 +8,7 @@ use ratatui::text::{Line, Span};
 use zbm_types::Printable;
 
 use super::dialogs::{Alert, Kind, alert};
-use crate::menu::model::{Model, Prompt, Screen};
+use crate::menu::model::{Model, Prompt};
 use crate::menu::theme::Role;
 use crate::menu::world::{Method, Notice};
 use crate::text::{self, Id, id, text};
@@ -178,7 +178,7 @@ fn keyboard_line(model: &Model, prompt: &Prompt) -> Line<'static> {
     let keyboard = &model.snapshot.keyboard;
     let dot = theme.dot();
     // Start-up does not show what is typed (update::unlock).
-    let reveal = match (model.screen == Screen::Startup, prompt.revealed) {
+    let reveal = match (model.is_starting_up(), prompt.revealed) {
         (true, _) => String::new(),
         (false, true) => format!("{dot}{}", text!("unlock-hide")),
         (false, false) => format!("{dot}{}", text!("unlock-show")),

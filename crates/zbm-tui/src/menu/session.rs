@@ -8,7 +8,7 @@ use zbm_display::keys::{Key, KeyPress};
 use super::demo::FakeMachine;
 use super::keymap::Map;
 use super::machine::Machine;
-use super::model::{Model, Screen};
+use super::model::Model;
 use super::theme::Theme;
 use super::update::{Message, update};
 use super::world::{Action, Event};
@@ -158,7 +158,7 @@ impl<M: Machine> Session<M> {
         }
         self.step(Message::Key(key));
         let model = self.model();
-        if model.screen == Screen::Startup && model.dialog.is_none() {
+        if model.is_starting_up() && model.dialog.is_none() {
             self.machine.reask();
         }
     }
