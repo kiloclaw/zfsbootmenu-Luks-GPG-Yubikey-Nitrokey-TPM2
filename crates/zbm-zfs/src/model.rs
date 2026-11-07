@@ -7,9 +7,13 @@ use std::fmt;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
+mod snapshots;
 mod status;
 
-pub use status::{Importable, PoolHost, PoolStatus, Vdev, VdevClass, VdevErrors, VdevKind};
+pub use snapshots::{Hold, SnapshotDetail, SnapshotOrBookmark, SnapshotSet};
+pub use status::{
+    Checkpoint, Importable, PoolHost, PoolStatus, Vdev, VdevClass, VdevErrors, VdevKind,
+};
 
 /// Where a property's value comes from (the `SOURCE` column of `zfs get`).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

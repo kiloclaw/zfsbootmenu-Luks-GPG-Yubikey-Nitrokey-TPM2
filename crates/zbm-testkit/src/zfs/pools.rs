@@ -11,7 +11,7 @@
 //! let zfs = FakeZfs::new()
 //!     .pool("zroot")
 //!     .degraded_mirror("zroot")
-//!     .foreign("tank", 7, "deadbeef", "other")
+//!     .foreign("tank", 7, "deadbeef", "other", 1_792_667_543)
 //!     .exported_twice("data");
 //! let status = zfs.status().unwrap();
 //! assert_eq!(status[0].state, Health::Degraded);
@@ -20,13 +20,15 @@
 //! assert_eq!(importable[1].name, importable[2].name);
 //! let host = zfs.pool_host(7).unwrap();
 //! assert_eq!(host.hostid.unwrap().as_str(), "deadbeef");
+//! assert_eq!(host.written, Some(1_792_667_543));
 //! ```
 
 use std::collections::BTreeMap;
 
 use zbm_types::{HostId, PoolName, Untrusted};
 use zbm_zfs::{
-    Health, Importable, PoolHost, PoolStatus, Vdev, VdevClass, VdevErrors, VdevKind, ZfsError,
+    Checkpoint, Health, Importable, PoolHost, PoolStatus, Vdev, VdevClass, VdevErrors, VdevKind,
+    ZfsError,
 };
 
 use super::{FakePool, FakeZfs, State, name};
@@ -172,6 +174,7 @@ impl FakeZfs {
                 id,
                 state: Health::Online,
                 foreign: false,
+                active: false,
                 status: None,
                 action: Some(Untrusted::new(
                     "The pool can be imported using its name or numeric identifier.".to_owned(),
@@ -193,9 +196,16 @@ impl FakeZfs {
 
     /// Adds `pool`, with the numeric identifier `id`, to the pools that
     /// could be imported, last used by the host `hostname` with the host
-    /// ID `hostid`.
+    /// ID `hostid`, which last wrote it at `written` seconds.
     #[must_use]
-    pub fn foreign(self, pool: &str, id: u64, hostid: &str, hostname: &str) -> FakeZfs {
+    pub fn foreign(
+        self,
+        pool: &str,
+        id: u64,
+        hostid: &str,
+        hostname: &str,
+        written: u64,
+    ) -> FakeZfs {
         let zfs = self.exported(pool, id);
         {
             let mut state = zfs.state.borrow_mut();
@@ -216,6 +226,7 @@ impl FakeZfs {
                 PoolHost {
                     hostid: Some(name::<HostId>(hostid)),
                     hostname: Some(Untrusted::new(hostname.to_owned())),
+                    written: Some(written),
                 },
             );
         }
@@ -277,6 +288,7 @@ pub(super) fn list_exported(described: &mut Described, pool: &PoolName, fake: &F
         id: fake.guid,
         state: fake.health.clone(),
         foreign: false,
+        active: false,
         status: None,
         action: Some(Untrusted::new(
             "The pool can be imported using its name or numeric identifier.".to_owned(),
@@ -298,14 +310,33 @@ pub(super) fn planned(state: &State, operation: &str, command: &str) -> Result<(
     }
 }
 
+/// The checkpoint of the imported `pool`: the `checkpoint` a test set
+/// ([`FakeZfs::pool_setting`]), its space in bytes, without a time.
+pub(super) fn checkpoint(state: &State, pool: &PoolName) -> Result<Option<Checkpoint>, ZfsError> {
+    let fake = state.pools.get(pool).ok_or_else(|| ZfsError::Failed {
+        command: format!("zpool status -p {pool}"),
+        status: 1,
+        message: format!("cannot open '{pool}': no such pool"),
+    })?;
+    Ok(fake
+        .properties
+        .get("checkpoint")
+        .and_then(|space| space.parse().ok())
+        .map(|space| Checkpoint {
+            created: None,
+            space: Some(space),
+            discarding: false,
+        }))
+}
+
 /// The host of the pool that could be imported with the numeric
-/// identifier `id`, as `zdb -e -C` reads it: the one a test named, or none
+/// identifier `id`, as `zdb -e -C -u` reads it: the one a test named, or none
 /// recorded.
 pub(super) fn pool_host(state: &State, id: u64) -> Result<PoolHost, ZfsError> {
     let described = &state.described;
     if !described.importable.iter().any(|listed| listed.id == id) {
         return Err(ZfsError::Failed {
-            command: format!("zdb -e -C {id}"),
+            command: format!("zdb -e -C -u {id}"),
             status: 1,
             message: format!("zdb: can't open '{id}': No such file or directory"),
         });

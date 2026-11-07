@@ -1,4 +1,4 @@
-//! Tests of the readers of `zpool status`, `zpool import` and `zdb -e -C`
+//! Tests of the readers of `zpool status`, `zpool import` and `zdb -e -C -u`
 //! on hand-written cases; `tests/adapter.rs` reads whole outputs.
 
 use pretty_assertions::assert_eq;
@@ -213,4 +213,115 @@ fn a_configuration_of_another_shape_is_an_error() {
         reason("MOS Configuration:\n        name: 'tank'\n        hostid: many\n"),
         "invalid host ID"
     );
+}
+
+#[test]
+fn a_pool_imported_elsewhere_now_is_active_and_one_used_last_is_not() {
+    let listing = |status: &str| {
+        format!(
+            "  pool: tank\n    id: 7\n state: ONLINE\nstatus: {status}\n\
+             config:\n\n\ttank  ONLINE\n"
+        )
+    };
+
+    let active = importable(&listing(
+        "The pool is currently imported by another system.",
+    ))
+    .unwrap();
+    let last = importable(&listing("The pool was last accessed by another system.")).unwrap();
+
+    assert!(active[0].foreign && active[0].active);
+    assert!(last[0].foreign && !last[0].active);
+    let unreadable = "  pool: tank\n    id: 7\n state: UNAVAIL\n\
+                      action: The pool cannot be imported.\n\
+                      \tThe pool may be active on another system, but can be imported using\n\
+                      \tthe '-f' flag.\n";
+    let may_be = importable(unreadable).unwrap();
+    assert!(may_be[0].foreign && !may_be[0].active);
+}
+
+#[test]
+fn the_uberblock_says_when_the_pool_was_last_written() {
+    let config = "\nMOS Configuration:\n        name: 'tank'\n        hostid: 255\n\
+                  \nUberblock:\n\tmagic = 0000000000bab10c\n\ttxg = 1234\n\
+                  \ttimestamp = 1792667543 UTC = Fri Oct 23 08:32:23 2026\n\
+                  \tcheckpoint_txg = 0\n\n";
+    assert_eq!(pool_config(config).unwrap().written, Some(1_792_667_543));
+    let before = "Uberblock:\n\ttimestamp = 7 UTC = Thu Jan  1 00:00:07 1970\n\n\
+                  MOS Configuration:\n        name: 'tank'\n";
+    assert_eq!(pool_config(before).unwrap().written, Some(7));
+    let none = "MOS Configuration:\n        name: 'tank'\n";
+    assert_eq!(pool_config(none).unwrap().written, None);
+    let without = "MOS Configuration:\n        name: 'tank'\nUberblock:\n\ttxg = 4\n\n\
+                   \ttimestamp = 9 UTC = later\n";
+    assert_eq!(pool_config(without).unwrap().written, None);
+    let garbled = "MOS Configuration:\n        name: 'tank'\nUberblock:\n\
+                   \ttimestamp = soon UTC = later\n";
+    assert_eq!(
+        pool_config(garbled).unwrap_err().reason,
+        "invalid uberblock time"
+    );
+}
+
+#[test]
+fn a_checkpoint_is_its_time_and_space_or_the_space_left_to_discard() {
+    let status = |line: &str| {
+        format!(
+            "  pool: tank\n state: ONLINE\n{line}config:\n\n\
+             \tNAME  STATE  READ WRITE CKSUM\n\ttank  ONLINE  0 0 0\n\n\
+             errors: No known data errors\n"
+        )
+    };
+
+    let created = checkpoint(&status(
+        "checkpoint: created Fri Oct 23 08:32:23 2026, consumes 1.50M\n",
+    ))
+    .unwrap()
+    .unwrap();
+    let discarding = checkpoint(&status("checkpoint: discarding, 512 remaining.\n"))
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        created.created.as_ref().unwrap().get(),
+        "Fri Oct 23 08:32:23 2026"
+    );
+    assert_eq!(created.space, Some(1_572_864));
+    assert!(!created.discarding);
+    assert_eq!(
+        discarding,
+        Checkpoint {
+            created: None,
+            space: Some(512),
+            discarding: true,
+        }
+    );
+    assert_eq!(checkpoint(&status("")), Ok(None));
+    let reason = |text: &str| checkpoint(text).unwrap_err().reason;
+    assert_eq!(reason(""), "no pool");
+    assert_eq!(
+        reason(&status("checkpoint: kept since yesterday\n")),
+        "unknown checkpoint"
+    );
+    assert_eq!(
+        reason(&status("checkpoint: created today\n")),
+        "unknown checkpoint"
+    );
+    assert_eq!(
+        reason(&status("checkpoint: discarding, 1K\n")),
+        "unknown checkpoint"
+    );
+}
+
+#[test]
+fn sizes_for_people_are_read_in_bytes_rounded_down() {
+    assert_eq!(nicenum("0"), Some(0));
+    assert_eq!(nicenum("1023"), Some(1023));
+    assert_eq!(nicenum("4K"), Some(4096));
+    assert_eq!(nicenum("1.50M"), Some(1_572_864));
+    assert_eq!(nicenum("15.3G"), Some(16_428_249_907));
+    assert_eq!(nicenum("2E"), Some(2_305_843_009_213_693_952));
+    for odd in ["", "M", "1.M", ".5M", "1.5Q", "1k", "x", "16E", "1,5M"] {
+        assert_eq!(nicenum(odd), None, "{odd:?}");
+    }
 }

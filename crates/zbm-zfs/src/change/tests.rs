@@ -34,6 +34,7 @@ fn changes() -> Vec<ZfsChange> {
         },
         ZfsChange::Snapshot(snapshot()),
         ZfsChange::Rollback(snapshot()),
+        ZfsChange::Destroy(vec![snapshot(), "tank/ROOT/be@old".parse().unwrap()]),
         ZfsChange::Clone {
             snapshot: snapshot(),
             target: dataset("tank/ROOT/copy"),
@@ -66,6 +67,7 @@ fn make(zfs: &dyn Zfs, change: &ZfsChange) {
         } => zfs.set_pool_property(pool, property, value),
         ZfsChange::Snapshot(snapshot) => zfs.create_snapshot(snapshot),
         ZfsChange::Rollback(snapshot) => zfs.rollback(snapshot),
+        ZfsChange::Destroy(snapshots) => zfs.destroy_snapshots(snapshots),
         ZfsChange::Clone {
             snapshot,
             target,
@@ -175,6 +177,23 @@ fn a_dry_run_reads_what_the_real_port_reads() {
         format!("{:?}", cli.own_snapshots(&root)),
     );
     same(
+        format!("{:?}", dry.snapshot_details(&root)),
+        format!("{:?}", cli.snapshot_details(&root)),
+    );
+    same(
+        format!("{:?}", dry.holds(&[snapshot()])),
+        format!("{:?}", cli.holds(&[snapshot()])),
+    );
+    let set = SnapshotSet::Each(vec![snapshot()]);
+    same(
+        format!("{:?}", dry.destroy_space(&set)),
+        format!("{:?}", cli.destroy_space(&set)),
+    );
+    same(
+        format!("{:?}", dry.checkpoint(&pool)),
+        format!("{:?}", cli.checkpoint(&pool)),
+    );
+    same(
         format!("{:?}", dry.snapshot_property(&snapshot(), "creation")),
         format!("{:?}", cli.snapshot_property(&snapshot(), "creation")),
     );
@@ -185,5 +204,68 @@ fn a_dry_run_reads_what_the_real_port_reads() {
     same(
         format!("{:?}", dry.diff(&snapshot(), None)),
         format!("{:?}", cli.diff(&snapshot(), None)),
+    );
+}
+
+#[test]
+fn a_dry_run_counts_the_space_a_destroy_frees_and_plans_the_destroy() {
+    let runner = FakeRunner::new();
+    let count = "zfs destroy -n -v -p tank/ROOT/be@new";
+    runner.respond(count, 0, "destroy\ttank/ROOT/be@new\nreclaim\t4096\n");
+    let cli = ZfsCli::new(&runner);
+    let planned = Mutex::new(Vec::new());
+    let plan = |change: ZfsChange| planned.lock().unwrap().push(change);
+    let dry = DryRun::new(&cli, &plan);
+
+    let space = dry.destroy_space(&SnapshotSet::Each(vec![snapshot()]));
+    dry.destroy_snapshots(&[snapshot()]).unwrap();
+
+    assert_eq!(space.unwrap(), 4096);
+    assert_eq!(runner.lines(), [count]);
+    assert_eq!(
+        *planned.lock().unwrap(),
+        [ZfsChange::Destroy(vec![snapshot()])]
+    );
+}
+
+#[test]
+fn a_destroy_names_the_snapshots_of_one_dataset_in_one_argument() {
+    let name = |text: &str| -> SnapshotName { text.parse().unwrap() };
+    let (a, b, c) = (
+        name("tank/ROOT/be@a"),
+        name("tank/ROOT/be@b"),
+        name("tank/ROOT/be@c"),
+    );
+    let other = name("tank/home@a");
+
+    let destroy = |snapshots: &[SnapshotName]| ZfsChange::Destroy(snapshots.to_vec()).command();
+
+    assert_eq!(
+        destroy(&[a.clone(), b.clone(), c.clone()]),
+        (
+            "zfs",
+            vec!["destroy".to_owned(), "tank/ROOT/be@a,b,c".to_owned()]
+        )
+    );
+    // Several datasets or none are more or fewer arguments, which zfs
+    // refuses: nothing is destroyed.
+    assert_eq!(
+        destroy(&[a.clone(), other.clone(), b.clone()]).1,
+        ["destroy", "tank/ROOT/be@a,b", "tank/home@a"]
+    );
+    assert_eq!(destroy(&[]).1, ["destroy"]);
+    let range = SnapshotSet::Range {
+        first: a.clone(),
+        last: c,
+    };
+    assert_eq!(range.targets(), ["tank/ROOT/be@a%c"]);
+    let across = SnapshotSet::Range {
+        first: a,
+        last: other,
+    };
+    assert_eq!(across.targets(), ["tank/ROOT/be@a", "tank/home@a"]);
+    assert_eq!(
+        ZfsChange::Destroy(vec![b]).to_string(),
+        "zfs destroy tank/ROOT/be@b"
     );
 }

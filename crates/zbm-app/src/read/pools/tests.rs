@@ -172,6 +172,7 @@ fn the_scan_lists_pools_not_imported_and_asks_the_host_only_of_foreign_ones() {
         7,
         "deadbeef",
         "other\u{1b}[2J",
+        1000,
     );
 
     let found = importable(&zfs).unwrap();
@@ -234,7 +235,7 @@ fn a_pool_imported_since_the_scan_is_listed_once() {
 #[test]
 fn a_failed_scan_or_host_is_no_pool_or_an_unknown_host() {
     let zfs = FakeZfs::new()
-        .foreign("tank", 7, "deadbeef", "other")
+        .foreign("tank", 7, "deadbeef", "other", 1000)
         .failing("pool_host", "no label");
 
     let found = importable(&zfs).unwrap();

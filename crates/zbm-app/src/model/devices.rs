@@ -8,7 +8,7 @@
 use zbm_types::{HostId, Untrusted};
 
 /// The host a pool not imported was last imported by, from its
-/// configuration (`zdb -e -C`).
+/// configuration (`zdb -e -C -u`).
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PoolHost {
     /// Its host ID, which an import as that host adopts; `None` when

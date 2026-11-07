@@ -32,7 +32,7 @@ const LISTING: &str = "   pool: backup
 \t  vdb       ONLINE
 ";
 
-/// What `zdb -e -C 7` reads of `tank`: the host `otherhost`, whose host ID
+/// What `zdb -e -C -u 7` reads of `tank`: the host `otherhost`, whose host ID
 /// is `deadbeef`.
 const CONFIG: &str = "
 MOS Configuration:
@@ -48,7 +48,7 @@ fn machine() -> FakeSystem {
     let fake = FakeSystem::new();
     fake.files.dir("/zfsbootmenu");
     fake.runner.respond("zpool import", 0, LISTING);
-    fake.runner.respond("zdb -e -C 7", 0, CONFIG);
+    fake.runner.respond("zdb -e -C -u 7", 0, CONFIG);
     fake.runner.respond_program("zpool", 0, "");
     fake.runner.respond_program("zfs", 0, "");
     fake
@@ -109,12 +109,12 @@ fn the_snapshot_scans_nothing_and_lists_what_the_last_scan_found() {
         .into_iter()
         .filter(|line| line.starts_with("zdb"))
         .collect();
-    assert_eq!(zdb, ["zdb -e -C 7"]);
+    assert_eq!(zdb, ["zdb -e -C -u 7"]);
 
     // The snapshots list them from now on, scanning nothing.
     assert_eq!(app.snapshot().unwrap().pools, pools);
     assert_eq!(ran(&fake, "zpool import"), 1);
-    assert_eq!(ran(&fake, "zdb -e -C 7"), 1);
+    assert_eq!(ran(&fake, "zdb -e -C -u 7"), 1);
 }
 
 #[test]

@@ -27,12 +27,13 @@ use std::collections::BTreeMap;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 use zbm_zfs::{
-    Dataset, Difference, Health, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot,
-    SnapshotSpace, Source, Version, Zfs, ZfsError,
+    Checkpoint, Dataset, Difference, Health, Hold, Importable, Pool, PoolHost, PoolStatus,
+    Property, Snapshot, SnapshotDetail, SnapshotSet, SnapshotSpace, Source, Version, Zfs, ZfsError,
 };
 
 mod changes;
 mod pools;
+mod snapshots;
 
 /// The defaults of the native properties the fake knows.
 const DEFAULTS: &[(&str, &str)] = &[
@@ -66,6 +67,14 @@ struct State {
     pools: BTreeMap<PoolName, FakePool>,
     datasets: BTreeMap<DatasetName, BTreeMap<String, String>>,
     snapshots: BTreeMap<SnapshotName, u64>,
+    /// The tags of the holds on each snapshot.
+    holds: BTreeMap<SnapshotName, Vec<String>>,
+    /// The bookmarks, with `@` for `#`, and where the snapshot each was
+    /// made from is in the order ZFS took them.
+    bookmarks: BTreeMap<SnapshotName, snapshots::Taken>,
+    /// The `createtxg` of each place a snapshot was taken at, fixed by the
+    /// first change; until then, each place's rank.
+    txgs: Option<BTreeMap<snapshots::Taken, u64>>,
     /// The snapshot each clone was made from.
     origins: BTreeMap<DatasetName, SnapshotName>,
     differences: BTreeMap<(SnapshotName, Option<SnapshotName>), Vec<Difference>>,
@@ -162,26 +171,6 @@ impl FakeZfs {
         self
     }
 
-    /// Adds the snapshot `snapshot`, taken at `creation` seconds.
-    #[must_use]
-    pub fn snapshot(self, snapshot: &str, creation: u64) -> FakeZfs {
-        self.state
-            .borrow_mut()
-            .snapshots
-            .insert(name(snapshot), creation);
-        self
-    }
-
-    /// Makes the filesystem `dataset` a clone of `snapshot`.
-    #[must_use]
-    pub fn origin(self, dataset: &str, snapshot: &str) -> FakeZfs {
-        self.state
-            .borrow_mut()
-            .origins
-            .insert(name(dataset), name(snapshot));
-        self
-    }
-
     /// What `diff` answers for `from` and `to`; nothing differs otherwise.
     #[must_use]
     pub fn differences(self, from: &str, to: Option<&str>, found: &[Difference]) -> FakeZfs {
@@ -193,7 +182,8 @@ impl FakeZfs {
     }
 
     /// Makes the change `operation`, such as `rollback`, or the read
-    /// `status`, `importable` or `pool_host`, fail with `message`.
+    /// `status`, `importable`, `pool_host`, `checkpoint`, `holds` or
+    /// `destroy_space`, fail with `message`.
     #[must_use]
     pub fn failing(self, operation: &str, message: &str) -> FakeZfs {
         self.state
@@ -309,8 +299,15 @@ impl Zfs for FakeZfs {
     fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError> {
         self.record(format!("pool_host {id}"));
         let state = self.state.borrow();
-        pools::planned(&state, "pool_host", &format!("zdb -e -C {id}"))?;
+        pools::planned(&state, "pool_host", &format!("zdb -e -C -u {id}"))?;
         pools::pool_host(&state, id)
+    }
+
+    fn checkpoint(&self, pool: &PoolName) -> Result<Option<Checkpoint>, ZfsError> {
+        self.record(format!("checkpoint {pool}"));
+        let state = self.state.borrow();
+        pools::planned(&state, "checkpoint", &format!("zpool status -p {pool}"))?;
+        pools::checkpoint(&state, pool)
     }
 
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {
@@ -330,6 +327,7 @@ impl Zfs for FakeZfs {
         if let Some(fake) = state.pools.remove(pool) {
             pools::list_exported(&mut state.described, pool, &fake);
         }
+        snapshots::fix(&mut state);
         let pool = pool.as_str();
         state
             .datasets
@@ -337,6 +335,12 @@ impl Zfs for FakeZfs {
         state
             .snapshots
             .retain(|snapshot, _| snapshot.pool().as_str() != pool);
+        state
+            .holds
+            .retain(|snapshot, _| snapshot.pool().as_str() != pool);
+        state
+            .bookmarks
+            .retain(|bookmark, _| bookmark.pool().as_str() != pool);
         Ok(())
     }
 
@@ -406,48 +410,30 @@ impl Zfs for FakeZfs {
 
     fn snapshots(&self, dataset: &DatasetName) -> Result<Vec<Snapshot>, ZfsError> {
         self.record(format!("snapshots {dataset}"));
-        let state = self.state.borrow();
-        if !state.datasets.contains_key(dataset) {
-            return Err(ZfsError::Missing(dataset.to_string()));
-        }
-        Ok(state
-            .snapshots
-            .iter()
-            .filter(|(snapshot, _)| {
-                let of = snapshot.dataset();
-                of.as_str() == dataset.as_str()
-                    || of
-                        .as_str()
-                        .strip_prefix(dataset.as_str())
-                        .is_some_and(|rest| rest.starts_with('/'))
-            })
-            .map(|(name, creation)| Snapshot {
-                name: name.clone(),
-                creation: *creation,
-            })
-            .collect())
+        snapshots::snapshots(&self.state.borrow(), dataset)
     }
 
-    /// Every snapshot holds 4 KiB of its own; those taken in the same
-    /// second are in the order of their names.
     fn own_snapshots(&self, dataset: &DatasetName) -> Result<Vec<SnapshotSpace>, ZfsError> {
         self.record(format!("own_snapshots {dataset}"));
+        snapshots::own_snapshots(&self.state.borrow(), dataset)
+    }
+
+    fn snapshot_details(&self, dataset: &DatasetName) -> Result<Vec<SnapshotDetail>, ZfsError> {
+        self.record(format!("snapshot_details {dataset}"));
+        snapshots::snapshot_details(&self.state.borrow(), dataset)
+    }
+
+    fn holds(&self, snapshots: &[SnapshotName]) -> Result<Vec<Hold>, ZfsError> {
+        let shown: Vec<String> = snapshots.iter().map(ToString::to_string).collect();
+        self.record(format!("holds {}", shown.join(",")));
         let state = self.state.borrow();
-        if !state.datasets.contains_key(dataset) {
-            return Err(ZfsError::Missing(dataset.to_string()));
-        }
-        let mut own: Vec<SnapshotSpace> = state
-            .snapshots
-            .iter()
-            .filter(|(snapshot, _)| snapshot.dataset() == dataset)
-            .map(|(name, creation)| SnapshotSpace {
-                name: name.clone(),
-                creation: *creation,
-                used: 4096,
-            })
-            .collect();
-        own.sort_by_key(|snapshot| snapshot.creation);
-        Ok(own)
+        pools::planned(&state, "holds", "zfs holds -H -p")?;
+        snapshots::holds(&state, snapshots)
+    }
+
+    fn destroy_space(&self, snapshots: &SnapshotSet) -> Result<u64, ZfsError> {
+        self.record(format!("destroy_space {}", snapshots::shown(snapshots)));
+        snapshots::destroy_space(&self.state.borrow(), snapshots)
     }
 
     fn property(&self, dataset: &DatasetName, property: &str) -> Result<Property, ZfsError> {
@@ -497,15 +483,7 @@ impl Zfs for FakeZfs {
         property: &str,
     ) -> Result<Property, ZfsError> {
         self.record(format!("snapshot_property {snapshot} {property}"));
-        let state = self.state.borrow();
-        let creation = state
-            .snapshots
-            .get(snapshot)
-            .ok_or_else(|| ZfsError::Missing(snapshot.to_string()))?;
-        Ok(match property {
-            "creation" => Property::new(creation.to_string(), Source::None),
-            _ => FakeZfs::resolve(&state, snapshot.dataset(), property),
-        })
+        snapshots::snapshot_property(&self.state.borrow(), snapshot, property)
     }
 
     fn own_properties(&self, dataset: &DatasetName) -> Result<Vec<(String, Property)>, ZfsError> {
@@ -521,6 +499,12 @@ impl Zfs for FakeZfs {
     fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
         self.record(format!("rollback {snapshot}"));
         changes::rollback(&mut self.state.borrow_mut(), snapshot)
+    }
+
+    fn destroy_snapshots(&self, snapshots: &[SnapshotName]) -> Result<(), ZfsError> {
+        let set = SnapshotSet::Each(snapshots.to_vec());
+        self.record(format!("destroy_snapshots {}", snapshots::shown(&set)));
+        changes::destroy_snapshots(&mut self.state.borrow_mut(), &set)
     }
 
     fn clone_snapshot(

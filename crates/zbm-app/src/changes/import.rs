@@ -193,7 +193,7 @@ fn first(
 }
 
 /// Imports `pool`, which is not imported and whose identifier is `id`,
-/// read-only with the host ID its configuration records (`zdb -e -C`),
+/// read-only with the host ID its configuration records (`zdb -e -C -u`),
 /// which is recorded for the boot, as start-up records the host ID it
 /// matched.
 fn adopted(

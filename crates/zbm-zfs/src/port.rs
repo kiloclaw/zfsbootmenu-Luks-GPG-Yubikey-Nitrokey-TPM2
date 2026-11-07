@@ -7,8 +7,8 @@
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::model::{
-    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, SnapshotSpace,
-    Version,
+    Checkpoint, Dataset, Difference, Hold, Importable, Pool, PoolHost, PoolStatus, Property,
+    Snapshot, SnapshotDetail, SnapshotSet, SnapshotSpace, Version,
 };
 
 /// Why a ZFS operation failed.
@@ -114,16 +114,25 @@ pub trait Zfs {
     fn importable(&self) -> Result<Vec<Importable>, ZfsError>;
 
     /// The host that last imported the pool not imported whose numeric
-    /// identifier is `id` ([`Importable::id`]), from its configuration
-    /// (`zdb -e -C <id>`), which reads it without importing it. The
-    /// identifier, unlike the name, finds a pool that shares its name with
-    /// another.
+    /// identifier is `id` ([`Importable::id`]), from its configuration, and
+    /// when the pool was last written, from its uberblock (`zdb -e -C -u
+    /// <id>`), which reads them without importing it. The identifier,
+    /// unlike the name, finds a pool that shares its name with another.
     ///
     /// # Errors
     ///
     /// [`ZfsError`] when `zdb` fails, for example because no pool has that
     /// identifier, or prints something unexpected.
     fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError>;
+
+    /// The checkpoint of the imported `pool`, if it has one (`zpool status
+    /// -p <pool>`).
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zpool status` fails, for example because the pool
+    /// is not imported, or prints something unexpected.
+    fn checkpoint(&self, pool: &PoolName) -> Result<Option<Checkpoint>, ZfsError>;
 
     /// Exports `pool`.
     ///
@@ -172,6 +181,37 @@ pub trait Zfs {
     /// [`ZfsError::Missing`] when `dataset` does not exist, and other
     /// [`ZfsError`]s when `zfs list` fails or prints something unexpected.
     fn own_snapshots(&self, dataset: &DatasetName) -> Result<Vec<SnapshotSpace>, ZfsError>;
+
+    /// The snapshots and bookmarks of `dataset` itself, in the order ZFS
+    /// took them, each with what keeps it: its holds and clones (`zfs list
+    /// -H -p -t snapshot,bookmark -o name,createtxg,used,userrefs,clones -d
+    /// 1 -s createtxg`). Heavier than [`Zfs::own_snapshots`]: a review of a
+    /// change reads it, not the menu.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError::Missing`] when `dataset` does not exist, and other
+    /// [`ZfsError`]s when `zfs list` fails or prints something unexpected.
+    fn snapshot_details(&self, dataset: &DatasetName) -> Result<Vec<SnapshotDetail>, ZfsError>;
+
+    /// The holds on `snapshots` (`zfs holds -H -p`); none without
+    /// snapshots, without running `zfs`.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs holds` fails, for example because a snapshot
+    /// does not exist, or prints something unexpected.
+    fn holds(&self, snapshots: &[SnapshotName]) -> Result<Vec<Hold>, ZfsError>;
+
+    /// The space, in bytes, that destroying `snapshots` would free, which
+    /// ZFS counts without destroying them (`zfs destroy -n -v -p`): a read.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs destroy -n` fails, for example because a
+    /// snapshot has clones or the snapshots are of several datasets, or
+    /// prints something unexpected.
+    fn destroy_space(&self, snapshots: &SnapshotSet) -> Result<u64, ZfsError>;
 
     /// A property of `dataset`, with its source.
     ///
@@ -243,8 +283,21 @@ pub trait Zfs {
     /// # Errors
     ///
     /// [`ZfsError`] when `zfs rollback` fails, for example because a later
-    /// snapshot has clones.
+    /// snapshot has clones, which stops it before it destroys anything, or
+    /// a hold, which stops it only after it has destroyed every later
+    /// snapshot without one and every later bookmark.
     fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError>;
+
+    /// Destroys `snapshots`, which must be of one dataset (`zfs destroy
+    /// <dataset>@a,b,c`): none of them when one has clones or holds; those
+    /// that still exist when some no longer do.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs destroy` fails, for example because a
+    /// snapshot has clones or holds, none of the snapshots exists, or they
+    /// are of several datasets or none.
+    fn destroy_snapshots(&self, snapshots: &[SnapshotName]) -> Result<(), ZfsError>;
 
     /// Clones `snapshot` as `target`, with `properties` set on it.
     ///

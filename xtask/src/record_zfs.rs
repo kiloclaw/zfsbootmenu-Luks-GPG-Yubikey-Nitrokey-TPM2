@@ -70,6 +70,38 @@ const LISTINGS: &[(&str, &str)] = &[
     ),
 ];
 
+/// What a review of a change reads, recorded while the pool is imported,
+/// after the listings: each command first makes what it shows (a hold, a
+/// bookmark, a clone, a checkpoint), which the listings recorded before
+/// do not see. `-n` destroys nothing; the count over a cloned snapshot
+/// records how `zfs` refuses it.
+const REVIEWS: &[(&str, &str)] = &[
+    (
+        "snapshot-details.txt",
+        "zfs hold keep fixture/ROOT/void@first && \
+         zfs bookmark fixture/ROOT/void@first fixture/ROOT/void#first && \
+         zfs clone fixture/ROOT/void@second fixture/clone && \
+         zfs list -H -p -t snapshot,bookmark -o name,createtxg,used,userrefs,clones -d 1 \
+         -s createtxg fixture/ROOT/void",
+    ),
+    (
+        "holds.txt",
+        "zfs holds -H -p fixture/ROOT/void@first fixture/ROOT/void@second",
+    ),
+    (
+        "destroy-dry.txt",
+        "zfs destroy -n -v -p fixture/ROOT/void@first",
+    ),
+    (
+        "destroy-dry-clone.err",
+        "zfs destroy -n -v -p fixture/ROOT/void@first%second 2>&1",
+    ),
+    (
+        "status-checkpoint.txt",
+        "zpool checkpoint fixture && zpool status -p fixture",
+    ),
+];
+
 /// Each recorded command, as (file name, command). A name ending in `.err`
 /// records standard error and standard output together.
 pub fn records() -> Vec<(String, String)> {
@@ -95,7 +127,11 @@ pub fn records() -> Vec<(String, String)> {
             ));
         }
     }
-    let pools = format!("zpool list {{}} -o {POOL_PROPERTIES}");
+    records.extend(
+        REVIEWS
+            .iter()
+            .map(|(file, command)| ((*file).to_owned(), (*command).to_owned())),
+    );
     records.extend([
         (
             "missing.json.err".to_owned(),
@@ -105,9 +141,24 @@ pub fn records() -> Vec<(String, String)> {
             "missing.txt.err".to_owned(),
             "zfs list -H fixture/none 2>&1".to_owned(),
         ),
+    ]);
+    records.extend(exported());
+    records
+}
+
+/// The records of the pool exported, then imported read-only.
+fn exported() -> [(String, String); 4] {
+    let pools = format!("zpool list {{}} -o {POOL_PROPERTIES}");
+    [
         (
             "exported.txt".to_owned(),
             "zpool export fixture && zpool import".to_owned(),
+        ),
+        // The configuration and the uberblock of the exported pool, as
+        // `ZfsCli::pool_host` reads them.
+        (
+            "zdb-uberblock.txt".to_owned(),
+            "zdb -e -C -u fixture".to_owned(),
         ),
         (
             "readonly-pools.json".to_owned(),
@@ -120,8 +171,7 @@ pub fn records() -> Vec<(String, String)> {
             "readonly-pools.txt".to_owned(),
             pools.replace("{}", "-H -p"),
         ),
-    ]);
-    records
+    ]
 }
 
 /// The commands that end the recording; the disk is created afresh each time.
@@ -172,5 +222,17 @@ mod tests {
             commands.contains(&"zpool list -j -p -o name,health,readonly,bootfs,guid".to_owned())
         );
         assert!(commands.iter().all(|command| !command.contains('{')));
+    }
+
+    #[test]
+    fn the_review_reads_follow_the_listings_and_the_uberblock_the_export() {
+        let files: Vec<_> = records().into_iter().map(|(file, _)| file).collect();
+        let at = |name: &str| files.iter().position(|file| file == name).unwrap();
+        assert!(at("properties.txt") < at("snapshot-details.txt"));
+        assert!(at("status-checkpoint.txt") < at("exported.txt"));
+        assert!(at("exported.txt") < at("zdb-uberblock.txt"));
+        assert!(at("zdb-uberblock.txt") < at("readonly-pools.json"));
+        let commands: Vec<_> = records().into_iter().map(|(_, command)| command).collect();
+        assert!(commands.contains(&"zfs destroy -n -v -p fixture/ROOT/void@first".to_owned()));
     }
 }

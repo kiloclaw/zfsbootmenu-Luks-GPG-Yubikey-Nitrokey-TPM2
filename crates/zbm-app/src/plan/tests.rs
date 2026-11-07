@@ -179,6 +179,7 @@ fn every_change_of_zfs_is_a_step_with_its_command() {
             property: "canmount".into(),
         },
         ZfsChange::Rollback(snapshot.clone()),
+        ZfsChange::Destroy(vec![snapshot.clone()]),
         ZfsChange::Promote(dataset.clone()),
         ZfsChange::SendReceive {
             snapshot: snapshot.clone(),
@@ -208,6 +209,7 @@ fn every_change_of_zfs_is_a_step_with_its_command() {
                 property: "canmount".into(),
             },
             StepKind::Rollback(snapshot.clone()),
+            StepKind::Destroy(vec![snapshot.clone()]),
             StepKind::Promote(dataset.clone()),
             StepKind::Copy {
                 snapshot,

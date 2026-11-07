@@ -1,6 +1,6 @@
 //! The text that describes pools rather than lists them: `zpool status -p
-//! -P`, the listing of `zpool import`, and the configuration that `zdb -e
-//! -C` prints.
+//! -P`, the listing of `zpool import`, and the configuration and the
+//! uberblock that `zdb -e -C -u` prints.
 //!
 //! `zpool` writes each pool as keys at the start of a line, such as `
 //! pool:`, `status:` or `config:`, padded on the left to line up (in the
@@ -23,7 +23,7 @@ use zbm_types::{HostId, Untrusted};
 
 use super::TextError;
 use crate::model::{
-    Health, Importable, PoolHost, PoolStatus, Vdev, VdevClass, VdevErrors, VdevKind,
+    Checkpoint, Health, Importable, PoolHost, PoolStatus, Vdev, VdevClass, VdevErrors, VdevKind,
 };
 use crate::rows::Readable as _;
 
@@ -230,11 +230,14 @@ fn data_errors(text: &str) -> Option<u64> {
 /// imported elsewhere, below its `action:` or `comment:`.
 const ACTIVE_ELSEWHERE: &str = "The pool may be active on another system";
 
+/// How the `status:` of a pool not imported says that another system has
+/// it imported now.
+const IMPORTED_ELSEWHERE: &str = "currently imported by another system";
+
 /// Whether the `status:` of a pool not imported says that another system
 /// used it last, or has it imported.
 fn is_foreign(status: &str) -> bool {
-    status.contains("last accessed by another system")
-        || status.contains("currently imported by another system")
+    status.contains("last accessed by another system") || status.contains(IMPORTED_ELSEWHERE)
 }
 
 /// `zpool status -p -P`: each imported pool and its vdevs. Empty output,
@@ -289,6 +292,9 @@ pub fn importable(text: &str) -> Result<Vec<Importable>, TextError> {
                 state: block.state()?,
                 foreign: block.active_elsewhere
                     || status.as_ref().is_some_and(|text| is_foreign(text.get())),
+                active: status
+                    .as_ref()
+                    .is_some_and(|text| text.get().contains(IMPORTED_ELSEWHERE)),
                 status,
                 action: block.text("action"),
                 vdevs: block.vdevs(),
@@ -297,16 +303,110 @@ pub fn importable(text: &str) -> Result<Vec<Importable>, TextError> {
         .readable()
 }
 
-/// The configuration that `zdb -e -C <pool>` prints under `MOS
+/// What `zpool status` says of a checkpoint (`checkpoint:`): `created
+/// <time>, consumes <space>`, or `discarding, <space> remaining.`.
+fn checkpoint_of(text: &str) -> Option<Checkpoint> {
+    if let Some(rest) = text.strip_prefix("created ") {
+        let (created, space) = rest.rsplit_once(", consumes ")?;
+        return Some(Checkpoint {
+            created: Some(Untrusted::new(created.to_owned())),
+            space: nicenum(space),
+            discarding: false,
+        });
+    }
+    let space = text
+        .strip_prefix("discarding, ")?
+        .strip_suffix(" remaining.")?;
+    Some(Checkpoint {
+        created: None,
+        space: nicenum(space),
+        discarding: true,
+    })
+}
+
+/// A size as `zpool` prints it for people (`zfs_nicenum`): bytes below
+/// 1024, otherwise a number of up to three digits and the unit (`K`, `M`,
+/// `G`, `T`, `P`, `E`, powers of 1024), such as `1.50M`; in bytes, rounded
+/// down.
+fn nicenum(text: &str) -> Option<u64> {
+    let (number, power) = match text.char_indices().last()? {
+        (at, unit) if unit.is_ascii_alphabetic() => {
+            let power = "KMGTPE".find(unit)?.checked_add(1)?;
+            (text.get(..at)?, u32::try_from(power).ok()?)
+        }
+        _ => (text, 0),
+    };
+    let scale = 1024_u64.checked_pow(power)?;
+    let (whole, fraction) = match number.split_once('.') {
+        Some((whole, fraction)) => (whole, Some(fraction)),
+        None => (number, None),
+    };
+    let digits = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
+    if !digits(whole) || !fraction.is_none_or(digits) {
+        return None;
+    }
+    let mut bytes = whole.parse::<u64>().ok()?.checked_mul(scale)?;
+    if let Some(fraction) = fraction {
+        let tenths = 10_u64.checked_pow(u32::try_from(fraction.len()).ok()?)?;
+        let part = fraction.parse::<u64>().ok()?.checked_mul(scale)? / tenths;
+        bytes = bytes.checked_add(part)?;
+    }
+    Some(bytes)
+}
+
+/// The checkpoint of the pool of `zpool status -p <pool>`, from its
+/// `checkpoint:` line; `None` when it has none. The time stays the text
+/// `zpool` prints, in the C locale the command runs in.
+///
+/// # Errors
+///
+/// [`TextError`] for text without a pool, or with a `checkpoint:` line of
+/// another shape.
+pub fn checkpoint(text: &str) -> Result<Option<Checkpoint>, TextError> {
+    let blocks = blocks(text);
+    let block = blocks
+        .first()
+        .ok_or_else(|| TextError::new(text.lines().next().unwrap_or_default(), "no pool"))?;
+    block
+        .value("checkpoint")
+        .map(|value| {
+            checkpoint_of(value).ok_or_else(|| TextError::new(value, "unknown checkpoint"))
+        })
+        .transpose()
+}
+
+/// When the pool was last written: the `timestamp = <seconds> UTC = <time>`
+/// of the uberblock that `zdb -u` prints under `Uberblock:`, before the
+/// blank line that ends it; `None` without one.
+fn uberblock_time(text: &str) -> Result<Option<u64>, TextError> {
+    let mut lines = text.lines().skip_while(|line| line.trim() != "Uberblock:");
+    if lines.next().is_none() {
+        return Ok(None);
+    }
+    for line in lines.take_while(|line| !line.trim().is_empty()) {
+        if let Some(rest) = line.trim_start().strip_prefix("timestamp = ") {
+            let seconds = rest.split_whitespace().next().unwrap_or_default();
+            return seconds
+                .parse()
+                .map(Some)
+                .map_err(|_| TextError::new(line, "invalid uberblock time"));
+        }
+    }
+    Ok(None)
+}
+
+/// The configuration that `zdb -e -C -u <pool>` prints under `MOS
 /// Configuration:`: the `hostid` (a number) and the `hostname` (quoted) at
 /// the level of its first key, as `zdb` indents each list below the one it
-/// is in. A host ID of 0, or none, is no host ID.
+/// is in. A host ID of 0, or none, is no host ID. The time the pool was
+/// last written comes from the uberblock that follows, when `zdb` printed
+/// one.
 ///
 /// # Errors
 ///
 /// [`TextError`] for text without that heading, without the pool's
-/// `name` at the level of its first key, or with a `hostid` that is not a
-/// number.
+/// `name` at the level of its first key, with a `hostid` that is not a
+/// number, or with an uberblock whose `timestamp` is not one.
 pub fn pool_config(text: &str) -> Result<PoolHost, TextError> {
     let mut lines = text.lines();
     lines
@@ -349,6 +449,7 @@ pub fn pool_config(text: &str) -> Result<PoolHost, TextError> {
     if !named {
         return Err(TextError::new("MOS Configuration:", "no pool name"));
     }
+    host.written = uberblock_time(text)?;
     Ok(host)
 }
 

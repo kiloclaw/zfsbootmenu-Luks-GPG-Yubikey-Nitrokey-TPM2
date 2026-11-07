@@ -122,7 +122,7 @@ fn importable_pool(listed: Importable, host: Option<PoolHost>) -> Pool {
 
 /// The pools that could be imported, as `zpool import` lists them after
 /// looking at every device; for each that another system used last, its
-/// host, which `zdb -e -C` reads from its configuration, unknown when that
+/// host, which `zdb -e -C -u` reads from its configuration, unknown when that
 /// fails. `None` when the scan fails, as when it is cancelled, which is
 /// logged.
 pub(crate) fn importable(zfs: &dyn Zfs) -> Option<Vec<Pool>> {

@@ -1,5 +1,6 @@
-//! What `zpool status`, `zpool import` and `zdb -e -C` say of pools: the
-//! tree of their vdevs, their state and the host that used them last.
+//! What `zpool status`, `zpool import` and `zdb -e -C -u` say of pools: the
+//! tree of their vdevs, their state, their checkpoint and the host that
+//! used them last.
 //!
 //! Vdev names, device paths, host names and the messages of `zpool` come
 //! from the pool's labels or the devices, which whoever made them chose:
@@ -161,6 +162,10 @@ pub struct Importable {
     /// Whether another system used it last or has it imported, so that
     /// importing it needs `-f`, or is refused.
     pub foreign: bool,
+    /// Whether another system has it imported now (`status:` says it is
+    /// currently imported by another system), so that `zpool import -f`
+    /// is refused too.
+    pub active: bool,
     /// What is wrong with it (`status:`), on one line.
     pub status: Option<Untrusted<String>>,
     /// What can be done (`action:`), on one line.
@@ -170,11 +175,30 @@ pub struct Importable {
 }
 
 /// The host a pool not imported was last imported by, from its
-/// configuration (`zdb -e -C`).
+/// configuration, and when the pool was last written, from its active
+/// uberblock (`zdb -e -C -u`).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PoolHost {
     /// Its host ID; `None` when the pool records none.
     pub hostid: Option<HostId>,
     /// Its host name.
     pub hostname: Option<Untrusted<String>>,
+    /// When the pool was last written, by that host or by one that has it
+    /// imported now, in seconds since 1970; `None` when `zdb` printed no
+    /// uberblock.
+    pub written: Option<u64>,
+}
+
+/// The checkpoint of an imported pool, as `zpool status` describes it.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Checkpoint {
+    /// When it was taken, as `zpool` prints it (`ctime(3)` in the time
+    /// zone of the system, which is UTC in ZFSBootMenu's image); `None`
+    /// when `zpool` gives none, as while it is being discarded.
+    pub created: Option<Untrusted<String>>,
+    /// The space it holds, or, while it is being discarded, the space
+    /// left to free, in bytes, to the three digits `zpool` rounds it to.
+    pub space: Option<u64>,
+    /// Whether it is being discarded.
+    pub discarding: bool,
 }

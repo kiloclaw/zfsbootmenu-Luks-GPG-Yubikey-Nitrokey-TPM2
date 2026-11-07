@@ -49,6 +49,9 @@ pub enum StepKind {
     Snapshot(SnapshotName),
     /// A filesystem rolls back to a snapshot; the newer ones are destroyed.
     Rollback(SnapshotName),
+    /// Snapshots of one filesystem are destroyed: none when a clone or a
+    /// hold keeps one, and those that exist when some no longer do.
+    Destroy(Vec<SnapshotName>),
     /// A new filesystem is cloned from a snapshot.
     Clone {
         /// The snapshot.

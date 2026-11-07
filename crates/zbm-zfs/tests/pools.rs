@@ -1,5 +1,5 @@
 //! `ZfsCli` reading what pools are made of: `zpool status`, the listing
-//! of `zpool import` and `zdb -e -C`, from the recordings of `cargo xtask
+//! of `zpool import` and `zdb -e -C -u`, from the recordings of `cargo xtask
 //! record-zfs` (`tests/fixtures/<major.minor>/`) and the hand-written
 //! fixtures of `tests/fixtures/written/`, whose README says what each
 //! shows.
@@ -282,7 +282,7 @@ fn no_pool_to_import_is_an_empty_list_and_other_failures_are_errors() {
 #[test]
 fn the_host_of_a_pool_not_imported_comes_from_its_configuration() {
     let runner = FakeRunner::new();
-    let command = "zdb -e -C 15094445427306487906";
+    let command = "zdb -e -C -u 15094445427306487906";
     runner.respond(command, 0, &written("zdb-config.txt"));
 
     let host = ZfsCli::new(&runner)
@@ -291,13 +291,14 @@ fn the_host_of_a_pool_not_imported_comes_from_its_configuration() {
 
     assert_eq!(host.hostid.unwrap().as_str(), "deadbeef");
     assert_eq!(host.hostname.unwrap().get(), "otherhost");
+    assert_eq!(host.written, Some(1_792_667_543));
     let [call] = runner.calls().try_into().unwrap();
     assert!(
         call.get_env()
             .contains(&("LC_ALL".into(), Some("C".into())))
     );
     let missing = failing(
-        "zdb -e -C 7",
+        "zdb -e -C -u 7",
         1,
         "zdb: can't open '7': No such file or directory\n".to_owned(),
     );
@@ -306,9 +307,9 @@ fn the_host_of_a_pool_not_imported_comes_from_its_configuration() {
         Err(ZfsError::Failed { .. })
     ));
     let garbled = FakeRunner::new();
-    garbled.respond("zdb -e -C 7", 0, "hostid: 1\n");
+    garbled.respond("zdb -e -C -u 7", 0, "hostid: 1\n");
     assert!(matches!(
         ZfsCli::new(&garbled).pool_host(7),
-        Err(ZfsError::Output { command, .. }) if command == "zdb -e -C 7"
+        Err(ZfsError::Output { command, .. }) if command == "zdb -e -C -u 7"
     ));
 }

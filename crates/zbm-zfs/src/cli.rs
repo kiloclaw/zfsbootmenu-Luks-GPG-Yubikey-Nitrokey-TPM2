@@ -12,8 +12,8 @@ use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::change::ZfsChange;
 use crate::model::{
-    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, SnapshotSpace,
-    Version,
+    Checkpoint, Dataset, Difference, Hold, Importable, Pool, PoolHost, PoolStatus, Property,
+    Snapshot, SnapshotDetail, SnapshotSet, SnapshotSpace, Version,
 };
 use crate::port::{Zfs, ZfsError};
 use crate::{json, text};
@@ -161,6 +161,23 @@ impl<'a> ZfsCli<'a> {
         })
     }
 
+    /// Runs `zfs` with `args` and parses its standard output with `parse`;
+    /// a failure that says something does not exist is
+    /// [`ZfsError::Missing`] for `missing`, as in [`ZfsCli::run_command`].
+    fn read_text<T>(
+        &self,
+        args: &[&str],
+        missing: Option<&str>,
+        parse: impl FnOnce(&str) -> Result<T, text::TextError>,
+    ) -> Result<T, ZfsError> {
+        let command = Command::new("zfs").args(args.iter().copied());
+        let output = self.run_command(command, missing)?;
+        parse(&output).map_err(|error| ZfsError::Output {
+            command: format!("zfs {}", args.join(" ")),
+            detail: error.to_string(),
+        })
+    }
+
     /// The property of one name from a `get` listing.
     fn one_property(
         &self,
@@ -261,7 +278,11 @@ impl Zfs for ZfsCli<'_> {
 
     fn pool_host(&self, id: u64) -> Result<PoolHost, ZfsError> {
         let id = id.to_string();
-        self.described("zdb", &["-e", "-C", &id], text::pool_config)
+        self.described("zdb", &["-e", "-C", "-u", &id], text::pool_config)
+    }
+
+    fn checkpoint(&self, pool: &PoolName) -> Result<Option<Checkpoint>, ZfsError> {
+        self.described("zpool", &["status", "-p", pool.as_str()], text::checkpoint)
     }
 
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {
@@ -322,11 +343,45 @@ impl Zfs for ZfsCli<'_> {
             "creation",
             dataset.as_str(),
         ];
-        let output = self.run("zfs", &args)?;
-        text::own_snapshots(&output).map_err(|error| ZfsError::Output {
-            command: format!("zfs {}", args.join(" ")),
-            detail: error.to_string(),
-        })
+        self.read_text(&args, Some(dataset.as_str()), text::own_snapshots)
+    }
+
+    fn snapshot_details(&self, dataset: &DatasetName) -> Result<Vec<SnapshotDetail>, ZfsError> {
+        let args = [
+            "list",
+            "-H",
+            "-p",
+            "-t",
+            "snapshot,bookmark",
+            "-o",
+            "name,createtxg,used,userrefs,clones",
+            "-d",
+            "1",
+            "-s",
+            "createtxg",
+            dataset.as_str(),
+        ];
+        self.read_text(&args, Some(dataset.as_str()), text::snapshot_details)
+    }
+
+    fn holds(&self, snapshots: &[SnapshotName]) -> Result<Vec<Hold>, ZfsError> {
+        if snapshots.is_empty() {
+            return Ok(Vec::new());
+        }
+        let names: Vec<String> = snapshots.iter().map(ToString::to_string).collect();
+        let mut args = vec!["holds", "-H", "-p"];
+        args.extend(names.iter().map(String::as_str));
+        // Any of the snapshots may be the one that does not exist.
+        self.read_text(&args, None, text::holds)
+    }
+
+    /// Its own command, never a [`ZfsChange`]: `-n` is written here, so
+    /// nothing that makes a change can drop it.
+    fn destroy_space(&self, snapshots: &SnapshotSet) -> Result<u64, ZfsError> {
+        let targets = snapshots.targets();
+        let mut args = vec!["destroy", "-n", "-v", "-p"];
+        args.extend(targets.iter().map(String::as_str));
+        self.read_text(&args, None, text::reclaim)
     }
 
     fn property(&self, dataset: &DatasetName, property: &str) -> Result<Property, ZfsError> {
@@ -396,6 +451,10 @@ impl Zfs for ZfsCli<'_> {
 
     fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
         self.make(&ZfsChange::Rollback(snapshot.clone()))
+    }
+
+    fn destroy_snapshots(&self, snapshots: &[SnapshotName]) -> Result<(), ZfsError> {
+        self.make(&ZfsChange::Destroy(snapshots.to_vec()))
     }
 
     fn clone_snapshot(

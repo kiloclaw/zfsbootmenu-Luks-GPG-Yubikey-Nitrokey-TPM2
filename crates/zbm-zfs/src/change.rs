@@ -11,8 +11,8 @@ use std::fmt;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::model::{
-    Dataset, Difference, Importable, Pool, PoolHost, PoolStatus, Property, Snapshot, SnapshotSpace,
-    Version,
+    Checkpoint, Dataset, Difference, Hold, Importable, Pool, PoolHost, PoolStatus, Property,
+    Snapshot, SnapshotDetail, SnapshotSet, SnapshotSpace, Version,
 };
 use crate::port::{Zfs, ZfsError};
 
@@ -50,6 +50,9 @@ pub enum ZfsChange {
     Snapshot(SnapshotName),
     /// `zfs rollback -r`, which destroys the newer snapshots.
     Rollback(SnapshotName),
+    /// `zfs destroy <dataset>@a,b,c`: snapshots of one dataset; none when
+    /// one has clones or holds, and those that exist when some do not.
+    Destroy(Vec<SnapshotName>),
     /// `zfs clone`, with properties.
     Clone {
         /// The snapshot.
@@ -82,6 +85,43 @@ fn property_options(properties: &[(String, String)]) -> Vec<String> {
         .collect()
 }
 
+/// The arguments of `zfs destroy` that name `snapshots`: one,
+/// `<dataset>@a,b,c`, when they are of one dataset, which is what `zfs`
+/// takes; one for each dataset otherwise, and none for no snapshot, which
+/// `zfs` refuses. A snapshot's name holds no `,`, `%` or `@`, so the list
+/// names exactly them.
+fn destroy_targets(snapshots: &[SnapshotName]) -> Vec<String> {
+    let mut targets: Vec<(&DatasetName, Vec<&str>)> = Vec::new();
+    for snapshot in snapshots {
+        match targets
+            .iter_mut()
+            .find(|(dataset, _)| *dataset == snapshot.dataset())
+        {
+            Some((_, names)) => names.push(snapshot.name()),
+            None => targets.push((snapshot.dataset(), vec![snapshot.name()])),
+        }
+    }
+    targets
+        .into_iter()
+        .map(|(dataset, names)| format!("{dataset}@{}", names.join(",")))
+        .collect()
+}
+
+impl SnapshotSet {
+    /// The arguments of `zfs destroy` that name the set: a range is
+    /// `<dataset>@first%last`, or its two ends when they are of two
+    /// datasets, which `zfs` refuses.
+    pub(crate) fn targets(&self) -> Vec<String> {
+        match self {
+            SnapshotSet::Each(snapshots) => destroy_targets(snapshots),
+            SnapshotSet::Range { first, last } if first.dataset() == last.dataset() => {
+                vec![format!("{first}%{}", last.name())]
+            }
+            SnapshotSet::Range { first, last } => vec![first.to_string(), last.to_string()],
+        }
+    }
+}
+
 impl ZfsChange {
     /// The program and the arguments that make the change, but for
     /// [`ZfsChange::SendReceive`], which is a pipeline: the arguments of
@@ -112,6 +152,11 @@ impl ZfsChange {
             ZfsChange::Snapshot(snapshot) => ("zfs", words(&["snapshot", &snapshot.to_string()])),
             ZfsChange::Rollback(snapshot) => {
                 ("zfs", words(&["rollback", "-r", &snapshot.to_string()]))
+            }
+            ZfsChange::Destroy(snapshots) => {
+                let mut args = words(&["destroy"]);
+                args.extend(destroy_targets(snapshots));
+                ("zfs", args)
             }
             ZfsChange::Clone {
                 snapshot,
@@ -208,6 +253,10 @@ impl Zfs for DryRun<'_> {
         self.real.pool_host(id)
     }
 
+    fn checkpoint(&self, pool: &PoolName) -> Result<Option<Checkpoint>, ZfsError> {
+        self.real.checkpoint(pool)
+    }
+
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {
         self.planned(ZfsChange::Export(pool.clone()))
     }
@@ -230,6 +279,19 @@ impl Zfs for DryRun<'_> {
 
     fn own_snapshots(&self, dataset: &DatasetName) -> Result<Vec<SnapshotSpace>, ZfsError> {
         self.real.own_snapshots(dataset)
+    }
+
+    fn snapshot_details(&self, dataset: &DatasetName) -> Result<Vec<SnapshotDetail>, ZfsError> {
+        self.real.snapshot_details(dataset)
+    }
+
+    fn holds(&self, snapshots: &[SnapshotName]) -> Result<Vec<Hold>, ZfsError> {
+        self.real.holds(snapshots)
+    }
+
+    /// A read: `zfs destroy -n` destroys nothing.
+    fn destroy_space(&self, snapshots: &SnapshotSet) -> Result<u64, ZfsError> {
+        self.real.destroy_space(snapshots)
     }
 
     fn property(&self, dataset: &DatasetName, property: &str) -> Result<Property, ZfsError> {
@@ -282,6 +344,10 @@ impl Zfs for DryRun<'_> {
 
     fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
         self.planned(ZfsChange::Rollback(snapshot.clone()))
+    }
+
+    fn destroy_snapshots(&self, snapshots: &[SnapshotName]) -> Result<(), ZfsError> {
+        self.planned(ZfsChange::Destroy(snapshots.to_vec()))
     }
 
     fn clone_snapshot(

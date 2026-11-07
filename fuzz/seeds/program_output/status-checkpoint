@@ -1,0 +1,11 @@
+  pool: tank
+ state: ONLINE
+  scan: scrub repaired 0B in 00:00:01 with 0 errors on Thu Oct 22 10:00:00 2026
+checkpoint: created Fri Oct 23 08:32:23 2026, consumes 1.50M
+config:
+
+	NAME                STATE     READ WRITE CKSUM
+	tank                ONLINE       0     0     0
+	  ata-DISK-A-part1  ONLINE       0     0     0
+
+errors: No known data errors

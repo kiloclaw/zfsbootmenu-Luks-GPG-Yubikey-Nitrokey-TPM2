@@ -32,6 +32,7 @@ fn step(change: ZfsChange) -> Step {
         ZfsChange::SetPool { pool, property, .. } => StepKind::SetPoolProperty { pool, property },
         ZfsChange::Snapshot(snapshot) => StepKind::Snapshot(snapshot),
         ZfsChange::Rollback(snapshot) => StepKind::Rollback(snapshot),
+        ZfsChange::Destroy(snapshots) => StepKind::Destroy(snapshots),
         ZfsChange::Clone {
             snapshot, target, ..
         } => StepKind::Clone { snapshot, target },

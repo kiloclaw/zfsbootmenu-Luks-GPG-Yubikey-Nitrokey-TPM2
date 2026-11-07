@@ -34,3 +34,14 @@ MOS Configuration:
             com.delphix:hole_birth
             com.delphix:embedded_data
             com.klarasystems:vdev_zaps_v2
+
+Uberblock:
+	magic = 0000000000bab10c
+	version = 5000
+	txg = 1234
+	guid_sum = 1274856639119526950
+	timestamp = 1792667543 UTC = Fri Oct 23 08:32:23 2026
+	mmp_magic = 00000000a11cea11
+	checkpoint_txg = 0
+	raidz_reflow state=0 off=0
+

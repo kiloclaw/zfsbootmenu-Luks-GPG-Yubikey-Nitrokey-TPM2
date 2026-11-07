@@ -72,7 +72,7 @@ fn the_imported_pool_of_the_identifier_is_imported_again_by_it() {
     );
 }
 
-/// The configuration `zdb -e -C 7` reads of `tank`, which the host
+/// The configuration `zdb -e -C -u 7` reads of `tank`, which the host
 /// `deadbeef` imported last.
 const CONFIG: &str = "
 MOS Configuration:
@@ -88,7 +88,7 @@ fn a_pool_named_by_its_identifier_is_imported_with_the_host_id_its_configuration
     let fake = not_imported();
     fake.runner
         .respond("zpool import -N -o readonly=on 7", 1, "");
-    fake.runner.respond("zdb -e -C 7", 0, CONFIG);
+    fake.runner.respond("zdb -e -C -u 7", 0, CONFIG);
     let last_host = by_id(options(Access::ReadOnly, ImportPolicy::Hostid, false));
 
     // The second import is the same command line, with the host ID of the
@@ -140,7 +140,7 @@ fn the_host_id_that_imports_a_pool_named_by_its_identifier_is_recorded_for_the_b
             && counted.fetch_add(1, Ordering::Relaxed) == 0;
         first.then(|| Ok(Output::new(Status::exited(1), b"")))
     });
-    fake.runner.respond("zdb -e -C 7", 0, CONFIG);
+    fake.runner.respond("zdb -e -C -u 7", 0, CONFIG);
     let last_host = by_id(options(Access::ReadOnly, ImportPolicy::Hostid, false));
 
     assert_eq!(import_tank(&fake, last_host), Ok(()));

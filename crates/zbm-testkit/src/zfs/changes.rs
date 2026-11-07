@@ -7,8 +7,9 @@
 use std::collections::BTreeMap;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
-use zbm_zfs::{Difference, Property, Source, ZfsError};
+use zbm_zfs::{Difference, Property, SnapshotSet, Source, ZfsError};
 
+use super::snapshots::{fix, is_held, kept, later, later_bookmarks, named, number, shown};
 use super::{FakeZfs, State};
 
 /// Properties that describe the fake's machine rather than being set on a
@@ -148,38 +149,79 @@ pub(super) fn create_snapshot(state: &mut State, snapshot: &SnapshotName) -> Res
         .max()
         .map_or(1, |latest| latest + 1);
     state.snapshots.insert(snapshot.clone(), creation);
+    number(state, (creation, snapshot.clone()), None);
     Ok(())
 }
 
-/// The snapshots of the filesystem of `snapshot` taken after it.
-fn later(state: &State, snapshot: &SnapshotName) -> Vec<SnapshotName> {
-    let creation = state.snapshots.get(snapshot).copied().unwrap_or_default();
-    state
-        .snapshots
-        .iter()
-        .filter(|(other, taken)| other.dataset() == snapshot.dataset() && **taken > creation)
-        .map(|(other, _)| other.clone())
-        .collect()
+/// Why `zfs` refuses to destroy `snapshots`: the first with a clone, or
+/// the first with a hold.
+fn refusal(state: &State, snapshots: &[SnapshotName]) -> Option<String> {
+    match kept(state, snapshots) {
+        (Some(cloned), _) => Some(format!(
+            "cannot destroy snapshot {cloned}: snapshot has dependent clones"
+        )),
+        (None, Some(held)) => Some(busy(&held)),
+        (None, None) => None,
+    }
 }
 
-/// `zfs rollback -r`: destroys the later snapshots, unless one of them has
-/// a clone.
+/// What `zfs` says of a snapshot it cannot destroy for a hold.
+fn busy(held: &SnapshotName) -> String {
+    format!(
+        "cannot destroy snapshot {held}: it's being held. \
+         Run 'zfs holds -r {held}' to see holders."
+    )
+}
+
+/// `zfs rollback -r`, as ZFS makes it: a clone of a later snapshot stops
+/// it before anything is destroyed. Otherwise each later snapshot is
+/// destroyed on its own, but one with a hold, and then every later
+/// bookmark; a hold then stops the rollback, after those destroys.
 pub(super) fn rollback(state: &mut State, snapshot: &SnapshotName) -> Result<(), ZfsError> {
     let command = format!("zfs rollback -r {snapshot}");
     check(state, "rollback", &snapshot.pool(), &command)?;
     snapshot_exists(state, snapshot, &command)?;
     let later = later(state, snapshot);
-    if let Some(cloned) = later
-        .iter()
-        .find(|later| state.origins.values().any(|origin| origin == *later))
-    {
+    if let (Some(cloned), _) = kept(state, &later) {
         return Err(failed(
             &command,
-            format!("cannot destroy '{cloned}': snapshot has dependent clones"),
+            format!("cannot destroy snapshot {cloned}: snapshot has dependent clones"),
         ));
     }
-    for destroyed in later {
+    fix(state);
+    let bookmarks = later_bookmarks(state, snapshot);
+    let (held, destroyed): (Vec<SnapshotName>, Vec<SnapshotName>) =
+        later.into_iter().partition(|later| is_held(state, later));
+    for destroyed in destroyed {
         state.snapshots.remove(&destroyed);
+    }
+    for bookmark in bookmarks {
+        state.bookmarks.remove(&bookmark);
+    }
+    match held.first() {
+        Some(held) => Err(failed(&command, busy(held))),
+        None => Ok(()),
+    }
+}
+
+/// `zfs destroy <dataset>@a,b`: those of the snapshots, of one dataset,
+/// that exist, or none, when one has a clone or a hold.
+pub(super) fn destroy_snapshots(state: &mut State, set: &SnapshotSet) -> Result<(), ZfsError> {
+    let command = format!("zfs destroy {}", shown(set));
+    let pool = match set {
+        SnapshotSet::Each(snapshots) => snapshots.first().map(SnapshotName::pool),
+        SnapshotSet::Range { first, .. } => Some(first.pool()),
+    };
+    let pool = pool.ok_or_else(|| failed(&command, "missing dataset argument".to_owned()))?;
+    check(state, "destroy_snapshots", &pool, &command)?;
+    let destroyed = named(state, set, &command)?;
+    if let Some(message) = refusal(state, &destroyed) {
+        return Err(failed(&command, message));
+    }
+    fix(state);
+    for snapshot in destroyed {
+        state.snapshots.remove(&snapshot);
+        state.holds.remove(&snapshot);
     }
     Ok(())
 }
@@ -224,11 +266,21 @@ pub(super) fn promote(state: &mut State, dataset: &DatasetName) -> Result<(), Zf
         .filter(|(name, taken)| name.dataset() == origin.dataset() && **taken <= creation)
         .map(|(name, taken)| (name.clone(), *taken))
         .collect();
+    fix(state);
     let mut renamed = BTreeMap::new();
     for (name, taken) in moved {
         state.snapshots.remove(&name);
         let new = super::name::<SnapshotName>(&format!("{dataset}@{}", name.name()));
         state.snapshots.insert(new.clone(), taken);
+        // A snapshot keeps its `createtxg` as it moves.
+        let txg = state
+            .txgs
+            .as_ref()
+            .and_then(|fixed| fixed.get(&(taken, name.clone())).copied());
+        number(state, (taken, new.clone()), txg);
+        if let Some(tags) = state.holds.remove(&name) {
+            state.holds.insert(new.clone(), tags);
+        }
         renamed.insert(name, new);
     }
     for origin in state.origins.values_mut() {
@@ -277,7 +329,8 @@ pub(super) fn send_receive(
     create(state, target, &local);
     let creation = state.snapshots.get(snapshot).copied().unwrap_or_default();
     let copy = super::name::<SnapshotName>(&format!("{target}@{}", snapshot.name()));
-    state.snapshots.insert(copy, creation);
+    state.snapshots.insert(copy.clone(), creation);
+    number(state, (creation, copy), None);
     Ok(())
 }
 

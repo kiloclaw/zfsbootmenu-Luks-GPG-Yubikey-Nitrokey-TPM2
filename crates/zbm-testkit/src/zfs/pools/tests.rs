@@ -60,7 +60,7 @@ fn a_degraded_mirror_has_one_device_unavailable() {
 
 #[test]
 fn a_foreign_pool_names_the_host_that_used_it() {
-    let zfs = FakeZfs::new().foreign("tank", 42, "deadbeef", "other");
+    let zfs = FakeZfs::new().foreign("tank", 42, "deadbeef", "other", 1000);
 
     let listed = zfs.importable().unwrap();
     let host = zfs.pool_host(42).unwrap();
@@ -79,6 +79,8 @@ fn a_foreign_pool_names_the_host_that_used_it() {
     assert_eq!(listed[0].vdevs[0].errors, None);
     assert_eq!(host.hostid.unwrap().as_str(), "deadbeef");
     assert_eq!(host.hostname.unwrap().get(), "other");
+    assert_eq!(host.written, Some(1000));
+    assert!(!listed[0].active);
     assert_eq!(zfs.calls(), ["importable", "pool_host 42"]);
 }
 
@@ -145,7 +147,7 @@ fn names(vdevs: &[Vdev]) -> Vec<&str> {
 fn reads_fail_as_planned() {
     let zfs = FakeZfs::new()
         .pool("zroot")
-        .foreign("tank", 7, "deadbeef", "other")
+        .foreign("tank", 7, "deadbeef", "other", 1000)
         .failing("status", "no status")
         .failing("importable", "no scan")
         .failing("pool_host", "no label");

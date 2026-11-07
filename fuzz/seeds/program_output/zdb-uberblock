@@ -1,0 +1,47 @@
+
+MOS Configuration:
+        version: 5000
+        name: 'tank'
+        state: 1
+        txg: 1234
+        pool_guid: 15094445427306487906
+        errata: 0
+        hostid: 3735928559
+        hostname: 'otherhost'
+        com.delphix:has_per_vdev_zaps
+        vdev_children: 1
+        vdev_tree:
+            type: 'root'
+            id: 0
+            guid: 15094445427306487906
+            create_txg: 4
+            com.klarasystems:vdev_zap_root: 129
+            children[0]:
+                type: 'disk'
+                id: 0
+                guid: 4627155285484539452
+                path: '/dev/vdb1'
+                whole_disk: 1
+                metaslab_array: 256
+                metaslab_shift: 29
+                ashift: 12
+                asize: 10732699648
+                is_log: 0
+                create_txg: 4
+                com.delphix:vdev_zap_leaf: 130
+                com.delphix:vdev_zap_top: 131
+        features_for_read:
+            com.delphix:hole_birth
+            com.delphix:embedded_data
+            com.klarasystems:vdev_zaps_v2
+
+Uberblock:
+	magic = 0000000000bab10c
+	version = 5000
+	txg = 1234
+	guid_sum = 1274856639119526950
+	timestamp = 1792667543 UTC = Fri Oct 23 08:32:23 2026
+	mmp_magic = 00000000a11cea11
+	checkpoint_txg = 0
+	raidz_reflow state=0 off=0
+
