@@ -312,7 +312,7 @@ fn the_workspace_s_tabs_open_with_digits_and_go_round_with_tab() {
     use zbm_display::keys::Key;
 
     let options = DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     };
     let mut session = Session::new(&options, Theme::new(Capabilities::FULL));

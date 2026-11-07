@@ -34,10 +34,12 @@ struct Task {
     done: fn(&Session) -> bool,
 }
 
+/// The demo in the classic menu (`zbm.menu=classic`).
 fn options(locked: bool, foreign: bool) -> DemoOptions {
     DemoOptions {
         locked,
         foreign,
+        classic: true,
         ..DemoOptions::default()
     }
 }
@@ -185,13 +187,13 @@ fn more_tasks() -> Vec<Task> {
 /// The demo in the workspace (ADR 0007).
 fn workspace() -> DemoOptions {
     DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     }
 }
 
 /// The core tasks with the workspace's keys, which the sessions compare with
-/// the current map's (decision 8); T5 and T7 answer the same dialogs.
+/// the classic map's (decision 8); T5 and T7 answer the same dialogs.
 fn workspace_tasks() -> Vec<Task> {
     use Key::{Char, Enter};
     use Step::{Press, Text};

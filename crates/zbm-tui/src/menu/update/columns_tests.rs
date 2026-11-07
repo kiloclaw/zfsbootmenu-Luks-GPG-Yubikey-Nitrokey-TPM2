@@ -15,7 +15,7 @@ use crate::menu::world::{Environment, Snapshot};
 /// The demo in the workspace, started, its countdown stopped.
 fn workspace() -> Session {
     let options = DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     };
     let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
@@ -160,8 +160,12 @@ fn the_kernels_open_on_the_default_after_another_view_focused_the_environment() 
 }
 
 #[test]
-fn the_current_map_opens_the_kernels_afresh_each_time() {
-    let mut session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::FULL));
+fn the_classic_map_opens_the_kernels_afresh_each_time() {
+    let options = DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    };
+    let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
     session.start();
     session.key(Key::Escape);
 
@@ -233,4 +237,26 @@ fn the_changes_still_switch_segments_with_left_and_right_in_the_workspace() {
     session.key(Key::Left);
     assert_eq!(segment(&session), Some(Segment::Files));
     assert_eq!(session.model().screen, Screen::Diff);
+}
+
+#[test]
+fn the_bang_opens_the_recovery_tools_shell_first_in_each_map() {
+    for classic in [false, true] {
+        let options = DemoOptions {
+            classic,
+            ..DemoOptions::default()
+        };
+        let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
+        session.start();
+        session.key(Key::Escape);
+
+        session.key(Key::Char('!'));
+        assert_eq!(session.model().screen, Screen::Recovery, "{classic}");
+        session.key(Key::Enter);
+        assert_eq!(
+            session.actions.last(),
+            Some(&crate::menu::world::Action::Shell),
+            "{classic}"
+        );
+    }
 }

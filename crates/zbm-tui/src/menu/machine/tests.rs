@@ -422,6 +422,11 @@ impl zbm_app::Application for Scanning {
     fn read_kernels(&self, _snapshot: &mut Snapshot, _console: zbm_platform::System<'_>) {}
 
     fn apply(&self, action: &Action, _through: zbm_app::Through<'_>) -> Vec<Event> {
+        // The workspace reads the boot history once the countdown stops, as
+        // it scans.
+        if *action == Action::LoadHistory {
+            return vec![Event::HistoryLoaded(crate::menu::world::History::Off)];
+        }
         assert_eq!(*action, Action::ScanPools);
         let mut backup = crate::menu::world::Pool::imported(
             "backup".parse().unwrap(),

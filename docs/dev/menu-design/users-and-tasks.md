@@ -94,7 +94,8 @@ in the shortest path, and compares it with the `fzf` menu; the tests of the prot
 growing. The usability sessions add time on task, errors (a wrong action started, a dialog dismissed unread) and
 whether help was needed.
 
-The prototype's shortest paths, from `crates/zbm-tui/src/menu/demo/measures.rs`, which fails when one grows. Text
+The prototype's shortest paths in the classic map (`--demo --classic`), from
+`crates/zbm-tui/src/menu/demo/measures.rs`, which fails when one grows. Text
 typed (filter letters, a name, a secret, an edit) is not counted. The `fzf` column is counted by hand from that
 menu's key help, to be checked in the sessions.
 
@@ -110,8 +111,8 @@ menu's key help, to be checked in the sessions.
 | T7 | Down, Enter from the problem | 2 | 2 | depends on `zbm.import_policy`; otherwise the recovery shell |
 | T8 | `s`, `o`, `f`, Enter, the name, Enter | 5 | 6 | none: chroot, then copy from `.zfs/snapshot` by hand |
 
-The same tasks with the workspace's keys (`--demo --workspace`), which the sessions compare (decision 8); T1, T5 and
-T7 are the same in both maps:
+The same tasks with the workspace's keys (`--demo`, the menu's map since UI10c), which the sessions compare
+(decision 8); T1, T5 and T7 are the same in both maps:
 
 | Task | Path in the workspace | Keys | Current map |
 | --- | --- | --- | --- |

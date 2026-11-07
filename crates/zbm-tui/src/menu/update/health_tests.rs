@@ -12,8 +12,14 @@ use crate::menu::model::{Dialog, Model, Screen};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Action, Outcome};
 
+/// The demo with `options` in the classic menu (`zbm.menu=classic`),
+/// started.
 fn session(options: &DemoOptions) -> Session {
-    let mut session = Session::new(options, Theme::new(Capabilities::FULL));
+    let options = DemoOptions {
+        classic: true,
+        ..options.clone()
+    };
+    let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
     session.start();
     session
 }
@@ -145,8 +151,9 @@ fn a_default_that_used_up_its_tries_never_boots_on_its_own_again() {
             "{text}"
         );
         assert!(!text.contains("Booting"), "{text}");
-        // Only the scan of the pools, which boots nothing.
-        assert_eq!(actions, [Action::ScanPools]);
+        // Only the scan of the pools and the read of the boot history,
+        // which boot nothing.
+        assert_eq!(actions, [Action::ScanPools, Action::LoadHistory]);
     }
 }
 

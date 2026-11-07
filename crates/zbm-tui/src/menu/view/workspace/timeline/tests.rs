@@ -15,7 +15,7 @@ use crate::menu::world::{SnapshotInfo, SnapshotList};
 /// default environment, after `keys`.
 fn session_after(keys: &[Key]) -> Session {
     let options = DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     };
     let mut session = Session::new(&options, Theme::new(Capabilities::FULL));

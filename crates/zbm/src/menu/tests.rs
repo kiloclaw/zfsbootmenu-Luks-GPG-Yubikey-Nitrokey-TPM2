@@ -429,15 +429,15 @@ fn lines_and_screen_keep_the_menu_s_key_map() {
     let fake = FakeSystem::new();
     let wanted = |capabilities| menu_wanted(&fake.system(), &conf(), capabilities);
 
-    assert_eq!(wanted(Capabilities::ASCII), (false, Map::default()));
+    assert_eq!(wanted(Capabilities::ASCII), (false, Map::Workspace));
     fake.files
         .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=lines\n");
-    assert_eq!(wanted(Capabilities::ASCII), (true, Map::default()));
+    assert_eq!(wanted(Capabilities::ASCII), (true, Map::Workspace));
     fake.files
         .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=screen\n");
-    assert_eq!(wanted(DUMB), (false, Map::default()));
-    // Until the workspace becomes the menu, the classic map.
-    assert_eq!(Map::default(), Map::Classic);
+    assert_eq!(wanted(DUMB), (false, Map::Workspace));
+    // The workspace is the menu.
+    assert_eq!(Map::default(), Map::Workspace);
 }
 
 #[test]

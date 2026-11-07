@@ -8,8 +8,14 @@ use crate::menu::model::{Dialog, Screen};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Action, Outcome};
 
+/// The demo with `options` in the classic menu (`zbm.menu=classic`), whose
+/// keys these tests press, started.
 fn session(options: &DemoOptions) -> Session {
-    let mut session = Session::new(options, Theme::new(Capabilities::FULL));
+    let options = DemoOptions {
+        classic: true,
+        ..options.clone()
+    };
+    let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
     session.start();
     session
 }

@@ -1,6 +1,6 @@
 //! Start-up as the workspace's Boot tab: the keys read between questions,
 //! the tabs looked at meanwhile, and the countdown the menu then arms or
-//! not; and the current map's view, which reads no key between questions.
+//! not; and the classic map's view, which reads no key between questions.
 
 use std::cell::{Cell, RefCell};
 use std::os::fd::AsFd as _;

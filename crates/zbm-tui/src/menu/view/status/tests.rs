@@ -11,7 +11,7 @@ use crate::menu::view::tests::screen;
 /// The demo's menu, started, with the key map `map` and no countdown.
 fn started(map: Map) -> Model {
     let options = DemoOptions {
-        workspace: map == Map::Workspace,
+        classic: map == Map::Classic,
         timeout: None,
         ..DemoOptions::default()
     };

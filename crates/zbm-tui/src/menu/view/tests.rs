@@ -24,8 +24,14 @@ pub(crate) fn screen(model: &Model, width: u16, height: u16) -> String {
     text
 }
 
+/// The demo in the classic menu (`zbm.menu=classic`), started: the tests
+/// that want the workspace set its map.
 fn started(capabilities: Capabilities) -> Session {
-    let mut session = Session::new(&DemoOptions::default(), Theme::new(capabilities));
+    let options = DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    };
+    let mut session = Session::new(&options, Theme::new(capabilities));
     session.start();
     session
 }

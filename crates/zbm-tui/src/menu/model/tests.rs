@@ -4,12 +4,19 @@ use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine};
 
-/// The menu on the demo machine, the snapshots of the default
-/// environment read.
+/// The classic menu (`zbm.menu=classic`) on the demo machine, the
+/// snapshots of the default environment read.
 fn model() -> Model {
-    let mut machine = FakeMachine::new(&DemoOptions::default());
+    let options = DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    };
+    let mut machine = FakeMachine::new(&options);
     machine.apply(Action::LoadSnapshots("zroot/ROOT/void".parse().unwrap()));
-    Model::new(machine.snapshot().clone(), Theme::new(Capabilities::FULL))
+    let mut model = Model::new(machine.snapshot().clone(), Theme::new(Capabilities::FULL));
+    model.map = Map::Classic;
+    model.refresh();
+    model
 }
 
 #[test]
@@ -164,7 +171,7 @@ fn the_workspace_groups_the_environments_by_pool_under_unnumbered_headers() {
     let zroot = Some("zroot".to_owned());
     let tank = Some("tank".to_owned());
     assert_eq!(headers, [zroot, None, tank, None, None]);
-    // A filter ranks by match, and the current map has no groups.
+    // A filter ranks by match, and the classic map has no groups.
     model.environments.filter = "o".to_owned();
     model.refresh();
     assert_eq!(model.group_at(0), None);

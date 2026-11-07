@@ -5,8 +5,14 @@ use pretty_assertions::assert_eq;
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
-/// What the line view prints of the two pools' boot environments.
-const PAGE: &str = "\r\nBoot Environments\r\n  1) tplain/ROOT/be, default, 1 kernel\r\n  \
+/// What the line view of the workspace prints of the two pools' boot
+/// environments, under the path.
+const PAGE: &str = "\r\nBoot Environments: tplain > tplain/ROOT/be\r\n  \
+    1) tplain/ROOT/be, default, 1 kernel\r\n  2) tforeign/ROOT/be, 1 kernel\r\n\r\n\
+    Type a number to choose it, or a number and a key, as 2 l.\r\n";
+
+/// The same, as the classic menu prints it (`zbm.menu=classic`).
+const CLASSIC_PAGE: &str = "\r\nBoot Environments\r\n  1) tplain/ROOT/be, default, 1 kernel\r\n  \
     2) tforeign/ROOT/be, 1 kernel\r\n\r\n\
     Type a number to choose it, or a number and a key, as 2 k.\r\n";
 
@@ -19,21 +25,23 @@ fn found_checks(test: &Test, settings: &crate::settings::Settings) -> Vec<String
 
 #[test]
 fn the_number_of_tforeign_s_environment_is_typed_after_the_list() {
-    let settings = settings("runtime-console-lines-choose");
-    let test = Test::new(&settings, "runtime-rust-console-lines").unwrap();
-    let script = vec![Step::Say(PAGE), Step::Keys("2\r")];
-    let (mut vm, guest) = scripted(&test, script);
+    for (name, page) in [("dumb", PAGE), ("classic", CLASSIC_PAGE)] {
+        let settings = settings(&format!("runtime-console-lines-choose-{name}"));
+        let test = Test::new(&settings, "runtime-rust-console-lines").unwrap();
+        let script = vec![Step::Say(page), Step::Keys("2\r")];
+        let (mut vm, guest) = scripted(&test, script);
 
-    let chosen = choose_foreign(&mut vm, "dumb", Duration::ZERO).unwrap();
+        let chosen = choose_foreign(&mut vm, name, Duration::ZERO).unwrap();
 
-    assert_eq!(guest.finish(), Vec::<String>::new());
-    let found = found_checks(&test, &settings);
-    assert!(chosen);
-    assert_eq!(found.len(), 2, "{found:#?}");
-    assert!(
-        found.iter().all(|line| line.starts_with("ok")),
-        "{found:#?}"
-    );
+        assert_eq!(guest.finish(), Vec::<String>::new());
+        let found = found_checks(&test, &settings);
+        assert!(chosen);
+        assert_eq!(found.len(), 2, "{found:#?}");
+        assert!(
+            found.iter().all(|line| line.starts_with("ok")),
+            "{found:#?}"
+        );
+    }
 }
 
 #[test]
@@ -113,7 +121,14 @@ fn the_shell_s_command_spells_its_marker_only_in_its_output() {
     let result = regex::Regex::new(VCS_RESULT).unwrap();
     assert!(!result.is_match(VCS_COMMAND), "{VCS_COMMAND}");
     let lines: Vec<&str> = LINE_BOOTS.iter().map(|(_, extra)| *extra).collect();
-    assert_eq!(lines, [" TERM=dumb", " zbm.menu=lines"]);
+    assert_eq!(
+        lines,
+        [
+            " TERM=dumb",
+            " zbm.menu=lines",
+            " zbm.menu=classic TERM=dumb"
+        ]
+    );
     assert!(DRM_APPEND.contains("zbm.console=drm"));
     assert!(!DRM_APPEND.contains("zbm.menu"));
 }

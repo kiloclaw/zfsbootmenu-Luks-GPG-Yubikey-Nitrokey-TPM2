@@ -135,7 +135,7 @@ pub fn snapshots(options: &DemoOptions) -> Vec<SnapshotList> {
     vec![
         list(
             "zroot/ROOT/void",
-            many_snapshots("zroot/ROOT/void", options.snapshots, options.workspace),
+            many_snapshots("zroot/ROOT/void", options.snapshots, !options.classic),
         ),
         list("zroot/ROOT/ubuntu", few_snapshots("zroot/ROOT/ubuntu")),
         list("tank/ROOT/arch", few_snapshots("tank/ROOT/arch")),

@@ -273,7 +273,7 @@ pub struct Model {
     /// The keyboard layout typing is translated into, as an index of the
     /// snapshot's layouts: 0 is the console's own.
     pub layout: usize,
-    /// The key map: the current one, or the workspace's.
+    /// The key map: the workspace's, or the classic one.
     pub map: Map,
     /// The milliseconds the ticks counted since the snapshot's time: the
     /// tab bar's clock is that time and these.

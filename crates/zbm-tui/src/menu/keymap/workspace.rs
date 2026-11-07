@@ -1,8 +1,8 @@
 //! The key map of the workspace (ADR 0007, `docs/dev/menu-design/keymap.md`),
-//! which the usability sessions compare with the current one (decision 8):
+//! which the usability sessions compare with the classic one (decision 8):
 //! `j` `k` `h` `l` move as the arrows do, `h` and `l` out of and into a
 //! column, the digits and `Tab` choose a tab. Its bindings come before the
-//! current map's, whose bindings of the same keys it drops.
+//! classic map's, whose bindings of the same keys it drops.
 
 use zbm_display::keys::Key;
 
@@ -51,10 +51,11 @@ impl Tab {
 /// Which key map the menu reads keys with.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Map {
-    /// The current one (`docs/dev/menu-design/keymap.md`, the current map).
-    #[default]
+    /// The classic one (`docs/dev/menu-design/keymap.md`, "The classic map"),
+    /// which `zbm.menu=classic` keeps for one release.
     Classic,
-    /// The workspace's (ADR 0007).
+    /// The workspace's (ADR 0007): the menu's.
+    #[default]
     Workspace,
 }
 
@@ -83,7 +84,7 @@ const fn mover(c: char, intent: Intent) -> Binding {
     bind(Key::Char(c), NONE, Scope::Views, intent, Footer::Hidden)
 }
 
-/// The bindings of the workspace that the current map lacks or binds to
+/// The bindings of the workspace that the classic map lacks or binds to
 /// something else, in the order of the toolbar.
 pub const WORKSPACE: &[Binding] = &[
     bind(
@@ -135,16 +136,16 @@ pub const WORKSPACE: &[Binding] = &[
     ),
 ];
 
-/// The bindings of the workspace that come after the current map's in the
+/// The bindings of the workspace that come after the classic map's in the
 /// toolbar, as they do less than its keys of the same view: `z` folds the
 /// group of the timeline the selection is in.
 const WORKSPACE_LAST: &[Binding] = &[key('z', &[Snapshots], Intent::Fold)];
 
-/// Letters of the current map that the workspace leaves unbound: the pools
+/// Letters of the classic map that the workspace leaves unbound: the pools
 /// are a tab.
 const FREED: &[char] = &['p'];
 
-/// Whether the workspace drops `binding` of the current map: it binds the
+/// Whether the workspace drops `binding` of the classic map: it binds the
 /// same key in a view where `binding` works too, or frees it.
 fn is_taken(binding: &Binding) -> bool {
     let freed =

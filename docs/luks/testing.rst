@@ -312,44 +312,45 @@ Following a boot
   virtio GPU, the framebuffer console, the image's font must show 16, and the count of the whole font is noted.
 
 * ``runtime-rust-drm`` runs the menu prototype on the display without a terminal (ROADMAP.md #19, step 1), in a Rust
-  image built with the ``menu-demo`` feature and the ``virtio_gpu`` and ``evdev`` drivers. It boots on a virtio GPU and
-  on QEMU's standard VGA in a VESA mode (``vga=0x318``), which ``simpledrm`` drives. Each time, ``zbm debug
+  image built with the ``menu-demo`` feature and the ``virtio_gpu`` and ``evdev`` drivers. It boots on a virtio GPU
+  and on QEMU's standard VGA in a VESA mode (``vga=0x318``), which ``simpledrm`` drives. Each time, ``zbm debug
   menu-demo --wait --dump /tmp/menu.txt`` runs in the background from the serial console: card0's device must be
   driven by ``virtio-pci`` (the PCI function under ``virtio_gpu``) or ``simple-framebuffer``, the screen's text must
-  show the main view, a QEMU screenshot (``<boot>-menu.ppm``) at least 6 colours, Down typed with ``sendkey`` must move
-  the selection, Enter must boot and end the demo, and afterwards the kernel console must draw a 16-colour bar again
-  (``<boot>-console.ppm``).
+  show the main view (``BOOT ENVIRONMENTS``) with the workspace's tab bar (``[1 Boot]``), a QEMU screenshot
+  (``<boot>-menu.ppm``) at least 6 colours, Down typed with ``sendkey`` must move the selection, Enter must boot and
+  end the demo, and afterwards the kernel console must draw a 16-colour bar again (``<boot>-console.ppm``).
 
 * ``runtime-rust-console`` runs the Rust runtime on the console on the display (``zbm.console=drm``, ROADMAP.md #19,
   step 2), in a Rust image with the ``virtio_gpu`` and ``evdev`` drivers. Both boots have ``tty1`` as the control
-  terminal (``console=ttyS0 console=tty1``) and a second serial port, to which the console writes the text of its screen
-  after each change (``zbm.console_mirror=/dev/ttyS1``), kept as ``mirror-<boot>.txt``. On a virtio GPU, the countdown
-  must show on the console and a screenshot (``virtio-countdown.ppm``) at least 8 colours, as the TrueType font is
-  anti-aliased, and the console's start must name a ``.ttf`` font; Escape typed with ``sendkey`` must open the recovery
-  shell on the console, and ``readlink /proc/self/fd/0`` typed there must name a pseudo-terminal (``/dev/pts/N``); keys
-  are held 50 ms and sent 200 ms apart, and a failed check notes the console's last screen. The console writes its start
-  (card, display, cells, keyboard layout) to the mirror too. The image has the layouts ``us`` and ``de``
+  terminal (``console=ttyS0 console=tty1``) and a second serial port, to which the console writes the text of its
+  screen after each change (``zbm.console_mirror=/dev/ttyS1``), kept as ``mirror-<boot>.txt``. On a virtio GPU, the
+  countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 8 colours, as the TrueType
+  font is anti-aliased, and the console's start must name a ``.ttf`` font; Escape typed with ``sendkey`` must open the
+  menu, the workspace with its tab bar (``[1 Boot]``), and ``!`` and Enter the recovery shell on the console, and
+  ``readlink /proc/self/fd/0`` typed there must name a pseudo-terminal (``/dev/pts/N``); keys are held 50 ms and sent
+  200 ms apart, and a failed check notes the console's last screen. The console writes its start (card, display,
+  cells, keyboard layout) to the mirror too. The image has the layouts ``us`` and ``de``
   (``zfsbootmenu_keyboard_layouts``): the console must start with ``us``; ``/libexec/zbm console layout de`` typed in
-  the shell must answer ``keyboard: de``; then, typed into ``cat`` (in the image's C locale the shell's line editor may
-  take ``ê`` for Meta keys), the keys of ``y`` and ``z`` must type ``zy`` and the dead circumflex and ``e`` must add
-  ``ê``, and the same keys after ``echo`` at the shell's prompt must show and print ``zyê``; the same command for
-  ``us``, typed with the German layout, must switch back. Ctrl-C typed while ``od -v /dev/zero`` floods the console must
-  stop it (the image has no ``yes``). After ``kill -9`` of the console, a screenshot is kept (``virtio-fallback.ppm``)
-  and noted with the console's last screen; the start-up program ends with the console's terminal, and the supervisor
-  starts the console again, then the recovery shell on it (``ROADMAP.md``, PM6), whose message must show on the
-  console; the shell must take ``echo zbm-back-$(readlink /proc/self/fd/0) > /dev/ttyS0`` and print
-  ``zbm-back-/dev/pts/N`` (the shell makes the line the test waits for, so keys that reached something else cannot
-  pass for it), and ``dmesg | grep on.the.display > /dev/ttyS0`` must show the supervisor's messages that the console
-  ended and started again; ``dmesg | grep draws.on.its.cells > /dev/ttyS0`` must show the console's message that the
-  menu said hello on the client channel, so that the countdown was drawn on the console's cells (``ROADMAP.md``, UI6),
-  not on its terminal. Then the console must be confined (``ROADMAP.md``, SE11, ADR 0012): its
-  ``/proc/<pid>/status`` must say ``Uid: 60600``, its own user, ``NoNewPrivs: 1``, ``Seccomp: 2`` and
-  ``CapEff: 0000000004000000`` (``CAP_SYS_TTY_CONFIG`` alone), the kernel log must hold no seccomp record (audit type 1326) after the layouts, the
-  fonts, the hand-back and the reattach ran confined, and both consoles, the first and the one started again, must
-  have said they were confined. The shell on the kernel console, once the console is given up, is tested by the
-  supervisor's own tests. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start must name a
-  ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the boot
-  environment must boot.
+  the shell must answer ``keyboard: de``; then, typed into ``cat`` (in the image's C locale the shell's line editor
+  may take ``ê`` for Meta keys), the keys of ``y`` and ``z`` must type ``zy`` and the dead circumflex and ``e`` must
+  add ``ê``, and the same keys after ``echo`` at the shell's prompt must show and print ``zyê``; the same command for
+  ``us``, typed with the German layout, must switch back. Ctrl-C typed while ``od -v /dev/zero`` floods the console
+  must stop it (the image has no ``yes``). After ``kill -9`` of the console, a screenshot is kept
+  (``virtio-fallback.ppm``) and noted with the console's last screen; the start-up program ends with the console's
+  terminal, and the supervisor starts the console again, then the recovery shell on it (``ROADMAP.md``, PM6), whose
+  message must show on the console; the shell must take ``echo zbm-back-$(readlink /proc/self/fd/0) > /dev/ttyS0`` and
+  print ``zbm-back-/dev/pts/N`` (the shell makes the line the test waits for, so keys that reached something else
+  cannot pass for it), and ``dmesg | grep on.the.display > /dev/ttyS0`` must show the supervisor's messages that the
+  console ended and started again; ``dmesg | grep draws.on.its.cells > /dev/ttyS0`` must show the console's message
+  that the menu said hello on the client channel, so that the countdown was drawn on the console's cells
+  (``ROADMAP.md``, UI6), not on its terminal. Then the console must be confined (``ROADMAP.md``, SE11, ADR 0012): its
+  ``/proc/<pid>/status`` must say ``Uid: 60600``, its own user, ``NoNewPrivs: 1``, ``Seccomp: 2`` and ``CapEff:
+  0000000004000000`` (``CAP_SYS_TTY_CONFIG`` alone), the kernel log must hold no seccomp record (audit type 1326)
+  after the layouts, the fonts, the hand-back and the reattach ran confined, and both consoles, the first and the one
+  started again, must have said they were confined. The shell on the kernel console, once the console is given up, is
+  tested by the supervisor's own tests. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's
+  start must name a ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and
+  the boot environment must boot.
 
 * ``runtime-rust-console-start`` checks how the console on the display starts and what it shows
   (``ROADMAP.md``, M1), with the image of ``runtime-rust-console`` and the drivers of a USB keyboard
@@ -382,16 +383,17 @@ Following a boot
 
 * ``runtime-rust-console-serial`` checks the serial console the console on the display serves too (ROADMAP.md UI9),
   with the image of ``runtime-rust-console`` booted with ``console=tty1 console=ttyS0``: the countdown and the menu
-  must show on the serial console's screen; Escape, ``!`` and Enter typed there must open the menu and the recovery
-  shell. ``echo zbm-serial-$(stty size)`` typed there must see 80 columns and 25 rows, with no wider line in the
-  display's mirror; typed on QEMU's keyboard, more columns; typed on the serial console again, 80 again. Ctrl+L typed
-  there must clear the serial console's screen and write it again. The other console scenarios boot with
-  ``zbm.console_serial=off``, so that the serial console stays theirs.
+  must show on the serial console's screen; Escape, ``!`` and Enter typed there must open the menu, the workspace with
+  its tab bar (``[1 Boot]``), and the recovery shell. ``echo zbm-serial-$(stty size)`` typed there must see 80 columns
+  and 25 rows, with no wider line in the display's mirror; typed on QEMU's keyboard, more columns; typed on the serial
+  console again, 80 again. Ctrl+L typed there must clear the serial console's screen and write it again. The other
+  console scenarios boot with ``zbm.console_serial=off``, so that the serial console stays theirs.
 
 * ``runtime-rust-console-lines`` checks the menu as lines and the console's text for a Braille display (ROADMAP.md
   UI8), with the image of ``runtime-rust-console`` and both pools: booted with ``TERM=dumb`` on the serial console,
-  then with ``zbm.menu=lines``, the menu must print its boot environments as a numbered list and say what can be
-  typed, and the number of ``tforeign``'s, typed as a line, must boot it. Booted with ``zbm.console=drm``, the menu
+  then with ``zbm.menu=lines``, then with ``zbm.menu=classic`` and ``TERM=dumb`` (the classic menu, which shows as
+  lines by itself too), the menu must print its boot environments as a numbered list and say what can be typed, and
+  the number of ``tforeign``'s, typed as a line, must boot it. Booted with ``zbm.console=drm``, the menu
   opens the recovery shell, where ``grep`` must find in ``/dev/vcs1`` a word only the shell's output spells: the
   console writes its text into ``/dev/vcsa1``, which ``brltty`` reads.
 

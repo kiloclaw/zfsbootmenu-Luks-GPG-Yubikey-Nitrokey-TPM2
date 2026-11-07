@@ -96,7 +96,7 @@ Detected once at start, from the environment the menu was started with; the kern
 
 ## Layout by size
 
-The current map's views:
+The classic map's views:
 
 | Size class | Inspector | Navigation bar | Toolbar |
 | --- | --- | --- | --- |

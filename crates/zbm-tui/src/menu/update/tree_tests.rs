@@ -23,7 +23,7 @@ use crate::text::text;
 /// Pools tab, after `downs` presses of Down.
 fn tab(downs: usize) -> Session {
     let options = DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     };
     let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
@@ -249,8 +249,11 @@ fn enter_says_what_it_does_on_each_kind_of_row() {
 }
 
 #[test]
-fn the_current_menu_keeps_its_list_and_its_keys() {
-    let options = DemoOptions::default();
+fn the_classic_menu_keeps_its_list_and_its_keys() {
+    let options = DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    };
     let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
     session.start();
     session.key(Key::Escape);

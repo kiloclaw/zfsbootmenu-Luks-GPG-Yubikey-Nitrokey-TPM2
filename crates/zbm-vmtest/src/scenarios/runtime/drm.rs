@@ -10,11 +10,12 @@
 //!   driver.
 //!
 //! Each time, from the recovery shell on the serial console, `zbm debug
-//! menu-demo` draws the demo's menu on the display. The test reads the
-//! screen's text from the file the demo writes, counts the colours in a
-//! QEMU screenshot, types keys on QEMU's keyboard (`sendkey`), which reach
-//! the demo through the input devices, and checks that the kernel console
-//! draws again once the menu has booted and handed the display back.
+//! menu-demo` draws the demo's menu, the workspace, on the display. The
+//! test reads the screen's text from the file the demo writes, counts the
+//! colours in a QEMU screenshot, types keys on QEMU's keyboard (`sendkey`),
+//! which reach the demo through the input devices, and checks that the
+//! kernel console draws again once the menu has booted and handed the
+//! display back.
 
 use std::fs;
 use std::path::Path;
@@ -36,8 +37,10 @@ const DRIVER: &str = "readlink -f /sys/class/drm/card0/device/driver";
 const START: &str = "{ /libexec/zbm debug menu-demo --wait --dump /tmp/menu.txt \
     > /tmp/demo.log 2>&1 & }";
 
-/// Waits for the main view, and prints the screen's text.
-const MENU: &str = "for i in {1..150}; do grep -q 'Boot Environments' /tmp/menu.txt 2>/dev/null \
+/// Waits for the main view, whose environments column is titled in
+/// capitals, and prints the screen's text, whose tab bar tells the
+/// workspace's Boot tab from the classic main view.
+const MENU: &str = "for i in {1..150}; do grep -q 'BOOT ENVIRONMENTS' /tmp/menu.txt 2>/dev/null \
     && break; sleep 0.2; done; cat /tmp/menu.txt";
 
 /// Keeps the line of the selected environment.
@@ -148,9 +151,10 @@ pub(super) fn check_menu(
     vm.must(START)?;
     let (_, text) = vm.sh(MENU)?;
     test.check(
-        text.contains("Boot Environments") && text.contains("tank/ROOT"),
+        text.contains("BOOT ENVIRONMENTS") && text.contains("tank/ROOT"),
         &format!("{name}: the menu draws its main view"),
     );
+    super::check_workspace(test, &format!("{name}: "), Some(&text));
     let drawn = screen(test, vm, monitor, &format!("{name}-menu"))?;
     test.check(
         drawn.is_some_and(|count| count >= MENU_COLOURS),

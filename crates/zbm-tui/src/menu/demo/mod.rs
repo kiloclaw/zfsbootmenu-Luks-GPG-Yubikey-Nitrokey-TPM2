@@ -46,10 +46,10 @@ pub struct DemoOptions {
     /// The firmware was updated: PCR 0 changed, and the TPM keeps the key
     /// of `luks-zroot-a`, which starts locked.
     pub tpm_changed: bool,
-    /// The menu reads keys with the workspace's key map and draws its tabs
-    /// (ADR 0007), for the usability sessions to compare with the current
-    /// one.
-    pub workspace: bool,
+    /// The menu reads keys with the classic key map and draws the classic
+    /// screens (`zbm.menu=classic`), for the usability sessions to compare
+    /// with the workspace (ADR 0007).
+    pub classic: bool,
     /// Pools start-up leaves alone, which the menu's scan finds: one of
     /// another host, and one named like an imported pool.
     pub exported: bool,
@@ -70,7 +70,7 @@ impl Default for DemoOptions {
             failing: false,
             next_boot: false,
             tpm_changed: false,
-            workspace: false,
+            classic: false,
             exported: false,
             save_logs: true,
             long_command_line: false,

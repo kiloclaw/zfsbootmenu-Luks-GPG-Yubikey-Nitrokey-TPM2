@@ -20,7 +20,7 @@ fn the_checks_pass_on_the_screens_they_expect() {
     let test = Test::new(&settings, "runtime-rust-console-serial").unwrap();
     let mirror = test.dir().join("mirror-serial.txt");
     let screens = "Booting tplain/ROOT/be in 59 seconds\n\x0c\
-                   BOOT ENVIRONMENTS\n\x0c\
+                   [1 Boot] 2 Snapshots\nBOOT ENVIRONMENTS\n\x0c\
                    emergency shell\n\x0c\
                    zbm# echo zbm-serial-$(stty size)\nzbm-serial-25 80\n\x0c\
                    zbm-display-50 160\n\x0c\
@@ -29,7 +29,7 @@ fn the_checks_pass_on_the_screens_they_expect() {
     let script = vec![
         Step::Say("\x1b[H\x1b[2JBooting tplain/ROOT/be in 59 seconds\r\n"),
         Step::Keys("\x1b"),
-        Step::Say("\x1b[H\x1b[2JBOOT ENVIRONMENTS\r\n"),
+        Step::Say("\x1b[H\x1b[2J [1 Boot] 2 Snapshots\r\nBOOT ENVIRONMENTS\r\n"),
         Step::Keys("!"),
         Step::Keys("\r"),
         Step::Keys("echo zbm-serial-$(stty size)\r"),
@@ -51,7 +51,7 @@ fn the_checks_pass_on_the_screens_they_expect() {
     assert_eq!(guest.finish(), Vec::<String>::new());
     let found = checks(&test);
     cleanup(&settings);
-    assert_eq!(found.len(), 10, "{found:#?}");
+    assert_eq!(found.len(), 11, "{found:#?}");
     assert!(
         found.iter().all(|line| line.starts_with("ok")),
         "{found:#?}"

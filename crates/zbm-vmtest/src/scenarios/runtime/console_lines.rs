@@ -1,13 +1,15 @@
 //! `runtime-rust-console-lines`: the menu as lines, and the console's text
-//! for a Braille display (ROADMAP.md UI8, ADR 0011). Three boots of the
+//! for a Braille display (ROADMAP.md UI8, ADR 0011). Four boots of the
 //! image of `runtime-rust-console`, with `tplain` (d0) and `tforeign` (d1),
 //! the pool of another host, which `zbm.import_policy=force` imports beside
 //! `tplain`:
 //!
-//! - `TERM=dumb` on the serial console: the menu prints its boot
-//!   environments as a numbered list, and the number of `tforeign`'s,
+//! - `TERM=dumb` on the serial console: the menu, the workspace, prints its
+//!   boot environments as a numbered list, and the number of `tforeign`'s,
 //!   typed as a line, boots it.
 //! - `zbm.menu=lines`, `TERM` as the kernel sets it: the same.
+//! - `zbm.menu=classic` and `TERM=dumb`: the classic menu shows as lines by
+//!   itself too (ADR 0016, point 10), and the same number boots `tforeign`.
 //! - `zbm.console=drm`, the screen as usual: in the recovery shell, the
 //!   text of `/dev/vcs1`, which the console writes through `/dev/vcsa1`,
 //!   holds what the shell printed; the kernel draws none of it.
@@ -31,7 +33,11 @@ use super::console::{last_screen, machine_extra, wait_screen};
 const APPEND: &str = "console=ttyS0 loglevel=7 zbm.timeout=60 zbm.import_policy=force";
 
 /// The boots of the menu as lines: their names and their options.
-const LINE_BOOTS: [(&str, &str); 2] = [("dumb", " TERM=dumb"), ("lines", " zbm.menu=lines")];
+const LINE_BOOTS: [(&str, &str); 3] = [
+    ("dumb", " TERM=dumb"),
+    ("lines", " zbm.menu=lines"),
+    ("classic", " zbm.menu=classic TERM=dumb"),
+];
 
 /// The command line of the boot on the console on the display, which
 /// serves the serial console too.

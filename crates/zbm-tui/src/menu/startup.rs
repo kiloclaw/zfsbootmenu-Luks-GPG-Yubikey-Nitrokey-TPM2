@@ -206,7 +206,7 @@ where
 
     /// Whether the view reads keys between questions: under the workspace,
     /// while the stages run and no dialog is open, where the keys of the
-    /// tabs, moving and help work. With the current map, and once the
+    /// tabs, moving and help work. With the classic map, and once the
     /// stages are over, keys wait for the menu, which a key stops the
     /// countdown of.
     fn is_reading_keys(&self) -> bool {
@@ -217,7 +217,7 @@ where
     /// Whether `key` is typed ahead of a dialog, as a passphrase typed
     /// before its prompt: a key the Boot tab's start-up view does not
     /// bind, and every key after it, until a dialog reads them. As under
-    /// the current map, they wait for the dialog; with no dialog, nothing
+    /// the classic map, they wait for the dialog; with no dialog, nothing
     /// reads them, and the menu, once start-up is over, never sees them:
     /// they do not stop its countdown.
     fn is_typing_ahead(&self, key: KeyPress) -> bool {

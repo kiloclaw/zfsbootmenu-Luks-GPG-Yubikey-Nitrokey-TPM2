@@ -7,8 +7,14 @@ use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Level, Outcome, StageState};
 
+/// The demo in the classic menu (`zbm.menu=classic`), whose keys these
+/// tests press, started.
 fn started() -> Session {
-    let mut session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::FULL));
+    let options = DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    };
+    let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
     session.start();
     session
 }

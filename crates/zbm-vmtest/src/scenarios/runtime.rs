@@ -120,6 +120,20 @@ const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 /// redraws only the cells that change.
 const MENU_COUNTDOWN: &str = r"screen:Booting \S*tplain/ROOT/be\S* in";
 
+/// The workspace's tab bar with its Boot tab current: the menu is the
+/// workspace, whose top line `zbm.menu=classic` replaces with the classic
+/// menu's navigation bar.
+const WORKSPACE_TABS: &str = "[1 Boot]";
+
+/// Checks that `menu`, the screen of the menu, is the workspace's: its tab
+/// bar shows the Boot tab. `name` starts the check's text.
+fn check_workspace(test: &Test, name: &str, menu: Option<&str>) {
+    test.check(
+        menu.is_some_and(|screen| screen.contains(WORKSPACE_TABS)),
+        &format!("{name}the menu is the workspace: its tab bar shows the Boot tab"),
+    );
+}
+
 /// Runs `setup`, `record-zfs`, `rust-keyfile`, `rust-crash`, `rust-autosize`,
 /// `rust-colours`, `rust-drm`, `rust-console`, `rust-console-start`,
 /// `rust-console-comfort`, `rust-console-serial`, `rust-console-lines`,

@@ -1,10 +1,10 @@
 # The key map
 
-One table, `keymap.rs` of `zbm-tui`, turns key presses into intents, writes the toolbar and the help view, and will
+One table, `keymap/` of `zbm-tui`, turns key presses into intents, writes the toolbar and the help view, and will
 generate the key binding section of `zfsbootmenu(7)`. It holds two maps until the usability sessions (UI11) choose one
-([decision 8](../../../ROADMAP.md#decisions)): the **workspace's** ([ADR 0007](../adr/0007-menu-workspace.md)), and the
-**current** one, which the menu uses today. `zbm-tui --demo --workspace` reads keys with the first, `--demo` with the
-second.
+([decision 8](../../../ROADMAP.md#decisions)): the **workspace's** ([ADR 0007](../adr/0007-menu-workspace.md)), the
+menu's since UI10c, and the **classic** one, which `zbm.menu=classic` keeps for one release. `zbm-tui --demo` reads
+keys with the first, `zbm-tui --demo --classic` with the second.
 
 ## Keys on every keyboard
 
@@ -22,13 +22,13 @@ Decision 18, for both maps:
 4. **The command line knows every language.** It matches the command names of the catalogue in the menu's language
    and the English names.
 
-A test checks rule 2 on both tables, and one meaning per key: in the whole current map, and in each view of the
+A test checks rule 2 on both tables, and one meaning per key: in the whole classic map, and in each view of the
 workspace's. Rule 1's commands and rule 4 come with the command line
 (UI14), rule 3 with UI15.
 
 ## The workspace's map
 
-One meaning per key in each view, no capital letters, and the classic `MOD+key` aliases below. Only the arrows mean
+One meaning per key in each view, no capital letters, and the `fzf` aliases below. Only the arrows mean
 two things: `Right` and `Left` go into and out of the kernels in the Boot tab, as `l` and `h` do, and from one segment
 to the other in the changes.
 
@@ -41,20 +41,21 @@ to the other in the changes.
 | Start-up | `1` to `9` a choice, as do `j` `k` and `Enter`; between choices, as the Boot tab, only `1` to `4` and `Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), `j` `k` and the arrows move, `?` opens help; any other key starts typing ahead of the next dialog |
 | Text fields | `Tab` completes; `Ctrl-W` deletes a word; `Ctrl-R` searches the history (the command line) or shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout |
 
-Against the current map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind
+Against the classic map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind
 leaves `h` for the import page, and the log leaves `l` for its tab; the pools are tab 3, so `p` is free; `Tab` goes to
 the next tab, so `Space` alone marks.
 
-**In the prototype** (`keymap/workspace.rs`): its bindings come before the current map's, whose bindings of the same
+**In the code** (`keymap/workspace.rs`): its bindings come before the classic map's, whose bindings of the same
 keys in a view where both work, and `p`, it drops: `j` `k` `h` move, `l` and `Right` go into the kernels and `Left`
-out of them, `1` to `4`, `Tab` and `Shift-Tab` choose the tab; the changes keep the current map's `Left` and
+out of them, `1` to `4`, `Tab` and `Shift-Tab` choose the tab; the changes keep the classic map's `Left` and
 `Right`.
-The other keys are the current map's until UI10: `!` opens the recovery tools, and the pools keep `i`, `u` and `w`;
-the rewind, which the current map has on `h`, waits for the import page of UI10.
+The other keys are the classic map's: `!` opens the recovery tools, the shell first, and the pools keep `i`, `u` and
+`w`; the rewind, which the classic map has on `h`, is among the imports of `i`.
 
-## The current map
+## The classic map
 
-The menu's map today, which the sessions compare with the workspace's.
+The map of the classic menu, which `zbm.menu=classic` keeps for one release, and which the sessions compare with the
+workspace's.
 
 ### Its rules
 
@@ -118,14 +119,14 @@ The menu's map today, which the sessions compare with the workspace's.
 | `i` | import the selected pool | pools |
 | `h` | rewind the pool to its checkpoint | pools |
 
-## The classic bindings
+## The `fzf` aliases
 
 [Decision 8](../../../ROADMAP.md#decisions) asked whether to offer a second profile close to the `fzf`
 menu. The proposal: no profile to choose, but every `MOD+key` binding of the `fzf` menu (`MOD` is `Alt` or `Ctrl`)
-keeps working, with its old meaning in its old view, as an alias that the help view lists under *classic*, and the
-workspace's under *fzf aliases*, a name apart from `zbm.menu=classic`:
+keeps working, with its old meaning in its old view, as an alias that the help view of the workspace lists under
+*fzf aliases*, and that of the classic menu under *classic bindings*:
 
-| Classic | Main | Snapshots | Kernels | Pools |
+| Alias | Main | Snapshots | Kernels | Pools |
 | --- | --- | --- | --- | --- |
 | `MOD+K` | kernels | | | |
 | `MOD+S` | snapshots | | | |
@@ -148,7 +149,7 @@ so here it sorts the snapshots view only.
 
 So people who know the `fzf` menu keep their habits, and new users learn the letters from the footer. The new
 letters hold no modifier, so the two maps meet only where the new map gives `Ctrl` a meaning of every view (`Ctrl-C`
-back, `Ctrl-L` redraw, `Ctrl-N` and `Ctrl-P` down and up): there the new meaning wins, and the classic binding works
+back, `Ctrl-L` redraw, `Ctrl-N` and `Ctrl-P` down and up): there the new meaning wins, and the alias works
 with `Alt` only. `Ctrl-S` and `Ctrl-J` may not reach the menu on serial lines (flow control, newline): their `Alt`
 forms do. The sessions confirm or reject this before R5.
 
@@ -157,4 +158,4 @@ forms do. The sessions confirm or reject this before R5.
 The toolbar (the last line, [apple-hig.md](apple-hig.md) rule 9) shows, for the focused element, the bindings marked
 for it in the order of the table, as `Enter Boot`: at most five, whole ones only, as many as fit, then `? More` on the
 right, which opens help. The help view lists every binding of the view it was opened from, then the global ones, then
-the classic aliases. In alerts and action sheets `Esc` reads *Cancel*.
+the `fzf` aliases. In alerts and action sheets `Esc` reads *Cancel*.

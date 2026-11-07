@@ -253,7 +253,7 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
         (Context::Log, plain('1'), intent(Intent::Tab(Tab::Boot))),
         (Pools, press(Key::Tab, NONE), intent(Intent::NextTab)),
         (Main, press(Key::BackTab, NONE), intent(Intent::PreviousTab)),
-        // The current map's keys the workspace keeps, and its aliases.
+        // The classic map's keys the workspace keeps, and its aliases.
         (Main, plain('s'), intent(Intent::Snapshots)),
         (
             Main,
@@ -301,7 +301,7 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
     for (context, event, expected) in cases {
         assert_eq!(workspace(context, event), expected, "{context:?} {event:?}");
     }
-    // The current map is unchanged, and gains no key.
+    // The classic map is unchanged, and gains no key.
     assert_eq!(
         input(Map::Classic, Main, plain('k')),
         intent(Intent::Kernels)
@@ -318,7 +318,7 @@ fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
     );
 }
 
-/// One meaning per key: in every view with the current map, in each view
+/// One meaning per key: in every view with the classic map, in each view
 /// with the workspace's, whose arrows go into a column in the Boot tab and
 /// from segment to segment in the changes.
 #[test]

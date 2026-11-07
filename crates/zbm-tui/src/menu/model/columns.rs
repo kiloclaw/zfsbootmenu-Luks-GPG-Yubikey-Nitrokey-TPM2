@@ -38,7 +38,7 @@ impl Model {
 
     /// The pool whose header the workspace draws above the main view's
     /// match at `position`: its environment's pool, when the match above
-    /// is of another. None with the current map, and while a filter ranks
+    /// is of another. None with the classic map, and while a filter ranks
     /// the list by how well each name matches instead.
     pub fn group_at(&self, position: usize) -> Option<PoolName> {
         if self.map != Map::Workspace || !self.environments.filter.is_empty() {

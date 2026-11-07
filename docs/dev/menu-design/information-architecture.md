@@ -32,7 +32,7 @@ with a dry run first, and what cannot be undone opens a review page. Nothing is 
 - **Command hint**: from 24 rows, how to reach the command line, the filter and every key.
 - **Toolbar**: up to five actions of the focus, from the key map in order of importance, and `? More`.
 
-The current map draws the same frame with a navigation bar instead of the tab bar: the back label (`‹` and the view
+The classic map draws the same frame with a navigation bar instead of the tab bar: the back label (`‹` and the view
 `Esc` returns to), the title of the view, and the same status ([apple-hig.md](apple-hig.md), rule 1).
 
 ## The tabs
@@ -184,7 +184,7 @@ once start-up is over, and `Tab` and `Shift-Tab` pass over it. Nothing is read f
 reads it.
 
 On the Boot tab, a key it does not bind starts typing ahead, as a passphrase typed before its prompt: that key and
-every key after it wait for the next dialog, which reads them first, as the current map's dialogs read what was typed
+every key after it wait for the next dialog, which reads them first, as the classic map's dialogs read what was typed
 ahead. If start-up ends with no dialog, they go nowhere: the menu never reads them, so they stop no countdown.
 
 The countdown after start-up runs as before, unless the person left the Boot tab during start-up, outside a dialog:
@@ -197,11 +197,11 @@ during start-up is never shown, whatever the tab.
 Not built yet: the frame between the end of start-up and the menu's first frame, which the setup hooks and the
 machine's first read leave blank; start-up over SSH, which the session's socket yields, so the SSH menu never shows
 the stages; the line view, whose stages stay on the plain console; and `--resume`, which opens the menu at once. The
-current map's start-up view is unchanged, and reads no key between its questions.
+classic map's start-up view is unchanged, and reads no key between its questions.
 
 ## Views
 
-The views the tabs show, which the current map opens as screens of their own:
+The views the tabs show, which the classic map opens as screens of their own:
 
 | View | Opened by | Shows | Primary action (`Enter`) |
 | --- | --- | --- | --- |
@@ -232,7 +232,7 @@ Dialogs open over a view and return to it:
   what to do, with **Boot Anyway** and **Cancel** ([boot health](boot-health.md)).
 - **Error**: what failed, why (the cause chain of the error, in words), and the next steps offered.
 
-## The main view of the current map
+## The main view of the classic map
 
 ```text
  Booting zroot/ROOT/void in 10 s. Press any key to choose another.

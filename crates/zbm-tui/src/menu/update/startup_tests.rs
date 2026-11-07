@@ -1,6 +1,6 @@
 //! Start-up as the workspace's Boot tab, through the demo machine: the
 //! tabs looked at while the stages run, what they ask of the machine, the
-//! countdown once start-up is over, and the current map's start-up, which
+//! countdown once start-up is over, and the classic map's start-up, which
 //! stays as it was.
 
 use pretty_assertions::assert_eq;
@@ -22,7 +22,7 @@ fn powered_on(options: &DemoOptions) -> Session {
 
 fn workspace() -> DemoOptions {
     DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     }
 }
@@ -106,8 +106,11 @@ fn a_secret_asked_while_another_tab_is_open_stays_hidden() {
 }
 
 #[test]
-fn the_current_map_s_start_up_has_no_tabs_and_ends_on_the_main_view() {
-    let mut session = powered_on(&DemoOptions::default());
+fn the_classic_map_s_start_up_has_no_tabs_and_ends_on_the_main_view() {
+    let mut session = powered_on(&DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    });
 
     session.key(Key::Char('4'));
     assert_eq!(session.model().screen, Screen::Startup);

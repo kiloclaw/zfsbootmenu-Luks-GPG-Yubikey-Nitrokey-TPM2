@@ -108,10 +108,11 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
    with their path above them; the inspector, whose long values wrap; the Snapshots tab as the timeline grouped by day,
    week and month; the Pools tab as pools › vdevs › devices, and the volumes. The key map is
    [keymap.md](../menu-design/keymap.md)'s workspace map, which the sessions (UI11) may still change: decision 8 stays
-   open, and a change to it is a change of `keymap.rs` alone.
-10. **The classic menu stays one release.** `zbm.menu=classic` draws the current screens with the current map; the
-    line view still shows by itself where it does now. It goes with RL2, as the legacy runtime does. The line view (UI8) follows the workspace: it prints the tab's column, and
-    the tabs are words (`boot`, `snapshots`, `pools`, `log`), since a number chooses an item there.
+   open, and a change to it is a change of `keymap/` and the strings that name keys.
+10. **The classic menu stays one release.** `zbm.menu=classic` draws the classic screens, with no new view, with the
+    classic map; the line view still shows by itself where it does now. It goes with RL2, as the legacy runtime does.
+    The line view (UI8) follows the workspace: it prints the tab's column, and the tabs are words (`boot`,
+    `snapshots`, `pools`, `log`), since a number chooses an item there.
 11. **The tab bar** is the wireframes': the tabs, the worst pool, the open volumes and what needs attention; the host
     and the time join it from 120 columns. This changes ADR 0007's decision 1, which also named the ZFS version: it
     moves to the help view's header.
@@ -284,6 +285,53 @@ and the export is kept by it; and without `zbm.save_logs` the menu does not read
   `log-no-history` at every size; the 10,000-snapshot test and `examples/snapshots.rs`. The VM run of UI10b, on
   rebuilt images, is the maintainer's; `runtime-rust-saved` checks `boot.json`, and the recorded fixtures of
   `zpool status -j`, `zpool import` and `zdb` wait for `xtask record-zfs`.
+
+Points 9 to 11 built on 7 November 2026 (UI10c-1 to UI10c-7), as decided but for what follows. On 7 November the
+maintainer decided the details the record left open: the default flips last, in UI10c-7, so no half-built tab ships;
+a person who left the Boot tab during start-up, outside a dialog, gets no countdown, while keys typed in a dialog and
+noise on a serial line never count; the host in the tab bar is the host ID; the Log tab during start-up shows the
+stages; the timeline is newest first with `o` sorting within a group; the ZFS version comes from
+`/sys/module/zfs/version`; the time shows in the tab bar even with `zbm.console_status=on`; `zbm.menu` takes one
+value; and the classic wireframes keep their names.
+
+- **Point 9:** the workspace is the menu (`Map`'s default), on the console, over SSH, in the start-up view and in the
+  line view.
+  - **the Boot tab:** the boot environments grouped by pool under headers that are neither numbered nor stops, in the
+    defaults-first order within each pool, the kernels column beside them (`l` or `Right`, back with `h`, `Left` or
+    `Escape`), the path row above them, and the inspector of the deepest column, whose long values wrap under their
+    label. From 120 columns the sidebar, both columns and the inspector stand side by side; at 80 the inspector goes
+    below; at 52×20 one column stands alone, the deepest, and the path row costs one of the 20 rows. "At every size"
+    holds in that sense only.
+  - **the Snapshots tab:** the timeline of the open environment, today, the days of this week, the weeks of this
+    month and the months, newest first, each group with its count and space; older months start folded, `z` folds,
+    and `o` sorts within each group. Only the visible rows are built.
+  - **the Pools tab:** the tree of the pools, their vdevs and devices, the special devices under their headings, and
+    the volumes under their pool or no pool; `Enter` on a device shows its kernel messages, and the pool dialog's
+    choice of a device is gone.
+  - **start-up as the Boot tab:** the tab bar above the stages, which stand where the columns go, a failed stage among
+    what needs attention, and the tabs, moving and help bound between questions. It holds only where the start-up
+    view runs: not in the line view, not over SSH, not after `--resume`, not when the view fails to open, and not in
+    the gap of the setup hooks between the view's end and the menu's first frame.
+  - **the keys:** the map spans `keymap/` (`workspace.rs`, `classic.rs`, `labels.rs`, `offers.rs`), and keys are also
+    named by strings: the line view's words and hints, and the hint of an empty Boot tab, whose key comes from the
+    map. A change of decision 8 is a change of `keymap/` and those strings. `!` still opens the recovery tools, the
+    shell first.
+- **Point 10:** as decided, but for "the current screens", which the point said before: UI10b had already added the
+  export and the pool rows to the classic menu's screens, so what holds is that the classic menu gains no new view,
+  as the point now says. `zbm.menu` takes `lines`, `screen` or `classic`; `classic` gives the classic map and leaves
+  the choice of the lines to `TERM` and `speakup`, so the classic menu shows as lines where it did. The line view of
+  the workspace prints the tab's column, its path in the title, and takes the tabs' names as words. The demo draws
+  the workspace, `--classic` the classic menu; `--workspace` is accepted and changes nothing. The classic wireframes
+  are drawn with the classic map and did not change.
+- **Point 11:** as decided, with the host as the host ID: the tab bar shows the tabs, the worst pool, the open
+  volumes and what needs attention, and from 120 columns the host ID and the time. The ZFS version, read from
+  `/sys/module/zfs/version` through the files port, is in the help view's header.
+- **Checks:** the wireframes of each tab at every size, at 80×24 in colour and ASCII, and the classic ones unchanged;
+  the tests that pinned the classic map now name it; the offers test for each map alone; the `menu_names` fuzz target
+  over both maps; the VM scenarios now expect the workspace (`runtime-rust-drm` waits for `BOOT ENVIRONMENTS`,
+  `runtime-rust-console`, `-console-serial`, `-console-start` and `-console-comfort` check the tab bar), and
+  `runtime-rust-console-lines` boots `zbm.menu=classic` with `TERM=dumb` too. The VM run of UI10c, on rebuilt
+  images, is the maintainer's.
 
 ## Questions for the maintainer
 

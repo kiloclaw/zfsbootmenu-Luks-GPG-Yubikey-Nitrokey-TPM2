@@ -114,7 +114,8 @@ view.
   snapshot; unlock a volume; the recovery shell; power off) done by lines alone, as the screen's tests do it by keys;
   the views printed match golden files.
 - The VM test `runtime-rust-console-lines`: with `TERM=dumb` on the serial console, the menu prints its list, `2`
-  boots the second environment; with `zbm.menu=lines`, the same. With `zbm.console=drm`, `/dev/vcsa1` read from the
+  boots the second environment; with `zbm.menu=lines`, the same; with `zbm.menu=classic` and `TERM=dumb`, the
+  classic menu as lines, the same. With `zbm.console=drm`, `/dev/vcsa1` read from the
   recovery shell, before it lends the terminal, holds the menu's text.
 - `brltty` itself on real hardware: by the maintainer, or someone who uses one, before the release notes claim it.
 
@@ -138,6 +139,12 @@ Built, on 31 October 2026:
   `early-setup.d` that starts them.
 
 Left: the VM test `runtime-rust-console-lines` on the maintainer's machine, and `brltty` on a real display.
+
+Since UI10c (7 November 2026) the menu is the workspace ([ADR 0016](0016-menu-workspace-built.md), points 9 to 11),
+and so is its line view: its keys are the workspace's (`2 l` for the kernels of item 2, where the proposal above has
+`k 2`), and the names of the tabs (`boot`, `snapshots`, `pools`, `log`) are words that choose them. `zbm.menu` takes
+`lines`, `screen` or `classic`; `classic` keeps the classic menu and its keys for one release, and leaves the choice
+of the lines to the terminal and `speakup`, as above.
 
 ## Answers of the maintainer
 

@@ -9,7 +9,7 @@ use crate::menu::demo::DemoOptions;
 /// The demo in the workspace (ADR 0007).
 fn workspace() -> DemoOptions {
     DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     }
 }

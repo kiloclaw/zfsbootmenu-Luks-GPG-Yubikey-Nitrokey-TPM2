@@ -334,8 +334,8 @@ menu also restores files from a snapshot, which the legacy menu did not.
 - **Now:** the dialog of an imported pool (`Enter` on it) and the palette offer Export: `zpool export` through the
   ZFS port, with nothing written on the console; a busy pool fails with the reason `zpool` gives. The pool of the
   default environment may be exported too, after which the menu has no default. The locked menu asks for the PIN
-  first. The pools are scanned again after it, so the pool is listed to import. In the workspace, the same dialog
-  lists each disk of the pool; choosing one shows below the pools the kernel's messages that name it, the disk of a
+  first. The pools are scanned again after it, so the pool is listed to import. In the workspace, `Enter` on a disk
+  in the Pools tab's tree shows below the pools the kernel's messages that name it, the disk of a
   partition or the devices below a mapping, or that the kernel tagged with one of them, without a PIN under the lock.
   Messages that name only a port, as `ata3.00:` does, are not among them, and the panel says so.
 - **Why:** a pool imported by mistake, or one to hand to another machine, can be let go without a shell; and why a
@@ -500,7 +500,8 @@ takes over from a menu already running.
 - **Before:** an environment without a kernel was left out of the list; with none at all, the menu printed
   `No boot environments with kernels found` and opened the recovery shell after 10 seconds.
 - **Now:** an environment without a kernel is listed, with `0 kernels`; with none at all, the menu says
-  `No Boot Environments` and how to get to the pools (`p`) and the recovery tools (`!`), and waits.
+  `No Boot Environments` and how to get to the pools (the Pools tab, `3`; `p` in the classic menu) and the recovery
+  tools (`!`), and waits.
 - **Why:** an environment that is there but cannot boot is a problem to see, not to hide, and the menu is a better
   place to recover from than a shell that opens by itself.
 
@@ -559,15 +560,33 @@ takes over from a menu already running.
 - **Why:** after a boot that went wrong, the menu should say what was booted last and how (ADR 0016, point 7);
   reading a partition the user did not name for logs would mount it for nothing.
 
+### The menu is the workspace
+
+- **Before:** the `fzf` menu, one list at a time; then, in the Rust runtime, the classic menu: a screen per view,
+  each opened by a letter from the boot environments (`k` the kernels, `s` the snapshots, `p` the pools, `l` the
+  log).
+- **Now:** the workspace (ADR 0007, ADR 0016 points 9 to 11): boot environments, snapshots, pools and the log are the
+  tabs of one screen, `1` to `4`, and `Tab` and `Shift-Tab` go from tab to tab. Its top line names the tabs, the worst
+  pool, the volumes open and what needs attention, and from 120 columns the host ID and the time. The Boot tab groups
+  the boot environments by pool, with the kernels of the one selected beside them (`l` or Right, back with `h`, Left
+  or Escape) and an inspector; `j` and `k` move as the arrows do. The Snapshots tab is a timeline grouped by day, week
+  and month, newest first, which `z` folds; the Pools tab a tree of the pools, their vdevs and devices, and the
+  volumes, with a device's kernel messages on `Enter`. Start-up shows as the Boot tab where the start-up view runs,
+  and the help names the ZFS module's version. Keys that moved: the kernels are `l`, not `k`, which moves up; the log
+  is `4`, not `l`; the pools `3`, not `p`; the chroot is among the recovery tools (`!`), not `j`; a rewind among the
+  imports (`i`), not `h`; marking a snapshot is Space alone, `Tab` choosing tabs. `!` still opens the recovery tools,
+  the shell first, and the `MOD+key` aliases stay.
+- **Why:** what needs attention, and the parts of the machine that hold it, show on one screen, and the keys move
+  as other terminal programs' do (ADR 0007).
+
 ### `zbm.menu`: lines, a screen, or the classic menu
 
 - **Before:** the menu was `fzf`'s, drawn on the terminal, with nothing to choose.
 - **Now:** `zbm.menu=lines` shows the menu as numbered lines a screen reader reads in order, and `zbm.menu=screen`
   as a screen; without either, the lines show by themselves when `TERM` is dumb or unset, or `speakup` is loaded.
-  `zbm.menu=classic` is for the workspace, a later menu with tabs for boot environments, snapshots, pools and the
-  log and keys of its own: once the workspace becomes the menu, `classic` keeps the menu described above, its
-  screens and keys, for one more release, and the lines still show by themselves where they would. Until then the
-  menu is the classic one, and `classic` changes nothing.
+  In the lines, the names of the tabs (`boot`, `snapshots`, `pools`, `log`) choose them. `zbm.menu=classic` keeps
+  the classic menu, its screens and keys, for this release only, and the lines still show by themselves where they
+  would, with the classic keys.
 - **Why:** the lines serve screen readers and terminals that cannot draw a screen (ADR 0011); `classic` leaves a
   release to learn the workspace's keys, for users and for scripts that type into the menu (ADR 0016, point 10).
 

@@ -10,8 +10,8 @@ use crate::menu::world::{Action, Event, Snapshot};
 impl Session<FakeMachine> {
     /// The menu on the demo machine `options` describe, at power-on.
     pub fn new(options: &DemoOptions, theme: Theme) -> Session<FakeMachine> {
-        let map = if options.workspace {
-            Map::Workspace
+        let map = if options.classic {
+            Map::Classic
         } else {
             Map::default()
         };

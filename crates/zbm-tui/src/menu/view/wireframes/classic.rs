@@ -1,16 +1,24 @@
-//! The wireframes of the current menu, which the workspace leaves as they
-//! are until it becomes the menu.
+//! The wireframes of the classic menu (`zbm.menu=classic`), which the
+//! workspace leaves as they are.
 
 use zbm_display::keys::Key;
 
 use super::{Step, Wireframe};
 use crate::menu::demo::DemoOptions;
 
+/// The demo in the classic menu.
+fn classic() -> DemoOptions {
+    DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    }
+}
+
 /// The demo after a firmware update: the TPM keeps a volume's key.
 fn tpm_changed() -> DemoOptions {
     DemoOptions {
         tpm_changed: true,
-        ..DemoOptions::default()
+        ..classic()
     }
 }
 
@@ -19,7 +27,7 @@ fn health(failing: bool, next_boot: bool) -> DemoOptions {
     DemoOptions {
         failing,
         next_boot,
-        ..DemoOptions::default()
+        ..classic()
     }
 }
 
@@ -27,7 +35,7 @@ fn options(locked: bool, foreign: bool) -> DemoOptions {
     DemoOptions {
         locked,
         foreign,
-        ..DemoOptions::default()
+        ..classic()
     }
 }
 

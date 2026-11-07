@@ -198,7 +198,7 @@ fn a_devices_messages_show_in_the_workspace_alone_and_say_why_there_are_none() {
 /// The demo in the workspace with `options`, started, after `keys`.
 fn session_after(options: &DemoOptions, keys: &[Key]) -> Session {
     let options = DemoOptions {
-        workspace: true,
+        classic: false,
         ..options.clone()
     };
     let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
@@ -403,4 +403,22 @@ fn a_wrapped_value_stays_under_its_start_after_a_long_label() {
     let start = line.split("rw quiet").next().unwrap().chars().count();
     let indent = next.chars().take_while(|c| [' ', '│'].contains(c)).count();
     assert_eq!(indent, start, "{shown}");
+}
+
+#[test]
+fn with_no_environment_the_hint_names_the_keys_of_the_map() {
+    let mut model = model(Vec::new(), Vec::new());
+    model.screen = crate::menu::model::Screen::Main;
+    // At 52 columns the one column is wide enough for the whole hint.
+    let workspace = crate::menu::view::tests::screen(&model, 52, 20);
+    model.map = Map::Classic;
+    let classic = crate::menu::view::tests::screen(&model, 120, 40);
+
+    assert!(workspace.contains("Press 3"), "{workspace}");
+    assert!(
+        workspace.contains("for the pools, ! for recovery."),
+        "{workspace}"
+    );
+    assert!(!workspace.contains("Press p"), "{workspace}");
+    assert!(classic.contains("Press p for the pools"), "{classic}");
 }

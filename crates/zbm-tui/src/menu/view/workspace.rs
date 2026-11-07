@@ -306,7 +306,13 @@ pub(super) fn attention_count(model: &Model) -> usize {
 /// The key that opens `tab` in the key map `map`: `3`; none when it binds
 /// none.
 pub(super) fn tab_key(map: Map, tab: Tab) -> String {
-    map.binding(Intent::Tab(tab))
+    intent_key(map, Intent::Tab(tab))
+}
+
+/// The key that asks for `intent` in the key map `map`: `!` for the
+/// recovery tools; none when it binds none.
+pub(super) fn intent_key(map: Map, intent: Intent) -> String {
+    map.binding(intent)
         .map(|binding| keymap::key_name(binding.key, binding.modifiers))
         .unwrap_or_default()
 }
@@ -466,7 +472,7 @@ fn attention_lines(model: &Model, items: &[Item], width: usize) -> Vec<Line<'sta
 }
 
 /// The inspector's next steps in the workspace: the keys of the column
-/// with the focus after `Enter`, two to a line; none with the current map.
+/// with the focus after `Enter`, two to a line; none with the classic map.
 pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
     if model.map != Map::Workspace {
         return Vec::new();

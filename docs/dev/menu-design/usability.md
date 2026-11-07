@@ -16,11 +16,11 @@ menu well. Recruited from the issue tracker and the discussion channels; no one 
 - The prototype on the participant's own machine or over a screen share, in both maps, at the terminal size they use:
 
   ```sh
-  cargo run -p zbm-tui -- --demo --workspace --log-keys workspace.log   # the workspace's map
-  cargo run -p zbm-tui -- --demo --log-keys current.log                 # the current map
+  cargo run -p zbm-tui -- --demo --log-keys workspace.log             # the workspace's map
+  cargo run -p zbm-tui -- --demo --classic --log-keys current.log     # the current (classic) map
   ```
 
-  Half the participants start with the workspace and half with the current map, and each does the script in both, so
+  Half the participants start with the workspace and half with the classic map, and each does the script in both, so
   that neither map gains from being second.
 - **The serial console session**: the demo at 80×24 in ASCII, as over IPMI (`--theme ascii --size 80x24`, inside
   `zbm-vmtest`'s guest or `screen /dev/ttyS0 115200`), in both maps.
@@ -39,7 +39,7 @@ the [scenarios](users-and-tasks.md#scenarios), with the demo's names:
 
 1. Let the machine boot as it would every morning. *(T1)*
 2. Something on this machine needs attention: say what, and where you would look at it. *(the sidebar and the
-   attention line; in the current map, the navigation bar's status)*
+   attention line; in the classic map, the navigation bar's status)*
 3. Boot `tank/ROOT/arch` instead. *(T2)*
 4. Boot the default environment with its older kernel 6.12.8_1. *(T3)*
 5. Yesterday's upgrade broke something: boot the state of `zroot/ROOT/void` from before it, to check it; then make it
@@ -48,12 +48,12 @@ the [scenarios](users-and-tasks.md#scenarios), with the demo's names:
 7. Boot once with `systemd.unit=rescue.target`. *(T6)*
 8. Start again with a foreign pool: get it imported and boot from it. *(T7, `--foreign`)*
 9. Find the snapshot taken before `2026-09` among the 400 of `zroot/ROOT/void`.
-10. Look at the pools, then at the log, then go back to the boot environments. *(the tabs; in the current map, `p`,
+10. Look at the pools, then at the log, then go back to the boot environments. *(the tabs; in the classic map, `p`,
     `l` and `Esc`)*
 
 After the tasks: what was hard, what was surprising, which map they would keep and why, whether they used `j` `k` `h`
-`l` or the arrows, the digits or `Tab`, what they missed from the `fzf` menu, and whether they would use the classic
-bindings ([decision 8](keymap.md#the-classic-bindings)).
+`l` or the arrows, the digits or `Tab`, what they missed from the `fzf` menu, and whether they would use the `fzf`
+aliases ([decision 8](keymap.md#the-fzf-aliases)).
 
 ## What to record
 

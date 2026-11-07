@@ -33,7 +33,7 @@ pub(super) fn startup(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 
 /// A line per stage of `stages`: its glyph, its name, and why it failed,
 /// which may name a pool or a device: drawn printable under the workspace,
-/// and as it comes under the current map, which stays as it was.
+/// and as it comes under the classic map.
 pub(super) fn stage_lines<'a>(
     model: &Model,
     stages: impl Iterator<Item = &'a Stage>,

@@ -422,6 +422,9 @@ details-next-steps = NEXT STEPS
 environments-none = No Boot Environments
     .text = No imported pool has a boot environment. Press p for the pools, ! for recovery.
     .notice = no boot environment found: see the pools, or open the recovery shell
+# The same hint in the workspace, with the keys of its map: pools is the key
+# of the Pools tab, recovery the key of the recovery tools.
+environments-none-workspace = No imported pool has a boot environment. Press { $pools } for the pools, { $recovery } for recovery.
 label-locked = locked
 label-boots = boots
 kernel-none = no kernel

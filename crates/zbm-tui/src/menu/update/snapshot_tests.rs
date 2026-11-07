@@ -15,10 +15,19 @@ use crate::menu::theme::Theme;
 use crate::menu::view::words;
 use crate::menu::world::{Action, Event, Offer, Outcome, Snapshot, SnapshotList};
 
+/// The demo in the classic menu (`zbm.menu=classic`), whose keys these
+/// tests press.
+fn classic() -> DemoOptions {
+    DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    }
+}
+
 /// The demo machine, offering everything: its snapshot, no column read,
 /// and the snapshots of the default environment, which a load sends.
 fn machine() -> (Snapshot, SnapshotList) {
-    let mut demo = FakeMachine::new(&DemoOptions::default());
+    let mut demo = FakeMachine::new(&classic());
     let mut snapshot = demo.snapshot().clone();
     for stage in &mut snapshot.startup {
         stage.state = crate::menu::world::StageState::Done;
@@ -35,9 +44,11 @@ fn void() -> zbm_types::DatasetName {
     "zroot/ROOT/void".parse().unwrap()
 }
 
-/// The menu's main view on `snapshot`, the countdown stopped.
+/// The classic menu's main view on `snapshot`, the countdown stopped.
 fn menu(snapshot: Snapshot) -> Model {
     let mut model = Model::new(snapshot, Theme::new(Capabilities::FULL));
+    model.map = crate::menu::keymap::Map::Classic;
+    model.refresh();
     events::start(&mut model);
     model.countdown = None;
     model
@@ -153,7 +164,7 @@ fn the_rollback_counts_the_newer_snapshots_of_the_latest_read() {
 
 #[test]
 fn a_taken_name_is_known_only_in_a_column_read_and_zfs_refuses_the_others() {
-    let mut session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::FULL));
+    let mut session = Session::new(&classic(), Theme::new(Capabilities::FULL));
     session.start();
     session.key(Key::Escape);
     // `tank/ROOT/arch` has `2026-10-01`, its column never opened.
@@ -259,7 +270,7 @@ fn an_export_from_the_snapshots_view_asks_for_no_snapshots_of_what_left() {
     let (snapshot, list) = machine();
     let (model, _) = step(menu(snapshot), key('s'));
     let (model, _) = step(model, event(Event::SnapshotsLoaded(list)));
-    let mut demo = FakeMachine::new(&DemoOptions::default());
+    let mut demo = FakeMachine::new(&classic());
     demo.apply(Action::LoadSnapshots(void()));
     let events = demo.apply(Action::Export(void().pool()));
     let Some(Event::Changed(exported)) = events.into_iter().next() else {

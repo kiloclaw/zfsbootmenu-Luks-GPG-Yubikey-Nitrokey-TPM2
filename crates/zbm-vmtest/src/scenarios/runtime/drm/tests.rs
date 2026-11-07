@@ -51,7 +51,8 @@ fn the_menu_is_drawn_moved_booted_and_the_console_comes_back() {
     let answers = [
         "/sys/bus/pci/drivers/virtio-pci\r\nRC=0\r\n",
         "RC=0\r\n",
-        "Boot Environments\r\n▶ tank/ROOT/void\r\n  tank/ROOT/arch\r\nRC=0\r\n",
+        " [1 Boot] 2 Snapshots\r\n┌ BOOT ENVIRONMENTS ─ 4 ┐\r\n▶ tank/ROOT/void\r\n\
+         \x20 tank/ROOT/arch\r\nRC=0\r\n",
         "▶ tank/ROOT/void\r\nRC=0\r\n",
         "▶ tank/ROOT/arch\r\nRC=0\r\n",
         "menu-demo: 1280x800 display: Booting tank/ROOT/arch\r\nRC=0\r\n",
@@ -64,7 +65,7 @@ fn the_menu_is_drawn_moved_booted_and_the_console_comes_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 6, "{checks:?}");
+    assert_eq!(checks.len(), 7, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
@@ -93,10 +94,41 @@ fn a_menu_that_does_not_show_or_move_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 6, "{checks:?}");
+    assert_eq!(checks.len(), 7, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"
+    );
+    cleanup(&settings);
+}
+
+#[test]
+fn the_classic_main_view_is_not_taken_for_the_workspace() {
+    let settings = settings("runtime-drm-classic");
+    let test = Test::new(&settings, "runtime-rust-drm").unwrap();
+    let answers = [
+        "/sys/bus/pci/drivers/virtio-pci\r\nRC=0\r\n",
+        "RC=0\r\n",
+        "‹ ZFSBootMenu\r\nBOOT ENVIRONMENTS\r\n▶ tank/ROOT/void\r\nRC=0\r\n",
+        "▶ tank/ROOT/void\r\nRC=0\r\n",
+        "▶ tank/ROOT/arch\r\nRC=0\r\n",
+        "menu-demo: 1280x800 display: Booting tank/ROOT/arch\r\nRC=0\r\n",
+        "RC=0\r\n",
+    ];
+    let (mut vm, guest) = scripted(&test, script(answers));
+    let monitor = Monitor { dump, key };
+
+    check_menu(&test, &mut vm, "virtio", "virtio", &monitor).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let failed: Vec<String> = checks(&test)
+        .into_iter()
+        .filter(|check| !check.starts_with("ok"))
+        .collect();
+    assert_eq!(failed.len(), 1, "{failed:?}");
+    assert!(
+        failed[0].contains("the menu is the workspace"),
+        "{failed:?}"
     );
     cleanup(&settings);
 }

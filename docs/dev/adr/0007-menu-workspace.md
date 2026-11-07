@@ -79,7 +79,7 @@ On the display console the menu knows the layout typing uses, and UI1 gave it ea
 
 One table, `keymap.rs`, stays the source of the toolbar, the help view and the man page. One meaning per key in the
 whole workspace; no capital letters; the `MOD+key` aliases of the `fzf` menu stay as in
-[keymap.md](../menu-design/keymap.md#the-classic-bindings).
+[keymap.md](../menu-design/keymap.md#the-fzf-aliases).
 
 | Where | Keys |
 | --- | --- |

@@ -60,7 +60,7 @@ impl Bench {
         let options = DemoOptions {
             snapshots: count,
             timeout: None,
-            workspace,
+            classic: !workspace,
             ..DemoOptions::default()
         };
         let mut session = Session::new(&options, Theme::new(Capabilities::FULL));

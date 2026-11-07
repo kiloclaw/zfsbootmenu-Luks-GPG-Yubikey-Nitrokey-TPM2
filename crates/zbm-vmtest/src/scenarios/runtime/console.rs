@@ -517,9 +517,8 @@ fn check_german(
     Ok(())
 }
 
-/// Escape typed during the countdown opens the menu on the console, and
-/// `!` then Enter its recovery shell, which runs on the console's
-/// pseudo-terminal and takes typed commands.
+/// Escape during the countdown opens the menu, the workspace, on the console,
+/// and `!` Enter its recovery shell, which takes commands on its terminal.
 pub(super) fn check_shell(
     test: &Test,
     vm: &mut Vm<'_>,
@@ -536,6 +535,7 @@ pub(super) fn check_shell(
         menu.is_some(),
         "virtio: Escape typed on the keyboard opens the menu on the console",
     );
+    super::check_workspace(test, "virtio: ", menu.as_deref());
     thread::sleep(pace.pause * 2);
     (monitor.key)(vm, "shift-1")?;
     thread::sleep(pace.pause);

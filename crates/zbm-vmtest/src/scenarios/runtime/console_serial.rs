@@ -6,8 +6,8 @@
 //! of the display's screen goes to its mirror on `ttyS1`.
 //!
 //! - The countdown and the menu show on the serial console's screen.
-//! - Escape, `!` and Enter typed on the serial console open the menu, then
-//!   the recovery shell.
+//! - Escape, `!` and Enter typed on the serial console open the menu, the
+//!   workspace with its tab bar, then the recovery shell.
 //! - A command typed on the serial console sees its size, 80x25, and the
 //!   display shows that screen: its mirror has no wider line. Typed on
 //!   QEMU's keyboard, it sees the display's size, wider; typed on the
@@ -161,6 +161,11 @@ impl Serial<'_> {
         self.test.check(
             menu,
             "Escape typed on the serial console opens the menu, on its screen",
+        );
+        super::check_workspace(
+            self.test,
+            "",
+            menu.then(|| vm.console().screen()).as_deref(),
         );
         let panel = prompt::NEW_MENU.trim_start_matches(SCREEN);
         let shown = wait_screen(self.mirror, panel, 30)?;

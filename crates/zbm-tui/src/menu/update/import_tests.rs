@@ -8,14 +8,15 @@ use zbm_types::ImportPolicy;
 use super::{dialogs, events, screens};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine};
-use crate::menu::keymap::Intent;
+use crate::menu::keymap::{Intent, Map};
 use crate::menu::model::{Choice, Dialog, Model, Screen, Then};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Access, Action, Event, ImportOptions, Offer, Outcome};
 
-/// The menu on the demo machine, offering everything, on the pools view:
-/// `zroot` imported read-only, `tank` read/write with a checkpoint, and
-/// `backup`, of another host, not imported.
+/// The classic menu (`zbm.menu=classic`) on the demo machine, offering
+/// everything, on the pools view: `zroot` imported read-only, `tank`
+/// read/write with a checkpoint, and `backup`, of another host, not
+/// imported.
 fn pools() -> Model {
     let options = DemoOptions {
         foreign: true,
@@ -31,6 +32,8 @@ fn pools() -> Model {
         tank.writable = true;
     }
     let mut model = Model::new(snapshot, Theme::new(Capabilities::FULL));
+    model.map = Map::Classic;
+    model.refresh();
     events::start(&mut model);
     model.countdown = None;
     model.screen = Screen::Pools;
@@ -180,7 +183,7 @@ fn the_details_of_a_pool_offer_its_imports_and_its_export() {
 
     // The workspace offers the same: its tree shows each disk's kernel
     // messages.
-    model.map = crate::menu::keymap::Map::Workspace;
+    model.map = Map::Workspace;
     model.refresh();
     dialogs::pool_details(&mut model, &tank);
     assert_eq!(choices(&model), tank_choices);
@@ -188,7 +191,7 @@ fn the_details_of_a_pool_offer_its_imports_and_its_export() {
     model.snapshot.offers.remove(&Offer::Export);
     dialogs::pool_details(&mut model, &tank);
     assert!(!choices(&model).contains(&Action::Export("tank".parse().unwrap())));
-    model.map = crate::menu::keymap::Map::Classic;
+    model.map = Map::Classic;
     model.refresh();
 
     let backup = model.snapshot.pools[2].clone();
@@ -203,9 +206,9 @@ fn the_details_of_a_pool_offer_its_imports_and_its_export() {
     );
 }
 
-/// The menu on the demo machine once its scan found the pools start-up left
-/// alone: `archive`, of another host, and a `tank` that is not the
-/// imported one.
+/// The classic menu on the demo machine once its scan found the pools
+/// start-up left alone: `archive`, of another host, and a `tank` that is
+/// not the imported one.
 fn scanned() -> Model {
     let options = DemoOptions {
         exported: true,
@@ -213,6 +216,8 @@ fn scanned() -> Model {
     };
     let mut machine = FakeMachine::new(&options);
     let mut model = Model::new(machine.snapshot().clone(), Theme::new(Capabilities::FULL));
+    model.map = Map::Classic;
+    model.refresh();
     for event in machine.apply(Action::ScanPools) {
         events::apply(&mut model, event);
     }
@@ -348,6 +353,8 @@ fn the_scan_keeps_the_row_selected_in_the_pools_view() {
     };
     let mut machine = FakeMachine::new(&options);
     let mut model = Model::new(machine.snapshot().clone(), Theme::new(Capabilities::FULL));
+    model.map = Map::Classic;
+    model.refresh();
     events::start(&mut model);
     model.screen = Screen::Pools;
     model.pools.selected = model.snapshot.pools.len();
@@ -371,7 +378,7 @@ fn the_scan_keeps_the_row_selected_in_the_pools_view() {
 fn a_devices_messages_open_on_the_pools_view_and_back_closes_them_first() {
     use zbm_display::keys::{Key, KeyPress};
     let mut model = pools();
-    model.map = crate::menu::keymap::Map::Workspace;
+    model.map = Map::Workspace;
     // Start-up is over: Back goes to the main view, not start-up's.
     model.started = true;
     let log = crate::menu::world::DeviceLog {
@@ -396,7 +403,7 @@ fn a_devices_messages_close_when_the_tab_is_left_or_the_machine_changes() {
     use super::Message;
     use zbm_display::keys::{Key, KeyPress};
     let mut model = pools();
-    model.map = crate::menu::keymap::Map::Workspace;
+    model.map = Map::Workspace;
     let log = crate::menu::world::DeviceLog {
         device: zbm_types::Untrusted::new("/dev/sdb2".to_owned()),
         ..crate::menu::world::DeviceLog::default()

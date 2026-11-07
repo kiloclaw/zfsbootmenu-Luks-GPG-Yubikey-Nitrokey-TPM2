@@ -5,9 +5,10 @@
 //! names and devices, the names and notes of the pools' devices, the name
 //! of the host that used a pool not imported, the log, the version of the
 //! ZFS module and the host ID; with the demo's snapshots read, every screen
-//! is drawn with them, the workspace's Boot tab and help too, start-up as
-//! its Boot tab, with a stage that failed for a reason the input gives,
-//! and its Log tab while start-up runs; then the workspace's Snapshots
+//! is drawn with them in each key map, the classic one and the
+//! workspace's; the workspace's Boot tab and help too, start-up as its
+//! Boot tab, with a stage that failed for a reason the input gives, and
+//! its Log tab while start-up runs; then the workspace's Snapshots
 //! tab: its timeline of the snapshots whose names the input gives, taken
 //! at times around now, after it and at the epoch, with a group folded,
 //! and in the line view's words; then the
@@ -143,16 +144,20 @@ fuzz_target!(|data: &[u8]| {
         })
         .collect();
     model.focus = Some(name.clone());
-    model.refresh();
 
-    for screen in SCREENS {
-        model.screen = screen;
-        model.editor = (screen == Screen::CommandLine).then(|| Editor {
-            environment: name.clone(),
-            kernel: Some(next()),
-            text: next().into_inner(),
-        });
-        check(&model, width, height);
+    // Every screen in each key map: the classic menu's and the workspace's.
+    for map in [Map::Classic, Map::Workspace] {
+        model.map = map;
+        model.refresh();
+        for screen in SCREENS {
+            model.screen = screen;
+            model.editor = (screen == Screen::CommandLine).then(|| Editor {
+                environment: name.clone(),
+                kernel: Some(next()),
+                text: next().into_inner(),
+            });
+            check(&model, width, height);
+        }
     }
     // The workspace's Boot tab, with what needs attention, its kernels
     // column under the path, with the inspector that wraps, and its help,

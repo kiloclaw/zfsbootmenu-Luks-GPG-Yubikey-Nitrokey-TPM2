@@ -10,9 +10,12 @@ use crate::menu::screen::tests::NoShell;
 use crate::menu::theme::Theme;
 use crate::menu::world::Action;
 
-/// The demo machine's menu, started.
+/// The demo machine's classic menu (`zbm.menu=classic`), started.
 fn started() -> Session<crate::menu::demo::FakeMachine> {
-    started_with(&DemoOptions::default())
+    started_with(&DemoOptions {
+        classic: true,
+        ..DemoOptions::default()
+    })
 }
 
 /// The demo machine's menu with `options`, started.
@@ -25,7 +28,7 @@ fn started_with(options: &DemoOptions) -> Session<crate::menu::demo::FakeMachine
 /// The tab of the workspace's menu after `words` are typed, one line each.
 fn tab_after(words: &[&str]) -> Tab {
     let mut session = started_with(&DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     });
     for word in words {
@@ -129,7 +132,7 @@ fn the_classic_map_keeps_the_digits_and_has_no_tab_words() {
 #[test]
 fn the_workspace_s_page_names_its_own_keys_and_words() {
     let session = started_with(&DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     });
     let page = page(session.model());
@@ -230,6 +233,40 @@ fn typed_lines_boot_the_second_environment_and_the_countdown_is_said() {
     assert!(shown.contains("  2) tank/ROOT/arch"), "{shown}");
     assert!(shown.contains("zroot/ROOT/void in"), "{shown}");
     assert!(shown.ends_with(&format!("{why}\n")), "{shown}");
+}
+
+#[test]
+fn the_workspace_s_page_numbers_the_environments_and_a_number_boots_one() {
+    let clock = FakeClock::new();
+    let console = FakeConsole::new().with_clock(clock.clone());
+    let mut session = started_with(&DemoOptions::default());
+    let listed = page(session.model());
+    let arch = listed
+        .iter()
+        .find_map(|line| {
+            let (number, rest) = line.trim_start().split_once(") ")?;
+            rest.starts_with("tank/ROOT/arch")
+                .then(|| number.to_owned())
+        })
+        .expect("tank/ROOT/arch is numbered");
+    console.timeout().secret(arch.as_bytes());
+    let mut front = LineFront::new(&console, &clock);
+
+    let why = front.run(&mut session).unwrap();
+
+    // The pool headers are not numbered: the environments are, in the
+    // order the Boot tab shows them.
+    assert_eq!(session.model().map, Map::Workspace);
+    assert!(
+        listed[1].starts_with("  1) zroot/ROOT/void, "),
+        "{listed:#?}"
+    );
+    assert_eq!(arch, "3", "{listed:#?}");
+    assert!(why.starts_with("Booting tank/ROOT/arch"), "{why}");
+    assert!(
+        listed.contains(&text!("lines-number-workspace")),
+        "{listed:#?}"
+    );
 }
 
 #[test]

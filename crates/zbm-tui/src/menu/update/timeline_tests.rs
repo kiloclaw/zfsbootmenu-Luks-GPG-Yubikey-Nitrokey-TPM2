@@ -27,7 +27,7 @@ use crate::text::text;
 /// default environment, read: in the workspace when `workspace`.
 fn tab(workspace: bool) -> Session {
     let options = DemoOptions {
-        workspace,
+        classic: !workspace,
         ..DemoOptions::default()
     };
     let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
@@ -187,7 +187,7 @@ fn a_group_folds_and_unfolds_around_the_selection_and_stays_folded() {
     );
     assert!(model.folded_group().is_some());
     let options = DemoOptions {
-        workspace: true,
+        classic: false,
         ..DemoOptions::default()
     };
     let mut session = Session::with_model(crate::menu::demo::FakeMachine::new(&options), model);
