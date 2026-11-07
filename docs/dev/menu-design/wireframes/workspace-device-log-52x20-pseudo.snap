@@ -2,14 +2,15 @@
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
   1 BBóótt  2 SSñáppshóóts [3 PPóólls] 4 LLóg   ! 6
-┌ PPÓÓLLS ÁÑÑD LÚÚKS VVÓLÚÚMÉSS ──────────────── 5 ┐
-│   PPóóll  zroot          rréádd-óñllý · ONLINE   │
-│ ▶ PPóóll  tank           rréádd-óñllý · DEGRADED │
-│   VVólúúméluks-zroot-a  /dev/nvme0n1p2 · óópéññ  │
-│   VVólúúméluks-zroot-b  /dev/nvme1n1p2 · óópéññ  │
-│   VVólúúméluks-tank         /dev/sda2 · óópéññ   │
-│                                                  │
-│                                                  │
+ tank › raidz1-0 › sdb2
+┌ PPÓÓLLS ÁÑÑD LÚÚKS VVÓLÚÚMÉSS ─────────────── 13 ┐
+│       nvme2n1                             ONLINE │
+│     luks-zroot-a               VVólúúmé · óópéññ │
+│     luks-zroot-b               VVólúúmé · óópéññ │
+│   tank                   rréádd-óñllý · DEGRADED │
+│     raidz1-0                            DEGRADED │
+│       sda2                                ONLINE │
+│ ▶     sdb2                 cannot open · UNAVAIL │
 └──────────────────────────────────────────────────┘
 ┌ KKÉRÑÑÉL MMÉSSSÁGÉÉS ÓFF SDB2 ──────────────── 5 ┐
 │ [    2.104511] sd 1:0:0:0: [sdb] 976773168 512-… │
@@ -18,6 +19,5 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ [   41.903846] sd 1:0:0:0: [sdb] Product: \x1b[… │
 │ [   42.511027] sd 1:0:0:0: [sdb] Synchronizing … │
 │ MMéssságéés thhát ññáméé óñllý á ppórtt, ás áát… │
-│                                                  │
 └──────────────────────────────────────────────────┘
- ÉÉñtéér DDétááílss   u ÚÚñlóóçk           ? MMóréé
+ ÉÉñtéér MMéssságéés   i ÍÍmpóórt          ? MMóréé

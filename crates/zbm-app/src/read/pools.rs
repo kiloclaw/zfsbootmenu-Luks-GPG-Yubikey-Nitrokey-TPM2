@@ -6,9 +6,9 @@
 //! The devices and the host are read at best: when `zpool status` or `zdb`
 //! fails, the pools are there without them, and the failure is logged.
 
-use zbm_zfs::{Importable, Vdev, Zfs, ZfsError};
+use zbm_zfs::{Importable, Vdev, VdevClass, Zfs, ZfsError};
 
-use crate::model::{Device, DeviceErrors, DeviceState, Health, Pool, PoolHost};
+use crate::model::{Device, DeviceClass, DeviceErrors, DeviceState, Health, Pool, PoolHost};
 
 /// The health of a pool, in the four the menu tells apart.
 pub(super) fn health(health: &zbm_zfs::Health) -> Health {
@@ -34,10 +34,23 @@ fn device_state(health: &zbm_zfs::Health) -> Option<DeviceState> {
     })
 }
 
+/// The class of devices `class` names.
+fn device_class(class: VdevClass) -> DeviceClass {
+    match class {
+        VdevClass::Data => DeviceClass::Data,
+        VdevClass::Dedup => DeviceClass::Dedup,
+        VdevClass::Special => DeviceClass::Special,
+        VdevClass::Log => DeviceClass::Log,
+        VdevClass::Cache => DeviceClass::Cache,
+        VdevClass::Spare => DeviceClass::Spare,
+    }
+}
+
 /// The device `vdev` describes, and those below it.
 fn device(vdev: &Vdev) -> Device {
     Device {
         name: vdev.name.clone(),
+        class: device_class(vdev.class),
         state: vdev.state.as_ref().and_then(device_state),
         errors: vdev.errors.map(|errors| DeviceErrors {
             read: errors.read,

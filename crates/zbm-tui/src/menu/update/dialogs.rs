@@ -1,11 +1,11 @@
 //! Dialogs: choosing, confirming, errors; unlocking is in `unlock`.
 
-use zbm_types::{Answer, ImportPolicy, PoolName, Untrusted};
+use zbm_types::{Answer, ImportPolicy, PoolName};
 
 use super::screens;
-use crate::menu::keymap::{Input, Intent, Map};
+use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{
-    Asking, Choice, Dialog, Make, Model, Naming, Then, disk_name, host_text, is_name_char,
+    Asking, Choice, Dialog, Make, Model, Naming, Then, host_text, is_name_char,
 };
 use crate::menu::world::{Access, Action, ImportOptions, Outcome, Pool};
 use crate::text::text;
@@ -217,29 +217,12 @@ pub(super) fn pool_details(model: &mut Model, pool: &Pool) {
             then: rewind(named, vec![text!("rewind", pool = name.to_string())]),
         });
     }
-    if model.map == Map::Workspace {
-        choices.extend(device_choices(pool));
-    }
     let choices = super::offers::offered(model, choices);
     model.dialog = Some(choose(
         &text!("pool-title", pool = name.to_string()),
         lines,
         choices,
     ));
-}
-
-/// The kernel's messages of each disk of `pool`, which the workspace's
-/// Pools tab shows: by the path it has or had, as the pool names it.
-fn device_choices(pool: &Pool) -> Vec<Choice> {
-    pool.disks()
-        .into_iter()
-        .map(|disk| Choice {
-            label: text!("pool-device-messages", device = disk_name(disk.path())),
-            then: Then::Act(Action::LoadDeviceLog(Untrusted::new(
-                disk.path().to_owned(),
-            ))),
-        })
-        .collect()
 }
 
 /// The import of `pool`, imported, with the other access: read-only when

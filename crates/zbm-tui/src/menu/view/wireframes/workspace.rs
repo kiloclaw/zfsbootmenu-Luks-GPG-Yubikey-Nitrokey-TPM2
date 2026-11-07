@@ -19,8 +19,10 @@ fn workspace() -> DemoOptions {
 /// of each pool, under the path; the inspector wrapping a long command
 /// line; what needs attention once the scan, which waits for a
 /// key to stop the countdown, found the pools start-up left alone, one of
-/// them another host's; the kernel's messages about the disk `tank`
-/// lost, chosen in its pool's dialog; the Log tab with the boot history
+/// them another host's; the Pools tab as the tree of the pools, their
+/// vdevs and devices and the volumes, `tank` selected, and the pool of
+/// another host the scan found; the kernel's messages about the disk
+/// `tank` lost, `Enter` on it in the tree; the Log tab with the boot history
 /// `zbm.save_logs` kept, and without the option; and help, under the ZFS
 /// version; the Snapshots tab as the timeline of the default environment,
 /// its months folded and the oldest selected, and while the machine reads
@@ -65,7 +67,33 @@ pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
         },
         frame("workspace-snapshots", &[Char('2'), Code(Key::End)]),
         frame("workspace-snapshots-reading", &[Unanswered('2')]),
-        frame("workspace-pools", &[Char('3')]),
+        frame(
+            "workspace-pools",
+            &[
+                Char('3'),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+            ],
+        ),
+        Wireframe {
+            name: "workspace-pools-foreign",
+            options: exported.clone(),
+            ticks: 50,
+            keys: &[
+                Code(Key::Escape),
+                Tick,
+                Char('3'),
+                Code(Key::End),
+                Code(Key::Up),
+                Code(Key::Up),
+                Code(Key::Up),
+            ],
+        },
         frame("workspace-help", &[Char('?')]),
         Wireframe {
             name: "workspace-attention",
@@ -78,7 +106,11 @@ pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
             &[
                 Char('3'),
                 Code(Key::Down),
-                Code(Key::Enter),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
                 Code(Key::Down),
                 Code(Key::Down),
                 Code(Key::Down),

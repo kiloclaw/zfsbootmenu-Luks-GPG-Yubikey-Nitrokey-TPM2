@@ -83,6 +83,8 @@ fn machine(offers: &[Offer]) -> (Snapshot, Event) {
 fn menu((snapshot, diff): &(Snapshot, Event), map: Map, place: Place) -> Model {
     let mut model = Model::new(snapshot.clone(), Theme::new(Capabilities::FULL));
     model.map = map;
+    // The workspace's Pools tab is its tree.
+    model.refresh();
     if place == Place::Startup {
         return model;
     }
@@ -178,8 +180,13 @@ fn presses(map: Map, context: Context) -> Vec<KeyPress> {
     bound.chain(classic).collect()
 }
 
-/// The places to press keys at, on the demo machine.
-fn places() -> Vec<Place> {
+/// The places to press keys at, on `machine` with the key map `map`: in
+/// the pools view, each of its rows, which the workspace's tree has more
+/// of.
+fn places(machine: &(Snapshot, Event), map: Map) -> Vec<Place> {
+    let mut model = menu(machine, map, Place::Pools(0));
+    model.pools.filter.clear();
+    let rows = model.pools.matches.len();
     let mut places = vec![
         Place::Startup,
         Place::Main,
@@ -190,7 +197,7 @@ fn places() -> Vec<Place> {
         Place::Packages,
         Place::Log,
     ];
-    places.extend((0..6).map(Place::Pools));
+    places.extend((0..rows).map(Place::Pools));
     places.extend((0..7).map(Place::Recovery));
     places
 }
@@ -198,10 +205,16 @@ fn places() -> Vec<Place> {
 /// The kinds reached from every place of the menu on a machine offering
 /// `offers`, with each map; it fails when one is not offered.
 fn kinds_reached(offers: &[Offer]) -> BTreeSet<Offer> {
+    kinds_reached_with(offers, &[Map::Classic, Map::Workspace])
+}
+
+/// The kinds reached from every place of the menu on a machine offering
+/// `offers`, with each of `maps`; it fails when one is not offered.
+fn kinds_reached_with(offers: &[Offer], maps: &[Map]) -> BTreeSet<Offer> {
     let machine = machine(offers);
     let mut kinds = BTreeSet::new();
-    for map in [Map::Classic, Map::Workspace] {
-        for place in places() {
+    for &map in maps {
+        for place in places(&machine, map) {
             let context = menu(&machine, map, place).context();
             let filter = [KeyPress::new(Key::Char('/')), KeyPress::new(Key::Enter)];
             let mut sequences: Vec<Vec<KeyPress>> = presses(map, context)
@@ -244,6 +257,16 @@ fn every_key_menu_entry_and_palette_item_leads_only_to_what_is_offered() {
             .iter()
             .all(|kind| others.contains(kind))
     );
+}
+
+#[test]
+fn each_map_alone_reaches_every_kind_offered() {
+    let every: BTreeSet<Offer> = Offer::ALL.into_iter().collect();
+    let app: BTreeSet<Offer> = APP.iter().copied().collect();
+    for map in [Map::Classic, Map::Workspace] {
+        assert_eq!(kinds_reached_with(&Offer::ALL, &[map]), every, "{map:?}");
+        assert_eq!(kinds_reached_with(APP, &[map]), app, "{map:?}");
+    }
 }
 
 #[test]
@@ -357,7 +380,9 @@ fn the_toolbar_help_menus_recovery_and_palette_show_only_what_is_offered() {
     let machine = machine(APP);
     let model = menu(&machine, Map::Classic, Place::Snapshots);
     let offered = |intent| keymap::is_offered(Context::Snapshots, intent, &model);
-    let help = keymap::help(Map::Classic, Context::Snapshots, &offered);
+    let help = keymap::help(Map::Classic, Context::Snapshots, &offered, &|intent| {
+        keymap::describe(Context::Snapshots, intent)
+    });
     let has = |what| help.iter().any(|(_, id)| *id == what);
 
     assert!(has(crate::text::id!("action-roll-back")));
@@ -421,7 +446,9 @@ fn the_power_key_opens_the_firmware_setup_alone_when_only_it_is_offered() {
     let machine = machine(&[Offer::FirmwareSetup]);
     let mut model = menu(&machine, Map::Classic, Place::Main);
     let offered = |intent| keymap::is_offered(Context::Main, intent, &model);
-    let help = keymap::help(Map::Classic, Context::Main, &offered);
+    let help = keymap::help(Map::Classic, Context::Main, &offered, &|intent| {
+        keymap::describe(Context::Main, intent)
+    });
     assert!(
         help.iter()
             .any(|(_, id)| *id == crate::text::id!("action-power"))
@@ -440,7 +467,9 @@ fn enter_on_a_snapshot_is_refused_and_hidden_when_none_of_its_actions_is_offered
     let machine = machine(&[Offer::CreateSnapshot, Offer::Power]);
     let mut model = menu(&machine, Map::Classic, Place::Snapshots);
     let offered = |intent| keymap::is_offered(Context::Snapshots, intent, &model);
-    let help = keymap::help(Map::Classic, Context::Snapshots, &offered);
+    let help = keymap::help(Map::Classic, Context::Snapshots, &offered, &|intent| {
+        keymap::describe(Context::Snapshots, intent)
+    });
     assert!(
         help.iter()
             .all(|(_, id)| *id != crate::text::id!("action-choose"))

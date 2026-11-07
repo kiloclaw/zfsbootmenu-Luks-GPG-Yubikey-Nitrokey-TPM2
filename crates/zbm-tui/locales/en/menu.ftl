@@ -10,6 +10,10 @@ action-choose = choose
     .title = Choose
 action-details = details
     .title = Details
+# Enter on a device of the workspace's Pools tab: the kernel's messages
+# about it.
+action-messages = kernel messages
+    .title = Messages
 action-restore = restore
     .title = Restore
 action-show-files = show files
@@ -271,6 +275,17 @@ volume-locked = locked
 volume-skipped = skipped
 volume-failed = failed: { $reason }
 volume-tpm2-changed = TPM2 changed
+# The header of the volumes of no pool listed, in the workspace's Pools tab.
+pools-no-pool = No pool
+# The headings `zpool status` prints above the devices of a pool that hold
+# something other than its data, in the workspace's Pools tab: the
+# deduplication table, metadata, the intent log, the read cache and the
+# hot spares.
+pools-class-dedup = dedup
+pools-class-special = special
+pools-class-log = logs
+pools-class-cache = cache
+pools-class-spare = spares
 
 ## Recovery tools and the log.
 
@@ -431,6 +446,22 @@ fact-command-line = Command Line
 fact-taken = Taken
     .when = { $date } { $time } UTC, { $age }
 fact-used = Used
+fact-health = Health
+fact-kind = Kind
+fact-path = Path
+fact-host = Last Host
+    .named = { $hostname } ({ $hostid })
+    .unknown = unknown
+fact-status = Status
+fact-action = Action
+fact-errors = Errors
+    .counts = { $read } read, { $write } write, { $cksum } checksum
+fact-data-errors = Data Errors
+fact-note = Note
+fact-device = Device
+fact-state = State
+fact-devices = Devices
+fact-class = Class
 encryption-unlocked = key loaded
 encryption-locked = : the key is asked at boot
 origin-local = set here
@@ -587,7 +618,6 @@ pool-rewind = Rewind to the Checkpoint
 pool-no-checkpoint = { $pool } has no checkpoint to rewind to.
 pool-shadowed = A pool named { $pool } is imported: export it to import this one.
 pool-export = Export
-pool-device-messages = Kernel Messages of { $device }
 
 ## A device's kernel messages, in the workspace's Pools tab.
 

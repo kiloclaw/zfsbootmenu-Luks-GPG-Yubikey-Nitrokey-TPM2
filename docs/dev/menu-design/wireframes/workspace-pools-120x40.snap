@@ -2,42 +2,42 @@
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
  ZFSBootMenu  1 Boot  2 Snapshots [3 Pools] 4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
-┌ POOLS AND LUKS VOLUMES ─────────────────────────────────────────────────────────────────────────────────────────── 5 ┐
-│ ▶ Pool    zroot                                                                                 read-only · ONLINE   │
-│   Pool    tank                                                                                  read-only · DEGRADED │
-│   Volume  luks-zroot-a                                                                     /dev/nvme0n1p2 · open     │
-│   Volume  luks-zroot-b                                                                     /dev/nvme1n1p2 · open     │
-│   Volume  luks-tank                                                                             /dev/sda2 · open     │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-│                                                                                                                      │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ tank
+┌ POOLS AND LUKS VOLUMES ────────────────────────────────────────────────── 13 ┐┌ tank ────────────────────────────────┐
+│   zroot                                                   read-only · ONLINE ││       Health  DEGRADED, read-only    │
+│     mirror-0                                                          ONLINE ││       Status  One or more devices    │
+│       nvme0n1p2                                                       ONLINE ││               could not be opened.   │
+│       nvme1n1p2                                                       ONLINE ││               Sufficient replicas    │
+│     cache                                                                    ││               exist for the pool to  │
+│       nvme2n1                                                         ONLINE ││               continue functioning   │
+│     luks-zroot-a                                               Volume · open ││               in a degraded state.   │
+│     luks-zroot-b                                               Volume · open ││       Action  Attach the missing     │
+│ ▶ tank                                                  read-only · DEGRADED ││               device and online it   │
+│     raidz1-0                                                        DEGRADED ││               using 'zpool online'.  │
+│       sda2                                                            ONLINE ││  Data Errors  0                      │
+│       sdb2                                             cannot open · UNAVAIL ││                                      │
+│       sdc2                                        too many errors · DEGRADED ││ NEXT STEPS                           │
+│     luks-tank                                                  Volume · open ││   i import         w read/write      │
+│                                                                              ││   / filter         : commands        │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+└──────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────┘
  : commands   / filter   ? every key
- Enter Details   u Unlock   i Import   w Read/Write   / Filter                                                   ? More
+ Enter Details   i Import   w Read/Write   / Filter   : Commands                                                 ? More

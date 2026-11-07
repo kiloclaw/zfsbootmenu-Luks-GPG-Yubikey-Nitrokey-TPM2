@@ -40,7 +40,7 @@ The current map draws the same frame with a navigation bar instead of the tab ba
 | --- | --- | --- | --- |
 | `1` Boot | pool › environment › kernels | will it boot, the checks, the kernel, the boot tries, the pool, the volumes it needs, the snapshots, the command line, the next steps | the environments and their kernels (`l`), the sidebar, the inspector |
 | `2` Snapshots | environment › its snapshots as a timeline, newest first, grouped by day, week and month, older months folded, with the space each group holds; `z` folds or opens a group (#23) | the snapshot: when it was taken, the space it holds, its environment, the next steps; what changed since it (`f`) | the timeline beside the environments, the inspector |
-| `3` Pools | pools › their vdevs and devices; the LUKS volumes | what the state means, the next steps with their commands | the pools and volumes view |
+| `3` Pools | pools › their vdevs and devices, and the LUKS volumes of each pool, as a tree | the pool's health, mode, last host and what `zpool` says is wrong and what to do; a vdev's kind; a device's path, note and error counts; a volume's state; the next steps | the tree, the inspector, a device's kernel messages |
 | `4` Log | the log since start, and the boot history from the saved logs (#9) | the entry, and the saved report of a boot | the log view |
 
 `Tab` and `Shift-Tab` go round the tabs; a digit goes to its tab. The Snapshots tab shows the snapshots of the
@@ -117,6 +117,44 @@ show without groups. From 120 columns the inspector is beside them (`workspace-s
 
 Narrower the inspector is below them, and under 80 columns the snapshots stand alone. The line view prints the
 headers as lines without a number, and numbers the snapshots, and the folded groups, which are stops.
+
+## The Pools tab
+
+Each pool, then its vdevs and their devices as `zpool status` prints them: those of the data first, then those of each
+other class (`dedup`, `special`, `logs`, `cache`, `spares`) under a heading of its class, which is no stop; a spare in
+use shows twice, below the vdev it stands in for and among the spares. Then the LUKS volumes of the pool: a volume is
+listed under the imported pool of its name, or else under the first pool of its name; the volumes of no pool listed
+come last, under a header that is neither numbered nor a stop. Each row is indented by its depth, and says its health
+on the right: a pool its mode and, when another host used it last, that host; a device what `zpool` says after its
+state. A long note or host name is cut before the name or the health is. A device is named by the last part of its
+path, or of the path it had, as ZFS names a device it lost by its GUID. `Enter` on a pool, or on a vdev, opens the
+pool's details; on a device nothing is below, it shows the kernel's messages about it below the tree, until Back, and
+the toolbar says so; on a volume, it opens it. The other keys of a vdev or a device act on its pool, and a volume's
+keys show on a volume alone. The path above reads pool › class › vdev › device, and a rescan keeps the row selected by
+name and class, or the pool of a device that is gone. From 120 columns the inspector is beside the tree
+(`workspace-pools-120x40`):
+
+```text
+ tank
+┌ POOLS AND LUKS VOLUMES ────────────────────────────────────────────────── 13 ┐┌ tank ────────────────────────────────┐
+│   zroot                                                   read-only · ONLINE ││       Health  DEGRADED, read-only    │
+│     mirror-0                                                          ONLINE ││       Status  One or more devices    │
+│       nvme0n1p2                                                       ONLINE ││               could not be opened.   │
+│       nvme1n1p2                                                       ONLINE ││               Sufficient replicas    │
+│     cache                                                                    ││               exist for the pool to  │
+│       nvme2n1                                                         ONLINE ││               continue functioning   │
+│     luks-zroot-a                                               Volume · open ││               in a degraded state.   │
+│     luks-zroot-b                                               Volume · open ││       Action  Attach the missing     │
+│ ▶ tank                                                  read-only · DEGRADED ││               device and online it   │
+│     raidz1-0                                                        DEGRADED ││               using 'zpool online'.  │
+│       sda2                                                            ONLINE ││  Data Errors  0                      │
+│       sdb2                                             cannot open · UNAVAIL ││                                      │
+│       sdc2                                        too many errors · DEGRADED ││ NEXT STEPS                           │
+│     luks-tank                                                  Volume · open ││   i import         w read/write      │
+```
+
+Narrower the inspector is below the tree, and a device's messages take its place. The line view prints the tree as
+indented lines, numbers its stops as the arrows go, and says a device's messages after it, unnumbered.
 
 ## The command line and review pages
 

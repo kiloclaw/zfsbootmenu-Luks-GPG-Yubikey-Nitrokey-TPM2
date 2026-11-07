@@ -2,9 +2,10 @@
 //! toolbar and the help show only the keys of what is offered, and a key
 //! of something else does nothing but say so.
 
-use super::{Context, Intent};
-use crate::menu::model::{Model, RECOVERY, Segment};
+use super::{Context, Intent, Map};
+use crate::menu::model::{Kind, Model, RECOVERY, Segment};
 use crate::menu::world::Offer;
+use crate::text::{Id, id};
 use Context::{Diff, Kernels, Main, Pools, Recovery, Snapshots};
 
 /// The kinds of the entries of the menu `intent` opens in `context`;
@@ -97,10 +98,39 @@ pub(crate) fn needs_snapshot(context: Context, intent: Intent, model: &Model) ->
         }
 }
 
+/// Whether `intent` in the workspace's Pools tab is a key of another kind
+/// of row than the one selected: a volume's on a pool, a vdev or a device,
+/// whose keys act on their pool, or a pool's on a volume.
+pub(crate) fn is_misplaced(context: Context, intent: Intent, model: &Model) -> bool {
+    if context != Pools || model.map != Map::Workspace {
+        return false;
+    }
+    let volume = model.selected_volume().is_some();
+    match intent {
+        Intent::Unlock => !volume,
+        Intent::Import | Intent::ReadWrite | Intent::Rewind => volume,
+        _ => false,
+    }
+}
+
 /// Whether the toolbar, the next steps and the line view show `intent` in
 /// `context`: it is offered, and does something to the selection, which
-/// on the header of a folded group a snapshot's action does not.
+/// on the header of a folded group a snapshot's action does not, nor a
+/// volume's key on a pool's row of the workspace's tree.
 pub(crate) fn is_shown(context: Context, intent: Intent, model: &Model) -> bool {
     is_offered(context, intent, model)
         && !(needs_snapshot(context, intent, model) && model.folded_group().is_some())
+        && !is_misplaced(context, intent, model)
+}
+
+/// What `intent` does in `context`, as the toolbar, the help and the line
+/// view say it of `model`'s selection: `Enter` on a device of the
+/// workspace's tree shows the kernel's messages about it; elsewhere as
+/// [`describe`](super::describe) says.
+pub(crate) fn label(context: Context, intent: Intent, model: &Model) -> Id {
+    let is_device = || (model.selected_node()).is_some_and(|node| node.kind == Kind::Device);
+    if context == Pools && intent == Intent::Primary && model.map == Map::Workspace && is_device() {
+        return id!("action-messages");
+    }
+    super::describe(context, intent)
 }

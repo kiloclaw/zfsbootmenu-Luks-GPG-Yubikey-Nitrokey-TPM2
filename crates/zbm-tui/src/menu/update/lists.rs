@@ -35,7 +35,8 @@ fn text_lines(model: &Model) -> usize {
     match model.screen {
         Screen::Help(context) => {
             let offered = |intent| keymap::is_offered(context, intent, model);
-            keymap::help(model.map, context, &offered).len()
+            let said = |intent| keymap::label(context, intent, model);
+            keymap::help(model.map, context, &offered, &said).len()
                 + keymap::classic_bindings(context, &offered).len()
                 + 2
         }

@@ -67,12 +67,13 @@ pub fn describe(context: Context, intent: Intent) -> Id {
 }
 
 /// The bindings of `context` in the key map `map` shown in the toolbar, in
-/// order: (intent, key, what it does). Only the intents `offered` says the
-/// machine offers are shown.
+/// order: (intent, key, what it does, as `said` says it). Only the intents
+/// `offered` says the machine offers are shown.
 pub fn bindings(
     map: Map,
     context: Context,
     offered: &dyn Fn(Intent) -> bool,
+    said: &dyn Fn(Intent) -> Id,
 ) -> Vec<(Intent, String, Id)> {
     let idle = matches!(context, Context::Startup | Context::Help | Context::Log);
     map.table()
@@ -85,7 +86,7 @@ pub fn bindings(
                 Footer::Key => key_name(binding.key, binding.modifiers),
                 Footer::Keys(id) => text::get(id),
             };
-            Some((binding.intent, key, describe(context, binding.intent)))
+            Some((binding.intent, key, said(binding.intent)))
         })
         .collect()
 }
@@ -118,14 +119,16 @@ impl Tool {
 /// columns wide: at most
 /// [`TOOLBAR`] actions that fit whole, as `Enter Boot`, the most important
 /// first; then `? More`, which opens help with every key, wherever help can
-/// be opened. Only the intents `offered` are shown.
+/// be opened. Only the intents `offered` are shown, each labelled as `said`
+/// says.
 pub fn footer(
     map: Map,
     context: Context,
     width: usize,
     offered: &dyn Fn(Intent) -> bool,
+    said: &dyn Fn(Intent) -> Id,
 ) -> Vec<Tool> {
-    let all = bindings(map, context, offered);
+    let all = bindings(map, context, offered, said);
     let more = all
         .iter()
         .find(|(intent, ..)| *intent == Intent::Help)
@@ -184,9 +187,14 @@ pub fn key_name(code: Key, modifiers: Modifiers) -> String {
 }
 
 /// Every binding of `context` in the key map `map` for the help view, the
-/// keys of one intent together: (keys, what they do). Only the intents
-/// `offered` are listed.
-pub fn help(map: Map, context: Context, offered: &dyn Fn(Intent) -> bool) -> Vec<(String, Id)> {
+/// keys of one intent together: (keys, what they do, as `said` says it).
+/// Only the intents `offered` are listed.
+pub fn help(
+    map: Map,
+    context: Context,
+    offered: &dyn Fn(Intent) -> bool,
+    said: &dyn Fn(Intent) -> Id,
+) -> Vec<(String, Id)> {
     let mut lines: Vec<(Intent, Vec<String>)> = Vec::new();
     for binding in map
         .table()
@@ -204,6 +212,6 @@ pub fn help(map: Map, context: Context, offered: &dyn Fn(Intent) -> bool) -> Vec
     }
     lines
         .into_iter()
-        .map(|(intent, keys)| (keys.join(", "), describe(context, intent)))
+        .map(|(intent, keys)| (keys.join(", "), said(intent)))
         .collect()
 }

@@ -107,6 +107,9 @@ pub(crate) fn rows(model: &Model) -> (Vec<String>, bool) {
                 false,
             )
         }
+        Screen::Pools if model.map == keymap::Map::Workspace => {
+            (super::workspace::pools_words(model).0, true)
+        }
         Screen::Pools => {
             let pools = model.pool_rows();
             let rows = in_order(&model.pools.matches, |index| pools.get(index).cloned());
@@ -210,8 +213,12 @@ fn snapshots(model: &Model) -> Vec<String> {
 
 /// The rows of [`rows`] that are headers the line view does not number,
 /// as they are no item to choose: those of the workspace's timeline whose
-/// group is not folded, in order.
+/// group is not folded, and those of its Pools tab that are no stop, in
+/// order.
 pub(crate) fn headers(model: &Model) -> Vec<usize> {
+    if model.screen == Screen::Pools && model.map == keymap::Map::Workspace {
+        return super::workspace::pools_words(model).1;
+    }
     match model.timeline() {
         Some(timeline) if model.screen == Screen::Snapshots && model.column() == Column::Loaded => {
             timeline.headers()
@@ -262,9 +269,12 @@ fn log(model: &Model) -> Vec<String> {
 fn help(model: &Model, context: keymap::Context) -> Vec<String> {
     let workspace = model.map == keymap::Map::Workspace;
     let version = model.snapshot.zfs_version.as_ref().filter(|_| workspace);
-    let keys = keymap::help(model.map, context, &|intent| {
-        keymap::is_shown(context, intent, model)
-    });
+    let keys = keymap::help(
+        model.map,
+        context,
+        &|intent| keymap::is_shown(context, intent, model),
+        &|intent| keymap::label(context, intent, model),
+    );
     version
         .map(|version| {
             text!(
@@ -404,9 +414,12 @@ fn palette(model: &Model) -> Option<Said> {
 /// map that are characters, with what they do.
 pub(crate) fn commands(model: &Model) -> Vec<String> {
     let context = model.context();
-    keymap::bindings(model.map, context, &|intent| {
-        keymap::is_shown(context, intent, model)
-    })
+    keymap::bindings(
+        model.map,
+        context,
+        &|intent| keymap::is_shown(context, intent, model),
+        &|intent| keymap::label(context, intent, model),
+    )
     .into_iter()
     .filter(|(_, key, _)| key.chars().count() == 1)
     .map(|(_, key, what)| format!("{key} {}", text::get(what)))

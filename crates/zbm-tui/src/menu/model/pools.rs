@@ -7,7 +7,9 @@
 use zbm_types::{PoolName, Printable};
 
 use super::Model;
-use crate::menu::world::{Pool, PoolHost, Volume};
+use super::devices::Item;
+use crate::menu::keymap::Map;
+use crate::menu::world::{DeviceClass, Pool, PoolHost, Volume};
 use crate::text::text;
 
 /// The host that used a pool last, as the menu names it: `host otherhost
@@ -65,11 +67,15 @@ fn pool_row(pool: &Pool, id: Option<u64>) -> String {
 }
 
 /// What a row of the pools view shows: a pool, by its name and
-/// identifier, or a volume, by its name.
+/// identifier, a vdev or a device of the workspace's tree, by its pool's
+/// and its own name, or a volume, by its name.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum Row {
     /// A pool.
     Pool(PoolName, Option<u64>),
+    /// A vdev or a device of the pool, of its class: a spare in use shows
+    /// among the data's devices and among the spares.
+    Device(PoolName, Option<u64>, DeviceClass, String),
     /// A volume.
     Volume(String),
 }
@@ -100,13 +106,29 @@ impl Model {
 
     /// What the selected row of the pools view shows.
     pub(super) fn selected_row(&self) -> Option<Row> {
+        if self.map == Map::Workspace {
+            return self.selected_tree_row();
+        }
         let row = self.pools.selected_item()?;
         self.row_keys().get(row).cloned()
     }
 
+    /// Matches the rows of the pools view against its filter again, and
+    /// selects the row that shows `row` again, if one does; in the
+    /// workspace, the rows of its tree.
+    pub(super) fn refilter_pools(&mut self, row: Option<Row>) {
+        if self.map == Map::Workspace {
+            self.refilter_tree(row);
+            return;
+        }
+        let pools = self.pool_rows();
+        super::refilter(&mut self.pools, pools.iter().map(String::as_str));
+        self.keep_row(row);
+    }
+
     /// Selects the row of the pools view that shows `row` again, if one
     /// does.
-    pub(super) fn keep_row(&mut self, row: Option<Row>) {
+    fn keep_row(&mut self, row: Option<Row>) {
         let Some(row) = row else {
             return;
         };
@@ -118,14 +140,27 @@ impl Model {
         }
     }
 
-    /// The pool of the selected row of the pools view, if it is a pool.
+    /// The pool of the selected row of the pools view, if it is a pool; in
+    /// the workspace's tree, the pool of its vdev or device too.
     pub fn selected_pool(&self) -> Option<&Pool> {
+        if self.map == Map::Workspace {
+            return match self.selected_node()?.item {
+                Item::Pool(pool) | Item::Device(pool, _) => Some(pool),
+                Item::Volume(_) | Item::Header => None,
+            };
+        }
         let row = self.pools.selected_item()?;
         self.snapshot.pools.get(row)
     }
 
     /// The volume of the selected row of the pools view.
     pub fn selected_volume(&self) -> Option<&Volume> {
+        if self.map == Map::Workspace {
+            return match self.selected_node()?.item {
+                Item::Volume(volume) => Some(volume),
+                _ => None,
+            };
+        }
         let row = self
             .pools
             .selected_item()?

@@ -73,6 +73,37 @@ pub struct DeviceErrors {
     pub cksum: u64,
 }
 
+/// What a top-level vdev holds, and so the devices below it: the pool's
+/// data, or one of the classes `zpool status` prints under a heading of
+/// its own, in the order it prints them.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub enum DeviceClass {
+    /// The pool's data.
+    #[default]
+    Data,
+    /// The deduplication table (`dedup`).
+    Dedup,
+    /// Metadata and small blocks (`special`).
+    Special,
+    /// The intent log (`logs`).
+    Log,
+    /// The level 2 read cache (`cache`).
+    Cache,
+    /// Hot spares (`spares`).
+    Spare,
+}
+
 /// A device of a pool, or a group of them such as `mirror-0`, and the
 /// devices below it.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -80,6 +111,11 @@ pub struct Device {
     /// Its name: a device path, a bare device name for a pool not
     /// imported, `mirror-0`, or the GUID of a device that is missing.
     pub name: Untrusted<String>,
+    /// What its top-level vdev holds. A spare in use shows twice, as
+    /// `zpool status` prints it: below the vdev it stands in for, and among
+    /// the spares.
+    #[serde(default)]
+    pub class: DeviceClass,
     /// Its state; `None` where `zpool` prints none or one the menu does
     /// not tell apart, as for cache devices and spares.
     pub state: Option<DeviceState>,
@@ -176,11 +212,42 @@ mod tests {
     fn device(name: &str, state: Option<DeviceState>, children: Vec<Device>) -> Device {
         Device {
             name: Untrusted::new(name.to_owned()),
+            class: DeviceClass::Data,
             state,
             errors: None,
             note: None,
             children,
         }
+    }
+
+    #[test]
+    fn the_disks_are_the_devices_nothing_is_below_in_the_order_printed() {
+        let mut pool = Pool::imported("tank".parse().unwrap(), Health::Online);
+        let lost = Device {
+            note: Some(Untrusted::new("was /dev/sdb1".to_owned())),
+            ..device("1234", Some(DeviceState::Unavailable), Vec::new())
+        };
+        pool.devices = vec![
+            device(
+                "mirror-0",
+                Some(DeviceState::Degraded),
+                vec![
+                    device("/dev/sda1", Some(DeviceState::Online), Vec::new()),
+                    lost,
+                ],
+            ),
+            device("/dev/nvme0n1", None, Vec::new()),
+        ];
+
+        let names: Vec<&str> = pool
+            .disks()
+            .iter()
+            .map(|disk| disk.name.get().as_str())
+            .collect();
+        assert_eq!(names, ["/dev/sda1", "1234", "/dev/nvme0n1"]);
+        assert!(pool.has_disk("/dev/sdb1"));
+        assert!(pool.has_disk("/dev/nvme0n1"));
+        assert!(!pool.has_disk("mirror-0"));
     }
 
     #[test]

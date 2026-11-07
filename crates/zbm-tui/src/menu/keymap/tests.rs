@@ -135,10 +135,12 @@ fn ctrl_keys_of_the_new_map_win_over_classic_ones() {
 
 /// The toolbar of `context` at `width` columns, as (key, label).
 fn toolbar(context: Context, width: usize) -> Vec<(String, String)> {
-    footer(Map::Classic, context, width, &every)
-        .into_iter()
-        .map(|tool| (tool.key, tool.label))
-        .collect()
+    footer(Map::Classic, context, width, &every, &|intent| {
+        describe(context, intent)
+    })
+    .into_iter()
+    .map(|tool| (tool.key, tool.label))
+    .collect()
 }
 
 /// `pairs` as owned strings.
@@ -172,9 +174,11 @@ fn the_toolbar_shows_five_whole_actions_then_more() {
     );
     assert_eq!(toolbar(Main, 5), []);
     assert!(
-        footer(Map::Classic, Context::Choose, 80, &every)
-            .iter()
-            .all(|tool| !tool.is_more)
+        footer(Map::Classic, Context::Choose, 80, &every, &|intent| {
+            describe(Context::Choose, intent)
+        })
+        .iter()
+        .all(|tool| !tool.is_more)
     );
     assert_eq!(
         toolbar(Context::Diff, 80)[1],
@@ -184,7 +188,7 @@ fn the_toolbar_shows_five_whole_actions_then_more() {
 
 #[test]
 fn help_lists_every_key_of_an_intent_together() {
-    let help = help(Map::Classic, Main, &every);
+    let help = help(Map::Classic, Main, &every, &|intent| describe(Main, intent));
     let has = |keys: &str, what| help.contains(&(keys.to_owned(), what));
 
     assert!(has("Enter", id!("action-boot")));
@@ -309,10 +313,12 @@ fn every_key_has_one_meaning_and_no_letter_depends_on_case() {
 
 #[test]
 fn the_workspace_toolbar_goes_into_the_kernels_with_l() {
-    let tools: Vec<(String, String)> = footer(Map::Workspace, Main, 80, &every)
-        .into_iter()
-        .map(|tool| (tool.key, tool.label))
-        .collect();
+    let tools: Vec<(String, String)> = footer(Map::Workspace, Main, 80, &every, &|intent| {
+        describe(Main, intent)
+    })
+    .into_iter()
+    .map(|tool| (tool.key, tool.label))
+    .collect();
     assert_eq!(
         tools,
         owned(&[
@@ -324,7 +330,9 @@ fn the_workspace_toolbar_goes_into_the_kernels_with_l() {
             ("?", "More"),
         ])
     );
-    let help = help(Map::Workspace, Main, &every);
+    let help = help(Map::Workspace, Main, &every, &|intent| {
+        describe(Main, intent)
+    });
     assert!(help.contains(&("2".to_owned(), id!("action-tab-snapshots"))));
     assert!(help.contains(&("Tab".to_owned(), id!("action-next-tab"))));
     assert!(help.contains(&("Shift-Tab".to_owned(), id!("action-previous-tab"))));

@@ -4,6 +4,7 @@
 use zbm_types::{DatasetName, SnapshotName, Untrusted};
 
 mod columns;
+mod devices;
 mod diff;
 mod list;
 mod naming;
@@ -15,6 +16,7 @@ mod snapshots;
 mod sort;
 mod timeline;
 
+pub(crate) use self::devices::{Item, Kind, Node, class_heading, vdev_kind};
 pub use self::diff::{DiffView, Segment};
 use self::list::keep;
 pub use self::list::{ListState, refilter};
@@ -439,9 +441,7 @@ impl Model {
             .unwrap_or_default();
         refilter(&mut self.kernels, kernels.iter().map(String::as_str));
         self.keep_kernel(kernel);
-        let pools = self.pool_rows();
-        refilter(&mut self.pools, pools.iter().map(String::as_str));
-        self.keep_row(row);
+        self.refilter_pools(row);
         recovery::refresh(&mut self.recovery, &self.snapshot);
         if let Some(diff) = &mut self.diff {
             diff.refilter();

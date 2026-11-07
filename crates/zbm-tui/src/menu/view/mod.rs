@@ -103,11 +103,12 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         Screen::Snapshots => screens::snapshots(model, frame, area),
         Screen::Kernels => screens::kernels(model, frame, area),
         Screen::CommandLine => screens::command_line(model, frame, area),
-        // A device's kernel messages show in the workspace alone.
-        Screen::Pools => match (&model.device_log, model.map) {
-            (Some(log), keymap::Map::Workspace) => device_log::render(model, log, frame, area),
-            _ => screens::pools(model, frame, area),
-        },
+        // The tree, and a device's kernel messages, show in the workspace
+        // alone.
+        Screen::Pools if model.map == keymap::Map::Workspace => {
+            workspace::render_pools(model, frame, area);
+        }
+        Screen::Pools => screens::pools(model, frame, area),
         Screen::Recovery => screens::recovery(model, frame, area),
         // The boot history shows in the workspace alone.
         Screen::Log if model.map == keymap::Map::Workspace => history::render(model, frame, area),
@@ -174,7 +175,8 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
     let mut used = 0;
     let context = model.context();
     let offered = |intent| keymap::is_shown(context, intent, model);
-    for (index, tool) in keymap::footer(model.map, context, width, &offered)
+    let said = |intent| keymap::label(context, intent, model);
+    for (index, tool) in keymap::footer(model.map, context, width, &offered, &said)
         .into_iter()
         .enumerate()
     {

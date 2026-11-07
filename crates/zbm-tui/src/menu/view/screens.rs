@@ -425,6 +425,7 @@ fn help_lines(model: &Model, context: Context) -> Vec<Line<'static>> {
     let theme = model.theme;
     let workspace = model.map == Map::Workspace;
     let offered = |intent| keymap::is_offered(context, intent, model);
+    let said = |intent| keymap::label(context, intent, model);
     let aliases = if workspace {
         text!("help-aliases")
     } else {
@@ -433,7 +434,7 @@ fn help_lines(model: &Model, context: Context) -> Vec<Line<'static>> {
     let sections = [
         (
             text!("help-this-view"),
-            keymap::help(model.map, context, &offered),
+            keymap::help(model.map, context, &offered, &said),
         ),
         (aliases, keymap::classic_bindings(context, &offered)),
     ];

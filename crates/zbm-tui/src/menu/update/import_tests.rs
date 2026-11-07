@@ -178,19 +178,18 @@ fn the_details_of_a_pool_offer_its_imports_and_its_export() {
     ];
     assert_eq!(choices(&model), tank_choices);
 
-    // The workspace offers each disk's kernel messages too, by the path
-    // the pool names it by.
+    // The workspace offers the same: its tree shows each disk's kernel
+    // messages.
     model.map = crate::menu::keymap::Map::Workspace;
+    model.refresh();
     dialogs::pool_details(&mut model, &tank);
-    let device = |path: &str| Action::LoadDeviceLog(zbm_types::Untrusted::new(path.to_owned()));
-    let mut workspace = tank_choices.to_vec();
-    workspace.extend(["/dev/sda2", "/dev/sdb2", "/dev/sdc2"].map(device));
-    assert_eq!(choices(&model), workspace);
+    assert_eq!(choices(&model), tank_choices);
     // Without the export offered, the rest stays.
     model.snapshot.offers.remove(&Offer::Export);
     dialogs::pool_details(&mut model, &tank);
     assert!(!choices(&model).contains(&Action::Export("tank".parse().unwrap())));
     model.map = crate::menu::keymap::Map::Classic;
+    model.refresh();
 
     let backup = model.snapshot.pools[2].clone();
     assert_eq!(backup.name.as_str(), "backup");

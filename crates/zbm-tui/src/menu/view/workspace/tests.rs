@@ -8,12 +8,13 @@ use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::theme::Theme;
-use crate::menu::world::{Device, LogEntry, PoolHost, Snapshot};
+use crate::menu::world::{Device, DeviceClass, LogEntry, PoolHost, Snapshot};
 
 /// A device named `name` in `state`, with the devices `children`.
 fn device(name: &str, state: DeviceState, children: Vec<Device>) -> Device {
     Device {
         name: Untrusted::new(name.to_owned()),
+        class: DeviceClass::Data,
         state: Some(state),
         errors: None,
         note: None,

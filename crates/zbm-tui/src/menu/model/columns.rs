@@ -62,7 +62,9 @@ impl Model {
     /// The path above the columns of the Boot and Snapshots tabs: the pool
     /// and the environment selected, then the kernel when its column is
     /// open, the kernel drawn printable, or the snapshot selected in the
-    /// snapshots column. Empty without a selection, and in the other views.
+    /// snapshots column; above the workspace's Pools tab, the pool, the
+    /// vdev and the device selected. Empty without a selection, and in the
+    /// other views.
     pub fn path(&self) -> Vec<String> {
         let (environment, last) = match self.screen {
             Screen::Main => (self.selected_environment(), None),
@@ -76,6 +78,7 @@ impl Model {
                 self.selected_snapshot()
                     .map(|snapshot| snapshot.name.name().to_owned()),
             ),
+            Screen::Pools => return self.tree_path(),
             _ => return Vec::new(),
         };
         let Some(environment) = environment else {

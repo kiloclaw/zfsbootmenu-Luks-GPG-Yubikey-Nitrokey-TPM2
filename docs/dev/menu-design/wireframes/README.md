@@ -43,10 +43,11 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `workspace-inspector-wrap` | the kernels column of `tank/ROOT/arch` with a long command line: the inspector wraps it under its label |
 | `workspace-snapshots` | `2` and `End`: the Snapshots tab, the environments beside the timeline of the default's 400 snapshots: today, the days of this week, the weeks of this month (the first from 1 October) and the months, folded, each under a header with its count and the space it holds; the oldest month selected, its count and space in the inspector, which offers no snapshot's action |
 | `workspace-snapshots-reading` | `2` before the machine sent the snapshots: their column says it reads them |
-| `workspace-pools` | `3`: the Pools tab |
+| `workspace-pools` | `3` and down to `tank`: the Pools tab as the tree of the pools, their vdevs and devices and the volumes, `zroot` a mirror and a device below it, `tank` a RAID-Z with a disk missing and one with checksum errors; `tank`'s health, what `zpool` says and its next steps in the inspector |
+| `workspace-pools-foreign` | once the scan found the pools start-up left alone, `archive` selected in the Pools tab: another host's, not imported, its host in its row and the inspector |
 | `workspace-help` | `?` on the Boot tab: the version of the ZFS module on the right of its header, and the `MOD+key` aliases of the `fzf` menu |
 | `workspace-attention` | once the scan after the first frame found the pools start-up left alone, one of them another host's: what needs attention, worst first, each with the tab that shows it |
-| `workspace-device-log` | the dialog of `tank` in the Pools tab, then its lost disk `sdb2`: the kernel's messages about it and its disk below the pools, the escape bytes in them drawn as text |
+| `workspace-device-log` | `Enter` on `tank`'s lost disk `sdb2` in the Pools tab: the kernel's messages about it and its disk below the tree, the escape bytes in them drawn as text; the path `tank › raidz1-0 › sdb2` |
 | `log-history` | `4`: the Log tab with the boot history `zbm.save_logs` kept above the log since start: a measured boot, one saved without a record, one whose record a newer runtime wrote, and one whose kernel's name holds escape bytes, drawn as text |
 | `log-no-history` | `4` without `zbm.save_logs`: the Log tab says no boot is kept, and where the option is documented |
 

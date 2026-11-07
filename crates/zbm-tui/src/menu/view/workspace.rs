@@ -35,6 +35,7 @@ const NEXT_STEPS: usize = 4;
 mod columns;
 mod path;
 mod timeline;
+mod tree;
 
 /// Something that needs attention, and the tab that leads to it.
 struct Item {
@@ -76,6 +77,16 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 /// Draws the Snapshots tab: the timeline of the environment open.
 pub(super) fn render_snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     timeline::render(model, frame, area);
+}
+
+/// Draws the Pools tab: the tree of the pools and volumes.
+pub(super) fn render_pools(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    tree::render(model, frame, area);
+}
+
+/// The Pools tab in words: its rows, and those that are no stop.
+pub(super) fn pools_words(model: &Model) -> (Vec<String>, Vec<usize>) {
+    tree::words(model)
 }
 
 /// What needs attention: pools not imported or not healthy, their missing
@@ -421,7 +432,8 @@ pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
     let theme = model.theme;
     let context = model.context();
     let offered = |intent| keymap::is_shown(context, intent, model);
-    let steps: Vec<(String, String)> = keymap::bindings(model.map, context, &offered)
+    let said = |intent| keymap::label(context, intent, model);
+    let steps: Vec<(String, String)> = keymap::bindings(model.map, context, &offered, &said)
         .into_iter()
         .filter(|(intent, ..)| !matches!(intent, Intent::Primary | Intent::Help))
         .take(NEXT_STEPS)

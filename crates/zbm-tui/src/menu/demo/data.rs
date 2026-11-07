@@ -10,10 +10,10 @@ use zbm_types::{DatasetName, SnapshotName, Untrusted};
 use super::health;
 use super::{DemoOptions, untrusted};
 use crate::menu::world::{
-    CommandLine, Device, DeviceErrors, DeviceLog, DeviceState, Environment, Fallback, Health,
-    Kernel, Keyboard, Level, Log, LogEntry, Method, Offer, Origin, PcrChange, Pool, PoolHost,
-    Snapshot, SnapshotInfo, SnapshotList, Stage, StageState, Timeout, Tpm2Seal, Tries, Volume,
-    VolumeState,
+    CommandLine, Device, DeviceClass, DeviceErrors, DeviceLog, DeviceState, Environment, Fallback,
+    Health, Kernel, Keyboard, Level, Log, LogEntry, Method, Offer, Origin, PcrChange, Pool,
+    PoolHost, Snapshot, SnapshotInfo, SnapshotList, Stage, StageState, Timeout, Tpm2Seal, Tries,
+    Volume, VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -72,7 +72,7 @@ fn snapshot_name(name: &str) -> SnapshotName {
 
 /// The machine at power-on.
 pub fn machine(options: &DemoOptions) -> Snapshot {
-    let mut pools = vec![pool("zroot", Health::Online, 1), tank()];
+    let mut pools = vec![zroot(), tank()];
     if options.foreign {
         let mut foreign = pool(FOREIGN_POOL, Health::Online, 3);
         foreign.imported = false;
@@ -187,6 +187,7 @@ pub(super) fn exported(options: &DemoOptions) -> Vec<Pool> {
 fn device(name: &str, state: DeviceState, note: Option<&str>) -> Device {
     Device {
         name: untrusted(name),
+        class: DeviceClass::Data,
         state: Some(state),
         errors: Some(DeviceErrors::default()),
         note: note.map(untrusted),
@@ -194,18 +195,50 @@ fn device(name: &str, state: DeviceState, note: Option<&str>) -> Device {
     }
 }
 
-/// `tank`: a RAID-Z of three disks, one of them missing, with a
-/// checkpoint.
+/// `zroot`: a mirror of two disks and, as its cache, a third.
+fn zroot() -> Pool {
+    let mirror = Device {
+        name: untrusted("mirror-0"),
+        class: DeviceClass::Data,
+        state: Some(DeviceState::Online),
+        errors: Some(DeviceErrors::default()),
+        note: None,
+        children: vec![
+            device("/dev/nvme0n1p2", DeviceState::Online, None),
+            device("/dev/nvme1n1p2", DeviceState::Online, None),
+        ],
+    };
+    Pool {
+        devices: vec![
+            mirror,
+            Device {
+                class: DeviceClass::Cache,
+                ..device("/dev/nvme2n1", DeviceState::Online, None)
+            },
+        ],
+        ..pool("zroot", Health::Online, 1)
+    }
+}
+
+/// `tank`: a RAID-Z of three disks, one of them missing and another with
+/// checksum errors, with a checkpoint.
 fn tank() -> Pool {
     let raidz = Device {
         name: untrusted("raidz1-0"),
+        class: DeviceClass::Data,
         state: Some(DeviceState::Degraded),
         errors: Some(DeviceErrors::default()),
         note: None,
         children: vec![
             device("/dev/sda2", DeviceState::Online, None),
             device("/dev/sdb2", DeviceState::Unavailable, Some("cannot open")),
-            device("/dev/sdc2", DeviceState::Online, None),
+            Device {
+                errors: Some(DeviceErrors {
+                    cksum: 14,
+                    ..DeviceErrors::default()
+                }),
+                ..device("/dev/sdc2", DeviceState::Degraded, Some("too many errors"))
+            },
         ],
     };
     Pool {
@@ -433,7 +466,16 @@ fn log() -> Log {
 pub(super) fn device_log(device: &Untrusted<String>) -> DeviceLog {
     let path = device.get().as_str();
     let name = path.strip_prefix("/dev/").unwrap_or(path);
-    let quiet = ["nvme0n1p2", "sda2", "sdc2", "sdd", "sde", "sdf"];
+    let quiet = [
+        "nvme0n1p2",
+        "nvme1n1p2",
+        "nvme2n1",
+        "sda2",
+        "sdc2",
+        "sdd",
+        "sde",
+        "sdf",
+    ];
     let (names, lines): (Vec<&str>, &[&str]) = match name {
         "sdb2" => (
             vec!["sdb2", "sdb"],

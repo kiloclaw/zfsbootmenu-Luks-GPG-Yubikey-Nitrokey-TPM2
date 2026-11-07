@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot  2 Snapshots [3 Pools] 4 Log            tank DEGRADED · 3/3 open · ! 8
+ archive
+┌ POOLS AND LUKS VOLUMES ────────────────────────────────────────────────── 17 ┐
+│     cache                                                                    │
+│       nvme2n1                                                         ONLINE │
+│     luks-zroot-a                                               Volume · open │
+│     luks-zroot-b                                               Volume · open │
+│   tank (id 2)                                           read-only · DEGRADED │
+│     raidz1-0                                                        DEGRADED │
+│       sda2                                                            ONLINE │
+│       sdb2                                             cannot open · UNAVAIL │
+│       sdc2                                        too many errors · DEGRADED │
+│     luks-tank                                                  Volume · open │
+│ ▶ archive                              host deadbeef · not imported · ONLINE │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ archive ─────────────────────────────────────────────────────────────────────┐
+│       Health  ONLINE, not imported                                           │
+│    Last Host  backup-server (deadbeef)                                       │
+│                                                                              │
+│ NEXT STEPS                                                                   │
+│   i import                             w read/write                          │
+│   / filter                             : commands                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Details   i Import   w Read/Write   / Filter   : Commands         ? More

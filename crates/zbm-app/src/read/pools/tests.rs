@@ -111,6 +111,44 @@ fn a_degraded_pool_keeps_its_devices_states_apart() {
 }
 
 #[test]
+fn each_device_keeps_the_class_of_its_top_level_vdev() {
+    let vdev = |name: &str, class, children| zbm_zfs::Vdev {
+        name: zbm_types::Untrusted::new(name.to_owned()),
+        kind: zbm_zfs::VdevKind::Device,
+        class,
+        state: Some(zbm_zfs::Health::Online),
+        errors: None,
+        note: None,
+        children,
+    };
+    let disk = |name: &str, class| vdev(name, class, Vec::new());
+    let classes = [
+        (VdevClass::Data, DeviceClass::Data),
+        (VdevClass::Dedup, DeviceClass::Dedup),
+        (VdevClass::Special, DeviceClass::Special),
+        (VdevClass::Log, DeviceClass::Log),
+        (VdevClass::Cache, DeviceClass::Cache),
+        (VdevClass::Spare, DeviceClass::Spare),
+    ];
+    let mut vdevs: Vec<zbm_zfs::Vdev> = (classes.iter())
+        .map(|&(class, _)| disk(&format!("{class:?}"), class))
+        .collect();
+    vdevs[3] = vdev(
+        "mirror-1",
+        VdevClass::Log,
+        vec![disk("sdd", VdevClass::Log)],
+    );
+    let zfs = FakeZfs::new().pool("tank").vdevs("tank", vdevs);
+
+    let pools = pools(&zfs).unwrap();
+
+    let read: Vec<DeviceClass> = pools[0].devices.iter().map(|device| device.class).collect();
+    let wanted: Vec<DeviceClass> = classes.iter().map(|&(_, class)| class).collect();
+    assert_eq!(read, wanted);
+    assert_eq!(pools[0].devices[3].children[0].class, DeviceClass::Log);
+}
+
+#[test]
 fn a_failed_status_gives_the_pools_without_their_devices() {
     let zfs = FakeZfs::new()
         .pool("tank")

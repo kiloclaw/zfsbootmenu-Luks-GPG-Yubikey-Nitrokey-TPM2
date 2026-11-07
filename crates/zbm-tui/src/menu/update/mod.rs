@@ -257,4 +257,6 @@ mod tests;
 #[cfg(test)]
 mod timeline_tests;
 #[cfg(test)]
+mod tree_tests;
+#[cfg(test)]
 mod unlock_tests;

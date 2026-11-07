@@ -2,14 +2,15 @@
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
   1 Boot  2 Snapshots [3 Pools] 4 Log           ! 6
-┌ POOLS AND LUKS VOLUMES ─────────────────────── 5 ┐
-│   Pool    zroot             read-only · ONLINE   │
-│ ▶ Pool    tank              read-only · DEGRADED │
-│   Volume  luks-zroot-a  /dev/nvme0n1p2 · open    │
-│   Volume  luks-zroot-b  /dev/nvme1n1p2 · open    │
-│   Volume  luks-tank         /dev/sda2 · open     │
-│                                                  │
-│                                                  │
+ tank › raidz1-0 › sdb2
+┌ POOLS AND LUKS VOLUMES ────────────────────── 13 ┐
+│       nvme2n1                             ONLINE │
+│     luks-zroot-a                   Volume · open │
+│     luks-zroot-b                   Volume · open │
+│   tank                      read-only · DEGRADED │
+│     raidz1-0                            DEGRADED │
+│       sda2                                ONLINE │
+│ ▶     sdb2                 cannot open · UNAVAIL │
 └──────────────────────────────────────────────────┘
 ┌ KERNEL MESSAGES OF SDB2 ────────────────────── 5 ┐
 │ [    2.104511] sd 1:0:0:0: [sdb] 976773168 512-… │
@@ -18,6 +19,5 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ [   41.903846] sd 1:0:0:0: [sdb] Product: \x1b[… │
 │ [   42.511027] sd 1:0:0:0: [sdb] Synchronizing … │
 │ Messages that name only a port, as ata3.00 or u… │
-│                                                  │
 └──────────────────────────────────────────────────┘
- Enter Details   u Unlock   i Import         ? More
+ Enter Messages   i Import   w Read/Write    ? More

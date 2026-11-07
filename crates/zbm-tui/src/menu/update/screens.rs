@@ -5,7 +5,8 @@ use zbm_types::{ImportPolicy, PoolName, Untrusted};
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent, Map, Tab};
 use crate::menu::model::{
-    Choice, Column, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then,
+    Choice, Column, Editor, Item, Kind, ListState, Model, Node, RECOVERY, RecoveryTool, Screen,
+    Then,
 };
 use crate::menu::world::{Access, Action, Environment, Outcome, Pool, Verdict, Volume};
 use crate::text::text;
@@ -243,13 +244,29 @@ fn kernels(model: &mut Model, intent: Intent) -> Vec<Action> {
 
 /// Pools and volumes. A volume opens through the machine, which asks for
 /// what opens it: the unlock dialog opens then. While the machine works,
-/// as between two of its questions, a volume does not open again.
+/// as between two of its questions, a volume does not open again. In the
+/// workspace's tree, `Enter` on a device nothing is below asks for the
+/// kernel's messages about it, by the path it has or had, which show below
+/// the tree; on a vdev, as on its pool, it opens the pool's details, and
+/// the other keys of a vdev or a device act on its pool.
 fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
     if let Some(volume) = model.selected_volume() {
         if !matches!(intent, Intent::Primary | Intent::Unlock) || model.working.is_some() {
             return Vec::new();
         }
         return vec![open(volume)];
+    }
+    if intent == Intent::Primary
+        && let Some(Node {
+            kind: Kind::Device,
+            item: Item::Device(_, device),
+            ..
+        }) = model
+            .selected_node()
+            .filter(|_| model.map == Map::Workspace)
+    {
+        let path = Untrusted::new(device.path().to_owned());
+        return vec![Action::LoadDeviceLog(path)];
     }
     let Some(pool) = model.selected_pool().cloned() else {
         return Vec::new();

@@ -309,7 +309,7 @@ mod workspace;
 use self::classic::classic;
 pub use self::classic::{CLASSIC, classic_bindings};
 pub use self::labels::{TOOLBAR, TOOLBAR_GAP, Tool, bindings, describe, footer, help, key_name};
-pub(crate) use self::offers::{is_offered, is_shown, needs_snapshot};
+pub(crate) use self::offers::{is_offered, is_shown, label, needs_snapshot};
 pub use self::workspace::{Map, Tab, WORKSPACE};
 
 use Context::{Diff, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots, Startup};
