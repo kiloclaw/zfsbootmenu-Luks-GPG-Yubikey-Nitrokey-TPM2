@@ -258,6 +258,22 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
 /// The kernel log saved on the FAT disk `image`, of its first saved boot;
 /// empty when it holds none.
 pub(crate) fn saved_kernel_log(image: &Path) -> Result<String> {
+    saved_file(image, "kernel.log")
+}
+
+/// The record `boot.json` saved on the FAT disk `image`, of its first
+/// saved boot; empty when it holds none.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the menu scenarios read the record of a boot")
+)]
+pub(crate) fn saved_record(image: &Path) -> Result<String> {
+    saved_file(image, "boot.json")
+}
+
+/// The file `name` of the first boot saved on the FAT disk `image`; empty
+/// when it holds none.
+fn saved_file(image: &Path, name: &str) -> Result<String> {
     let listed = crate::disks::run(
         Command::new("mdir")
             .env("MTOOLS_SKIP_CHECK", "1")
@@ -265,14 +281,19 @@ pub(crate) fn saved_kernel_log(image: &Path) -> Result<String> {
             .arg(image)
             .arg(format!("::/{LOGS}")),
     )?;
-    let Some(boot) = listed
+    let Some(boot) = first_boot(&listed) else {
+        return Ok(String::new());
+    };
+    mtype(image, &format!("{LOGS}/{boot}/{name}"))
+}
+
+/// The first saved boot that `mdir -b` lists in `listed`: a directory
+/// named after its time, which starts with a digit.
+fn first_boot(listed: &str) -> Option<&str> {
+    listed
         .lines()
         .filter_map(|line| line.trim_end_matches('/').rsplit('/').next())
         .find(|name| name.starts_with(|c: char| c.is_ascii_digit()))
-    else {
-        return Ok(String::new());
-    };
-    mtype(image, &format!("{LOGS}/{boot}/kernel.log"))
 }
 
 /// The file `inner` of the FAT disk image `image`.
@@ -293,6 +314,20 @@ mod tests {
 
     use super::*;
     use crate::testing::{checks, cleanup, settings};
+
+    #[test]
+    fn the_first_saved_boot_is_the_first_directory_named_by_its_time() {
+        let listed = "::/EFI/zfsbootmenu/logs/reports/\n\
+                      ::/EFI/zfsbootmenu/logs/2026-10-24T10-00-00Z/\n\
+                      ::/EFI/zfsbootmenu/logs/2026-10-25T10-00-00Z/\n";
+
+        assert_eq!(first_boot(listed), Some("2026-10-24T10-00-00Z"));
+        assert_eq!(first_boot("::/EFI/zfsbootmenu/logs/reports/\n"), None);
+        assert_eq!(first_boot(""), None);
+        let missing = Path::new("/nonexistent/zbm-vmtest-logs.img");
+        assert!(saved_record(missing).is_err());
+        assert!(saved_kernel_log(missing).is_err());
+    }
 
     #[test]
     fn the_saved_boots_and_the_report_are_read_from_the_output() {

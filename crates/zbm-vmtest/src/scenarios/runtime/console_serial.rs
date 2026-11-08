@@ -26,10 +26,10 @@ use crate::expect::{SCREEN, regex};
 use crate::images::zbm_image;
 use crate::qemu::Machine;
 use crate::record::Test;
+use crate::scenarios::display::{Pace, key_names, last_screen, machine_extra, spec, wait_screen};
 use crate::vm::Vm;
 
 use super::MENU_COUNTDOWN;
-use super::console::{Pace, key_names, last_screen, machine_extra, wait_screen};
 
 /// The command line: the serial console last, the console on the display
 /// with its mirror.
@@ -58,7 +58,7 @@ const PACE: Pace = Pace {
 ///
 /// When a step of the test cannot be done.
 pub(super) fn run(test: &Test) -> Result<()> {
-    let image = zbm_image(test.settings(), &super::console::spec())?;
+    let image = zbm_image(test.settings(), &spec())?;
     let mirror = test.dir().join("mirror-serial.txt");
     let mut machine = Machine::boot(&image, APPEND).with_disks([super::disk(test.settings(), 0)?]);
     machine.extra.extend(machine_extra("virtio", &mirror));

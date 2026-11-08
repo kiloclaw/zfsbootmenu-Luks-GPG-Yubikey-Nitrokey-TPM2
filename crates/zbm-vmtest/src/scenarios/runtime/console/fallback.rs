@@ -9,11 +9,10 @@ use std::thread;
 
 use crate::error::Result;
 use crate::record::Test;
+use crate::scenarios::display::{Monitor, Pace, last_screen, type_text, wait_screen};
 use crate::vm::Vm;
 
 use super::super::colours::screen_colours;
-use super::super::drm::Monitor;
-use super::{Pace, last_screen, type_text, wait_screen};
 
 /// Typed in the recovery shell: ends the console.
 pub(super) const KILL: &str = "kill -9 $(cat /zfsbootmenu/console/pid)\n";

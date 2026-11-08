@@ -24,23 +24,25 @@
 //!   the display back, and the boot environment boots.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::boot::prompt;
 use crate::disks::vfat_disk;
 use crate::error::{Error, Result};
 use crate::expect::regex;
-use crate::images::{Image, ImageSpec, zbm_image};
+use crate::images::{Image, zbm_image};
 use crate::qemu::{Disk, Machine};
 use crate::record::Test;
-use crate::settings::ZbmRuntime;
+use crate::scenarios::display::{
+    Monitor, Pace, key_names, last_screen, machine_extra, mirror_path, press_keys, sendkey, spec,
+    type_text, wait_screen,
+};
 use crate::vm::Vm;
 
 use super::COUNTDOWN;
 use super::colours::{screen_colours, screendump};
-use super::drm::Monitor;
 
 /// The command line of both boots, before the timeout.
 const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
@@ -115,16 +117,6 @@ const ECHO_KEYS: &[&str] = &[
 /// The console's message when it starts, in the kernel log and its mirror.
 const STARTED: &str = r"console: on (\S+): (\d+x\d+) display, (\S+) (\d+x\d+) cells";
 
-/// How the test waits: the guest gets `pause` to settle between steps,
-/// and keys are typed 5 a `pause`; a boot may take `patience` seconds.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Pace {
-    /// The pause between steps.
-    pub(super) pause: Duration,
-    /// The longest wait for the boot, in seconds.
-    pub(super) patience: u64,
-}
-
 /// The pace of the VMs.
 const PACE: Pace = Pace {
     pause: Duration::from_secs(1),
@@ -164,52 +156,6 @@ pub(super) fn run(test: &Test) -> Result<()> {
     Ok(())
 }
 
-/// The image of the test.
-pub(super) fn spec() -> ImageSpec {
-    ImageSpec {
-        runtime: Some(ZbmRuntime::Rust),
-        conf: "add_drivers+=\" virtio_gpu evdev \"\nzfsbootmenu_keyboard_layouts=\"us de\"".into(),
-        features: Some("zbm/console-mirror".into()),
-        ..ImageSpec::new("console")
-    }
-}
-
-/// Where the mirror of the boot `name` is kept.
-fn mirror_path(test: &Test, name: &str) -> PathBuf {
-    test.dir().join(format!("mirror-{name}.txt"))
-}
-
-/// Presses `key` on the machine's keyboard for 50 milliseconds.
-fn sendkey(vm: &Vm<'_>, key: &str) -> Result<()> {
-    vm.send_key(key)
-}
-
-/// QEMU's names of the keys that type `text` on the US layout; `None` for
-/// a character without one.
-pub(super) fn key_names(text: &str) -> Option<Vec<String>> {
-    text.chars()
-        .map(|c| {
-            let name = match c {
-                'a'..='z' | '0'..='9' => c.to_string(),
-                'A'..='Z' => format!("shift-{}", c.to_ascii_lowercase()),
-                ' ' => "spc".into(),
-                '\n' => "ret".into(),
-                '-' => "minus".into(),
-                '/' => "slash".into(),
-                '.' => "dot".into(),
-                ':' => "shift-semicolon".into(),
-                '|' => "shift-backslash".into(),
-                '>' => "shift-dot".into(),
-                '$' => "shift-4".into(),
-                '(' => "shift-9".into(),
-                ')' => "shift-0".into(),
-                _ => return None,
-            };
-            Some(name)
-        })
-        .collect()
-}
-
 /// QEMU's names of the keys that type `text` on the German layout, for
 /// letters, digits, spaces, `/` and newlines; `None` for other characters.
 pub(super) fn german_key_names(text: &str) -> Option<Vec<String>> {
@@ -222,57 +168,6 @@ pub(super) fn german_key_names(text: &str) -> Option<Vec<String>> {
             _ => None,
         })
         .collect()
-}
-
-/// Presses the keys `names`, a key each `pause` / 5: QEMU holds each key a
-/// while, and a key sent before the last one was let go can be lost.
-fn press_keys(vm: &Vm<'_>, monitor: &Monitor, names: &[String], pause: Duration) -> Result<()> {
-    for name in names {
-        (monitor.key)(vm, name)?;
-        thread::sleep(pause / 5);
-    }
-    Ok(())
-}
-
-/// Types `text` on the machine's keyboard, on the US layout.
-fn type_text(vm: &Vm<'_>, monitor: &Monitor, text: &str, pause: Duration) -> Result<()> {
-    let names = key_names(text).ok_or_else(|| Error::Setup(format!("no keys type {text:?}")))?;
-    press_keys(vm, monitor, &names, pause)
-}
-
-/// The last screen of the mirror at `path`, for the notes of a failure.
-pub(super) fn last_screen(path: &Path) -> String {
-    let text = fs::read(path).unwrap_or_default();
-    let text = String::from_utf8_lossy(&text).replace('\r', "");
-    let screen = text.rsplit('\x0c').find(|screen| !screen.trim().is_empty());
-    let lines: Vec<&str> = screen
-        .unwrap_or("")
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .collect();
-    if lines.is_empty() {
-        "(nothing)".to_owned()
-    } else {
-        lines.join(" | ")
-    }
-}
-
-/// Waits at most `seconds` until a screen in the mirror at `path` matches
-/// `pattern`; returns that screen.
-pub(super) fn wait_screen(path: &Path, pattern: &str, seconds: u64) -> Result<Option<String>> {
-    let pattern = regex(pattern)?;
-    let start = Instant::now();
-    loop {
-        let text = fs::read(path).unwrap_or_default();
-        let text = String::from_utf8_lossy(&text).replace('\r', "");
-        if let Some(screen) = text.split('\x0c').find(|screen| pattern.is_match(screen)) {
-            return Ok(Some(screen.to_owned()));
-        }
-        if start.elapsed() >= Duration::from_secs(seconds) {
-            return Ok(None);
-        }
-        thread::sleep(Duration::from_millis(200));
-    }
 }
 
 /// Boots `image` on the display `name`, `virtio` or `simpledrm`, with the
@@ -299,21 +194,6 @@ fn boot<'t>(
     let mut machine = Machine::boot(image, &append).with_disks(disks);
     machine.extra.extend(machine_extra(name, mirror));
     Vm::start(test, name, &machine)
-}
-
-/// QEMU's arguments for the display `name` and the mirror's serial port.
-pub(super) fn machine_extra(name: &str, mirror: &Path) -> Vec<String> {
-    let mut extra: Vec<String> = Vec::new();
-    if name == "virtio" {
-        extra.extend(["-vga", "none", "-device", "virtio-vga"].map(String::from));
-    }
-    extra.extend([
-        "-chardev".into(),
-        format!("file,id=mirror,path={}", mirror.display()),
-        "-serial".into(),
-        "chardev:mirror".into(),
-    ]);
-    extra
 }
 
 /// When the console showed nothing: waits for the boot environment, which

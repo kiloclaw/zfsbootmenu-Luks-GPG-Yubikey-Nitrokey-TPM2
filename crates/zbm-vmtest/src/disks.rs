@@ -2,7 +2,7 @@
 //! partitions, the payload disk and FAT disks.
 
 use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -63,6 +63,52 @@ pub fn sparse(path: &Path, size: u64) -> Result<()> {
     File::create(path)
         .and_then(|file| file.set_len(size))
         .map_err(Error::io(format!("creating {}", path.display())))
+}
+
+/// The size of the blocks [`copy_sparse`] reads, and skips when they hold
+/// only zeros.
+const SPARSE_BLOCK: usize = 64 << 10;
+
+/// Copies the disk `from` to `to`, keeping its holes: a block of zeros is
+/// skipped over, and the copy's length set at the end, so that a copy of a
+/// sparse disk takes no more room than the disk.
+///
+/// # Errors
+///
+/// [`Error::Io`] when `from` cannot be read or `to` written.
+pub fn copy_sparse(from: &Path, to: &Path) -> Result<()> {
+    let reading = || Error::io(format!("reading {}", from.display()));
+    let writing = || Error::io(format!("writing {}", to.display()));
+    let mut source = File::open(from).map_err(reading())?;
+    let mut target = File::create(to).map_err(writing())?;
+    let mut block = vec![0_u8; SPARSE_BLOCK];
+    loop {
+        let count = fill(&mut source, &mut block).map_err(reading())?;
+        let Some(data) = block.get(..count).filter(|data| !data.is_empty()) else {
+            break;
+        };
+        if data.iter().all(|&byte| byte == 0) {
+            let end = source.stream_position().map_err(reading())?;
+            target.seek(SeekFrom::Start(end)).map_err(writing())?;
+        } else {
+            target.write_all(data).map_err(writing())?;
+        }
+    }
+    let length = source.stream_position().map_err(reading())?;
+    target.set_len(length).map_err(writing())
+}
+
+/// Reads into `block` until it is full or the file ends; how many bytes it
+/// read.
+fn fill(file: &mut File, block: &mut [u8]) -> std::io::Result<usize> {
+    let mut count = 0;
+    while let Some(rest) = block.get_mut(count..).filter(|rest| !rest.is_empty()) {
+        match file.read(rest)? {
+            0 => break,
+            read => count += read,
+        }
+    }
+    Ok(count)
 }
 
 /// Runs a program on the host; returns its standard output.
@@ -316,6 +362,34 @@ mod tests {
         assert_eq!(kept, settings.work.join("disks/g/disk3.img"));
         assert_eq!(fresh_len, 1 << 20);
         fs::remove_dir_all(&settings.work).ok();
+    }
+
+    #[test]
+    fn a_sparse_copy_keeps_its_holes() {
+        use std::os::unix::fs::MetadataExt;
+
+        let dir = std::env::temp_dir().join(format!("zbm-vmtest-sparse-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let (from, to) = (dir.join("from.img"), dir.join("to.img"));
+        sparse(&from, 8 << 20).unwrap();
+        let mut file = fs::OpenOptions::new().write(true).open(&from).unwrap();
+        file.write_all(b"head").unwrap();
+        file.seek(SeekFrom::Start(5 << 20)).unwrap();
+        file.write_all(&[7; 100_000]).unwrap();
+        file.seek(SeekFrom::Start((8 << 20) - 3)).unwrap();
+        file.write_all(b"end").unwrap();
+        drop(file);
+        fs::write(&to, vec![1; 9 << 20]).unwrap();
+
+        copy_sparse(&from, &to).unwrap();
+
+        assert_eq!(fs::read(&to).unwrap(), fs::read(&from).unwrap());
+        let blocks = fs::metadata(&to).unwrap().blocks();
+        // 512-byte blocks: the three written parts, not the 8 MiB.
+        assert!(blocks * 512 < 1 << 20, "{blocks} blocks");
+        assert!(copy_sparse(&dir.join("none"), &to).is_err());
+        assert!(copy_sparse(&from, &dir.join("none/to.img")).is_err());
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

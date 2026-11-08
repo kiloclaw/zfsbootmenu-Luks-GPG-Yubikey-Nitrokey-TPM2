@@ -10,7 +10,13 @@ use crate::record::{Outcome, Test};
 use crate::settings::Settings;
 
 pub mod complex;
+mod display;
 pub mod docs;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the menu scenarios drive the menu with it")
+)]
+mod drive;
 pub mod firmware;
 pub mod integrity;
 pub mod keys;

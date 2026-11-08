@@ -35,13 +35,15 @@ use crate::expect::regex;
 use crate::images::{ImageSpec, zbm_image};
 use crate::qemu::Machine;
 use crate::record::Test;
+use crate::scenarios::display::{
+    Monitor, Pace, key_names, last_screen, machine_extra, wait_screen,
+};
 use crate::settings::ZbmRuntime;
 use crate::vm::Vm;
 
 use super::COUNTDOWN;
 use super::colours::{parse_ppm, screendump};
-use super::console::{Pace, check_shell, key_names, last_screen, machine_extra, wait_screen};
-use super::drm::Monitor;
+use super::console::check_shell;
 
 /// The command line: the console with its mirror, no PS/2 keyboard, and the
 /// kernel console at 800x600.

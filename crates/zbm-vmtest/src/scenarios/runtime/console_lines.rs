@@ -23,9 +23,8 @@ use crate::expect::SCREEN;
 use crate::images::zbm_image;
 use crate::qemu::Machine;
 use crate::record::Test;
+use crate::scenarios::display::{last_screen, machine_extra, spec, wait_screen};
 use crate::vm::Vm;
-
-use super::console::{last_screen, machine_extra, wait_screen};
 
 /// The command line of the boots of the menu as lines, before the boot's
 /// own options: `tforeign` belongs to another host, and the default import
@@ -78,7 +77,7 @@ const PATIENCE: u64 = 1200;
 /// When a step of the test cannot be done.
 pub(super) fn run(test: &Test) -> Result<()> {
     let settings = test.settings();
-    let image = zbm_image(settings, &super::console::spec())?;
+    let image = zbm_image(settings, &spec())?;
     for (name, extra) in LINE_BOOTS {
         test.step(&format!("{name}: the menu as lines"));
         let disks = [super::disk(settings, 0)?, super::disk(settings, 1)?];

@@ -18,12 +18,12 @@
 //! display back.
 
 use std::fs;
-use std::path::Path;
 
 use crate::error::Result;
 use crate::images::{Image, ImageSpec, zbm_image};
 use crate::qemu::Machine;
 use crate::record::Test;
+use crate::scenarios::display::Monitor;
 use crate::settings::ZbmRuntime;
 use crate::vm::Vm;
 
@@ -61,14 +61,6 @@ pub(super) const MENU_COLOURS: usize = 6;
 
 /// The colours of the bar the kernel console draws once it is back.
 pub(super) const CONSOLE_COLOURS: usize = 16;
-
-/// What the test does through QEMU's monitor: screenshots and keys.
-pub(super) struct Monitor {
-    /// Writes a screenshot of the machine to a path.
-    pub(super) dump: fn(&Vm<'_>, &Path) -> Result<()>,
-    /// Presses a key, by QEMU's name (`down`, `ret`).
-    pub(super) key: fn(&Vm<'_>, &str) -> Result<()>,
-}
 
 /// Presses `key` on the machine's keyboard.
 fn sendkey(vm: &Vm<'_>, key: &str) -> Result<()> {

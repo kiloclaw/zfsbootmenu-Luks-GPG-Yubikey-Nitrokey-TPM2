@@ -24,13 +24,13 @@ use crate::expect::regex;
 use crate::images::{ImageSpec, zbm_image};
 use crate::qemu::Machine;
 use crate::record::Test;
+use crate::scenarios::display::{Monitor, Pace, last_screen, machine_extra, wait_screen};
 use crate::vm::Vm;
 
 use super::COUNTDOWN;
 use super::colours::screendump;
-use super::console::{Pace, check_shell, last_screen, machine_extra, wait_screen};
+use super::console::check_shell;
 use super::console_start::names;
-use super::drm::Monitor;
 
 /// The command line: the console with its mirror and a status line.
 const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
