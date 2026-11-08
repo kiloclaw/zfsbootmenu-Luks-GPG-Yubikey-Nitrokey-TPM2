@@ -83,13 +83,13 @@ impl Client {
         console.show_terminal();
     }
 
-    /// Sends `presses` to the client, with the layout they were typed on.
-    pub(super) fn send_keys(host: &mut dyn Host, presses: &[KeyPress]) {
-        let layout = host.layout_name();
+    /// Sends `presses` to the client, with the layout they were typed on:
+    /// empty for the serial terminal's characters.
+    pub(super) fn send_keys(host: &mut dyn Host, presses: &[KeyPress], layout: &str) {
         for &press in presses {
             let key = FromConsole::Key {
                 press,
-                layout: layout.clone(),
+                layout: layout.to_owned(),
             };
             host.send_client(&key);
         }

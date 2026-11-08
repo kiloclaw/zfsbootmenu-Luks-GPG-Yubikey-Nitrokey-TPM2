@@ -41,7 +41,8 @@ impl<'s> RemoteMachine<'s> {
     /// `input` and written on `output`, and waits for the machine: the
     /// session runs the menu program on that terminal first, whose prompts
     /// wait for the user, until `stop` says to end. The menu then waits for
-    /// the user, without the countdown.
+    /// the user, without the countdown; its keys are a terminal's
+    /// characters, whatever the machine's console is.
     ///
     /// # Errors
     ///
@@ -82,15 +83,18 @@ impl<'s> RemoteMachine<'s> {
             stop,
         };
         machine.snapshot.timeout = Timeout::Wait;
+        machine.snapshot.keyboard.local = false;
         Ok(machine)
     }
 
     /// Keeps a snapshot the session sent, which waits for the user, as the
-    /// countdown does not run again, and the pools a scan found.
+    /// countdown does not run again, and whose keys come from the terminal
+    /// over SSH, not the machine's keyboard; and the pools a scan found.
     fn keep(&mut self, event: &mut Event) {
         match event {
             Event::Changed(snapshot) => {
                 snapshot.timeout = Timeout::Wait;
+                snapshot.keyboard.local = false;
                 self.snapshot = (**snapshot).clone();
             }
             Event::PoolsScanned(pools) => self.snapshot.pools.clone_from(pools),

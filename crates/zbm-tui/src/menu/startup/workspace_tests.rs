@@ -188,6 +188,35 @@ fn a_passphrase_typed_before_its_dialog_waits_for_it_and_the_countdown() {
     assert_eq!(model.countdown_seconds(), Some(10));
 }
 
+#[test]
+fn a_start_up_question_gets_the_layout_of_its_keys() {
+    let keys = Scripted::default();
+    let mut view = workspace(&keys);
+    if let Some(model) = view.model.as_mut() {
+        // The demo machine's layouts, US first and German second.
+        model.snapshot.keyboard =
+            crate::menu::demo::data::machine(&DemoOptions::default()).keyboard;
+        model.snapshot.keyboard.local = true;
+        // Ctrl-K chose German before.
+        model.layout = Some(1);
+    }
+    // Y typed ahead on a keyboard with the US layout, which is the German
+    // Z; then Y on one with the German layout, which is Y.
+    keys.typed_on.set(Some(TypedOn::Layout("us".to_owned())));
+    keys.typed("y");
+    read_keys(&mut view, 1);
+    assert_eq!(view.typed_ahead.len(), 1);
+    keys.typed_on.set(Some(TypedOn::Layout("de".to_owned())));
+    keys.typed("y");
+    keys.press(Key::Enter);
+
+    assert_eq!(unlocked_with(&mut view), b"zy");
+    assert_eq!(
+        view.model().typed_on,
+        Some(TypedOn::Layout("de".to_owned()))
+    );
+}
+
 /// The secret of the unlock dialog `view` asks with the keys typed ahead.
 fn unlocked_with(view: &mut View) -> Vec<u8> {
     let answer = view.ask(&unlock_requested(None), &mut || None).unwrap();

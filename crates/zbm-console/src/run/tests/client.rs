@@ -103,6 +103,71 @@ fn the_client_draws_and_gets_the_keys_until_it_lends_the_screen() {
     assert!(!console.is_secret());
 }
 
+/// A client that took the screen, then `then`.
+fn taken(then: Vec<Input>) -> FakeHost {
+    let mut script = vec![
+        client(FromClient::Hello { version: VERSION }),
+        client(FromClient::Take),
+    ];
+    script.extend(then);
+    script.push(Input::Hangup);
+    FakeHost::new(script)
+}
+
+/// The keys the client got, and the layouts they came with.
+fn keys_sent(host: &FakeHost) -> Vec<(Key, String)> {
+    host.to_client
+        .iter()
+        .filter_map(|message| match message {
+            FromConsole::Key { press, layout } => Some((press.key, layout.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_layout_switched_in_a_batch_names_the_keys_typed_before_it() {
+    let super_space = KeyPress {
+        logo: true,
+        ..press(Key::Char(' '))
+    };
+    let batch = vec![press(Key::Char('y')), super_space, press(Key::Char('z'))];
+    let mut host = taken(vec![Input::Keys(batch), chars("a")]);
+
+    run(&mut console(), &mut screen(), &mut host, None).unwrap();
+
+    // The batch was read on the German layout, the key after it on French.
+    let (de, fr) = ("de".to_owned(), "fr".to_owned());
+    assert_eq!(
+        keys_sent(&host),
+        [
+            (Key::Char('y'), de.clone()),
+            (Key::Char('z'), de),
+            (Key::Char('a'), fr)
+        ]
+    );
+    assert_eq!(host.next_layouts, 1);
+}
+
+#[test]
+fn the_serial_terminal_s_keys_go_to_the_menu_without_a_layout() {
+    let mut host = taken(vec![
+        Input::SerialKeys(vec![press(Key::Char('q'))]),
+        chars("b"),
+    ]);
+    host.serial = Some((20, 5));
+
+    run(&mut console(), &mut screen(), &mut host, None).unwrap();
+
+    assert_eq!(
+        keys_sent(&host),
+        [
+            (Key::Char('q'), String::new()),
+            (Key::Char('b'), "de".to_owned())
+        ]
+    );
+}
+
 #[test]
 fn a_secret_the_client_asks_for_keeps_nothing() {
     let mut console = console().with_scrollback(100);

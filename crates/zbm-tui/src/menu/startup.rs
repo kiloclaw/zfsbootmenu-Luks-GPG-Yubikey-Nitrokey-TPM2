@@ -25,7 +25,7 @@ use zbm_types::Answer;
 use super::frontend::Frontend;
 pub use super::frontend::{Input, Surface, TICK};
 use super::keymap::{self, Map};
-use super::model::{Model, Screen};
+use super::model::{Model, Screen, TypedOn};
 use super::screen::{MenuScreen, SessionScreen};
 use super::theme::Theme;
 use super::update::{Message, update};
@@ -56,8 +56,8 @@ pub struct StartupView<B: Surface, I: Input> {
     model: Option<Model>,
     frontend: Frontend<B, I>,
     /// The keys typed ahead of a dialog, which it reads first
-    /// ([`StartupView::is_typing_ahead`]).
-    typed_ahead: VecDeque<KeyPress>,
+    /// ([`StartupView::is_typing_ahead`]), with where they were typed.
+    typed_ahead: VecDeque<(KeyPress, Option<TypedOn>)>,
 }
 
 /// The most keys typed ahead that are kept: more go nowhere, as noise
@@ -127,6 +127,13 @@ where
         }
     }
 
+    /// `key`, typed on `typed_on`, which the menu is told first; the
+    /// actions it asked for.
+    fn press(&mut self, (key, typed_on): (KeyPress, Option<TypedOn>)) -> Vec<Action> {
+        let _ = self.step(Message::TypedOn(typed_on));
+        self.step(Message::Key(key))
+    }
+
     /// Shows `event`: a stage started or ended, a volume opened.
     ///
     /// # Errors
@@ -175,7 +182,7 @@ where
                 None => self.frontend.key(TICK.saturating_sub(passed), wake)?,
             };
             let mut answers = match key {
-                Some(key) => self.step(Message::Key(key)),
+                Some(key) => self.press(key),
                 None => Vec::new(),
             };
             let passed = self.frontend.now().saturating_sub(last_tick);
@@ -238,8 +245,8 @@ where
     fn read_key(&mut self, wake: BorrowedFd<'_>, last_tick: &mut Duration) -> io::Result<()> {
         let passed = self.frontend.now().saturating_sub(*last_tick);
         if let Some(key) = self.frontend.key(TICK.saturating_sub(passed), Some(wake))? {
-            if !self.is_typing_ahead(key) {
-                let _ = self.step(Message::Key(key));
+            if !self.is_typing_ahead(key.0) {
+                let _ = self.press(key);
             } else if self.typed_ahead.len() < TYPED_AHEAD {
                 self.typed_ahead.push_back(key);
             }

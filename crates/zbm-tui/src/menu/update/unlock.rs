@@ -8,7 +8,7 @@ use zbm_display::keys::{Key, KeyPress};
 use zbm_platform::secret::Secret;
 use zbm_types::Printable;
 
-use crate::menu::keymap::{Input, Intent, Modifiers};
+use crate::menu::keymap::{self, Input, Intent, Modifiers};
 use crate::menu::model::{Dialog, Model, Prompt, Then};
 use crate::menu::world::{Action, Method, Outcome, PcrChange};
 use crate::text::{self, Id, id, text};
@@ -80,39 +80,53 @@ fn other_method(model: &Model, volume: &str, method: Method, input: Input) -> Me
     methods.get(next).copied().unwrap_or(method)
 }
 
-/// `key` as the chosen layout has it: the console's character for the key's
-/// position, turned into the chosen layout's, with the image's keymaps.
-/// Keys with `Ctrl` or `Alt`, keys from a serial terminal, and layouts
-/// whose keymap did not load are left as they are.
+/// `key` as the layout `Ctrl-K` chose has it, once it chose one: the
+/// character of the layout the key was typed on for the key's position
+/// (the console's own when the input does not say), turned into the chosen
+/// layout's, with the image's keymaps. Only in the unlock dialog and for
+/// action keys: the filter, the palette, a name and a typed confirmation
+/// take the characters as typed. Keys with `Ctrl` or `Alt`, a terminal's
+/// characters, and layouts whose keymap did not load are left as they are.
 pub(super) fn translated(model: &Model, mut key: KeyPress) -> KeyPress {
     let keyboard = &model.snapshot.keyboard;
     let held = Modifiers::of(&key).has_any(Modifiers::CTRL | Modifiers::ALT);
+    let is_field =
+        keymap::is_text(model.context()) && !matches!(model.dialog, Some(Dialog::Unlock(_)));
+    if held || is_field || model.is_typed_on_a_terminal() {
+        return key;
+    }
+    let to = model.layout.and_then(|chosen| keyboard.layouts.get(chosen));
     let positions = |name: Option<&str>| name.and_then(|name| keyboard.positions.get(name));
     if let (Key::Char(c), Some(from), Some(to)) = (
         key.key,
-        positions(keyboard.layouts.first().map(String::as_str)),
-        positions(model.layout()),
-    ) && keyboard.local
-        && !held
-    {
+        positions(model.typed_layout()),
+        positions(to.map(String::as_str)),
+    ) {
         key.key = Key::Char(from.translate(to, c));
     }
     key
 }
 
-/// The next keyboard layout; what the unlock dialog had typed is cleared,
-/// as it was typed with the other one.
+/// The next keyboard layout: the one after the layout chosen last, or,
+/// the first time, after the one keys are typed on; what the unlock dialog
+/// had typed is cleared, as it was typed with the other one. A terminal's
+/// characters are in its own layout, which the menu does not know.
 pub(super) fn next_layout(model: &mut Model) {
-    let keyboard = &model.snapshot.keyboard;
-    if !keyboard.local {
+    let layouts = &model.snapshot.keyboard.layouts;
+    if model.is_typed_on_a_terminal() {
         model.notification = Some(Outcome::Warning(text!("layout-serial")));
         return;
     }
-    if keyboard.layouts.len() < 2 {
+    if layouts.len() < 2 {
         model.notification = Some(Outcome::Warning(text!("layout-only-one")));
         return;
     }
-    model.layout = (model.layout + 1) % keyboard.layouts.len();
+    // A layout the image does not list comes before its first.
+    let current = model.layout.or_else(|| {
+        let typed = model.typed_layout()?;
+        layouts.iter().position(|name| name == typed)
+    });
+    model.layout = Some(current.map_or(0, |at| (at + 1) % layouts.len()));
     if let Some(Dialog::Unlock(prompt)) = &mut model.dialog {
         prompt.secret = Secret::new();
     }

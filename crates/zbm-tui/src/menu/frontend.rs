@@ -24,7 +24,7 @@ use zbm_platform::clock::{Clock, SystemClock};
 use super::announce::Announcer;
 use super::keymap::{Modifiers, key_name};
 use super::machine::Machine;
-use super::model::Model;
+use super::model::{Model, TypedOn};
 use super::secret::{Marker, is_asking_secret};
 use super::session::Session;
 use super::view::view;
@@ -59,6 +59,13 @@ pub trait Input {
     /// When the input cannot be read.
     fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
         self.key_or_wake(timeout, None)
+    }
+
+    /// Where the key read last was typed: on a keyboard of the display and
+    /// its layout, or on a terminal; `None` when the input does not say,
+    /// as a terminal of its own does not.
+    fn typed_on(&self) -> Option<TypedOn> {
+        None
     }
 
     /// Gives the input back to programs, as it was before the front end.
@@ -245,8 +252,9 @@ where
         surface.present()
     }
 
-    /// The next key within `timeout`, or until `wake` is readable; logged
-    /// when the front end logs keys.
+    /// The next key within `timeout`, or until `wake` is readable, and
+    /// where it was typed ([`Input::typed_on`]); logged when the front end
+    /// logs keys.
     ///
     /// # Errors
     ///
@@ -255,14 +263,16 @@ where
         &mut self,
         timeout: Duration,
         wake: Option<BorrowedFd<'_>>,
-    ) -> io::Result<Option<KeyPress>> {
-        let key = self.input.key_or_wake(timeout, wake)?;
-        if let (Some(key), Some((file, start))) = (key, &mut self.log) {
+    ) -> io::Result<Option<(KeyPress, Option<TypedOn>)>> {
+        let Some(key) = self.input.key_or_wake(timeout, wake)? else {
+            return Ok(None);
+        };
+        if let Some((file, start)) = &mut self.log {
             let since = self.clock.now().saturating_sub(*start).as_millis();
             let name = key_name(key.key, Modifiers::of(&key));
             writeln!(file, "{since} {name}")?;
         }
-        Ok(key)
+        Ok(Some((key, self.input.typed_on())))
     }
 
     /// Leaves the surface as it was before the front end: cleared, with
@@ -329,8 +339,8 @@ where
             let passed = self.clock.now().saturating_sub(last_tick);
             let key = self.key(TICK.saturating_sub(passed), session.waker())?;
             session.poll();
-            if let Some(key) = key {
-                session.press(key);
+            if let Some((key, typed_on)) = key {
+                session.press_typed_on(key, typed_on);
             }
             let passed = self.clock.now().saturating_sub(last_tick);
             if passed >= TICK {

@@ -8,7 +8,7 @@ use zbm_display::keys::{Key, KeyPress};
 use super::demo::FakeMachine;
 use super::keymap::Map;
 use super::machine::Machine;
-use super::model::{Dialog, Model};
+use super::model::{Dialog, Model, TypedOn};
 use super::theme::Theme;
 use super::update::{Message, update};
 use super::world::{Action, Event};
@@ -178,6 +178,13 @@ impl<M: Machine> Session<M> {
         if model.is_starting_up() && model.dialog.is_none() {
             self.machine.reask();
         }
+    }
+
+    /// A key press typed on `typed_on`, as the front end's input says: the
+    /// menu is told where, then given the key ([`Session::press`]).
+    pub fn press_typed_on(&mut self, key: KeyPress, typed_on: Option<TypedOn>) {
+        self.step(Message::TypedOn(typed_on));
+        self.press(key);
     }
 
     /// A plain key press.

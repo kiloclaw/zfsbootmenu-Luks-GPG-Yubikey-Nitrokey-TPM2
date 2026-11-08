@@ -98,7 +98,6 @@ impl Keyboards {
         device.lights = None;
     }
 
-    /// The decoder of the keyboard at `index`: its own, or the shared one.
     /// Whether each keyboard has a layout of its own, in their order.
     pub(super) fn own_layouts(&self) -> Vec<bool> {
         self.devices
@@ -107,6 +106,7 @@ impl Keyboards {
             .collect()
     }
 
+    /// The decoder of the keyboard at `index`: its own, or the shared one.
     pub(super) fn decoder_of(&mut self, index: usize) -> &mut Decoder {
         match self
             .devices
@@ -116,6 +116,16 @@ impl Keyboards {
             Some(own) => own,
             None => &mut self.decoder,
         }
+    }
+
+    /// The name of the layout the keyboard at `index` types on: its own,
+    /// or the shared one.
+    pub fn layout_of(&self, index: usize) -> &str {
+        self.devices
+            .get(index)
+            .and_then(|device| device.own.as_ref())
+            .unwrap_or(&self.decoder)
+            .layout()
     }
 
     /// The keyboards that have a layout of their own, and its name.

@@ -25,14 +25,16 @@ pub(super) enum Read {
 }
 
 /// Keys typed in advance (with no more, ticks pass), the clock the time
-/// waiting for them passes on, what was done to the terminal's mode, and the
-/// terminal's size, when known.
+/// waiting for them passes on, what was done to the terminal's mode, the
+/// terminal's size, when known, and where the keys are typed as they are
+/// read, when the input says.
 #[derive(Clone, Default)]
 pub(super) struct Scripted {
     pub(super) keys: Shared<VecDeque<Read>>,
     pub(super) clock: FakeClock,
     pub(super) modes: Shared<Vec<&'static str>>,
     pub(super) size: Shared<Option<(u16, u16)>>,
+    pub(super) typed_on: Shared<Option<TypedOn>>,
 }
 
 impl Scripted {
@@ -93,6 +95,10 @@ impl Input for Scripted {
 
     fn size(&mut self) -> Option<(u16, u16)> {
         self.size.get()
+    }
+
+    fn typed_on(&self) -> Option<TypedOn> {
+        self.typed_on.borrow().clone()
     }
 }
 

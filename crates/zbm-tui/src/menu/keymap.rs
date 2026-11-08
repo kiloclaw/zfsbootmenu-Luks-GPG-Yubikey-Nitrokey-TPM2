@@ -191,7 +191,7 @@ impl Scope {
 
 /// Whether `context` takes text, where letters type: a text field, or
 /// the field of a review page.
-fn is_text(context: Context) -> bool {
+pub(crate) fn is_text(context: Context) -> bool {
     matches!(context, Context::Text | Context::Review)
 }
 

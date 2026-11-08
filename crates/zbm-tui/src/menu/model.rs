@@ -18,6 +18,7 @@ mod review;
 mod snapshots;
 mod sort;
 mod timeline;
+mod typing;
 
 pub(crate) use self::devices::{Item, Kind, Node, class_heading, vdev_kind};
 pub use self::diff::{DiffView, Segment};
@@ -34,6 +35,7 @@ pub(crate) use self::snapshots::Column;
 pub use self::sort::Sort;
 use self::timeline::Folds;
 pub(crate) use self::timeline::{Group, Row, Timeline};
+pub use self::typing::TypedOn;
 
 use super::filter::Ranked;
 use super::keymap::{Context, Map, Tab};
@@ -290,9 +292,12 @@ pub struct Model {
     /// Whether the menu asked for the boot history, and the machine has not
     /// answered yet.
     pub reading_history: bool,
-    /// The keyboard layout typing is translated into, as an index of the
-    /// snapshot's layouts: 0 is the console's own.
-    pub layout: usize,
+    /// The keyboard layout `Ctrl-K` chose to translate typing into, as an
+    /// index of the snapshot's layouts: `None` until it chose one.
+    pub layout: Option<usize>,
+    /// Where the keys come from, as the input says; `None` when it does
+    /// not.
+    pub typed_on: Option<TypedOn>,
     /// The key map: the workspace's, or the classic one.
     pub map: Map,
     /// The milliseconds the ticks counted since the snapshot's time: the
@@ -340,7 +345,8 @@ impl Model {
             device_log: None,
             history: None,
             reading_history: false,
-            layout: 0,
+            layout: None,
+            typed_on: None,
             map: Map::default(),
             ticked: 0,
             snapshot,
@@ -549,16 +555,6 @@ impl Model {
                 super::world::StageState::Pending | super::world::StageState::Running
             )
         })
-    }
-
-    /// The keyboard layout typing is translated into: the console's own
-    /// until the user chooses another.
-    pub fn layout(&self) -> Option<&str> {
-        self.snapshot
-            .keyboard
-            .layouts
-            .get(self.layout)
-            .map(String::as_str)
     }
 
     /// The seconds left of the countdown, rounded up.

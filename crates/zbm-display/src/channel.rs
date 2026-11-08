@@ -87,7 +87,9 @@ pub enum FromConsole {
     Key {
         /// The key.
         press: KeyPress,
-        /// The layout's name.
+        /// The layout's name: that of the keyboard that typed the key, or
+        /// empty for a character typed on the serial terminal the console
+        /// serves too, which has no layout the console knows.
         layout: String,
     },
     /// The cells changed in number, as when the font's size changed; the

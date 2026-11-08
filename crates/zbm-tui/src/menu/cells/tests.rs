@@ -201,3 +201,40 @@ fn the_keys_and_the_sizes_come_and_the_screen_is_lent_and_taken() {
     let error = keys.key(wait).unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::UnexpectedEof);
 }
+
+/// The keys the console sends with each layout in `layouts`, read: where
+/// the input says each was typed.
+fn typed_on(layouts: &[&str]) -> Vec<Option<TypedOn>> {
+    let (menu, console) = Connection::pair().unwrap();
+    let mut keys = CellKeys::new(Arc::new(menu), CAPS);
+    assert_eq!(keys.typed_on(), None);
+    let mut said = Vec::new();
+    for layout in layouts {
+        let key = FromConsole::Key {
+            press: KeyPress::new(Key::Char('q')),
+            layout: (*layout).to_owned(),
+        };
+        console.send(&key.encode()).unwrap();
+        assert!(keys.key(Duration::from_secs(5)).unwrap().is_some());
+        said.push(keys.typed_on());
+    }
+    said
+}
+
+#[test]
+fn a_key_from_the_console_brings_its_layout() {
+    let on = |name: &str| Some(TypedOn::Layout(name.to_owned()));
+
+    assert_eq!(typed_on(&["de", "ru"]), [on("de"), on("ru")]);
+}
+
+#[test]
+fn a_key_from_the_console_s_serial_terminal_is_a_character() {
+    assert_eq!(
+        typed_on(&["", "de"]),
+        [
+            Some(TypedOn::Characters),
+            Some(TypedOn::Layout("de".to_owned()))
+        ]
+    );
+}

@@ -28,6 +28,7 @@ use zbm_sys::socket::{Connection, MAX_MESSAGE};
 
 use super::display::cell_style;
 use super::frontend::{Input, Surface};
+use super::model::TypedOn;
 
 /// The variable that names the descriptor of the menu's end of the client
 /// channel, which the supervisor passes the start-up program.
@@ -266,6 +267,8 @@ impl Surface for CellSurface {
 pub struct CellKeys {
     channel: Arc<Connection>,
     size: (u16, u16),
+    /// Where the key read last was typed, as the console said.
+    typed_on: Option<TypedOn>,
     /// The programs' terminal, cleared when the screen is lent to it.
     terminal: Option<Box<dyn io::Write>>,
 }
@@ -284,6 +287,7 @@ impl CellKeys {
         CellKeys {
             channel,
             size: (caps.columns, caps.rows),
+            typed_on: None,
             terminal: None,
         }
     }
@@ -315,7 +319,10 @@ impl CellKeys {
         // It may be a key of a passphrase.
         zbm_sys::wipe_vec(&mut packet);
         Ok(match message {
-            Some(FromConsole::Key { press, .. }) => Some(press),
+            Some(FromConsole::Key { press, layout }) => {
+                self.typed_on = Some(TypedOn::named(layout));
+                Some(press)
+            }
             Some(FromConsole::Resize { columns, rows }) => {
                 self.size = (columns, rows);
                 None
@@ -365,6 +372,12 @@ impl Input for CellKeys {
 
     fn size(&mut self) -> Option<(u16, u16)> {
         Some(self.size)
+    }
+
+    /// The layout the console named with the key, or a terminal's
+    /// character when it named none.
+    fn typed_on(&self) -> Option<TypedOn> {
+        self.typed_on.clone()
     }
 }
 

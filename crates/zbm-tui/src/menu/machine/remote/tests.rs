@@ -20,12 +20,15 @@ fn next(session: &Connection) -> ToSession {
     ToSession::receive(session, WAIT).unwrap().unwrap().message
 }
 
-/// A machine the session would send: it counts down.
+/// A machine the session would send: it counts down, and its console has
+/// a keyboard of its own.
 fn counting() -> Snapshot {
-    Snapshot {
+    let mut snapshot = Snapshot {
         timeout: Timeout::Seconds(10),
         ..Snapshot::default()
-    }
+    };
+    snapshot.keyboard.local = true;
+    snapshot
 }
 
 /// The session's side of an attach: the terminal comes, then a read,
@@ -94,8 +97,10 @@ fn the_menu_reads_the_machine_and_its_actions_are_performed_meanwhile() {
         },
         |machine| {
             let mut machine = machine.unwrap();
-            // The countdown does not run again.
+            // The countdown does not run again, and the keys are the SSH
+            // terminal's characters.
             assert_eq!(machine.snapshot().timeout, Timeout::Wait);
+            assert!(!machine.snapshot().keyboard.local);
             assert!(machine.waker().is_some());
             let first = machine.tick();
             assert!(matches!(first.as_slice(), [Event::Changed(_)]), "{first:?}");
@@ -108,7 +113,10 @@ fn the_menu_reads_the_machine_and_its_actions_are_performed_meanwhile() {
         },
     );
     assert_eq!(events.len(), 2, "{events:?}");
-    assert!(matches!(&events[0], Event::Changed(snapshot) if snapshot.timeout == Timeout::Wait));
+    assert!(matches!(
+        &events[0],
+        Event::Changed(snapshot) if snapshot.timeout == Timeout::Wait && !snapshot.keyboard.local
+    ));
     assert_eq!(events[1], Event::Finished(Outcome::Cancelled));
 }
 

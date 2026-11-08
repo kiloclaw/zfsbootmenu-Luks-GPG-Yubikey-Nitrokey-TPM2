@@ -309,6 +309,33 @@ fn a_keyboard_of_a_rule_types_with_its_own_layout_and_lights() {
 }
 
 #[test]
+fn a_keyboard_with_its_own_layout_is_named_by_it() {
+    let pair = || {
+        let (device, typing) = std::os::unix::net::UnixStream::pair().unwrap();
+        (File::from(std::os::fd::OwnedFd::from(device)), typing)
+    };
+    let ((first, _usb), (second, _builtin)) = (pair(), pair());
+    let mut keyboards = Keyboards::from_files(vec![first, second]);
+    let id = DeviceId::parse("046d:c31c").unwrap();
+    keyboards.devices[0].id = Some(id);
+    let keymap = crate::layout::compile::keymap(Path::new(crate::layout::compile::XKB), "de")
+        .expect("the XKB data (xkb-data)");
+    let source = Source {
+        name: "de".to_owned(),
+        keymap: keymap.into_bytes(),
+        rules: None,
+    };
+
+    assert_eq!(keyboards.layout_of(0), "us");
+    keyboards.set_device_layouts(vec![(id, source)]);
+
+    assert_eq!(keyboards.layout_of(0), "de");
+    assert_eq!(keyboards.layout_of(1), "us");
+    // One that is not there types on the shared layout, as none does.
+    assert_eq!(keyboards.layout_of(2), "us");
+}
+
+#[test]
 fn each_decoder_is_resynchronised_with_its_own_keyboards() {
     // The second keyboard has a layout of its own.
     let own = [false, true, false];

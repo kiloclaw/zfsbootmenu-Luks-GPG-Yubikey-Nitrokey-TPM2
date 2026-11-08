@@ -131,8 +131,10 @@ impl Host for FakeHost {
         self.layouts.push(name.to_owned());
     }
 
+    /// The layout as it is now: Super+Space switches it from German to
+    /// French at once.
     fn layout_name(&self) -> String {
-        "de".to_owned()
+        if self.next_layouts == 0 { "de" } else { "fr" }.to_owned()
     }
 
     fn send_client(&mut self, message: &FromConsole) {

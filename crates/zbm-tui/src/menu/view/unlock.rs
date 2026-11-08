@@ -183,7 +183,7 @@ fn keyboard_line(model: &Model, prompt: &Prompt) -> Line<'static> {
         (false, true) => format!("{dot}{}", text!("unlock-hide")),
         (false, false) => format!("{dot}{}", text!("unlock-show")),
     };
-    if !keyboard.local {
+    if model.is_typed_on_a_terminal() {
         let line = format!("{}{reveal}", text!("keyboard-terminal"));
         return Line::styled(line, theme.style(Role::Muted));
     }
@@ -193,7 +193,7 @@ fn keyboard_line(model: &Model, prompt: &Prompt) -> Line<'static> {
         return Line::styled(line, theme.style(Role::Muted));
     }
     let wrong = prompt.notice.as_ref().is_some_and(Notice::is_wrong_secret);
-    if wrong && model.layout == 0 {
+    if wrong && model.layout.is_none() {
         let line = text!("keyboard-wrong", layout = layout);
         return Line::styled(line, theme.style(Role::Warning));
     }

@@ -7,7 +7,7 @@
 use zbm_display::keys::{Key, KeyPress};
 
 use super::keymap::{self, Input, Intent, Tab};
-use super::model::{Dialog, Model, Screen};
+use super::model::{Dialog, Model, Screen, TypedOn};
 use super::world::{Action, Event, Outcome};
 
 mod dialogs;
@@ -30,6 +30,9 @@ pub use text::palette_items;
 pub enum Message {
     /// A key press.
     Key(KeyPress),
+    /// The keys that follow come from there, or from an input that does
+    /// not say.
+    TypedOn(Option<TypedOn>),
     /// Time passed, in milliseconds.
     Tick(u64),
     /// The machine said something; boxed, as a snapshot is large.
@@ -49,6 +52,10 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
                 actions.extend(history::load(&mut model));
             }
             actions
+        }
+        Message::TypedOn(typed_on) => {
+            model.typed_on = typed_on;
+            Vec::new()
         }
         Message::Tick(ms) => tick(&mut model, ms),
         Message::Event(event) => events::apply(&mut model, *event),

@@ -551,3 +551,5 @@ fn each_frame_shown_goes_into_the_terminal_s_text_too() {
         .collect();
     assert_eq!(chars, b"zbm ");
 }
+
+mod typed_on;

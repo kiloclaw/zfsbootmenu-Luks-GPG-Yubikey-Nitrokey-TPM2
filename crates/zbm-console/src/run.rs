@@ -101,7 +101,8 @@ pub trait Host {
         let _ = name;
     }
 
-    /// The name of the keyboard layout keys are typed on.
+    /// The name of the keyboard layout the keys read last were typed on,
+    /// as it was when they were read.
     fn layout_name(&self) -> String {
         String::new()
     }
@@ -418,14 +419,15 @@ fn blank(console: &mut Console, screen: &mut dyn Screen) -> io::Result<()> {
     Ok(())
 }
 
-/// Takes `presses`: the console's own keys through `typing`, the rest to
-/// the programs; then shows what is being typed at the cursor, when the
-/// programs' terminal echoes.
+/// Takes `presses`, typed on the layout `layout` (empty for the serial
+/// terminal's characters): the console's own keys through `typing`, the
+/// rest to the programs or the client; then shows what is being typed at
+/// the cursor, when the programs' terminal echoes.
 fn take_keys(
     console: &mut Console,
     host: &mut dyn Host,
     typing: &mut Typing,
-    presses: &[KeyPress],
+    (presses, layout): (&[KeyPress], &str),
 ) -> io::Result<()> {
     let mut kept = Vec::with_capacity(presses.len());
     for &press in presses {
@@ -448,7 +450,7 @@ fn take_keys(
         console.set_notice(&notice);
     }
     let typed = if console.is_showing_cells() {
-        Client::send_keys(host, &kept);
+        Client::send_keys(host, &kept, layout);
         Ok(())
     } else {
         type_keys(host, &kept, console.key_modes())
@@ -506,15 +508,18 @@ fn take(
             send_replies(console, host)?;
         }
         Input::Keys(mut presses) => {
+            // Named before a Super+Space among them switches the layout.
+            let layout = host.layout_name();
             let typed = hold(console, host, client, None)
-                .and_then(|()| take_keys(console, host, typing, &presses));
+                .and_then(|()| take_keys(console, host, typing, (&presses, &layout)));
             zbm_sys::wipe_values(&mut presses, KeyPress::BLANK);
             typed?;
         }
         Input::SerialKeys(mut presses) => {
             let size = host.serial_size();
+            // The terminal's characters have no layout the console knows.
             let typed = hold(console, host, client, size)
-                .and_then(|()| take_keys(console, host, typing, &presses));
+                .and_then(|()| take_keys(console, host, typing, (&presses, "")));
             zbm_sys::wipe_values(&mut presses, KeyPress::BLANK);
             typed?;
         }

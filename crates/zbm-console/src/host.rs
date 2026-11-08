@@ -161,6 +161,9 @@ pub struct RealHost<'h, M> {
     master: M,
     outgoing: Outgoing,
     keyboards: Keyboards,
+    /// The layout of the keys read last, named as they were read: a
+    /// Super+Space among them switches the layout of the keys after it.
+    typed_on: String,
     /// What the control socket asks.
     control: Arc<Control>,
     /// Gives the keyboards another layout.
@@ -211,6 +214,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         RealHost {
             master,
             outgoing: Outgoing::default(),
+            typed_on: keyboards.layout().to_owned(),
             keyboards,
             control,
             switch: None,
@@ -308,6 +312,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         let Some(index) = ready.iter().position(|ready| ready.is_ready()) else {
             return Ok(None);
         };
+        self.typed_on = self.keyboards.layout_of(index).to_owned();
         let presses = self.keyboards.read_device(index)?;
         Ok((!presses.is_empty()).then_some(Input::Keys(presses)))
     }
@@ -478,7 +483,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     }
 
     fn layout_name(&self) -> String {
-        self.keyboards.layout().to_owned()
+        self.typed_on.clone()
     }
 
     fn note(&mut self, text: &str) {

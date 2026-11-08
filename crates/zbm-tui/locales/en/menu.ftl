@@ -866,7 +866,7 @@ restore-nothing = { $path } was created after { $snapshot }: there is nothing to
 
 ## Keyboard layouts and sealing a TPM2 key again.
 
-layout-serial = keys come from a serial terminal: its own layout applies
+layout-serial = keys come from a terminal: its own layout applies
 layout-only-one = this image knows one keyboard layout
 layout-typing = typing with the { $layout } layout
 reseal = Re-sealing trusts the machine as it is now (PCRs { $pcrs }).

@@ -13,13 +13,15 @@ use crate::menu::theme::Theme;
 use crate::menu::world::{Action, Event, Offer, Snapshot};
 
 /// Keys from a script, `None` for the time asked passing without one on
-/// the clock, then time passing; what was done to the input; its size.
+/// the clock, then time passing; what was done to the input; its size;
+/// where its keys are typed, when it says.
 #[derive(Clone, Default)]
 struct Scripted {
     keys: Shared<VecDeque<Option<KeyPress>>>,
     clock: FakeClock,
     modes: Shared<Vec<&'static str>>,
     size: Shared<Option<(u16, u16)>>,
+    typed_on: Shared<Option<TypedOn>>,
 }
 
 impl Scripted {
@@ -60,6 +62,10 @@ impl Input for Scripted {
 
     fn size(&mut self) -> Option<(u16, u16)> {
         self.size.get()
+    }
+
+    fn typed_on(&self) -> Option<TypedOn> {
+        self.typed_on.borrow().clone()
     }
 }
 
@@ -110,6 +116,24 @@ fn the_demo_runs_on_any_surface_and_its_keys_are_logged() {
         .filter_map(|line| line.split_once(' ').map(|(_, name)| name))
         .collect();
     assert_eq!(names, ["Down", "Enter"]);
+}
+
+#[test]
+fn the_menu_is_told_where_its_keys_are_typed() {
+    let input = Scripted::default();
+    input.typed_on.set(Some(TypedOn::Layout("de".to_owned())));
+    input.wait(20);
+    input.press(&[Key::Down, Key::Enter]);
+    let mut session = Session::on(
+        FakeMachine::new(&DemoOptions::default()),
+        Theme::new(Capabilities::FULL),
+        Map::default(),
+    );
+
+    frontend(&input).run(&mut session).unwrap();
+
+    let typed_on = &session.model().typed_on;
+    assert_eq!(*typed_on, Some(TypedOn::Layout("de".to_owned())));
 }
 
 /// A machine whose recovery shell takes the console, and that ends the
