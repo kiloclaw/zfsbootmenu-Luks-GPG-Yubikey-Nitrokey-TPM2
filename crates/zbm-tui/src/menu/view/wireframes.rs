@@ -43,6 +43,7 @@ struct Wireframe {
 
 mod classic;
 mod workspace;
+mod workspace_dialogs;
 
 use self::classic::{first_wireframes, naming_wireframes, snapshot_wireframes, unlock_wireframes};
 use self::workspace::workspace_wireframes;

@@ -2,11 +2,12 @@
 
 use zbm_display::keys::Key;
 
+use super::workspace_dialogs::workspace_dialog_wireframes;
 use super::{Step, Wireframe};
 use crate::menu::demo::DemoOptions;
 
 /// The demo in the workspace (ADR 0007).
-fn workspace() -> DemoOptions {
+pub(super) fn workspace() -> DemoOptions {
     DemoOptions {
         classic: false,
         ..DemoOptions::default()
@@ -25,12 +26,14 @@ fn workspace() -> DemoOptions {
 /// `zbm.save_logs` kept, and without the option; and help, under the ZFS
 /// version; the Snapshots tab as the timeline of the default environment,
 /// its months folded and the oldest selected, and while the machine reads
-/// them; start-up as the Boot tab ([`startup_wireframes`]); and the
-/// review pages of changes ([`review_wireframes`]).
+/// them; start-up as the Boot tab ([`startup_wireframes`]); the review
+/// pages of changes ([`review_wireframes`]); and the other views and
+/// dialogs ([`workspace_dialog_wireframes`]).
 pub(super) fn workspace_wireframes() -> Vec<Wireframe> {
     let mut all = startup_wireframes();
     all.extend(review_wireframes());
     all.extend(view_wireframes());
+    all.extend(workspace_dialog_wireframes());
     all
 }
 

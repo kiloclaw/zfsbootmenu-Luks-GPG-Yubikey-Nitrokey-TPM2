@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+ ! tank DEGRADED   ! tank: sdb2 UNAVAIL   ! tank: checkpoint         3 Pools
+ tank › tank/ROOT/arch
+┌ BOOT ENVIRONMENTS ─────────────────────── 2 of 4 ┐┌ KERNELS ────────────── 2 ┐
+│ / ta                                  Esc Cancel ││   6.11.5-arch1-1         │
+│ ▶ tank/ROOT/arch                       1 warning ││   6.10.10-arch1-1        │
+│   tank/ROOT/debian                     1 problem ││                          │
+│                                                  ││                          │
+│                                                  ││                          │
+│                                                  ││                          │
+│                                                  ││                          │
+│                                                  ││                          │
+│                                                  ││                          │
+└──────────────────────────────────────────────────┘└──────────────────────────┘
+┌ tank/ROOT/arch ──────────────────────────────────────────────────────────────┐
+│       Checks  ! tank has 4% free: writes during boot may fail                │
+│         Pool  tank · DEGRADED · read-only                                    │
+│       Kernel  6.11.5-arch1-1 · 2 kernels                                     │
+│    Snapshots  2 · newest 2026-10-01, 22 d ago                                │
+│   Encryption  none                                                           │
+│ Command Line  rw quiet splash · set here                                     │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Confirm   Esc Cancel   Up/Down Select

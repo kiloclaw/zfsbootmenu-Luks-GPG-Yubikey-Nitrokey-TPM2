@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [1 Boot] 2 Snapshots  3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+┌ POOLS ────────────── 2 ┐ zroot › zroot/ROOT/void
+│ zroot        ONLINE ro │┌ BOOT ENVIRONMENTS ───────── 4 ┐┌ KERNELS ────────────── 3 ┐┌ zroot/ROOT/void ───── default ┐
+│ tank       DEGRADED ro ││   zroot · ONLINE              ││   6.12.9_1               ││       Checks  √ all 5 passed  │
+└────────────────────────┘│ ▶ zroot/ROOT/void     default ││   6.12.8_1               ││   Boot Tries  3 of 3 left     │
+┌ VOLUMES ─────── 3 of 3 ┐│   zroot/ROOT/ubuntu           ││   6.8.0_1                ││         Pool  zroot · ONLINE  │
+│ luks-zroot-a      open ││   tank · DEGRADED             ││                          ││               · read-only     │
+│ luks-zroot-b      open ││   tank/ROOT/arch    1 warning ││                          ││       Kernel  6.12.9_1 · 3    │
+│ luks-tank         open ││   tank/ROOT/debian  1 problem ││                          ││               kernels         │
+└────────────────────────┘│                               ││                          ││    Snapshots  400 · newest    │
+┌ ATTENTION ────────── 6 ┐│                               ││                          ││               pre-upgrade, 1  │
+│ ! tank DEGRADED        ││                               ││                          ││               h ago           │
+│   3 Pools              ││                               ││                          ││   Encryption  key loaded      │
+│ ! tank: sdb2 UNAVAIL   ││                               ││                          ││ Command Line  quiet           │
+│   3 Pools              ││                               ││                          ││               loglevel=4 ·    │
+│ ! tank: checkpoint     ││   ┌──────────────────────────────────────────────────────────┐             from zroot/ROOT │
+│   3 Pools              ││   │                           Power                          │                             │
+│ ! arch: 1 warning      ││   │                                                          │EXT STEPS                    │
+│   1 Boot               ││   │ ▶ Power Off                                              │ Esc cancel   Up/Down sel…   │
+│ × debian: 1 problem    ││   │   Reboot                                                 │                             │
+│   1 Boot               ││   │   Reboot into Firmware Setup                             │HECKS                        │
+│ ! 1 warning in the log ││   │ ──────────────────────────────────────────────────────── │ √ Kernel and initramfs: 6.… │
+│   4 Log                ││   │   Cancel                                                 │ √ ZFS module: zfs 2.4.4 fo… │
+│                        ││   └──────────────────────────────────────────────────────────┘ √ Pool features: its ZFS r… │
+│                        ││                               ││                          ││   √ Root dataset: mountpoint… │
+│                        ││                               ││                          ││   √ Free space: 62% of the p… │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││ KERNELS                       │
+│                        ││                               ││                          ││   6.12.9_1              boots │
+│                        ││                               ││                          ││   6.12.8_1                    │
+│                        ││                               ││                          ││   6.8.0_1                     │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││ NEWEST SNAPSHOTS              │
+│                        ││                               ││                          ││   pre-upgrade         1 h ago │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││                               │
+└────────────────────────┘└───────────────────────────────┘└──────────────────────────┘└───────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Choose   Esc Cancel   Up/Down Select

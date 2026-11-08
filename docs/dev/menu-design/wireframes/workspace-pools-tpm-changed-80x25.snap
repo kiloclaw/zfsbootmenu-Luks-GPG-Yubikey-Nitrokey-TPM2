@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot  2 Snapshots [3 Pools] 4 Log            tank DEGRADED · 3/3 open · ! 6
+ zroot › luks-zroot-a
+┌ POOLS AND LUKS VOLUMES ────────────────────────────────────────────────── 13 ┐
+│   zroot                                                   read-only · ONLINE │
+│     mirror-0                                                          ONLINE │
+│       nvme0n1p2                                                       ONLINE │
+│       nvme1n1p2                                                       ONLINE │
+│     cache                                                                    │
+│       nvme2n1                                                         ONLINE │
+│ ▶   luks-zroot-a                                Volume · TPM2 changed · open │
+│     luks-zroot-b                                               Volume · open │
+│   tank                                                  read-only · DEGRADED │
+│     raidz1-0                                                        DEGRADED │
+│       sda2                                                            ONLINE │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ luks-zroot-a ────────────────────────────────────────────────────────────────┐
+│        State  open                                                           │
+│       Device  nvme0n1p2                                                      │
+│         Pool  zroot                                                          │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Details   u Unlock   / Filter   : Commands   ! Recovery           ? More

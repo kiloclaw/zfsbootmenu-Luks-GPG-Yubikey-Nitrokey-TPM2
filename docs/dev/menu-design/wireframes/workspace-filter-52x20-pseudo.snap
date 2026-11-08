@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 BBóótt] 2 SSñáppshóóts  3 PPóólls  4 LLóg   ! 6
+ tank › tank/ROOT/arch
+┌ BBÓÓTT ÉÑVVÍRÓÓÑMÉÉÑTSS ──────────────── 2 óóf 4 ┐
+│ / ta                               ÉÉsç ÇÇáñççél │
+│ ▶ tank/ROOT/arch    1 wwárññíñgg  6.11.5-arch1-1 │
+│   tank/ROOT/debian  1 ppróbblémm  6.1.0-26-amd64 │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ tank/ROOT/arch ──────────────────────────────────┐
+│     ÇÇhéççks  ! tank has 4% free: writes during  │
+│               boot may fail                      │
+│       PPóóll  tank · DEGRADED · rréádd-óñllý     │
+│     KKérññél  6.11.5-arch1-1 · 2 kkérññélss      │
+│ SSñáppshóóts  2 · ññéwéést 2026-10-01, 22 dd     │
+│               ágóó                               │
+│ ÉÉñçrrýpttíóññ  ññóñéé                           │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   ÉÉsç ÇÇáñççél

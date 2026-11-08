@@ -170,7 +170,8 @@ fn row_facts(model: &Model, node: &Node<'_>, room: usize) -> Vec<Span<'static>> 
 
 /// What the row of `node` says on the right, each with its role: a pool's
 /// last host when another, its mode and its health; a device's note and
-/// state; that a volume is one, and whether it is open.
+/// state; that a volume is one, whether its TPM2 key is out of date, and
+/// whether it is open.
 fn facts(node: &Node<'_>) -> Vec<(String, Role)> {
     match node.item {
         Item::Pool(pool) => {
@@ -195,7 +196,15 @@ fn facts(node: &Node<'_>) -> Vec<(String, Role)> {
                 .chain([state_word(device.state)])
                 .collect()
         }
-        Item::Volume(volume) => vec![(text!("volume-label"), Role::Muted), volume_state(volume)],
+        Item::Volume(volume) => {
+            let changed = volume.tpm2.as_ref().is_some_and(|seal| !seal.is_current());
+            let changed = changed.then(|| (text!("volume-tpm2-changed"), Role::Warning));
+            [(text!("volume-label"), Role::Muted)]
+                .into_iter()
+                .chain(changed)
+                .chain([volume_state(volume)])
+                .collect()
+        }
         Item::Header => Vec::new(),
     }
 }

@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 BBóótt [2 SSñáppshóóts] 3 PPóólls  4 LLóg   ! 6
+          [ FFíléés 6 ]     PPáçkkágéés 5
+┌ ÇÇHÁÑÑGÉSS SÍÑÑÇÉ AUTOSNAP_2026-10-20_DAILY ── 6 ┐
+│   • M /etc/fstab                                 │
+│     + /etc/modprobe.d/nvidia.conf                │
+│     M /etc/default/grub                          │
+│ ▶ • - /usr/lib/libdrm.so.2                       │
+│     R /etc/default/zfs → /etc/default/zfs.bak    │
+│     M /boot/initramfs-6.12.9_1.img               │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ PPRÉVVÍÉWW ────────────────────────── rrémóóvédd ┐
+│ /usr/lib/libdrm.so.2                             │
+│ RRémóóvédd síññçé tthé ssñáppshóót: rééstóóríññg │
+│ brríñggs ítt báççk.                              │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér RRésttóréé                        ? MMóréé

@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [Boot] Snapshots  Pools  Log            tank DEGRADED · 3/3 volumes open · ! 7 · host 00bab10c · 08:00 UTC
+┌ POOLS ────────────── 3 ┐┌ STARTING ZFSBOOTMENU ────────────────────────────────────────────────────────────── 4 of 5 ┐
+│ zroot        ONLINE ro ││ √  Load the ZFS module                                                                     │
+│ tank       DEGRADED ro ││ √  Set the host ID                                                                         │
+│ backup    not imported ││ √  Unlock LUKS volumes                                                                     │
+└────────────────────────┘│ …  Import pools                                                                            │
+┌ VOLUMES ─────── 3 of 3 ┐│    Find boot environments                                                                  │
+│ luks-zroot-a      open ││                                                                                            │
+│ luks-zroot-b      open ││                                                                                            │
+│ luks-tank         open ││                                                                                            │
+└────────────────────────┘│                                                                                            │
+┌ ATTENTION ────────── 7 ┐│                                                                                            │
+│ ! tank DEGRADED        ││                                                                                            │
+│   Pools                ││   ┌──────────────────────────────────────────────────────────┐                             │
+│ ! tank: sdb2 UNAVAIL   ││   │                  × backup did not import                 │                             │
+│   Pools                ││   │                                                          │                             │
+│ ! tank: checkpoint     ││   │ It was last imported by host deadbeef, and this machine  │                             │
+│   Pools                ││   │ is host 00bab10c.                                        │                             │
+│ ! backup: host deadbe… ││   │                                                          │                             │
+│   Pools                ││   │ You can:                                                 │                             │
+│ ! arch: 1 warning      ││   │ • Import it with the host ID it was last imported with   │                             │
+│   Boot                 ││   │ • Force the import, if that host is not running          │                             │
+│ × debian: 1 problem    ││   │ • Open the recovery shell                                │                             │
+│   Boot                 ││   │                                                          │                             │
+│ ! 1 warning in the log ││   │                                                   [ OK ] │                             │
+│   Log                  ││   └──────────────────────────────────────────────────────────┘                             │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+└────────────────────────┘└────────────────────────────────────────────────────────────────────────────────────────────┘
+ × Failed: backup did not import
+ Enter Choose   Esc Cancel   Up/Down Select

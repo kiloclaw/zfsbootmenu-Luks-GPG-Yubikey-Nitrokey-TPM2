@@ -196,7 +196,8 @@ pub(super) fn pool_details(model: &mut Model, pool: &Pool) {
     let name = &pool.name;
     let mode = crate::menu::model::pool_mode(pool);
     let shown = crate::menu::model::pool_name(pool, model.import_id(pool));
-    let mut lines = vec![format!("{shown}: {} · {mode}", pool.health.as_str())];
+    let dot = model.theme.dot();
+    let mut lines = vec![format!("{shown}: {}{dot}{mode}", pool.health.as_str())];
     if let Some(host) = &pool.host {
         lines.push(match &host.hostid {
             Some(hostid) => text!("pool-last-host", hostid = hostid.to_string()),

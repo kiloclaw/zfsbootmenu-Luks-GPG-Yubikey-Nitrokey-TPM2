@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [Boot] Snapshots  Pools  Log            tank DEGRADED · 2/3 volumes open · ! 7 · host 00bab10c · 08:00 UTC
+┌ POOLS ────────────── 2 ┐┌ STARTING ZFSBOOTMENU ────────────────────────────────────────────────────────────── 3 of 5 ┐
+│ zroot        ONLINE ro ││ √  Load the ZFS module                                                                     │
+│ tank       DEGRADED ro ││ √  Set the host ID                                                                         │
+└────────────────────────┘│ …  Unlock LUKS volumes                                                                     │
+┌ VOLUMES ─────── 2 of 3 ┐│    Import pools                                                                            │
+│ luks-zroot-a    locked ││    Find boot environments                                                                  │
+│ luks-zroot-b      open ││                                                                                            │
+│ luks-tank         open ││                                                                                            │
+└────────────────────────┘│                                                                                            │
+┌ ATTENTION ────────── 7 ┐│                                                                                            │
+│ ! tank DEGRADED        ││                                                                                            │
+│   Pools                ││                                                                                            │
+│ ! tank: sdb2 UNAVAIL   ││                                                                                            │
+│   Pools                ││   ┌──────────────────────────────────────────────────────────┐                             │
+│ ! tank: checkpoint     ││   │                    Unlock luks-zroot-a                   │                             │
+│   Pools                ││   │                                                          │                             │
+│ ! luks-zroot-a: locked ││   │ on /dev/nvme0n1p2                                        │                             │
+│   Pools                ││   │                                                          │                             │
+│ ! arch: 1 warning      ││   │ Passphrase:                                              │                             │
+│   Boot                 ││   │ The TPM kept the key. PCR 0 (firmware code): the         │                             │
+│ × debian: 1 problem    ││   │ firmware was updated to 1.21.                            │                             │
+│   Boot                 ││   │ ↑/↓ to use the TPM2 PIN instead                          │                             │
+│ ! 1 warning in the log ││   │ Keyboard: us · Ctrl-K: layout                            │                             │
+│   Log                  ││   │                                                          │                             │
+│                        ││   │                                     [ Skip ]  [ Unlock ] │                             │
+│                        ││   └──────────────────────────────────────────────────────────┘                             │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+│                        ││                                                                                            │
+└────────────────────────┘└────────────────────────────────────────────────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

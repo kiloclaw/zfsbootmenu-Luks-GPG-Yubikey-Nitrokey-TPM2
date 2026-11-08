@@ -76,7 +76,7 @@ pub(super) fn unlock_wireframes() -> Vec<Wireframe> {
         frame(
             "unlock-layout",
             options(true, false),
-            &[Code(Key::Down), Ctrl('k'), Text("Y[rich"), Ctrl('r')],
+            &[Code(Key::Down), Ctrl('k'), Text("Y[rich")],
         ),
         frame(
             "reseal-confirm",

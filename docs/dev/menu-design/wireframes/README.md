@@ -37,7 +37,7 @@ keep their names:
 | `diff-packages` | the packages segment of the changes, with the preview of a removed package |
 | `unlock-tpm-changed` | the TPM kept a key after a firmware update: the passphrase is asked, and why (`--tpm-changed`) |
 | `unlock-wrong` | a wrong passphrase, and the keyboard layout as a likely cause |
-| `unlock-layout` | typing with the German layout, what is typed shown with `Ctrl-R` |
+| `unlock-layout` | typing with the German layout, `Ctrl-K` to switch to it; start-up never shows what is typed |
 | `reseal-confirm` | the alert that seals the TPM2 key again, once the volume is open |
 | `pools-tpm-changed` | a volume whose TPM2 key is out of date, in the pools view |
 | `workspace-startup` | start-up as the Boot tab: the tab bar, the sidebar from 110 columns, what needs attention as one line at 80 columns, and the stages where the columns go; only `?` in the toolbar, as start-up binds only the tabs, moving and help |
@@ -60,16 +60,39 @@ keep their names:
 | `workspace-help` | `?` on the Boot tab: the version of the ZFS module on the right of its header, and the `MOD+key` aliases of the `fzf` menu |
 | `workspace-attention` | once the scan after the first frame found the pools start-up left alone, one of them another host's: what needs attention, worst first, each with the tab that shows it |
 | `workspace-device-log` | `Enter` on `tank`'s lost disk `sdb2` in the Pools tab: the kernel's messages about it and its disk below the tree, the escape bytes in them drawn as text; the path `tank › raidz1-0 › sdb2` |
+| `workspace-filter` | `/` and `ta` on the Boot tab: the search field at the top of the column, two environments of four left |
+| `workspace-command-line` | `e` and ` systemd.unit=rescue.target` typed: the command line edited for one boot, under the tab bar |
+| `workspace-palette` | `2`, `:` and `2026-10`: the command palette over the Snapshots tab, finding the snapshots of October by date |
+| `workspace-power` | `x`: power off, reboot, firmware setup, over the Boot tab |
+| `workspace-recovery` | `!`: the recovery tools, under the tab bar |
+| `workspace-notification` | down one and `d`: the outcome of setting a default, on the notification line, `zroot/ROOT/ubuntu` the new default |
+| `workspace-help-snapshots` | `2` and `?`: help for the Snapshots tab, its keys and the `MOD+key` alias it keeps |
+| `workspace-log-startup` | `Shift-Tab` during start-up, which goes round to the Log tab, as the digits are not bound then: the stages so far, the log shown once start-up is over |
+| `workspace-import-choices` | `i` on `archive` in the Pools tab, another host's pool the scan found: its imports, with this host's ID, with its last host's and forced |
+| `workspace-pool-details` | `Enter` on `archive` there: the details of the pool, its health, mode and last host, and what can be done to it |
+| `workspace-import-failed` | `Retry`, `Enter`, on the pool start-up could not import: the error after it, what failed, why and what next, over start-up as the Boot tab |
+| `workspace-clone-name` | `2`, down three, `c` and `-2`: naming the clone of the daily snapshot of 20 October |
+| `workspace-snapshot-name` | `n` on the Boot tab: naming a new snapshot of the default environment, the time as its name |
+| `workspace-promote-confirm` | `2`, down three, `m`, `-2` and `Enter`: the second question of Clone and Promote, the environment's last component to type |
+| `workspace-diff` | `2`, down three and `f`: the changes since the daily snapshot of 20 October, with a preview, in the Snapshots tab |
+| `workspace-diff-marked` | two changes marked to restore, `Space` on each |
+| `workspace-restore-confirm` | `Enter` then: the restore alert, its button disabled until the name is typed, `vo` typed |
+| `workspace-unlock-pin` | a TPM2 PIN asked over start-up as the Boot tab, two digits typed and not shown (`--locked`) |
+| `workspace-unlock-wrong` | a wrong passphrase, and the keyboard layout as a likely cause |
+| `workspace-unlock-layout` | typing with the German layout, `Ctrl-K` to switch to it; start-up never shows what is typed |
+| `workspace-unlock-tpm-changed` | the TPM kept a key after a firmware update: the passphrase is asked, and why (`--tpm-changed`) |
+| `workspace-reseal-confirm` | the alert that seals the TPM2 key again, once the volume is open |
+| `workspace-pools-tpm-changed` | the alert declined, `3` and down to `luks-zroot-a`: the volume whose TPM2 key is out of date, `TPM2 changed` in its row after `Volume` |
 | `log-history` | `4`: the Log tab with the boot history `zbm.save_logs` kept above the log since start: a measured boot, one saved without a record, one whose record a newer runtime wrote, and one whose kernel's name holds escape bytes, drawn as text |
 | `log-no-history` | `4` without `zbm.save_logs`: the Log tab says no boot is kept, and where the option is documented |
 
 Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. Every name
 comes at 80×24 too, as over a serial line, in colour and in ASCII for terminals without line drawing or UTF-8
 (`-80x24`, `-80x24-ascii`, `--theme ascii`), except the four prototypes of items ADR 0016 point 18 leaves out of the
-menu: `main-fallback`, `main-next-boot`, `may-not-boot` and `diff-packages`. The main view and dialogs come in ASCII
-at 80×25 as well (`-80x25-ascii`). Colour is not in the text: monochrome draws the same characters as colour, and a
-test draws every name at 80×24 in monochrome and in ASCII and fails if any cell carries a colour, so nothing depends
-on colour alone. Another test reads the Unicode tables of the image's console fonts and fails if a wireframe uses a
+menu: `main-fallback`, `main-next-boot`, `may-not-boot` and `diff-packages`, which, as prototypes of point 18's
+items, have no `workspace-*` wireframe either. The main view and dialogs come in ASCII at 80×25 as well
+(`-80x25-ascii`). Colour is not in the text: monochrome draws the same characters as colour, and a test draws every
+name at 80×24 in monochrome and in ASCII and fails if any cell carries a colour, so nothing depends on colour alone. Another test reads the Unicode tables of the image's console fonts and fails if a wireframe uses a
 glyph they lack. The design rules they follow are in [../apple-hig.md](../apple-hig.md).
 
 ## Changing them

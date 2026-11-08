@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 BBóótt [2 SSñáppshóóts] 3 PPóólls  4 LLóg   ! 6
+          [ FFíléés 6 ]     PPáçkkágéés 5
+┌ ┌──────────────────────────────────────────────┐ ┐
+│ │ RRésttóréé 2 FFíléés frróm autosnap_2026-10… │ │
+│ │                                              │ │
+│ │ /etc/fstab                                   │ │
+│ │ /usr/lib/libdrm.so.2                         │ │
+│ │ TThéýý réppláççé thhé fííléss íñ             │ │
+│ │ zroot/ROOT/void áás thhéý ááré ññów.         │ │
+│ │ zroot íís ímmpórrtédd réáád/wrrítéé, áñdd á  │ │
+└─│ sááféttý sññápsshótt                         │─┘
+┌ │ zroot/ROOT/void@before-restore-<ttíméé> ís   │ ┐
+│ │ ttákééñ fíírstt: rólll bááçk ttó ítt tó      │ │
+│ │ úúñdóó.                                      │ │
+│ │                                              │ │
+│ │ TTýpéé void ttó çóóñfíírm: vo                │ │
+│ │                                              │ │
+│ │                 [ ÇÇáñççél ]  [ RRésttóréé ] │ │
+└─└──────────────────────────────────────────────┘─┘
+ ÉÉñtéér ÇÇóñffírmm   ÉÉsç ÇÇáñççél

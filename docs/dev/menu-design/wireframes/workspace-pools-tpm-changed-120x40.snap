@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu  1 Boot  2 Snapshots [3 Pools] 4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+ zroot › luks-zroot-a
+┌ POOLS AND LUKS VOLUMES ────────────────────────────────────────────────── 13 ┐┌ luks-zroot-a ────────────────────────┐
+│   zroot                                                   read-only · ONLINE ││        State  open                   │
+│     mirror-0                                                          ONLINE ││       Device  nvme0n1p2              │
+│       nvme0n1p2                                                       ONLINE ││         Pool  zroot                  │
+│       nvme1n1p2                                                       ONLINE ││                                      │
+│     cache                                                                    ││ NEXT STEPS                           │
+│       nvme2n1                                                         ONLINE ││   u unlock         / filter          │
+│ ▶   luks-zroot-a                                Volume · TPM2 changed · open ││   : commands       ! recovery        │
+│     luks-zroot-b                                               Volume · open ││                                      │
+│   tank                                                  read-only · DEGRADED ││                                      │
+│     raidz1-0                                                        DEGRADED ││                                      │
+│       sda2                                                            ONLINE ││                                      │
+│       sdb2                                             cannot open · UNAVAIL ││                                      │
+│       sdc2                                        too many errors · DEGRADED ││                                      │
+│     luks-tank                                                  Volume · open ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+└──────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Details   u Unlock   / Filter   : Commands   ! Recovery                                                   ? More

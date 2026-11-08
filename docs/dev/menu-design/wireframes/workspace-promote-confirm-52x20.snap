@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+ zroot › zroot/ROOT/void › autosnap_2026-10-20_dai…
+┌ SNAPSHOTS BY NAME ────────────────────────── 400 ┐
+│   Today                     1 snapshot · 1.1 GiB │
+│ ┌──────────────────────────────────────────────┐ │
+│ │  Clone and Promote autosnap_2026-10-20_daily │ │
+│ │                                              │ │
+│ │ The clone takes over the snapshots of        │ │
+│ │ zroot/ROOT/void up to                        │ │
+│ │ autosnap_2026-10-20_daily.                   │ │
+│ │ zroot/ROOT/void then depends on the clone,   │ │
+│ │ and cannot be destroyed without it.          │ │
+│ │                                              │ │
+└─│ Type void to confirm:                        │─┘
+┌ │                                              │─┐
+│ │                      [ Cancel ]  [ Promote ] │ │
+│ └──────────────────────────────────────────────┘ │
+│         Used  43 MiB                             │
+└──────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

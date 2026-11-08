@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [1 Boot] 2 Snapshots  3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+┌ POOLS ────────────── 2 ┐ zroot › zroot/ROOT/ubuntu
+│ zroot        ONLINE rw │┌ BOOT ENVIRONMENTS ───────── 4 ┐┌ KERNELS ────────────── 2 ┐┌ zroot/ROOT/ubuntu ─── default ┐
+│ tank       DEGRADED ro ││   zroot · ONLINE              ││   6.8.0-48-generic       ││       Checks  √ all 5 passed  │
+└────────────────────────┘│ ▶ zroot/ROOT/ubuntu   default ││   6.8.0-47-gen…  default ││         Pool  zroot · ONLINE  │
+┌ VOLUMES ─────── 3 of 3 ┐│   zroot/ROOT/void             ││                          ││               · read/write    │
+│ luks-zroot-a      open ││   tank · DEGRADED             ││                          ││       Kernel  6.8.0-47-generi │
+│ luks-zroot-b      open ││   tank/ROOT/arch    1 warning ││                          ││               c · 2 kernels   │
+│ luks-tank         open ││   tank/ROOT/debian  1 problem ││                          ││    Snapshots  2 · newest      │
+└────────────────────────┘│                               ││                          ││               2026-10-01, 22  │
+┌ ATTENTION ────────── 6 ┐│                               ││                          ││               d ago           │
+│ ! tank DEGRADED        ││                               ││                          ││   Encryption  key loaded      │
+│   3 Pools              ││                               ││                          ││ Command Line  quiet           │
+│ ! tank: sdb2 UNAVAIL   ││                               ││                          ││               loglevel=4 ·    │
+│   3 Pools              ││                               ││                          ││               from zroot/ROOT │
+│ ! tank: checkpoint     ││                               ││                          ││                               │
+│   3 Pools              ││                               ││                          ││ NEXT STEPS                    │
+│ ! arch: 1 warning      ││                               ││                          ││   l kernels    s snapshots    │
+│   1 Boot               ││                               ││                          ││   e edit       d default      │
+│ × debian: 1 problem    ││                               ││                          ││                               │
+│   1 Boot               ││                               ││                          ││ CHECKS                        │
+│ ! 1 warning in the log ││                               ││                          ││   √ Kernel and initramfs: 6.… │
+│   4 Log                ││                               ││                          ││   √ ZFS module: zfs 2.4.4 fo… │
+│                        ││                               ││                          ││   √ Pool features: its ZFS r… │
+│                        ││                               ││                          ││   √ Root dataset: mountpoint… │
+│                        ││                               ││                          ││   √ Free space: 62% of the p… │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││ KERNELS                       │
+│                        ││                               ││                          ││   6.8.0-48-generic            │
+│                        ││                               ││                          ││   6.8.0-47-generic      boots │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││ NEWEST SNAPSHOTS              │
+│                        ││                               ││                          ││   2026-10-01         22 d ago │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││                               │
+└────────────────────────┘└───────────────────────────────┘└──────────────────────────┘└───────────────────────────────┘
+ √ Done: zroot/ROOT/ubuntu is the default of zroot (zroot imported read/write)
+ : commands   / filter   ? every key
+ Enter Boot   l Kernels   s Snapshots   e Edit   d Default                                                       ? More

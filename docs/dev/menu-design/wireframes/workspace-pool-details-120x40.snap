@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu  1 Boot  2 Snapshots [3 Pools] 4 Log    tank DEGRADED · 3/3 volumes open · ! 8 · host 00bab10c · 08:00 UTC
+ archive
+┌ POOLS AND LUKS VOLUMES ────────────────────────────────────────────────── 17 ┐┌ archive ─────────────────────────────┐
+│   zroot                                                   read-only · ONLINE ││       Health  ONLINE, not imported   │
+│     mirror-0                                                          ONLINE ││    Last Host  backup-server          │
+│       nvme0n1p2                                                       ONLINE ││               (deadbeef)             │
+│       nvme1n1p2                                                       ONLINE ││                                      │
+│     cache                                                                    ││ NEXT STEPS                           │
+│       nvme2n1                                                         ONLINE ││   Esc cancel       Up/Down select    │
+│     luks-zroot-a                                               Volume · open ││                                      │
+│     luks-zroot-b                                               Volume · open ││                                      │
+│   tank (id 2)                                           read-only · DEGRADED ││                                      │
+│     raidz1-0                                                        DEGRADED ││                                      │
+│       sda2                                                            ONLINE ││                                      │
+│       sdb2                                             cannot open · UNAVAIL ││                                      │
+│       sdc2                  ┌──────────────────────────────────────────────────────────┐                             │
+│     luks-tank               │                       Pool archive                       │                             │
+│ ▶ archive                   │ archive: ONLINE · not imported                           │                             │
+│     sde                     │ last imported by host deadbeef                           │                             │
+│   tank (id 5)               │                                                          │                             │
+│     sdf                     │ ▶ Import with Its Last Host ID                           │                             │
+│                             │   Force the Import…                                      │                             │
+│                             │ ──────────────────────────────────────────────────────── │                             │
+│                             │   Cancel                                                 │                             │
+│                             └──────────────────────────────────────────────────────────┘                             │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+│                                                                              ││                                      │
+└──────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Choose   Esc Cancel   Up/Down Select

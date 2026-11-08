@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+ zroot › zroot/ROOT/void › autosnap_2026-10-20_dai…
+┌ SNAPSHOTS BY NAME ────────────────────────── 400 ┐
+│   Today                     1 snapshot · 1.1 GiB │
+│     pre-upgrade               1 h ago    1.1 GiB │
+│ ┌──────────────────────────────────────────────┐ │
+│ │        Clone autosnap_2026-10-20_daily       │ │
+│ │                                              │ │
+│ │ The new boot environment shares the data of  │ │
+│ │ zroot/ROOT/void@autosnap_2026-10-20_daily    │ │
+│ │ until either changes.                        │ │
+│ │                                              │ │
+│ │ Name: zroot/ROOT/void_NEW-2                  │ │
+└─│                                              │─┘
+┌ │                       [ Cancel ]  [ Create ] │─┐
+│ └──────────────────────────────────────────────┘ │
+│        Taken  2026-10-20 07:00 UTC, 3 d ago      │
+│         Used  43 MiB                             │
+└──────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

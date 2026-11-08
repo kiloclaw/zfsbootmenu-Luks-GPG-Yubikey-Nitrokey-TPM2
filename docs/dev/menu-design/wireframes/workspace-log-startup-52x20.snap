@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot  2 Snapshots  3 Pools [4 Log]          ! 6
+┌ START-UP SO FAR ─────────────────────────────────┐
+│ √  Load the ZFS module                           │
+│ √  Set the host ID                               │
+│ …  Unlock LUKS volumes                           │
+│                                                  │
+│ The log since start shows once start-up is over. │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ : Commands   ! Recovery   x Power           ? More

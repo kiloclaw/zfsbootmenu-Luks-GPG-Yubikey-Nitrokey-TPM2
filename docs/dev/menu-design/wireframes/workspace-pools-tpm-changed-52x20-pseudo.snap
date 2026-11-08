@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 BBóótt  2 SSñáppshóóts [3 PPóólls] 4 LLóg   ! 6
+ zroot › luks-zroot-a
+┌ PPÓÓLLS ÁÑÑD LÚÚKS VVÓLÚÚMÉSS ─────────────── 13 ┐
+│   zroot                    rréádd-óñllý · ONLINE │
+│     mirror-0                              ONLINE │
+│       nvme0n1p2                           ONLINE │
+│       nvme1n1p2                           ONLINE │
+│     ççáçhhé                                      │
+│       nvme2n1                             ONLINE │
+│ ▶   luks-zroot-a  VVólúúmé · TTPM2 ççh… · óópéññ │
+│     luks-zroot-b               VVólúúmé · óópéññ │
+│   tank                   rréádd-óñllý · DEGRADED │
+│     raidz1-0                            DEGRADED │
+└──────────────────────────────────────────────────┘
+┌ luks-zroot-a ────────────────────────────────────┐
+│      SStátté  óópéññ                             │
+│     DDévííçé  nvme0n1p2                          │
+│       PPóóll  zroot                              │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér DDétááílss   u ÚÚñlóóçk           ? MMóréé

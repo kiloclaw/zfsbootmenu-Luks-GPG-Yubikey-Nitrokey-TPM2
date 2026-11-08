@@ -1,7 +1,7 @@
 //! Tests of the Pools tab as the workspace draws it: the inspector of a
-//! vdev, a device and a volume, the states of volumes and devices, the
-//! header of the volumes of no pool, the matches of a filter, and an empty
-//! tab.
+//! vdev, a device and a volume, the states of volumes and devices, a volume
+//! whose TPM2 key is out of date, the header of the volumes of no pool, the
+//! matches of a filter, and an empty tab.
 
 use zbm_types::{HostId, Untrusted};
 
@@ -82,6 +82,21 @@ fn volumes_and_devices_say_their_state_whatever_it_is() {
     assert!(shown.contains("State  locked"), "{shown}");
     assert!(shown.contains("Device  nvme0n1p2"), "{shown}");
     assert!(shown.contains("Pool  zroot"), "{shown}");
+}
+
+#[test]
+fn a_volume_whose_tpm2_key_is_out_of_date_says_so_in_its_row() {
+    let changed = FakeMachine::new(&DemoOptions {
+        tpm_changed: true,
+        ..DemoOptions::default()
+    });
+    let seal = changed.snapshot().volumes[0].tpm2.clone();
+    let model = tab(5, |snapshot| snapshot.volumes[0].tpm2 = seal);
+
+    let shown = screen(&model, 120, 40);
+    assert!(shown.contains("Volume · TPM2 changed · open"), "{shown}");
+    assert!(shown.contains(" zroot › luks-zroot-a\n"), "{shown}");
+    assert_eq!(shown.matches("TPM2 changed").count(), 1, "{shown}");
 }
 
 #[test]

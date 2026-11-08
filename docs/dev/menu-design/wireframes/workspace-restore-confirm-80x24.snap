@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+                          [ Files 6 ]     Packages 5
+┌ CHANGES SINCE AUTOSNAP_2026-10-20_DAILY ────────────────────────────────── 6 ┐
+│   • M /etc/fstab                                                             │
+│     + /e┌──────────────────────────────────────────────────────────┐         │
+│     M /e│      Restore 2 Files from autosnap_2026-10-20_daily      │         │
+│ ▶ • - /u│                                                          │         │
+│     R /e│ /etc/fstab                                               │         │
+│     M /b│ /usr/lib/libdrm.so.2                                     │         │
+│         │ They replace the files in zroot/ROOT/void as they are    │         │
+│         │ now.                                                     │         │
+│         │ zroot is imported read/write, and a safety snapshot      │         │
+│         │ zroot/ROOT/void@before-restore-<time> is taken first:    │         │
+└─────────│ roll back to it to undo.                                 │─────────┘
+┌ PREVIEW │                                                          │ removed ┐
+│ /usr/lib│ Type void to confirm: vo                                 │         │
+│ Removed │                                                          │         │
+│         │                                  [ Cancel ]  [ Restore ] │         │
+│         └──────────────────────────────────────────────────────────┘         │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Confirm   Esc Cancel   Up/Down Select

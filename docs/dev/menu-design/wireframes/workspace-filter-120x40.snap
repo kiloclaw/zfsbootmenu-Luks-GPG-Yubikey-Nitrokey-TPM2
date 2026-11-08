@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [1 Boot] 2 Snapshots  3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+┌ POOLS ────────────── 2 ┐ tank › tank/ROOT/arch
+│ zroot        ONLINE ro │┌ BOOT ENVIRONMENTS ──── 2 of 4 ┐┌ KERNELS ────────────── 2 ┐┌ tank/ROOT/arch ───────────────┐
+│ tank       DEGRADED ro ││ / ta               Esc Cancel ││   6.11.5-arch1-1         ││       Checks  ! tank has 4%   │
+└────────────────────────┘│ ▶ tank/ROOT/arch    1 warning ││   6.10.10-arch1-1        ││               free: writes    │
+┌ VOLUMES ─────── 3 of 3 ┐│   tank/ROOT/debian  1 problem ││                          ││               during boot may │
+│ luks-zroot-a      open ││                               ││                          ││               fail            │
+│ luks-zroot-b      open ││                               ││                          ││         Pool  tank · DEGRADED │
+│ luks-tank         open ││                               ││                          ││               · read-only     │
+└────────────────────────┘│                               ││                          ││       Kernel  6.11.5-arch1-1  │
+┌ ATTENTION ────────── 6 ┐│                               ││                          ││               · 2 kernels     │
+│ ! tank DEGRADED        ││                               ││                          ││    Snapshots  2 · newest      │
+│   3 Pools              ││                               ││                          ││               2026-10-01, 22  │
+│ ! tank: sdb2 UNAVAIL   ││                               ││                          ││               d ago           │
+│   3 Pools              ││                               ││                          ││   Encryption  none            │
+│ ! tank: checkpoint     ││                               ││                          ││ Command Line  rw quiet splash │
+│   3 Pools              ││                               ││                          ││               · set here      │
+│ ! arch: 1 warning      ││                               ││                          ││                               │
+│   1 Boot               ││                               ││                          ││ NEXT STEPS                    │
+│ × debian: 1 problem    ││                               ││                          ││   Esc cancel   Up/Down sel…   │
+│   1 Boot               ││                               ││                          ││                               │
+│ ! 1 warning in the log ││                               ││                          ││ CHECKS                        │
+│   4 Log                ││                               ││                          ││   √ Kernel and initramfs: 6.… │
+│                        ││                               ││                          ││   √ ZFS module: zfs 2.4.4 fo… │
+│                        ││                               ││                          ││   √ Pool features: ZFS 2.4.4… │
+│                        ││                               ││                          ││   √ Root dataset: mountpoint… │
+│                        ││                               ││                          ││   ! Free space: tank has 4% … │
+│                        ││                               ││                          ││     destroy old snapshots, o… │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││ KERNELS                       │
+│                        ││                               ││                          ││   6.11.5-arch1-1        boots │
+│                        ││                               ││                          ││   6.10.10-arch1-1             │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││ NEWEST SNAPSHOTS              │
+│                        ││                               ││                          ││   2026-10-01         22 d ago │
+│                        ││                               ││                          ││                               │
+│                        ││                               ││                          ││                               │
+└────────────────────────┘└───────────────────────────────┘└──────────────────────────┘└───────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Confirm   Esc Cancel   Up/Down Select

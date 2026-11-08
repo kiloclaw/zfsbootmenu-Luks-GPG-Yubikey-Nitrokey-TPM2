@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+                          [ Files 6 ]     Packages 5
+┌ CHANGES SINCE AUTOSNAP_2026-10-20_DAILY ────────────────────────────────── 6 ┐
+│   • M /etc/fstab                                                             │
+│     + /etc/modprobe.d/nvidia.conf                                            │
+│     M /etc/default/grub                                                      │
+│ ▶ • - /usr/lib/libdrm.so.2                                                   │
+│     R /etc/default/zfs → /etc/default/zfs.bak                                │
+│     M /boot/initramfs-6.12.9_1.img                                           │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ PREVIEW ──────────────────────────────────────────────────────────── removed ┐
+│ /usr/lib/libdrm.so.2                                                         │
+│ Removed since the snapshot: restoring brings it back.                        │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Restore   Left/Right Files/Packages   / Filter   : Commands       ? More

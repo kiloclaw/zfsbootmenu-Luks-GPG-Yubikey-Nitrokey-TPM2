@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+            [ Files 6 ]     Packages 5
+┌ ┌──────────────────────────────────────────────┐ ┐
+│ │ Restore 2 Files from autosnap_2026-10-20_da… │ │
+│ │                                              │ │
+│ │ /etc/fstab                                   │ │
+│ │ /usr/lib/libdrm.so.2                         │ │
+│ │ They replace the files in zroot/ROOT/void as │ │
+│ │ they are now.                                │ │
+│ │ zroot is imported read/write, and a safety   │ │
+└─│ snapshot                                     │─┘
+┌ │ zroot/ROOT/void@before-restore-<time> is     │ ┐
+│ │ taken first: roll back to it to undo.        │ │
+│ │                                              │ │
+│ │ Type void to confirm: vo                     │ │
+│ │                                              │ │
+│ │                      [ Cancel ]  [ Restore ] │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

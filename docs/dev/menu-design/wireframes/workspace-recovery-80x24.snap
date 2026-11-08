@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+┌ RECOVERY TOOLS ─────────────────────────────────────────────────────────── 7 ┐
+│ ▶ Recovery Shell                                                             │
+│   Chroot into the Selected Environment                                       │
+│   Log                                                                        │
+│   Pools and Volumes                                                          │
+│   Firmware Setup                                                             │
+│   Reboot                                                                     │
+│   Power Off                                                                  │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Run   / Filter   : Commands   ! Recovery   x Power                ? More

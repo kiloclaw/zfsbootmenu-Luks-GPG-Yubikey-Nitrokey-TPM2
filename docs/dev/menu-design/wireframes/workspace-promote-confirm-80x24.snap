@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+ zroot › zroot/ROOT/void › autosnap_2026-10-20_daily
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────── 400 ┐
+│   zroot · ONLINE     ││   Today                         1 snapshot · 1.1 GiB │
+│ ▶ zroot/ROOT/void    ││     pre-upgrade                   1 h ago    1.1 GiB │
+│   zroot/ROOT/ubuntu  ││   Thursday 22 October            1 snapshot · 17 MiB │
+│   tank ·┌──────────────────────────────────────────────────────────┐  17 MiB │
+│   tank/R│        Clone and Promote autosnap_2026-10-20_daily       │· 30 MiB │
+│   tank/R│                                                          │  30 MiB │
+│         │ The clone takes over the snapshots of zroot/ROOT/void up │· 43 MiB │
+│         │ to autosnap_2026-10-20_daily.                            │  43 MiB │
+│         │ zroot/ROOT/void then depends on the clone, and cannot be │· 56 MiB │
+│         │ destroyed without it.                                    │  56 MiB │
+│         │                                                          │ 301 MiB │
+│         │ Type void to confirm:                                    │  56 MiB │
+│         │                                                          │  43 MiB │
+└─────────│                                  [ Cancel ]  [ Promote ] │─────────┘
+┌ autosnap└──────────────────────────────────────────────────────────┘─────────┐
+│  Environment  zroot/ROOT/void                                                │
+│        Taken  2026-10-20 07:00 UTC, 3 d ago                                  │
+│         Used  43 MiB                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Confirm   Esc Cancel   Up/Down Select

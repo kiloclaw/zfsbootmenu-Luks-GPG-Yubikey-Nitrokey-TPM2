@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
+ zroot › zroot/ROOT/void › pre-upgrade
+┌ ┌ COMMANDS ───────────────────────── 42 of 427 ┐ ┐
+│ │ : 2026-10                                    │ │
+│ │ ▶ Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+└─│   Boot a clone of zroot/ROOT/void@autosnap_… │─┘
+┌ │   Boot a clone of zroot/ROOT/void@autosnap_… │─┐
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

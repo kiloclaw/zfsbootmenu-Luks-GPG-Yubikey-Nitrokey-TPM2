@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu  1 Boot [2 Snapshots] 3 Pools  4 Log    tank DEGRADED · 3/3 volumes open · ! 6 · host 00bab10c · 08:00 UTC
+ zroot › zroot/ROOT/void › autosnap_2026-10-20_daily
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────────── 400 ┐┌ autosnap_2026-10-20_daily ───────┐
+│   zroot · ONLINE     ││   Today                             1 snapshot · 1.1 GiB ││  Environment  zroot/ROOT/void    │
+│ ▶ zroot/ROOT/void    ││     pre-upgrade                       1 h ago    1.1 GiB ││        Taken  2026-10-20 07:00   │
+│   zroot/ROOT/ubuntu  ││   Thursday 22 October                1 snapshot · 17 MiB ││               UTC, 3 d ago       │
+│   tank · DEGRADED    ││     autosnap_2026-10-22_daily         1 d ago     17 MiB ││         Used  43 MiB             │
+│   tank/ROOT/arch     ││   Wednesday 21 October               1 snapshot · 30 MiB ││                                  │
+│   tank/ROOT/debian   ││     autosnap_2026-10-21_daily         2 d ago     30 MiB ││ NEXT STEPS                       │
+│                      ││   Tuesday 20 October                 1 snapshot · 43 MiB ││   Esc cancel     Up/Down select  │
+│                      ││ ▶   autosnap_2026-10-20_daily         3 d ago     43 MiB ││                                  │
+│                      ││   Monday 19 October                  1 snapshot · 56 MiB ││                                  │
+│                      ││     autosnap_2026-10-19_daily         4 d ago     56 MiB ││                                  │
+│                      ││   Week of 12 October               7 snapshots · 301 MiB ││                                  │
+│                      ││     ┌──────────────────────────────────────────────────────────┐                             │
+│                      ││     │        Clone and Promote autosnap_2026-10-20_daily       │                             │
+│                      ││     │                                                          │                             │
+│                      ││     │ The clone takes over the snapshots of zroot/ROOT/void up │                             │
+│                      ││     │ to autosnap_2026-10-20_daily.                            │                             │
+│                      ││     │ zroot/ROOT/void then depends on the clone, and cannot be │                             │
+│                      ││     │ destroyed without it.                                    │                             │
+│                      ││   We│                                                          │                             │
+│                      ││     │ Type void to confirm:                                    │                             │
+│                      ││     │                                                          │                             │
+│                      ││     │                                  [ Cancel ]  [ Promote ] │                             │
+│                      ││     └──────────────────────────────────────────────────────────┘                             │
+│                      ││     autosnap_2026-10-09_daily        14 d ago    4.0 MiB ││                                  │
+│                      ││     autosnap_2026-10-10_daily        13 d ago     82 MiB ││                                  │
+│                      ││     autosnap_2026-10-11_daily        12 d ago     69 MiB ││                                  │
+│                      ││   Week of 1 October                4 snapshots · 172 MiB ││                                  │
+│                      ││     autosnap_2026-10-01_daily        22 d ago     17 MiB ││                                  │
+│                      ││     autosnap_2026-10-02_daily        21 d ago    4.0 MiB ││                                  │
+│                      ││     autosnap_2026-10-03_daily        20 d ago     82 MiB ││                                  │
+│                      ││     autosnap_2026-10-04_daily        19 d ago     69 MiB ││                                  │
+│                      ││   September 2026         30 snapshots · 1.2 GiB · folded ││                                  │
+│                      ││   August 2026            31 snapshots · 1.3 GiB · folded ││                                  │
+│                      ││   July 2026              31 snapshots · 1.2 GiB · folded ││                                  │
+└──────────────────────┘└──────────────────────────────────────────────────────────┘└──────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Confirm   Esc Cancel   Up/Down Select

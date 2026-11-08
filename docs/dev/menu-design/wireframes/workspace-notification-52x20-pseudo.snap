@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 BBóótt] 2 SSñáppshóóts  3 PPóólls  4 LLóg   ! 6
+ zroot › zroot/ROOT/ubuntu
+┌ BBÓÓTT ÉÑVVÍRÓÓÑMÉÉÑTSS ────────────────────── 4 ┐
+│   zroot · ONLINE                                 │
+│ ▶ zroot/ROOT/ubun…  ddéfááúltt  6.8.0-47-generic │
+│   zroot/ROOT/void                       6.12.9_1 │
+│   tank · DEGRADED                                │
+│   tank/ROOT/arch    1 wwárññíñgg  6.11.5-arch1-1 │
+└──────────────────────────────────────────────────┘
+┌ zroot/ROOT/ubuntu ─────────────────── ddéfááúltt ┐
+│     ÇÇhéççks  √ ááll 5 ppássséd                  │
+│       PPóóll  zroot · ONLINE · rréádd/wrííté     │
+│     KKérññél  6.8.0-47-generic · 2 kkérññélss    │
+│ SSñáppshóóts  2 · ññéwéést 2026-10-01, 22 dd     │
+│               ágóó                               │
+│ ÉÉñçrrýpttíóññ  kkéý llóáddéd                    │
+│ ÇÇómmmáñdd Líññé  quiet loglevel=4 · ffrómm      │
+└──────────────────────────────────────────────────┘
+ √ DDóñéé: zroot/ROOT/ubuntu is the default of zroot
+ ÉÉñtéér BBóótt   l KKérññélss             ? MMóréé
