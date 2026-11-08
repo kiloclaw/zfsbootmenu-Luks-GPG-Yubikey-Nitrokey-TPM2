@@ -717,6 +717,36 @@ Benchmarks
 
 The benchmarks of ``ROADMAP.md`` (*Benchmarks*) are recorded here, each with the machine, the commit and how it ran.
 
+B5, many snapshots, in process
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``cargo run --release -p zbm-tui --example snapshots -- --runs 20`` gives the demo machine 100, 1,000 and 10,000
+snapshots on its default environment and draws the menu in memory at 120×40 and 80×24, in each key map. Each run
+opens the snapshots, scrolls ten pages, sorts, folds and unfolds (the workspace's ``z``), types a filter of six keys,
+opens the palette and types seven keys in it; every time includes the frame the key draws. Without ``--runs`` it
+makes five runs. The VM half of B5, a pool of 10,000 snapshots built by a VM test, is VE6's.
+
+Measured on 8 November 2026 on a cloud machine (Intel Xeon Processor at 2.1 GHz, four processors), at ``fcd6db51``
+with UI10e-4's change, which makes a palette entry's name dialog only once the entry is chosen. At 10,000 snapshots,
+median and worst of 20 runs, in milliseconds; the peak memory was 19 MB in each:
+
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+Map, size            Snapshots open  Filter key   Page down    Sort         Fold         Palette opened  Palette key
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+Workspace, 120×40    4.23 / 6.50     1.10 / 4.17  0.34 / 1.19  0.63 / 0.70  0.59 / 0.65  3.99 / 6.44     1.08 / 3.64
+Workspace, 80×24     4.03 / 4.59     0.91 / 2.08  0.18 / 0.26  0.45 / 0.52  0.42 / 0.52  3.86 / 4.13     0.94 / 2.26
+Classic, 120×40      3.81 / 5.04     1.18 / 2.71  0.34 / 0.47  0.64 / 0.86  --           4.30 / 4.93     1.08 / 2.53
+Classic, 80×24       3.55 / 6.55     0.97 / 3.42  0.15 / 0.28  0.41 / 0.53  --           3.91 / 4.90     0.93 / 2.57
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+
+Every key is within a frame (16 ms, B4) at 10,000. Before the change, at ``fcd6db51``, opening the palette took
+11.29/14.81 ms (median/worst) in the workspace at 120×40 and 10.85/11.29 ms at 80×24, and in the classic menu
+11.11/16.32 and 11.18/18.09 ms (20 runs), and the peak memory was 22 MB; an earlier run of five, at ``d6b16d8d``, gave
+16.31/24.32 ms in the workspace at 80×24. A profile of the opening (``valgrind --tool=callgrind``, as the machine has no
+``perf``) put two thirds of its instructions in the name dialogs of the 10,000 "Boot a clone" entries, two Fluent texts
+and a name each; with them gone the opening runs 62 % fewer instructions, most of them the entries' labels. The matcher
+(``nucleo-matcher``, one thread) is what the filter and palette keys time.
+
 B9, the console on the display, in process
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

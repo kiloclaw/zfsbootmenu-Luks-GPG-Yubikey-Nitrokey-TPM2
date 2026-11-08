@@ -7,13 +7,14 @@
 use pretty_assertions::assert_eq;
 use zbm_display::keys::{Key, KeyPress};
 
-use super::{Message, events, update};
+use super::{Message, events, follow, palette_items, update};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine, Session};
 use crate::menu::model::{Column, Dialog, Model, Screen, Sort, Then};
 use crate::menu::theme::Theme;
 use crate::menu::view::words;
 use crate::menu::world::{Action, Event, Offer, Outcome, Snapshot, SnapshotList};
+use crate::text::text;
 
 /// The demo in the classic menu (`zbm.menu=classic`), whose keys these
 /// tests press.
@@ -229,7 +230,78 @@ fn the_palette_open_finds_the_snapshots_that_come() {
     let palette = model.palette.as_ref().unwrap();
     assert_eq!(palette.items.len(), count + 400);
     assert_eq!(palette.matches.len(), palette.items.len());
-    assert!(matches!(&palette.items[4].then, Then::Name(_)));
+    assert!(matches!(&palette.items[4].then, Then::BootClone(_)));
+}
+
+/// The Name dialog the boot of a clone of `snapshot` opens from a list.
+fn boot_clone_dialog(model: &Model, snapshot: &zbm_types::SnapshotName) -> Dialog {
+    let Then::Name(naming) = super::snapshots::boot_clone(model, snapshot) else {
+        panic!("a boot clone asks for no name");
+    };
+    Dialog::Name(naming)
+}
+
+#[test]
+fn the_palette_boots_a_clone_of_each_snapshot_read_newest_first_named_once_chosen() {
+    let (snapshot, list) = machine();
+    let (mut model, _) = step(menu(snapshot), event(Event::SnapshotsLoaded(list.clone())));
+    let mut newest: Vec<_> = list.snapshots.iter().collect();
+    newest.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created));
+
+    let items = palette_items(&model);
+
+    let first = items
+        .iter()
+        .position(|item| matches!(item.then, Then::BootClone(_)))
+        .unwrap();
+    let clones = &items[first..first + newest.len()];
+    assert_eq!(
+        items[first - 1].label,
+        text!("palette-edit", environment = "zroot/ROOT/void")
+    );
+    for (item, snapshot) in clones.iter().zip(newest) {
+        let label = text!("palette-boot-clone", snapshot = snapshot.name.to_string());
+        assert_eq!(item.label, label);
+        assert_eq!(item.then, Then::BootClone(snapshot.name.clone()));
+        assert!(follow(&mut model, item.then.clone()).is_empty());
+        let dialog = model.dialog.take();
+        assert_eq!(dialog, Some(boot_clone_dialog(&model, &snapshot.name)));
+    }
+    let after = &items[first + clones.len()..];
+    assert!(
+        after
+            .iter()
+            .all(|item| !matches!(item.then, Then::BootClone(_)))
+    );
+}
+
+#[test]
+fn a_boot_clone_chosen_in_the_palette_opens_the_name_dialog_of_the_lists() {
+    let (snapshot, list) = machine();
+    let (model, _) = step(menu(snapshot), event(Event::SnapshotsLoaded(list)));
+    let (mut model, _) = step(model, key(':'));
+    let palette = model.palette.as_ref().unwrap();
+    let thens: Vec<_> = palette
+        .matches
+        .iter()
+        .map(|ranked| palette.items[ranked.index].then.clone())
+        .collect();
+    let chosen = thens
+        .iter()
+        .position(|then| matches!(then, Then::BootClone(_)))
+        .unwrap();
+    let Then::BootClone(name) = thens[chosen].clone() else {
+        panic!("no boot clone in the palette");
+    };
+    for _ in 0..chosen {
+        (model, _) = step(model, Message::Key(KeyPress::new(Key::Down)));
+    }
+
+    let (model, actions) = step(model, Message::Key(KeyPress::new(Key::Enter)));
+
+    assert!(actions.is_empty());
+    assert!(model.palette.is_none());
+    assert_eq!(model.dialog, Some(boot_clone_dialog(&model, &name)));
 }
 
 #[test]

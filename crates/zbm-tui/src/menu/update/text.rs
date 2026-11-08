@@ -168,7 +168,7 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
         for snapshot in loaded {
             items.push(item(
                 text!("palette-boot-clone", snapshot = snapshot.name.to_string()),
-                super::snapshots::boot_clone(model, &snapshot.name),
+                Then::BootClone(snapshot.name.clone()),
             ));
         }
     }

@@ -127,6 +127,9 @@ fn then_action(model: &Model, then: &Then) -> Option<Action> {
             Some(action.clone())
         }
         Then::Name(naming) => naming.action(),
+        Then::BootClone(snapshot) => {
+            then_action(model, &super::snapshots::boot_clone(model, snapshot))
+        }
         Then::Focus(name, Screen::CommandLine) => {
             let environment = model
                 .snapshot

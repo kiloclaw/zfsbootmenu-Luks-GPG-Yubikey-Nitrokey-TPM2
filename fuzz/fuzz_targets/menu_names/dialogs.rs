@@ -2,7 +2,7 @@
 //! with every choice followed; with the names the input gives.
 
 use zbm_display::keys::Key;
-use zbm_tui::menu::model::{Dialog, Model, Screen};
+use zbm_tui::menu::model::{Dialog, Model, Screen, Then};
 use zbm_tui::menu::update::follow;
 use zbm_tui::menu::world::{
     Event, Method, Notice, Outcome, PcrChange, Pool, Question, SnapshotInfo, Tpm2Seal,
@@ -226,6 +226,7 @@ fn chosen(mut model: Model, size: (u16, u16)) -> Model {
 
 /// The palette, its entries named by the machine's environments,
 /// snapshots and pools, then filtered by what the input types; closed.
+/// Its first boot of a clone is followed: the name it asks for.
 fn palette(model: Model, typed: &Untrusted<String>, size: (u16, u16)) -> Model {
     let mut model = press(model, Key::Char(':'));
     check_page(&model, size);
@@ -233,6 +234,15 @@ fn palette(model: Model, typed: &Untrusted<String>, size: (u16, u16)) -> Model {
         model = press(model, Key::Char(c));
     }
     check_page(&model, size);
-    model.palette = None;
+    let items = model.palette.take().map(|palette| palette.items);
+    let clone = items
+        .into_iter()
+        .flatten()
+        .find(|item| matches!(item.then, Then::BootClone(_)));
+    if let Some(item) = clone {
+        let _ = follow(&mut model, item.then);
+        check_page(&model, size);
+        model.dialog = None;
+    }
     model
 }

@@ -17,6 +17,7 @@ fn offer_of(then: &Then) -> Option<Offer> {
             Make::BootClone(_) => Offer::BootSnapshot,
             Make::Duplicate(_) => Offer::Duplicate,
         }),
+        Then::BootClone(_) => Some(Offer::BootSnapshot),
         // The command line is edited for a boot.
         Then::Focus(_, Screen::CommandLine) => Some(Offer::Boot),
         Then::Open(_) | Then::Focus(..) => None,

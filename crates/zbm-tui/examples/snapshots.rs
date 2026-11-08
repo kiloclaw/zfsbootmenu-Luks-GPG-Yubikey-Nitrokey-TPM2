@@ -11,6 +11,7 @@
 //!
 //! ```sh
 //! cargo run --release -p zbm-tui --example snapshots
+//! cargo run --release -p zbm-tui --example snapshots -- --runs 20
 //! ```
 
 #![allow(
@@ -40,7 +41,7 @@ const SIZES: [(u16, u16); 2] = [(120, 40), (80, 24)];
 /// The key maps measured, by name.
 const MAPS: [(&str, bool); 2] = [("classic", false), ("workspace", true)];
 
-/// How often each measure is made.
+/// How often each measure is made, unless `--runs` says.
 const RUNS: usize = 5;
 
 /// A frame (B4).
@@ -155,8 +156,29 @@ fn reset_peak() {
     let _ = std::fs::write("/proc/self/clear_refs", "5");
 }
 
+/// The number of runs `--runs N` asks for, or [`RUNS`]; `None` for any
+/// other arguments, a count that is not a number or a count of 0.
+fn runs_of(args: &[String]) -> Option<usize> {
+    match args {
+        [] => Some(RUNS),
+        [flag, count] if flag == "--runs" => count.parse().ok().filter(|&n| n > 0),
+        _ => None,
+    }
+}
+
+/// The number of runs the arguments ask for; the usage and exit status 2
+/// for bad arguments.
+fn runs() -> usize {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    runs_of(&args).unwrap_or_else(|| {
+        eprintln!("usage: snapshots [--runs N], N at least 1");
+        std::process::exit(2);
+    })
+}
+
 fn main() {
-    println!("B5: median and worst of {RUNS} runs, in ms ('!' over a frame of 16 ms)");
+    let runs = runs();
+    println!("B5: median and worst of {runs} runs, in ms ('!' over a frame of 16 ms)");
     println!(
         "{:>9} {:>6} {:>7}  {:>15} {:>15} {:>15} {:>15} {:>15} {:>15} {:>15} {:>9}",
         "map",
@@ -176,7 +198,7 @@ fn main() {
             for size in SIZES {
                 reset_peak();
                 let mut times = Times::default();
-                for _ in 0..RUNS {
+                for _ in 0..runs {
                     run(count, size, workspace, &mut times);
                 }
                 let fold = if workspace {

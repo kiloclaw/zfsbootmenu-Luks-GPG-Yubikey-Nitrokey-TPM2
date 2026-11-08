@@ -245,7 +245,7 @@ fn action_line(theme: Theme, choice: &Choice) -> Line<'static> {
     let more = format!("{label}{}", theme.glyph(Glyph::Ellipsis));
     match choice.then {
         Then::Confirm { .. } | Then::Review(_) => Line::styled(more, theme.style(Role::Danger)),
-        Then::Name(_) => Line::from(more),
+        Then::Name(_) | Then::BootClone(_) => Line::from(more),
         _ => Line::from(label),
     }
 }

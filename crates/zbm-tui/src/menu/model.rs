@@ -105,6 +105,9 @@ pub enum Then {
     Review(Action),
     /// Ask for the name of something new, then act.
     Name(Naming),
+    /// Ask for the name of a clone of this snapshot, then boot it: the
+    /// palette's entries, whose naming is made only once one is chosen.
+    BootClone(SnapshotName),
     /// Open this screen.
     Open(Screen),
     /// Open the snapshots or kernels of an environment, or its command

@@ -166,6 +166,9 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
         Then::Confirm { .. } => model.dialog = Some(confirm(then)),
         Then::Review(action) => return super::review::open(model, action),
         Then::Name(naming) => model.dialog = Some(Dialog::Name(naming)),
+        Then::BootClone(snapshot) => {
+            return follow(model, super::snapshots::boot_clone(model, &snapshot));
+        }
         Then::Open(screen) => {
             model.screen = screen;
             model.scroll = 0;
