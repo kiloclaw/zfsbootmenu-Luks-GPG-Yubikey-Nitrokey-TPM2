@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹ Boot Environments               Snapshots     tank DEGRADED · 3/3 open · ! 1
+┌ SNAPSHOTS BY CREATION ────────────────────────────────────────────────── 400 ┐
+│ ▶   pre-upgrade                                          12 h ago    1.1 GiB │
+│     autosnap_2026-10-22_daily                             1 d ago     17 MiB │
+│     autosnap_2026-10-21_daily                             2 d ago     30 MiB │
+│     auto┌──────────────────────────────────────────────────────────┐  43 MiB │
+│     auto│                   Snapshot pre-upgrade                   │  56 MiB │
+│     auto│ zroot/ROOT/void@pre-upgrade · 12 h ago · 1.1 GiB         │  69 MiB │
+│     auto│                                                          │  82 MiB │
+│     auto│ ▶ Boot a New Clone…                                      │ 4.0 MiB │
+│     auto│   Roll Back to It…                                       │  17 MiB │
+│     auto│   Clone as a New Boot Environment…                       │  30 MiB │
+│     auto│   Duplicate as an Independent Copy…                      │  43 MiB │
+│     auto│   Clone and Promote…                                     │  56 MiB │
+│     auto│   Show Differences to Now                                │  69 MiB │
+│     auto│   Chroot into It, Read-Only                              │  82 MiB │
+│     auto│ ──────────────────────────────────────────────────────── │ 4.0 MiB │
+│     auto│   Cancel                                                 │  17 MiB │
+│     auto└──────────────────────────────────────────────────────────┘  30 MiB │
+│     autosnap_2026-10-06_daily                            17 d ago     43 MiB │
+│     autosnap_2026-10-05_daily                            18 d ago     56 MiB │
+│     autosnap_2026-10-04_daily                            19 d ago     69 MiB │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Choose   Esc Cancel   Up/Down Select

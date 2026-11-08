@@ -1,5 +1,6 @@
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::buffer::Buffer;
 use zbm_display::keys::Key;
 use zbm_types::Untrusted;
 
@@ -8,11 +9,16 @@ use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::theme::Theme;
 
-/// The text of the screen `model` draws at `width` by `height`.
-pub(crate) fn screen(model: &Model, width: u16, height: u16) -> String {
+/// The cells of the screen `model` draws at `width` by `height`.
+pub(crate) fn cells(model: &Model, width: u16, height: u16) -> Buffer {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal.draw(|frame| view(model, frame)).unwrap();
-    let buffer = terminal.backend().buffer();
+    terminal.backend().buffer().clone()
+}
+
+/// The text of the screen `model` draws at `width` by `height`.
+pub(crate) fn screen(model: &Model, width: u16, height: u16) -> String {
+    let buffer = cells(model, width, height);
     let mut text = String::new();
     for y in 0..height {
         let line: String = (0..width)
@@ -119,15 +125,8 @@ fn a_tall_detail_pane_lists_kernels_and_snapshots() {
     assert!(!short.contains("NEWEST SNAPSHOTS"), "{short}");
 }
 
-/// The cells of the screen `model` draws at 80×25.
-fn cells(model: &Model) -> ratatui::buffer::Buffer {
-    let mut terminal = Terminal::new(TestBackend::new(80, 25)).unwrap();
-    terminal.draw(|frame| view(model, frame)).unwrap();
-    terminal.backend().buffer().clone()
-}
-
 /// The first cell of `text` on row `y`.
-fn find(buffer: &ratatui::buffer::Buffer, y: u16, text: &str) -> ratatui::buffer::Cell {
+fn find(buffer: &Buffer, y: u16, text: &str) -> ratatui::buffer::Cell {
     let row: String = (0..80)
         .map(|x| buffer[(x, y)].symbol().to_owned())
         .collect();
@@ -142,7 +141,7 @@ fn find(buffer: &ratatui::buffer::Buffer, y: u16, text: &str) -> ratatui::buffer
 fn on_the_console_the_banner_leads_with_what_boots_and_when() {
     use ratatui::style::{Color, Modifier};
     let session = started(Capabilities::CONSOLE);
-    let buffer = cells(session.model());
+    let buffer = cells(session.model(), 80, 25);
 
     assert_eq!(find(&buffer, 1, "Booting").fg, Color::White);
     assert_eq!(find(&buffer, 1, "zroot/ROOT/void").fg, Color::White);

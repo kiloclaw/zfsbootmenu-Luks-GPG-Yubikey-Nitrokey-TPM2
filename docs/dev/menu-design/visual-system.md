@@ -77,6 +77,7 @@ character they cannot draw. Each glyph has an ASCII form.
 | `–` | skipped | `-` |
 | `!` | warning | `!` |
 | `·` | between facts on one line | `|` |
+| `→` | a renamed file's new path | `->` |
 | `─ │ ┌ ┐ └ ┘` | borders, square: the fonts have no rounded corners | `- | +` |
 
 ## Terminal capabilities

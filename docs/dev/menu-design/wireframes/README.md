@@ -63,11 +63,13 @@ keep their names:
 | `log-history` | `4`: the Log tab with the boot history `zbm.save_logs` kept above the log since start: a measured boot, one saved without a record, one whose record a newer runtime wrote, and one whose kernel's name holds escape bytes, drawn as text |
 | `log-no-history` | `4` without `zbm.save_logs`: the Log tab says no boot is kept, and where the option is documented |
 
-Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. The `-ascii`
-files are the main view and dialogs at 80×25 for terminals without line drawing or UTF-8 (`--theme ascii`). The
-workspace comes at 80×24 too, as over a serial line, in colour and in ASCII (`-80x24`, `-80x24-ascii`). Colour
-is not in the text: colour and monochrome draw the same characters, which a test checks, so nothing depends on
-colour alone. Another test reads the Unicode tables of the image's console fonts and fails if a wireframe uses a
+Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. Every name
+comes at 80×24 too, as over a serial line, in colour and in ASCII for terminals without line drawing or UTF-8
+(`-80x24`, `-80x24-ascii`, `--theme ascii`), except the four prototypes of items ADR 0016 point 18 leaves out of the
+menu: `main-fallback`, `main-next-boot`, `may-not-boot` and `diff-packages`. The main view and dialogs come in ASCII
+at 80×25 as well (`-80x25-ascii`). Colour is not in the text: monochrome draws the same characters as colour, and a
+test draws every name at 80×24 in monochrome and in ASCII and fails if any cell carries a colour, so nothing depends
+on colour alone. Another test reads the Unicode tables of the image's console fonts and fails if a wireframe uses a
 glyph they lack. The design rules they follow are in [../apple-hig.md](../apple-hig.md).
 
 ## Changing them

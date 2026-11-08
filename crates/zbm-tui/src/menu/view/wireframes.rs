@@ -1,15 +1,18 @@
 //! The wireframes of `docs/dev/menu-design/wireframes/`: every view of the
-//! prototype at 120×40, 80×25 and 52×20, and the main dialogs in ASCII, as
-//! snapshot tests. Change a view, then review and accept the new
-//! wireframes with `cargo insta review` or `cargo xtask bless`.
+//! prototype at 120×40, 80×25 and 52×20, every view but the prototypes of
+//! ADR 0016 point 18 at 80×24 in colour and ASCII, and the main dialogs at
+//! 80×25 in ASCII, as snapshot tests. Change a view,
+//! then review and accept the new wireframes with `cargo insta review` or
+//! `cargo xtask bless`.
 
+use ratatui::style::Color;
 use zbm_display::keys::{Key, KeyPress};
 use zbm_display::psf::{Font, repertoire};
 
-use super::tests::screen;
+use super::tests::{cells, screen};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine, Session};
-use crate::menu::theme::Theme;
+use crate::menu::theme::{Glyph, Theme};
 use crate::menu::update::{Message, update};
 
 /// The sizes of the wireframes.
@@ -51,6 +54,24 @@ fn wireframes() -> Vec<Wireframe> {
     all.extend(unlock_wireframes());
     all.extend(naming_wireframes());
     all.extend(workspace_wireframes());
+    all
+}
+
+/// The prototypes of the items ADR 0016 point 18 leaves out of the menu: the
+/// boot-health banners, the dialog before booting an environment whose
+/// checks failed, and the packages a snapshot changes. They get no 80×24
+/// files.
+const PROTOTYPES: [&str; 4] = [
+    "main-fallback",
+    "main-next-boot",
+    "may-not-boot",
+    "diff-packages",
+];
+
+/// The wireframes drawn at 80×24: every one but the prototypes.
+fn serial_wireframes() -> Vec<Wireframe> {
+    let mut all = wireframes();
+    all.retain(|wireframe| !PROTOTYPES.contains(&wireframe.name));
     all
 }
 
@@ -103,11 +124,12 @@ fn every_view_at_three_sizes() {
     });
 }
 
-/// The workspace over a serial line: 80×24, in colour and in ASCII.
+/// Every view but the prototypes over a serial line: 80×24, in colour and
+/// in ASCII.
 #[test]
-fn the_workspace_on_a_serial_console() {
+fn every_view_on_a_serial_console() {
     settings().bind(|| {
-        for wireframe in workspace_wireframes() {
+        for wireframe in serial_wireframes() {
             for (capabilities, suffix) in
                 [(Capabilities::FULL, ""), (Capabilities::ASCII, "-ascii")]
             {
@@ -120,6 +142,27 @@ fn the_workspace_on_a_serial_console() {
             }
         }
     });
+}
+
+/// In monochrome and in ASCII no cell of any view carries a colour: the
+/// theme says what colour would with bold, underline and reverse alone.
+#[test]
+fn no_wireframe_draws_a_colour_in_monochrome_or_ascii() {
+    for capabilities in [Capabilities::MONOCHROME, Capabilities::ASCII] {
+        for wireframe in wireframes() {
+            let session = play(&wireframe, capabilities);
+            let buffer = cells(session.model(), 80, 24);
+            for cell in buffer.content() {
+                let colours = (cell.fg, cell.bg);
+                assert_eq!(
+                    colours,
+                    (Color::Reset, Color::Reset),
+                    "{}: {cell:?}",
+                    wireframe.name
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -193,7 +236,7 @@ fn every_character_drawn_is_in_the_console_fonts() {
     let fonts = console_characters();
     let theme = Theme::new(Capabilities::FULL);
     let mut missing = std::collections::BTreeSet::new();
-    for glyph in crate::menu::theme::Glyph::ALL {
+    for glyph in Glyph::ALL {
         missing.extend(theme.glyph(glyph).chars().filter(|c| !fonts.contains(c)));
     }
     for language in [

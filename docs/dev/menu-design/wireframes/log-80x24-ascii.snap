@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ < Boot Environments                  Log        tank DEGRADED | 3/3 open | ! 1
++ LOG SINCE START ------------------------------------------------- 2026-10-23 +
+|   info    ZFS 2.4.4 loaded, host ID 00bab10c                                 |
+|   info    imported zroot read-only                                           |
+| ! warning tank is DEGRADED: /dev/sdb2 is missing, 1 of 3 devices             |
+|   info    imported tank read-only                                            |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
++------------------------------------------------------------------------------+
+ : Commands   l Log   ! Recovery   x Power   Esc Back                    ? More

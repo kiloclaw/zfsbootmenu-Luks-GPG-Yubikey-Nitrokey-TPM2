@@ -112,7 +112,11 @@ fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff: &DiffView
             spans.extend(lists::highlighted(theme, &path, &ranked.positions));
             if let Some(to) = &change.renamed_to {
                 let to = to.printable();
-                spans.push(Span::styled(format!(" → {to}"), theme.style(Role::Muted)));
+                let arrow = theme.glyph(Glyph::Renamed);
+                spans.push(Span::styled(
+                    format!(" {arrow} {to}"),
+                    theme.style(Role::Muted),
+                ));
             }
             Some(lists::clip(Line::from(spans), width + 4, theme.is_ascii()))
         })

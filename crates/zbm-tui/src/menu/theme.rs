@@ -71,11 +71,13 @@ pub enum Glyph {
     Bullet,
     /// Between the parts of a path: `zroot › zroot/ROOT/void`.
     Path,
+    /// Between a renamed file's old and new path.
+    Renamed,
 }
 
 impl Glyph {
     /// Every glyph, for tests.
-    pub const ALL: [Glyph; 11] = [
+    pub const ALL: [Glyph; 12] = [
         Glyph::Back,
         Glyph::Selected,
         Glyph::Marked,
@@ -87,6 +89,7 @@ impl Glyph {
         Glyph::Ellipsis,
         Glyph::Bullet,
         Glyph::Path,
+        Glyph::Renamed,
     ];
 
     /// Its Unicode form.
@@ -101,6 +104,7 @@ impl Glyph {
             Glyph::Skipped => "–",
             Glyph::Warning => "!",
             Glyph::Path => "›",
+            Glyph::Renamed => "→",
         }
     }
 
@@ -115,6 +119,7 @@ impl Glyph {
             Glyph::Skipped | Glyph::Bullet => "-",
             Glyph::Warning => "!",
             Glyph::Ellipsis => "...",
+            Glyph::Renamed => "->",
         }
     }
 }

@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+                              Boot Environments  tank DEGRADED · 3/3 open · ! 1
+┌ BOOT ENVIRONMENTS ─────────────────────────────────────────────────── 2 of 4 ┐
+│ / ta                                                              Esc Cancel │
+│ ▶ tank/ROOT/arch                                   1 warning  6.11.5-arch1-1 │
+│   tank/ROOT/debian                                 1 problem  6.1.0-26-amd64 │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ tank/ROOT/arch ──────────────────────────────────────────────────────────────┐
+│       Checks  ! tank has 4% free: writes during boot may fail                │
+│         Pool  tank · DEGRADED · read-only                                    │
+│       Kernel  6.11.5-arch1-1 · 2 kernels                                     │
+│    Snapshots  2 · newest 2026-10-01, 22 d ago                                │
+│   Encryption  none                                                           │
+│ Command Line  rw quiet splash · set here                                     │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

@@ -23,7 +23,7 @@ of keys that work on every keyboard (decision 18) hold for both.
 | [What the menu needs from `zbm-app`](interfaces.md) | the `Snapshot`, `Action` and event lists handed to R4 |
 | [Usability sessions](usability.md) | who, how, the task script in both maps, what to record |
 | [Findings](findings.md) | what the sessions found, and what was done about it |
-| [Wireframes](wireframes/) | every view at 120×40, 80×25 and 52×20, and the workspace at 80×24 as over a serial line, drawn by the prototype |
+| [Wireframes](wireframes/) | every view at 120×40, 80×25 and 52×20, and at 80×24 in colour and ASCII as over a serial line but for the four prototypes of ADR 0016 point 18, drawn by the prototype |
 
 ## The prototype
 

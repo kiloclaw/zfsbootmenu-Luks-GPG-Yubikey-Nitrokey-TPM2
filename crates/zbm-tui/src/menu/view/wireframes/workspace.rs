@@ -1,5 +1,4 @@
-//! The wireframes of the workspace (ADR 0007), which also show over a
-//! serial line at 80×24, in colour and in ASCII.
+//! The wireframes of the workspace (ADR 0007).
 
 use zbm_display::keys::Key;
 

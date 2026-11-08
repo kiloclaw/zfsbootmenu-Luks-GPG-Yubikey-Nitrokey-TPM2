@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ < Boot Environments                  Help       tank DEGRADED | 3/3 open | ! 1
++ KEYS, UP/DOWN TO SCROLL -----------------------------------------------------+
+| THIS VIEW                                                                    |
+|            Enter  Boot                                                       |
+|                b  Boot                                                       |
+|                k  Kernels                                                    |
+|                s  Snapshots                                                  |
+|                e  Edit                                                       |
+|                d  Default                                                    |
+|                p  Pools                                                      |
+|                n  Snapshot                                                   |
+|                w  Read/Write                                                 |
+|                j  Chroot                                                     |
+|                /  Filter                                                     |
+|                :  Commands                                                   |
+|                l  Log                                                        |
+|                !  Recovery                                                   |
+|                x  Power                                                      |
+|            ?, F1  Help                                                       |
+|      Esc, Ctrl-C  Back                                                       |
+|       Up, Ctrl-P  Select                                                     |
+|     Down, Ctrl-N  Select                                                     |
++------------------------------------------------------------------------------+
+ Esc Back   Up/Down Scroll
