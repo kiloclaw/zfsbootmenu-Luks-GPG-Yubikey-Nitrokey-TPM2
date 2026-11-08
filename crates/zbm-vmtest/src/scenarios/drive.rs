@@ -36,10 +36,24 @@ const MOVE_LOOKS: usize = 10;
 const MOVE_PATIENCE: u64 = 5;
 
 /// How often the mirror is read while waiting for a screen.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "menu-display drives the display with it (UI10e-9)"
+    )
+)]
 const MIRROR_POLL: Duration = Duration::from_millis(200);
 
 /// A key the menu tests press.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "menu-display presses the arrows and Tab (UI10e-9)"
+    )
+)]
 pub(crate) enum Key {
     /// Escape.
     Escape,
@@ -59,6 +73,8 @@ pub(crate) enum Key {
     Tab,
     /// Shift-Tab.
     BackTab,
+    /// Home: the top of a list.
+    Home,
     /// Ctrl-U, which clears a field.
     CtrlU,
     /// A character, Shift with a capital.
@@ -67,7 +83,7 @@ pub(crate) enum Key {
 
 impl Key {
     /// The bytes a serial terminal sends for it.
-    fn serial(self) -> String {
+    pub(super) fn serial(self) -> String {
         let bytes = match self {
             Key::Escape => "\x1b",
             Key::Enter => "\r",
@@ -78,6 +94,7 @@ impl Key {
             Key::Delete => "\x1b[3~",
             Key::Tab => "\t",
             Key::BackTab => "\x1b[Z",
+            Key::Home => "\x1b[H",
             Key::CtrlU => "\x15",
             Key::Char(c) => return c.to_string(),
         };
@@ -86,6 +103,13 @@ impl Key {
 
     /// QEMU's name of it, on the US layout; `None` for a character without
     /// one.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "menu-display drives the display with it (UI10e-9)"
+        )
+    )]
     fn qemu_name(self) -> Option<String> {
         let name = match self {
             Key::Escape => "esc",
@@ -97,6 +121,7 @@ impl Key {
             Key::Delete => "delete",
             Key::Tab => "tab",
             Key::BackTab => "shift-tab",
+            Key::Home => "home",
             Key::CtrlU => "ctrl-u",
             Key::Char(c) => return key_names(&c.to_string())?.pop(),
         };
@@ -125,7 +150,9 @@ pub(crate) trait Driver {
     ///
     /// # Errors
     ///
-    /// When the pattern is invalid, or the machine stopped.
+    /// When the pattern is invalid, or, on the serial console, the machine
+    /// stopped: the mirror of the display does not tell, and its screen is
+    /// then `None` once the time is up.
     fn screen(&mut self, vm: &mut Vm<'_>, pattern: &str, seconds: u64) -> Result<Option<String>>;
 }
 
@@ -163,6 +190,13 @@ impl Driver for Serial {
 
 /// The console on the display: keys through `monitor`, screens from the
 /// mirror at `mirror`, at `pace`.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "menu-display drives the display with it (UI10e-9)"
+    )
+)]
 pub(crate) struct Display<'m> {
     /// How keys are pressed.
     pub(crate) monitor: &'m Monitor,
@@ -233,7 +267,7 @@ fn selected_rows(screen: &str) -> Vec<&str> {
 
 /// Whether `row` holds `name` as a whole word: between blanks or the row's
 /// ends, so that `two` is not found in `two-clone` or `tmenu/two`.
-fn has_word(row: &str, name: &str) -> bool {
+pub(super) fn has_word(row: &str, name: &str) -> bool {
     !name.is_empty()
         && row.match_indices(name).any(|(at, _)| {
             let before = row.get(..at).and_then(|text| text.chars().next_back());
@@ -251,7 +285,8 @@ fn has_selected(screen: &str, name: &str) -> bool {
 
 /// Presses Down, at most `max` times, until a selected row holds `name` as
 /// a whole word; whether one does. It stops when Down no longer moves the
-/// selection: the list ended.
+/// selection: the list ended. Not for the Log tab: in ASCII its running
+/// glyph is `>` too, so that a row of the log reads as selected.
 ///
 /// # Errors
 ///

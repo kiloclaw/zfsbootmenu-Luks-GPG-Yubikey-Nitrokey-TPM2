@@ -12,15 +12,12 @@ use crate::settings::Settings;
 pub mod complex;
 mod display;
 pub mod docs;
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the menu scenarios drive the menu with it")
-)]
 mod drive;
 pub mod firmware;
 pub mod integrity;
 pub mod keys;
 pub mod layouts;
+pub mod menu;
 pub mod procedures;
 pub mod runtime;
 pub mod secrets;
@@ -74,6 +71,10 @@ pub const ALL: &[&str] = &[
     "runtime-rust-console-lines",
     "runtime-rust-saved",
     "runtime-rust-gpu",
+    "menu-setup",
+    "menu-snapshots",
+    "menu-pools",
+    "menu-boot",
     "secrets-setup",
     "secrets-passphrase",
     "secrets-keyfile",
@@ -98,6 +99,7 @@ fn dispatch(test: &Test, name: &str) -> Result<()> {
         "firmware" => firmware::run(test, scenario),
         "procedures" => procedures::run(test),
         "runtime" => runtime::run(test, scenario),
+        "menu" => menu::run(test, scenario),
         "secrets" => secrets::run(test, scenario),
         "integrity" => integrity::run_scenario(test, scenario),
         _ => Err(Error::Setup(format!("unknown test {name}"))),
@@ -161,7 +163,14 @@ mod tests {
     #[test]
     fn a_scenario_whose_setup_did_not_run_fails_and_says_so() {
         let settings = settings("scenarios-without-setup");
-        for name in ["integrity-unattended", "integrity-lockdown", "keys-plugin"] {
+        for name in [
+            "integrity-unattended",
+            "integrity-lockdown",
+            "keys-plugin",
+            "menu-snapshots",
+            "menu-pools",
+            "menu-boot",
+        ] {
             let outcome = run(&settings, name).unwrap();
             assert_eq!(outcome.passed, 0, "{name}");
             assert!(

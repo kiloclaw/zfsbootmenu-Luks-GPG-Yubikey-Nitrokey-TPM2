@@ -82,6 +82,7 @@ fn each_key_has_its_serial_bytes_and_its_qemu_name() {
         (Key::Delete, "\x1b[3~", "delete"),
         (Key::Tab, "\t", "tab"),
         (Key::BackTab, "\x1b[Z", "shift-tab"),
+        (Key::Home, "\x1b[H", "home"),
         (Key::CtrlU, "\x15", "ctrl-u"),
         (Key::Char('n'), "n", "n"),
         (Key::Char('Q'), "Q", "shift-q"),

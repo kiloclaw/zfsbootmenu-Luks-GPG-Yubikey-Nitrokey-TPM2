@@ -102,12 +102,12 @@ mod keysource;
 mod record_fixtures;
 mod record_zfs;
 pub(crate) mod saved;
-mod setup;
+pub(crate) mod setup;
 mod signals;
 
 /// The command line of the machines that open the recovery shell from the
 /// import retry loop.
-const SHELL_APPEND: &str = "console=ttyS0 zbm.luks=off zbm.retry_delay=3";
+pub(crate) const SHELL_APPEND: &str = "console=ttyS0 zbm.luks=off zbm.retry_delay=3";
 
 /// The command line of the machines that escape the countdown: long
 /// enough for the test to press Escape.
@@ -185,7 +185,7 @@ fn parse_runtime(name: &str) -> Result<ZbmRuntime> {
 
 /// The test image `variant` with `runtime`, and `hook` (path in the build
 /// directory, script) when given.
-fn image(
+pub(crate) fn image(
     settings: &Settings,
     variant: &str,
     runtime: ZbmRuntime,

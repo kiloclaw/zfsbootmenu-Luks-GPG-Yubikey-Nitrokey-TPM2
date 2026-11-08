@@ -12,11 +12,11 @@ use crate::settings::{ZFSKEY, ZbmRuntime};
 use crate::vm::Vm;
 
 /// The options of the pools.
-const OPTS: &str = "-o ashift=12 -o compatibility=openzfs-2.4-linux -O compression=lz4 \
+pub(crate) const OPTS: &str = "-o ashift=12 -o compatibility=openzfs-2.4-linux -O compression=lz4 \
                     -O acltype=posixacl -O xattr=sa -m none";
 
 /// The command line of the boot environments.
-const BE_CMDLINE: &str = "console=ttyS0 loglevel=4";
+pub(crate) const BE_CMDLINE: &str = "console=ttyS0 loglevel=4";
 
 /// The host ID of the other host, `deadbeef`, as `/etc/hostid` holds it.
 const FOREIGN: [u8; 4] = [0xef, 0xbe, 0xad, 0xde];
@@ -91,7 +91,7 @@ fn keyed_pool(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
 }
 
 /// The command that writes the other host's ID and imports `tforeign`.
-fn foreign_import() -> String {
+pub(crate) fn foreign_import() -> String {
     let hostid = FOREIGN.iter().fold(String::new(), |mut out, byte| {
         write!(out, "\\x{byte:02x}").ok();
         out

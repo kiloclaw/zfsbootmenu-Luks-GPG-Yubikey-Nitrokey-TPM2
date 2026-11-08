@@ -263,10 +263,6 @@ pub(crate) fn saved_kernel_log(image: &Path) -> Result<String> {
 
 /// The record `boot.json` saved on the FAT disk `image`, of its first
 /// saved boot; empty when it holds none.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the menu scenarios read the record of a boot")
-)]
 pub(crate) fn saved_record(image: &Path) -> Result<String> {
     saved_file(image, "boot.json")
 }
