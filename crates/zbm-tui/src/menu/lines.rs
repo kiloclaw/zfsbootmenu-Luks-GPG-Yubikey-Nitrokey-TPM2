@@ -55,18 +55,20 @@ fn choose(number: usize) -> Vec<KeyPress> {
 
 /// The key of a word or a character typed alone in `context`: `ok`, `back`,
 /// `help`, the name of a tab where the key map `map` binds a key to it
-/// there, or one of the key map's characters.
+/// there, or one of the key map's characters. A word is the same in any
+/// case (`OK`), as a capital is its letter.
 fn key_of(word: &str, context: Context, map: Map) -> Option<KeyPress> {
-    if word == text!("lines-word-ok") {
+    let is = |known: String| word.to_lowercase() == known.to_lowercase();
+    if is(text!("lines-word-ok")) {
         return Some(KeyPress::new(Key::Enter));
     }
-    if word == text!("lines-word-back") {
+    if is(text!("lines-word-back")) {
         return Some(KeyPress::new(Key::Escape));
     }
-    if word == text!("lines-word-help") {
+    if is(text!("lines-word-help")) {
         return Some(KeyPress::new(Key::Char('?')));
     }
-    if let Some(tab) = Tab::ALL.into_iter().find(|tab| word == tab_word(*tab)) {
+    if let Some(tab) = Tab::ALL.into_iter().find(|tab| is(tab_word(*tab))) {
         return map
             .binding_in(Intent::Tab(tab), context)
             .map(|binding| keymap::press(binding.key, binding.modifiers));

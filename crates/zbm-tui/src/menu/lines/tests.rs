@@ -113,6 +113,24 @@ fn in_the_workspace_log_opens_the_log_tab() {
 }
 
 #[test]
+fn the_line_view_takes_its_words_in_any_case() {
+    assert_eq!(
+        typed("OK", Context::Main, Map::Classic),
+        Typed::Keys(vec![key(Key::Enter)])
+    );
+    assert_eq!(
+        typed("Back", Context::Main, Map::Workspace),
+        Typed::Keys(vec![key(Key::Escape)])
+    );
+    assert_eq!(tab_after(&["POOLS"]), Tab::Pools);
+    // A capital goes to the key map as typed, which takes it as its letter.
+    assert_eq!(
+        typed("B", Context::Main, Map::Workspace),
+        Typed::Keys(vec![key(Key::Char('B'))])
+    );
+}
+
+#[test]
 fn the_classic_map_keeps_the_digits_and_has_no_tab_words() {
     let down = key(Key::Down);
     for map in [Map::Classic, Map::Workspace] {

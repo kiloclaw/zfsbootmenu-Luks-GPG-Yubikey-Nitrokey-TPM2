@@ -65,7 +65,7 @@ pub(super) fn classic(context: Context, press: KeyPress) -> Option<Intent> {
     }
     CLASSIC
         .iter()
-        .find(|(letter, _)| *letter == c.to_ascii_lowercase())
+        .find(|(letter, _)| *letter == c)
         .and_then(|(_, meanings)| {
             meanings
                 .iter()

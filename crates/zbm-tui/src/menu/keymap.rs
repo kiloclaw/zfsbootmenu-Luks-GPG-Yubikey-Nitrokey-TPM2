@@ -515,8 +515,11 @@ pub const KEYMAP: &[Binding] = &[
     ),
 ];
 
-/// What `press` means in `context` with the key map `map`, if anything.
+/// What `press` means in `context` with the key map `map`, if anything. A
+/// capital means what its letter means, and Caps Lock changes no action;
+/// a text field types it.
 pub fn input(map: Map, context: Context, press: KeyPress) -> Option<Input> {
+    let press = folded(context, press);
     let modifiers = Modifiers::of(&press);
     let bound = map.table().into_iter().find(|binding| {
         binding.key == press.key && binding.modifiers == modifiers && map.is_bound(binding, context)
@@ -532,6 +535,26 @@ pub fn input(map: Map, context: Context, press: KeyPress) -> Option<Input> {
         .map(Input::Intent)
 }
 
+/// `press` as the key map looks it up: a character as its lower case, when
+/// that is one character, but a character typed into text, without `Ctrl`
+/// or `Alt`, which stays as typed.
+fn folded(context: Context, press: KeyPress) -> KeyPress {
+    let Key::Char(c) = press.key else {
+        return press;
+    };
+    if is_text(context) && !Modifiers::of(&press).has_any(Modifiers::CTRL | Modifiers::ALT) {
+        return press;
+    }
+    let mut lower = c.to_lowercase();
+    match (lower.next(), lower.next()) {
+        (Some(lower), None) => KeyPress {
+            key: Key::Char(lower),
+            ..press
+        },
+        _ => press,
+    }
+}
+
 /// What a key means in a text field.
 fn text(press: KeyPress) -> Option<Input> {
     let modifiers = Modifiers::of(&press);
@@ -545,5 +568,7 @@ fn text(press: KeyPress) -> Option<Input> {
     }
 }
 
+#[cfg(test)]
+mod case_tests;
 #[cfg(test)]
 mod tests;

@@ -4,6 +4,23 @@ use zbm_display::keys::{Key, KeyPress};
 use super::*;
 use crate::text::id;
 
+/// Every context of the menu.
+pub(super) const CONTEXTS: [Context; 13] = [
+    Startup,
+    Main,
+    Snapshots,
+    Kernels,
+    Pools,
+    Recovery,
+    Log,
+    Context::Help,
+    Diff,
+    Packages,
+    Context::Choose,
+    Context::Text,
+    Context::Review,
+];
+
 /// Every intent offered: the key map's own bindings.
 fn every(_: Intent) -> bool {
     true
@@ -212,22 +229,7 @@ fn the_classic_bindings_of_a_view_are_listed() {
 
 #[test]
 fn every_action_has_a_title() {
-    let contexts = [
-        Context::Startup,
-        Main,
-        Snapshots,
-        Kernels,
-        Context::Pools,
-        Context::Recovery,
-        Context::Log,
-        Context::Help,
-        Context::Diff,
-        Context::Packages,
-        Context::Choose,
-        Context::Text,
-        Context::Review,
-    ];
-    for context in contexts {
+    for context in CONTEXTS {
         let tables = Map::Classic.table().into_iter();
         for binding in tables.chain(Map::Workspace.table()) {
             let what = describe(context, binding.intent);
