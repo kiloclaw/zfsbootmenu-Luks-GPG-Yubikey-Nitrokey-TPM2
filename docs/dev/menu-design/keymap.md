@@ -9,24 +9,66 @@ the second.
 
 ## Keys on every keyboard
 
-Decision 18, for both maps:
+Decision 18, for both maps, built by UI15 ([ADR 0007](../adr/0007-menu-workspace.md), its UI15 note):
 
 1. **No action needs one character only.** The arrows, `Enter`, `Esc`, `Tab` and the command line reach every action:
    each action bound to a character is also a command and an entry of the `Enter` menu of what it applies to. `j` `k`
    `h` `l` move as the arrows do; the digits only shorten the way to a tab or a start-up choice. Between start-up's
-   choices, on the Boot tab, no character but `?` is bound: one typed there is the first key of a passphrase.
+   choices, on the Boot tab, no character but `?` is bound: one typed there is the first key of a passphrase. As built:
+   in each view, the palette (`:`, the command line for now) lists each action that only a character or a chord reaches
+   there, as *action · keys*, where the toolbar would show its key, and choosing it does what the key does. Not listed:
+   what `Enter`, an arrow, `Tab`, `Esc`, `Delete`, a page key, `Home`, `End` or a function key reaches; what the palette
+   has entries of its own for (a boot, the views, the recovery shell, power); and what an `Enter` menu reaches (a
+   snapshot's roll back, clone, clone and promote, duplicate and chroot, a volume's unlock; a snapshot's diff and a
+   pool's rewind are listed, as their keys do more than the menus). The filter is listed in every list, the redraw and
+   the digits are not, and a text field's chords have none. The digits choose a tab, but no start-up choice yet, in no
+   item.
 2. **No action depends on case.** A letter and its capital are one key; Shift and Caps Lock change no action. Risky
-   actions open their review page instead of hiding behind Shift.
+   actions open their review page instead of hiding behind Shift. As built: a character is looked up by its lower
+   case, but a plain character in a text field, which is typed as is; `Ctrl` and `Alt` with a capital reach the
+   table's binding before the `fzf` aliases. The palette's query keeps its smart case, as a query is text.
 3. **Keys by position on the display console.** A character the map does not bind counts as the character the same key
    types on the US layout, at the same level, through the layout's `Positions` (UI1): `й` is `q`, AZERTY's `&` is `1`,
    `Ctrl` with the key labelled `с` is `Ctrl-C`. Characters the map binds count as typed. Text fields take characters
-   as typed. Over a serial line or SSH only characters arrive, and rule 1 covers them.
+   as typed. Over a serial line or SSH only characters arrive, and rule 1 covers them. As built:
+   - "Does not bind" means binds nowhere in the map, with these modifiers: a character bound in any view counts as
+     typed in every view, so `de`'s `z` folds in the Snapshots tab and does nothing elsewhere, Dvorak's letters keep
+     their meaning where the map binds them, and AZERTY's `!` opens the recovery tools.
+   - The layout is the one the key was typed on, which the console on the display sends with each key, or the one
+     `Ctrl-K` chose when it translated the key ([unlocking](unlocking.md)); the US layout's places come from the
+     decoder's own tables when the image lacks `us`.
+   - It applies outside text fields (the filter, the palette, a name, a passphrase), review pages and start-up's view,
+     where a character is the first key of a passphrase; a keypad character counts as typed. It does not apply to the
+     console's serial terminal, SSH and the kernel console (`zbm.console=kernel`, whose keymap the menu is not told):
+     their characters count as typed, though on the kernel console `Ctrl-K` translates once it chose a layout
+     ([unlocking](unlocking.md)).
+   - A character is found by its lower case, then by itself (Caps Lock on the French digit row types `É`), at the
+     level Shift gives: Shift keeps its level and Caps Lock does not change it. Of two keys that type it, the one at
+     the press's level counts, else the first of the main block, so key 86 (the ISO key beside the left Shift) comes
+     before the Z row. `AltGr` levels and the keys outside the main block are not found, and a composed character,
+     such as a dead key's `ê`, counts as typed and does nothing. A dead key's accent comes as its own press first.
+   - What every key of the main block types and does in the Boot, Snapshots and Pools tabs, plain and with Shift, is in
+     a chart for each layout tested: [us](layouts/us.snap), [de](layouts/de.snap), [fr](layouts/fr.snap),
+     [gb](layouts/gb.snap), [ru](layouts/ru.snap) and [us(dvorak)](layouts/us-dvorak.snap). On Latin layouts a key whose
+     character the map does not bind gets the meaning of its US place: Dvorak's `.` edits as `e`, its `q` is power as
+     `x`; AZERTY's `,` is `m`; `de`'s `-` is `/`. The risky ones open their review page. On a Dvorak ISO keyboard Shift
+     with key 86 (`>`) edits too, as Shift with Dvorak's `.` does: the menu gets the character, not the key; in no item
+     yet.
 4. **The command line knows every language.** It matches the command names of the catalogue in the menu's language
-   and the English names.
+   and the English names. As built: the palette finds each entry by its label in the menu's language and by its
+   English one, whichever matches better; the line view takes its words in English too.
 
-A test checks rule 2 on both tables, and one meaning per key: in the whole classic map, and in each view of the
-workspace's. Rule 1's commands and rule 4 come with the command line
-(UI14), rule 3 with UI15.
+The tests: rule 2 on both tables, that no binding is a capital and that a capital does what its letter does in every
+view (`keymap/case_tests.rs`), and one meaning per key, in the whole classic map and in each view of the workspace's
+(`keymap/tests.rs`); rule 1's palette entries (`keymap/commands_tests.rs`, `update/commands_tests.rs`); rule 3 on
+hand-made layouts (`keymap/position_tests.rs`), and on the six layouts above compiled from the host's XKB data
+(`keymap/layouts_tests.rs`): every character binding of both maps typed by its label and by its place, plain, with
+Caps Lock, with Shift and after `Ctrl-K`, through the model's messages; four keys through the console's cells; every
+character as a terminal's bytes; the charts; and 14 wireframes replayed on five layouts
+(`view/wireframes/layouts.rs`). Rule 4 in a language of look-alike letters compiled in tests only
+(`update/palette_language_tests.rs`). The VM test `menu-keys` types by position on the six layouts on the console
+on the display ([testing](../../luks/testing.rst)). UI14 builds the command names, their completion and the `Enter`
+menus' entries of rule 1.
 
 ## The workspace's map
 
@@ -36,13 +78,13 @@ to the other in the changes.
 
 | Where | Keys |
 | --- | --- |
-| Everywhere | `Enter` the primary action; `Esc` back, out of a column, closes a page; arrows and `j` `k` `h` `l` move, `h` `l` out of and into a column; `PgUp` `PgDn` `Home` `End`; `Tab` and `Shift-Tab` the next and previous tab, `1` to `4` a tab; `/` filter; `:` command line; `?` and `F1` help; `!` a shell: into the selection (read-only for a snapshot), or the recovery tools; `x` power; `Ctrl-L` redraw |
+| Everywhere | `Enter` the primary action; `Esc` back, out of a column, closes a page; arrows and `j` `k` `h` `l` move, `h` `l` out of and into a column; `PgUp` `PgDn` `Home` `End`; `Tab` and `Shift-Tab` the next and previous tab, `1` to `4` a tab; `/` filter; `:` command line; `?` and `F1` help; `!` the recovery tools, the shell first (a shell into the selection, read-only for a snapshot, is the chroot: in the palette, and in a snapshot's `Enter` menu); `x` power; `Ctrl-L` redraw |
 | Boot | `b` boot the selection; `e` edit the command line once; `d` make it the default; `s` its snapshots; `n` a new snapshot |
 | Snapshots | `Enter` what to do with it, `Destroy It…` last; `b` boot it as a clone; `c` clone…; `m` clone and promote…; `y` duplicate…; `r` roll back…; `f` the files and packages changed since the selection or the one marked, or between the two marked (the older first, as ZFS took them), and restoring them; with three or more marked, or while their list is not read, `f` says so and compares nothing; `Space` marks or unmarks, as many as wanted (a set: no mark is dropped); `Delete` destroys the marked snapshots, the oldest first (in the order of their names while their list is not read), or else the selection, after its review page, which asks for the snapshot's short name, or the environment's last component for several (not in the toolbar; the palette over the tab has it too, for the selection and for the marked ones; the classic map has no destroy); `z` fold or unfold; `o` sort; `n` a new snapshot |
 | Pools | `i` import…: read-only, read/write, as the host that owns it, at its checkpoint, or forced; `w` read/write…; `u` unlock…; `Enter` on a device: its kernel messages |
-| Start-up | `1` to `9` a choice, as do `j` `k` and `Enter`; between choices, as the Boot tab, only `Tab` and `Shift-Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), the arrows, `Ctrl-P` and `Ctrl-N` move, `?` and `F1` open help; any other key, the digits and `j` `k` included, starts typing ahead of the next dialog, and the tab bar names no digit. On another tab during start-up, `1` to `4` choose a tab |
+| Start-up | `j` `k`, the arrows and `Enter` a choice (the digits choose none yet, in no item); between choices, as the Boot tab, only `Tab` and `Shift-Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), the arrows, `Ctrl-P` and `Ctrl-N` move, `?` and `F1` open help; any other key, the digits and `j` `k` included, starts typing ahead of the next dialog, and the tab bar names no digit. On another tab during start-up, `1` to `4` choose a tab |
 | Review page | every character, the letters, digits and `?` too, types the target's name, `Backspace` and `Ctrl-U` erase it; `Enter` the change once it is planned and named (until then the status line says what is missing), or the safer action when it has the focus; `Tab` and `Shift-Tab` move among the field, the safer action and the change; the arrows, `Ctrl-P` `Ctrl-N`, `PgUp` and `PgDn` scroll what is lost; `Esc` closes the page and sends nothing. On a page that refuses its change, which has no field, `Enter` closes it and the arrows scroll |
-| Text fields | `Tab` completes; `Ctrl-W` deletes a word; `Ctrl-R` searches the history (the command line) or shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout |
+| Text fields | `Backspace` erases a character, `Ctrl-U` all of them; `Ctrl-R` shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout, which then translates the unlock dialog and the keys of actions, but no other field ([unlocking](unlocking.md)). UI14 adds `Tab` completing, `Ctrl-W` deleting a word and `Ctrl-R` searching the history to the command line |
 
 Against the classic map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind
 leaves `h` for the import page, and the log leaves `l` for its tab; the pools are tab 3, so `p` is free; `Tab` goes to
@@ -62,6 +104,15 @@ fields, so no letter or `Home` `End` acts there, and `WORKSPACE` binds `Tab` and
 `PgDn` and the arrows reach it as they reach every view. The classic map has no review page.
 The other keys are the classic map's: `!` opens the recovery tools, the shell first, and the pools keep `i`, `u` and
 `w`; the rewind, which the classic map has on `h`, is among the imports of `i`.
+
+**In the code** of decision 18, for both maps: `keymap::input` folds a capital to its letter (rule 2);
+`keymap/position.rs`'s `input_on` asks it first and then looks a character bound nowhere up by its place (rule 3), with
+the layout `Model::typing` gives (`model/typing.rs`: the one the key was typed on, from `TypedOn`, or the one `Ctrl-K`
+translated it into), and `update/mod.rs` is its only caller, after `Ctrl-K`'s translation (`update/unlock.rs`,
+`Model::translation`). `keymap/commands.rs` lists what only a character or a chord reaches in a view, which the palette
+shows (rule 1; `ENTER_REACHES` names what an `Enter` menu reaches instead), and `filter::rank_named` ranks a palette
+entry by its label and its English name, which the palette builds a second time with `text::in_language` when the menu's
+language is not English (rule 4).
 
 ## The classic map
 
@@ -84,7 +135,9 @@ workspace's.
    action.
 6. **Keys are the characters on their labels.** After `Ctrl-K` chose another keyboard layout, every key is translated
    by its position, view keys too: the key labelled `/` filters wherever the layout puts it
-   ([unlocking](unlocking.md)).
+   ([unlocking](unlocking.md)). Not in text fields: the filter, the palette, a name and a typed confirmation take
+   characters as typed, and only the unlock dialog's are translated. Rules 2 and 3 of decision 18, above, hold for
+   this map too.
 
 ### Every view
 

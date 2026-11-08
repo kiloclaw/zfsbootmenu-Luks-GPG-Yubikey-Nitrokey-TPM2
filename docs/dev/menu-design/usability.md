@@ -25,8 +25,11 @@ menu well. Recruited from the issue tracker and the discussion channels; no one 
 - **The serial console session**: the demo at 80×24 in ASCII, as over IPMI (`--theme ascii --size 80x24`, inside
   `zbm-vmtest`'s guest or `screen /dev/ttyS0 115200`), in both maps.
 - **The non-US layout session**: on the display, as at boot (`--drm --font …`, as root on a virtual console), with the
-  participant's layout loaded on the console. Keys by position (rule 3 of [the key map](keymap.md)) come with UI15:
-  until then, note which keys the participant reaches for and which do nothing.
+  participant's layout loaded on the console. Keys by position (rule 3 of [the key map](keymap.md)) are built (UI15), on
+  the console on the display that the image starts (`zbm.console=drm`), not on the demo's own display, which does not
+  name the layout of its keys: to see them, boot an image with the participant's layout among its layouts
+  (`zfsbootmenu_keyboard_layouts`) and switch to it with Super+Space, as the VM test `menu-keys` does; on the demo, note
+  which keys the participant reaches for and which do nothing.
 - The demo machine: two pools (`zroot`, `tank` degraded), four boot environments, three kernels each, 400 snapshots on
   one, three LUKS volumes (passphrase `demo`, a TPM2 PIN `1234`); `--foreign` adds a pool of another host, `--locked`
   locks the volumes.

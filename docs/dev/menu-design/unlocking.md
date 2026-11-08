@@ -49,18 +49,26 @@ or French keyboard then cannot be typed: `z` and `y`, `a` and `q`, and most symb
 - After a wrong passphrase, that line turns into a warning that names the likely cause: *“Keyboard: us. Set with
   another layout? Ctrl-K changes it.”* (wireframe `unlock-wrong`).
 - `Ctrl-K` switches to the next layout the image has (`zfsbootmenu_keyboard_layouts`; `us`, `de`, `fr` and `gb` on the
-  demo machine) and clears what was typed, which was typed with the other one. The menu then translates each key from
-  the console's layout to the chosen one by its position, with the image's own XKB keymaps (ROADMAP.md UI1), so the key
-  labelled `Z` on a German keyboard types `z` (wireframe `unlock-layout`), and variants such as `de(nodeadkeys)` or
-  `gb` translate as they type. A dead key gives the accent it types alone; the keys of the main block are translated,
-  the others pass unchanged.
-- The chosen layout applies to every key, in every view, until the menu ends: the key labelled `/` on a German
-  keyboard (`Shift-7`) still opens the search. Keys with `Ctrl` or `Alt` are not translated.
+  demo machine) and clears what was typed, which was typed with the other one. Once it chose one, and only then, the
+  menu translates each key by its position from the layout the key was typed on, which the console on the display sends
+  with each key (on the kernel console, the image's first), into the chosen one, with the image's own XKB keymaps
+  (ROADMAP.md UI1), so the key labelled `Z` on a German keyboard types `z` (wireframe `unlock-layout`), and variants
+  such as `de(nodeadkeys)` or `gb` translate as they type. A dead key gives the accent it types alone; the keys of the
+  main block are translated, the others pass unchanged. Until then nothing is translated: Super+Space switches the
+  console's layout, and the line names the new one from the first key typed on it, as the console sends nothing for the
+  switch, only the layout of each key.
+- The chosen layout applies until the menu ends, in the unlock dialog and to the keys of actions: the key labelled
+  `/` on a German keyboard (`Shift-7`) still opens the filter. The filter, the palette, a name and a typed
+  confirmation take characters as typed (ADR 0007, rule 3). Keys with `Ctrl` or `Alt` are not translated; the
+  console gives `Ctrl` with a key of another script as the US letter of its key, and rule 3 of
+  [the key map](keymap.md) looks the other keys of actions up in the chosen layout.
 - `Ctrl-R` shows what is typed, and hides it again. It is off at every prompt and never on by default: the user turns
   it on, at a console they can see is not watched. Start-up does not offer it: shown, the secret would be copied into
   text and screen cells that nothing wipes, in the start-up program, which lives until the boot.
-- Over a serial console the terminal sends characters in its own layout, so nothing is translated, and the line says
-  *“Keyboard: the terminal's own”*.
+- A terminal sends characters in its own layout: a serial console, the serial terminal the console on the display
+  serves too (UI9), and SSH. Nothing is translated, the line says *“Keyboard: the terminal's own”*, and `Ctrl-K` says
+  *“keys come from a terminal: its own layout applies”*. A keyboard of the display is translated all the same when
+  the menu's console is a serial one (`console=ttyS0` last, with `zbm.console=drm`).
 
 The prototype translates the main block of keys (letters, digits, the symbols beside them). R5 decides between
 translating in the menu, as the prototype does, which needs no keymap files in the image, and loading the keymap with

@@ -268,9 +268,14 @@ Ctrl-Alt, as in the `fzf` menu, whose `MOD+key` bindings both menus keep as alia
 meaning, but for those under **Gone**. `Alt+C`, `Alt+L`, `Alt+N` and `Alt+P` mark the aliases that do not work with
 Ctrl alone, as the menu binds those letters with Ctrl itself. On a serial line or over SSH, Ctrl-J arrives as `Enter`,
 so `MOD+J` takes Alt there; and on a serial line, flow control may keep Ctrl-S from the menu, so `MOD+S` takes Alt.
-The new letters are typed in lower case. [zfsbootmenu(7)](docs/man/zfsbootmenu.7.rst), The Menu's Keys, lists every key
-of the workspace and every alias, and `?` the keys of the view it is pressed in. The recovery shell's `help` still opens
-the legacy menu's help pages, which give the `fzf` keys, until the help viewer is ported (ROADMAP.md SB6).
+The new letters take either case: Shift and Caps Lock change no action. On the console on the display
+(`zbm.console=drm`), other keyboard layouts reach the keys too: a key whose character means nothing to the menu counts
+as the key in its place on a US keyboard (on a Russian layout, `й` is `q`); on a serial line and over SSH, and on the
+kernel console until `Ctrl-K` chose a layout, characters count as typed, and the arrows, `Enter` and the palette (`:`),
+which lists what only a character reaches, reach every action. [zfsbootmenu(7)](docs/man/zfsbootmenu.7.rst), The Menu's
+Keys, lists every key of the workspace and every alias, and `?` the keys of the view it is pressed in. The recovery
+shell's `help` still opens the legacy menu's help pages, which give the `fzf` keys, until the help viewer is ported
+(ROADMAP.md SB6).
 
 Every list:
 

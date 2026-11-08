@@ -329,13 +329,14 @@ Following a boot
   menu, the workspace with its tab bar (``[1 Boot]``), and ``!`` and Enter the recovery shell on the console, and
   ``readlink /proc/self/fd/0`` typed there must name a pseudo-terminal (``/dev/pts/N``); keys are held 50 ms and sent
   200 ms apart, and a failed check notes the console's last screen. The console writes its start (card, display,
-  cells, keyboard layout) to the mirror too. The image has the layouts ``us`` and ``de``
-  (``zfsbootmenu_keyboard_layouts``): the console must start with ``us``; ``/libexec/zbm console layout de`` typed in
-  the shell must answer ``keyboard: de``; then, typed into ``cat`` (in the image's C locale the shell's line editor
-  may take ``ê`` for Meta keys), the keys of ``y`` and ``z`` must type ``zy`` and the dead circumflex and ``e`` must
-  add ``ê``, and the same keys after ``echo`` at the shell's prompt must show and print ``zyê``; the same command for
-  ``us``, typed with the German layout, must switch back. Ctrl-C typed while ``od -v /dev/zero`` floods the console
-  must stop it (the image has no ``yes``). After ``kill -9`` of the console, a screenshot is kept
+  cells, keyboard layout) to the mirror too. The image has the layouts ``us``, ``de``, ``fr``, ``gb``, ``ru`` and
+  ``us(dvorak)``, in that order (``zfsbootmenu_keyboard_layouts``; ``menu-keys`` added the last four, and types on
+  all six): the console must start with ``us``; ``/libexec/zbm console layout de`` typed in the shell must answer
+  ``keyboard: de``; then, typed into ``cat`` (in the image's C locale the shell's line editor may take ``ê`` for
+  Meta keys), the keys of ``y`` and ``z`` must type ``zy`` and the dead circumflex and ``e`` must add ``ê``, and
+  the same keys after ``echo`` at the shell's prompt must show and print ``zyê``; the same command for ``us``,
+  typed with the German layout, must switch back. Ctrl-C typed while ``od -v /dev/zero`` floods the console must
+  stop it (the image has no ``yes``). After ``kill -9`` of the console, a screenshot is kept
   (``virtio-fallback.ppm``) and noted with the console's last screen; the start-up program ends with the console's
   terminal, and the supervisor starts the console again, then the recovery shell on it (``ROADMAP.md``, PM6), whose
   message must show on the console; the shell must take ``echo zbm-back-$(readlink /proc/self/fd/0) > /dev/ttyS0`` and
@@ -480,7 +481,7 @@ Following a boot
   serial console and on the display, on four disks of the group's own: d0 of 1 GB, d1 to d3 of 384 MB. ``menu-setup``
   runs first, and the others in the same month (UTC): the timeline folds the snapshots of an earlier month under its
   header, so a test then refuses to run and asks for ``menu-setup`` again. Each serial test boots the Rust ``auto``
-  image, and ``menu-display`` the console's (below), on fresh copies of the disks the setup kept, with
+  image, and ``menu-display`` and ``menu-keys`` the console's (below), on fresh copies of the disks the setup kept, with
   ``zbm.timeout=30 zbm.prefer=tmenu!!``, which imports ``tmenu`` alone at start-up and leaves the other pools to the
   menu, so a test that fails costs only itself and can run again alone. What the serial tests did to the disks is
   checked in the recovery shell, which the palette opens.
@@ -517,6 +518,21 @@ Following a boot
     disk; the clone; and the palette's Reboot, which resets the machine (``sysrq: Resetting``). It opens no recovery
     shell, which runs on the console's pseudo-terminal: it checks what the menu shows after each step, and leaves the
     disks to the serial tests.
+  * ``menu-keys``, in one boot: the menu's keys on the six layouts of ADR 0007's check (UI15), ``us``, ``de``, ``fr``,
+    ``gb``, ``ru`` and ``us(dvorak)``, on the console on the display, with the image and the command line of
+    ``menu-display`` and the console's status line (``zbm.console_status=on``). With the countdown stopped, it plays
+    eight rounds in the image's order of layouts: ``us``, ``de``, ``fr``, ``fr`` with Caps Lock, ``gb``, ``ru``, ``ru``
+    with Caps Lock and ``us(dvorak)``. A round on a new layout presses Super+Space (QEMU's ``meta_l-spc``) and waits
+    for the status line to name the layout, and a Caps Lock round for it to say ``Caps``. Keys are pressed by their
+    place (QEMU's key names), and the mirror must show what rule 3 of the key map gives: on ``de``, Shift with the
+    ``/`` key types ``_``, which counts as ``?``; on ``fr``, ``é`` and ``&`` (the ``2`` and ``1`` keys) count as ``2``
+    and ``1``, ``!`` opens the recovery tools and ``§`` counts as ``?``; on ``ru``, ``д`` counts as ``l`` (the kernels),
+    ``с`` as ``c`` (the clone's name) and Shift with the ``/`` key types ``,``, which counts as ``?``; on
+    ``us(dvorak)``, ``l`` and ``n`` count as typed, and Shift with the ``[`` key types ``?``; with Caps Lock, ``É`` and
+    ``Д`` count as their letters. Each expected screen differs from the one before it, so a screen left over cannot
+    pass. If Super+Space does not reach the console under QEMU, ``SUPER_SPACE = false`` in
+    ``crates/zbm-vmtest/src/scenarios/menu/keys.rs`` boots once for each layout instead, with
+    ``zbm.keyboard_layout``.
 
 Results
 -------
@@ -665,10 +681,12 @@ Test                              Passed  Failed  Duration
 Total                             920     0
 ================================  ======  ======  ========
 
-The ``menu`` group (UI10e, ADR 0016 point 16) has not run yet, so the table has no rows for it. With KVM, and without
-building its images (the Rust ``auto`` image, the legacy one for ``menu-setup``, and ``runtime-rust-console``'s for
-``menu-display``, which the ``runtime`` group builds too), ``menu-setup``, ``menu-pools`` and ``menu-boot`` are
-expected to take about 3 minutes each, ``menu-snapshots`` about 4.5 and ``menu-display`` 9 to 11, about 23 in all.
+The ``menu`` group (UI10e, ADR 0016 point 16, and ``menu-keys`` of UI15) has not run yet, so the table has no rows for
+it. With KVM, and without building its images (the Rust ``auto`` image, the legacy one for ``menu-setup``, and
+``runtime-rust-console``'s for ``menu-display`` and ``menu-keys``, which the ``runtime`` group builds too),
+``menu-setup``, ``menu-pools`` and ``menu-boot`` are expected to take about 3 minutes each, ``menu-snapshots`` about
+4.5, ``menu-display`` 9 to 11 and ``menu-keys`` about 4 (a boot of about 2 minutes and eight rounds of about 15 s;
+about 12 with one boot for each layout), about 27 in all.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to

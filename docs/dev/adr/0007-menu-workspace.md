@@ -128,7 +128,7 @@ unlocks; the forced import and the rewind are choices of the import page, and co
 
 - A test over `KEYMAP`: no binding on a capital; every action bound to a character has a command name and an `Enter`
   menu entry; no key has two meanings in two tabs.
-- UI15's tests type every binding on `us`, `de`, `fr`, `uk`, `ru` and Dvorak: by position through the console's cell
+- UI15's tests type every binding on `us`, `de`, `fr`, `gb`, `ru` and Dvorak: by position through the console's cell
   surface and its layout, and by character on the terminal backend, and compare the intents with the US layout's.
 - The command line's matcher test finds every command by its name in each language of the catalogue and in English.
 - Wireframe snapshots of the workspace at 120×40, 80×24 in ASCII and 52×20 in the pseudo-language; the
@@ -148,6 +148,34 @@ unlocks; the forced import and the rewind are choices of the import page, and co
   counted in the tab bar. The other tabs show the current views. The measures of the core tasks are the same in both
   maps. The boot history, the grouping by pool, the timeline, the command line with its dry run, the review pages and
   rule 3 are UI10, UI14 and UI15.
+- **UI15** (8 November 2026, UI15-1 to UI15-8): the four rules of decision 18, in both maps; how each is built, and what
+  it leaves, is in [keymap.md](../menu-design/keymap.md), *Keys on every keyboard* and *In the code*. The classic map
+  gets rules 2 and 3 through the shared lookup, `keymap::input`, and rule 1's entries through the shared palette, and no
+  new view ([ADR 0016](0016-menu-workspace-built.md), point 10): under `zbm.menu=classic` a volume's row lists the
+  import, read/write and rewind in the palette, as its toolbar does, though their keys do nothing there, until the
+  classic map goes (RL2). The maintainer answered the plan's six questions on 8 November 2026, each as proposed: UI15
+  builds rule 1's palette entries, for reach only, and rule 4's English names in today's palette, and UI14 the command
+  names, their grouping and costs, the `Enter`-menu entries and a query that Caps Lock does not change; a character the
+  map does not bind is one it binds nowhere, so `de`'s `z` stays the fold and does nothing outside the Snapshots tab;
+  once `Ctrl-K` chose a layout, its translation runs in the unlock dialog and for action keys only, never in the filter,
+  the palette or a typed confirmation, as rule 3 says, and Super+Space alone translates nothing; rule 3 runs on the
+  console on the display only, as the kernel console (`zbm.console=kernel`) does not tell the menu its keymap: there
+  characters count as typed until `Ctrl-K` chose a layout, which then translates as UI1 did, without rule 3; the two
+  wrong layout names are fixed, so a keyboard with a layout of its own sends its keys under its own name, and the serial
+  terminal the console serves (UI9) its characters under none, which nothing translates, as over SSH; and the VM test is
+  `menu-keys`, in the `menu` group, one boot with Super+Space between the layouts, whose run is the maintainer's. Of
+  "How it is checked", the first check is half met, as the `Enter`-menu entries are UI14's; the second types every
+  character binding of both maps on `us`, `de`, `fr`, `gb` (written "uk" here before: XKB has no `uk`), `ru` and
+  `us(dvorak)`, compiled from the host's XKB data, through the model's messages, four keys through the console's cells,
+  and every character as a terminal's bytes; the third runs in a language of look-alike letters compiled in tests only.
+  Left, in no item yet: the unlock dialog names a new layout only from the first key typed on it, as the console sends
+  nothing for Super+Space; after `Ctrl-K`, a character the typed-on layout gives with `AltGr` is looked up in the chosen
+  layout, where it may sit on a key of the main block; on a Dvorak ISO keyboard Shift with key 86 (`>`) edits, as the
+  menu gets the character, not the key; rule 3 on the demo's display (`zbm-tui --drm`); a VM test of the keys over SSH.
+  Seen in the runs, older than UI15 and in no item: `zbm-sys`'s test of a listener passed on failed once with
+  `AddrInUse`; `zbm`'s test of a console that ends and starts again failed once, and ten supervisor tests with it
+  through a poisoned lock; and `zbm-app`'s `keyholder.rs:84`, the empty default `Keyholder::kill`, is covered only when
+  a cancellation wins a race.
 
 ## Questions for the maintainer
 

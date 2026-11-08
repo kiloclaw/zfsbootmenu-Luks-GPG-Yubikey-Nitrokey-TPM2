@@ -41,9 +41,11 @@ changes nothing. `--theme ascii --size 80x24` shows it as over a serial line. It
 `keymap/` hold the visual system and both key maps, `menu::world` the lists for `zbm-app`, and the wireframes are
 its snapshot tests, so the design and the prototype cannot drift apart.
 
-What the prototype does not have yet, and which UI14 and UI15 build: the command line with its dry run (`:` opens the
-command palette for now), and keys by position on the display console. The review pages are built (UI10d, ADR 0016
-points 12 to 15): the rollback, the destroy, the forced import and the rewind each open one, and the demo answers their
-plans. Start-up is the Boot tab under the workspace map: its stages where the columns go, the tab bar above them, and
-a stage that failed among what needs attention; the person may look at the other tabs while it runs
+What the prototype does not have yet, and which UI14 builds: the command line with its dry run (`:` opens the command
+palette for now). Keys by position on the display console are built (UI15, rule 3 of [the key map](keymap.md)), on the
+console that starts with the image (`zbm.console=drm`); the demo's own display (`--drm`) does not name the layout of its
+keys, so there they count as typed. The review pages are built (UI10d, ADR 0016 points 12 to 15): the rollback, the
+destroy, the forced import and the rewind each open one, and the demo answers their plans. Start-up is the Boot tab
+under the workspace map: its stages where the columns go, the tab bar above them, and a stage that failed among what
+needs attention; the person may look at the other tabs while it runs
 ([information-architecture.md](information-architecture.md), start-up).
