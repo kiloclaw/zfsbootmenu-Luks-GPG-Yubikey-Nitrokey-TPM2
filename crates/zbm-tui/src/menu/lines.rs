@@ -32,7 +32,7 @@ use super::secret::is_asking_secret;
 use super::session::Session;
 use super::theme::Theme;
 use super::view::words;
-use crate::text::text;
+use crate::text::{self, Id, Language, id, text};
 
 /// What a typed line asks for.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -56,16 +56,17 @@ fn choose(number: usize) -> Vec<KeyPress> {
 /// The key of a word or a character typed alone in `context`: `ok`, `back`,
 /// `help`, the name of a tab where the key map `map` binds a key to it
 /// there, or one of the key map's characters. A word is the same in any
-/// case (`OK`), as a capital is its letter.
+/// case (`OK`), as a capital is its letter, and in English as in the
+/// menu's language (rule 4 of decision 18).
 fn key_of(word: &str, context: Context, map: Map) -> Option<KeyPress> {
-    let is = |known: String| word.to_lowercase() == known.to_lowercase();
-    if is(text!("lines-word-ok")) {
+    let is = |known: Id| is_word(word, known);
+    if is(id!("lines-word-ok")) {
         return Some(KeyPress::new(Key::Enter));
     }
-    if is(text!("lines-word-back")) {
+    if is(id!("lines-word-back")) {
         return Some(KeyPress::new(Key::Escape));
     }
-    if is(text!("lines-word-help")) {
+    if is(id!("lines-word-help")) {
         return Some(KeyPress::new(Key::Char('?')));
     }
     if let Some(tab) = Tab::ALL.into_iter().find(|tab| is(tab_word(*tab))) {
@@ -80,13 +81,23 @@ fn key_of(word: &str, context: Context, map: Map) -> Option<KeyPress> {
     }
 }
 
+/// Whether `word` is the word `known`, in any case, in the menu's language
+/// or in English.
+fn is_word(word: &str, known: Id) -> bool {
+    let word = word.to_lowercase();
+    let is = |known: String| word == known.to_lowercase();
+    is(text::get(known))
+        || (text::language() != Language::English
+            && is(text::in_language(Language::English, || text::get(known))))
+}
+
 /// The word that chooses `tab`: `pools`.
-fn tab_word(tab: Tab) -> String {
+fn tab_word(tab: Tab) -> Id {
     match tab {
-        Tab::Boot => text!("lines-word-boot"),
-        Tab::Snapshots => text!("lines-word-snapshots"),
-        Tab::Pools => text!("lines-word-pools"),
-        Tab::Log => text!("lines-word-log"),
+        Tab::Boot => id!("lines-word-boot"),
+        Tab::Snapshots => id!("lines-word-snapshots"),
+        Tab::Pools => id!("lines-word-pools"),
+        Tab::Log => id!("lines-word-log"),
     }
 }
 

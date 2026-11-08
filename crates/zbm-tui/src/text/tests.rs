@@ -84,6 +84,37 @@ fn pseudo_text_is_a_third_longer() {
 }
 
 #[test]
+fn text_in_english_is_english_whatever_the_thread_s_language() {
+    with(Language::Lookalike, || {
+        assert_eq!(text!("key-enter"), "Ептег");
+        let english = in_language(Language::English, || {
+            let nested = in_language(Language::Pseudo, || text!("key-enter"));
+            (text!("key-enter"), nested, language())
+        });
+        assert_eq!(
+            english,
+            ("Enter".to_owned(), "ÉÉñtéér".to_owned(), Language::English)
+        );
+        assert_eq!(language(), Language::Lookalike);
+        let panicked = std::panic::catch_unwind(|| {
+            in_language(Language::English, || panic!("while in English"));
+        });
+        assert!(panicked.is_err());
+        assert_eq!(language(), Language::Lookalike);
+    });
+    assert_eq!(language(), Language::English);
+}
+
+#[test]
+fn the_look_alike_language_writes_no_latin_letter() {
+    assert_eq!(LATIN.chars().count(), LOOKALIKE.chars().count());
+    assert!(LOOKALIKE.chars().all(|c| !c.is_ascii()));
+    let unique: std::collections::BTreeSet<char> = LOOKALIKE.chars().collect();
+    assert_eq!(unique.len(), LATIN.len());
+    assert_eq!(lookalike("Pools: 2"), "Рооӏѕ: 2");
+}
+
+#[test]
 fn languages_are_named() {
     assert_eq!(Language::from_name("en"), Some(Language::English));
     assert_eq!(Language::from_name("pseudo"), Some(Language::Pseudo));

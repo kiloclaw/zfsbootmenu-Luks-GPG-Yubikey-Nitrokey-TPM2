@@ -162,6 +162,25 @@ fn the_workspace_s_page_names_its_own_keys_and_words() {
 }
 
 #[test]
+fn the_line_view_takes_english_words_in_another_language() {
+    use crate::text::{Language, in_language};
+    let key = |word: &str, context| match typed(word, context, Map::Workspace) {
+        Typed::Keys(keys) => keys.first().map(|key| key.key),
+        _ => None,
+    };
+    in_language(Language::Lookalike, || {
+        for word in ["back", "BACK", "ьасκ"] {
+            assert_eq!(key(word, Context::Choose), Some(Key::Escape), "{word}");
+        }
+        assert_eq!(key("ok", Context::Choose), Some(Key::Enter));
+        assert_eq!(key("help", Context::Main), Some(Key::Char('?')));
+        assert_eq!(key("рооӏѕ", Context::Main), key("pools", Context::Main));
+        assert_eq!(key("pools", Context::Main), Some(Key::Char('3')));
+        assert_eq!(key("nothing", Context::Main), None);
+    });
+}
+
+#[test]
 fn tab_words_are_unknown_where_no_tab_can_be_chosen() {
     for word in ["boot", "snapshots", "pools", "log"] {
         assert_eq!(

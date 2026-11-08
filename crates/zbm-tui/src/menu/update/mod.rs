@@ -264,6 +264,8 @@ mod marks_tests;
 #[cfg(test)]
 mod offers_tests;
 #[cfg(test)]
+mod palette_language_tests;
+#[cfg(test)]
 mod question_tests;
 #[cfg(test)]
 mod review_tests;

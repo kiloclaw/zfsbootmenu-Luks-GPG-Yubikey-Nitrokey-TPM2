@@ -4,10 +4,11 @@
 use zbm_types::Untrusted;
 
 use super::dialogs;
+use crate::menu::filter::Ranked;
 use crate::menu::keymap::{self, Input, Intent, Map};
 use crate::menu::model::{Model, Palette, PaletteItem, Screen, Then};
 use crate::menu::world::{Action, Outcome};
-use crate::text::{self, id, text};
+use crate::text::{self, Language, id, text};
 
 /// Applies a typing input to `text`; returns the intent when the input is
 /// not typing, and leaves `text` alone.
@@ -60,7 +61,7 @@ pub(super) fn filter(model: &mut Model, input: Input) -> Vec<Action> {
 /// Opens the command palette, with what it finds now.
 pub(super) fn open_palette(model: &mut Model) {
     let items = palette_items(model);
-    let matches = crate::menu::filter::rank(items.iter().map(|item| item.label.as_str()), "");
+    let matches = rank(&items, "");
     model.palette = Some(Palette {
         query: String::new(),
         items,
@@ -78,13 +79,21 @@ pub(super) fn palette_again(model: &mut Model) {
     }
     let items = palette_items(model);
     if let Some(palette) = &mut model.palette {
-        palette.matches =
-            crate::menu::filter::rank(items.iter().map(|item| item.label.as_str()), &palette.query);
+        palette.matches = rank(&items, &palette.query);
         palette.items = items;
         palette.selected = palette
             .selected
             .min(palette.matches.len().saturating_sub(1));
     }
+}
+
+/// The palette's `items` that `query` matches, by their labels or their
+/// English ones.
+fn rank(items: &[PaletteItem], query: &str) -> Vec<Ranked> {
+    let names = items
+        .iter()
+        .map(|item| (item.label.as_str(), item.english.as_deref()));
+    crate::menu::filter::rank_named(names, query)
 }
 
 /// The command palette.
@@ -93,8 +102,7 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
         return Vec::new();
     };
     if edit(&mut palette.query, input).is_none() {
-        let labels = palette.items.iter().map(|item| item.label.as_str());
-        palette.matches = crate::menu::filter::rank(labels, &palette.query);
+        palette.matches = rank(&palette.items, &palette.query);
         palette.selected = 0;
         model.palette = Some(palette);
         return Vec::new();
@@ -124,9 +132,44 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
 
 /// Everything the command palette finds: environments, their kernels, the
 /// snapshots read so far, the actions of every view the machine offers,
-/// and those of the view under it that only a key reaches.
+/// and those of the view under it that only a key reaches. In a language
+/// other than English, each also has its English label, which the palette
+/// matches too (rule 4 of decision 18); in English, they are built once.
 pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
-    let item = |label: String, then: Then| PaletteItem { label, then };
+    let mut items = entries(model);
+    if text::language() == Language::English {
+        return items;
+    }
+    // The same model gives the same entries in the same order, whatever
+    // the language: each takes the English label of its twin. Were they to
+    // differ, none would have one.
+    let english = text::in_language(Language::English, || entries(model));
+    let kind = std::mem::discriminant::<Then>;
+    let is_paired = items.len() == english.len()
+        && items
+            .iter()
+            .zip(&english)
+            .all(|(item, twin)| kind(&item.then) == kind(&twin.then));
+    debug_assert!(is_paired);
+    if is_paired {
+        for (item, twin) in items.iter_mut().zip(english) {
+            item.english = Some(twin.label);
+        }
+    }
+    items
+}
+
+/// An entry of the palette, labelled in the menu's language.
+fn item(label: String, then: Then) -> PaletteItem {
+    PaletteItem {
+        label,
+        english: None,
+        then,
+    }
+}
+
+/// The palette's entries, labelled in the menu's language.
+fn entries(model: &Model) -> Vec<PaletteItem> {
     let mut items = Vec::new();
     for environment in &model.snapshot.environments {
         let name = &environment.name;
@@ -195,16 +238,16 @@ fn destroy_items(model: &Model) -> Vec<PaletteItem> {
     }
     let mut items = Vec::new();
     if let Some(snapshot) = model.selected_snapshot() {
-        items.push(PaletteItem {
-            label: text!("palette-destroy", snapshot = snapshot.name.to_string()),
-            then: super::snapshots::destroy(vec![&snapshot.name]),
-        });
+        items.push(item(
+            text!("palette-destroy", snapshot = snapshot.name.to_string()),
+            super::snapshots::destroy(vec![&snapshot.name]),
+        ));
     }
     if !model.marked.is_empty() {
-        items.push(PaletteItem {
-            label: text!("palette-destroy-marked", count = model.marked.len()),
-            then: super::snapshots::destroy_marked(model),
-        });
+        items.push(item(
+            text!("palette-destroy-marked", count = model.marked.len()),
+            super::snapshots::destroy_marked(model),
+        ));
     }
     items
 }
@@ -213,7 +256,6 @@ fn destroy_items(model: &Model) -> Vec<PaletteItem> {
 /// keys again, the views, scanning the pools again, the recovery shell and
 /// power.
 fn tool_items(model: &Model) -> Vec<PaletteItem> {
-    let item = |label: String, then: Then| PaletteItem { label, then };
     let mut items: Vec<PaletteItem> = model
         .snapshot
         .volumes
@@ -258,14 +300,14 @@ fn key_items(model: &Model) -> Vec<PaletteItem> {
     let context = model.view_context();
     keymap::commands(model.map, context)
         .into_iter()
-        .map(|(intent, keys)| PaletteItem {
-            label: text!(
+        .map(|(intent, keys)| {
+            let label = text!(
                 "palette-key",
                 action = text::title(keymap::describe(context, intent)),
                 dot = model.theme.dot(),
                 keys = keys
-            ),
-            then: Then::Intent(intent),
+            );
+            item(label, Then::Intent(intent))
         })
         .collect()
 }

@@ -198,6 +198,9 @@ pub struct Palette {
 pub struct PaletteItem {
     /// What the palette shows and matches.
     pub label: String,
+    /// Its English label, which the palette matches too, when the menu's
+    /// language is another (rule 4 of decision 18).
+    pub english: Option<String>,
     /// What it does.
     pub then: Then,
 }

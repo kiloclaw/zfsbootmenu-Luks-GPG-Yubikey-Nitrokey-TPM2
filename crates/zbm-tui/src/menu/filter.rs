@@ -16,6 +16,19 @@ pub struct Ranked {
 /// The items that `query` matches, best first; every item in order when the
 /// query is empty. Equal scores keep the order of the items.
 pub fn rank<'a>(items: impl IntoIterator<Item = &'a str>, query: &str) -> Vec<Ranked> {
+    rank_named(items.into_iter().map(|item| (item, None)), query)
+}
+
+/// The items that `query` matches, each by the better of its two names:
+/// the one shown, and another it is also known by, as the English name of
+/// a command in another language (rule 4 of decision 18). The positions
+/// are the shown name's, and none when the other name matched better, as
+/// they mark what is drawn. Best first; every item in order when the query
+/// is empty; equal scores keep the order of the items.
+pub fn rank_named<'a>(
+    items: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
+    query: &str,
+) -> Vec<Ranked> {
     if query.is_empty() {
         return items
             .into_iter()
@@ -32,10 +45,23 @@ pub fn rank<'a>(items: impl IntoIterator<Item = &'a str>, query: &str) -> Vec<Ra
     let mut scored: Vec<(u32, Ranked)> = items
         .into_iter()
         .enumerate()
-        .filter_map(|(index, item)| {
-            let haystack = Utf32Str::new(item, &mut buffer);
+        .filter_map(|(index, (shown, other))| {
             let mut indices = Vec::new();
-            let score = pattern.indices(haystack, &mut matcher, &mut indices)?;
+            let haystack = Utf32Str::new(shown, &mut buffer);
+            let shown_score = pattern.indices(haystack, &mut matcher, &mut indices);
+            let other_score = other
+                .and_then(|other| pattern.score(Utf32Str::new(other, &mut buffer), &mut matcher));
+            let score = match (shown_score, other_score) {
+                (Some(shown), Some(other)) if other > shown => {
+                    indices.clear();
+                    other
+                }
+                (Some(shown), _) => shown,
+                (None, other) => {
+                    indices.clear();
+                    other?
+                }
+            };
             indices.sort_unstable();
             indices.dedup();
             let positions = indices
@@ -80,6 +106,27 @@ mod tests {
             ["zroot/ROOT/void@autosnap-2026-08-31"]
         );
         assert_eq!(names(&items, "xyz"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn the_better_of_two_names_ranks_an_item() {
+        let items = [
+            ("ѕһеӏӏ", Some("Recovery shell")),
+            ("роԝег оғғ", Some("Power off")),
+            ("Power off now", None),
+        ];
+
+        let ranked = rank_named(items, "power");
+
+        let indexes: Vec<usize> = ranked.iter().map(|ranked| ranked.index).collect();
+        assert_eq!(indexes, [1, 2]);
+        assert_eq!(ranked[0].positions, Vec::<usize>::new());
+        assert_eq!(ranked[1].positions, [0, 1, 2, 3, 4]);
+        let shown_best = rank_named([("Power off", Some("p-o-w-e-r"))], "power");
+        assert_eq!(shown_best[0].positions, [0, 1, 2, 3, 4]);
+        let tied = rank_named([("Power off", Some("Power off"))], "power");
+        assert_eq!(tied[0].positions, [0, 1, 2, 3, 4]);
+        assert_eq!(rank_named([("a", Some("b"))], "c"), Vec::new());
     }
 
     #[test]

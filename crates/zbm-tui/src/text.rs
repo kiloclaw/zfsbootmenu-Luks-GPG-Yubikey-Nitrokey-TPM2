@@ -17,10 +17,13 @@
 //! rule of English. Plurals, numbers and ages are formatted by the
 //! catalogue too; logs and the journal stay in English and do not use it.
 //!
-//! The language is per thread ([`set_language`]), English unless set. The
-//! pseudo-language [`Language::Pseudo`] is English with every letter
-//! accented and every text a third longer, which the snapshot tests draw so
-//! that text that would not fit, or that is not in the catalogue, shows.
+//! The language is per thread ([`set_language`]), English unless set; a
+//! text that must be English whatever the menu's language, as the names
+//! the command palette also takes (rule 4 of decision 18), is built in
+//! English for a while (`in_language`). The pseudo-language
+//! [`Language::Pseudo`] is English with every letter accented and every
+//! text a third longer, which the snapshot tests draw so that text that
+//! would not fit, or that is not in the catalogue, shows.
 
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
@@ -39,6 +42,10 @@ pub enum Language {
     English,
     /// English accented and lengthened by a third, for the tests.
     Pseudo,
+    /// English written in Cyrillic and Greek look-alike letters, which the
+    /// matcher does not fold to Latin ones: the tests' second language.
+    #[cfg(test)]
+    Lookalike,
 }
 
 impl Language {
@@ -115,6 +122,20 @@ pub fn language() -> Language {
     LANGUAGE.with(Cell::get)
 }
 
+/// What `build` returns with `language` as this thread's language, which
+/// is set back after, also when `build` panics.
+pub(crate) fn in_language<T>(language: Language, build: impl FnOnce() -> T) -> T {
+    /// Sets the language it holds back when dropped.
+    struct Restore(Language);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            set_language(self.0);
+        }
+    }
+    let _restore = Restore(set_language(language));
+    build()
+}
+
 /// The catalogue of `language`, parsed.
 fn bundle(language: Language) -> FluentBundle<FluentResource> {
     let english: LanguageIdentifier = "en".parse().unwrap_or_default();
@@ -122,8 +143,11 @@ fn bundle(language: Language) -> FluentBundle<FluentResource> {
     // No Unicode isolation marks around placeables: terminals would count
     // them as characters.
     bundle.set_use_isolating(false);
-    if language == Language::Pseudo {
-        bundle.set_transform(Some(pseudo));
+    match language {
+        Language::English => {}
+        Language::Pseudo => bundle.set_transform(Some(pseudo)),
+        #[cfg(test)]
+        Language::Lookalike => bundle.set_transform(Some(lookalike)),
     }
     let resource =
         FluentResource::try_new(ENGLISH.to_owned()).unwrap_or_else(|(partial, _)| partial);
@@ -243,6 +267,29 @@ fn accented(c: char) -> char {
         other => other,
     }
 }
+
+/// The look-alike language of `text`: each Latin letter written as a
+/// Cyrillic or Greek letter that looks like it, or that stands for it
+/// where none does, which the matcher does not fold to the Latin one.
+#[cfg(test)]
+fn lookalike(text: &str) -> Cow<'_, str> {
+    let shown = |c: char| {
+        LATIN
+            .chars()
+            .zip(LOOKALIKE.chars())
+            .find_map(|(latin, other)| (latin == c).then_some(other))
+            .unwrap_or(c)
+    };
+    Cow::Owned(text.chars().map(shown).collect())
+}
+
+/// The Latin letters, in the order of [`LOOKALIKE`].
+#[cfg(test)]
+const LATIN: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/// The look-alike of each letter of [`LATIN`].
+#[cfg(test)]
+const LOOKALIKE: &str = "аьсԁеғԍһіјκӏмпорԛгѕтυνԝхуζАВСԀЕϜԌНІЈКΛМΝОРԚЯЅТЦѴԜХΥΖ";
 
 #[cfg(test)]
 mod tests;
