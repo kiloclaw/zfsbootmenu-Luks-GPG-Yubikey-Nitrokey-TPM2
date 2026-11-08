@@ -69,8 +69,11 @@ const COUNTDOWN: &str = r"screen:Booting \S*tmenu/ROOT/be\S* in";
 /// The workspace's tab bar with its Boot tab current.
 const TABS: &str = r"\[1 Boot\]";
 
-/// What the kernel says as the machine powers off.
-const POWERED_OFF: &str = "reboot: Power down";
+/// What the kernel says as the menu powers the machine off with SysRq-o.
+/// Its later "reboot: Power down" never shows: start-up sets the console's
+/// log level to 0, which hides even emergency messages, and only SysRq's
+/// own header is printed past it.
+const POWERED_OFF: &str = "sysrq: Power Off";
 
 /// How long the menu may take to show again after the shell, in seconds.
 const MENU: u64 = 600;
@@ -97,8 +100,18 @@ use uuid;
 /// The UUID of the LUKS volume.
 const UUID: &str = uuid!();
 
-/// The name of the LUKS volume's mapping, as the menu lists it.
-const VOLUME: &str = concat!("luks-", uuid!());
+/// The LUKS volume's device, the fourth disk.
+macro_rules! device {
+    () => {
+        "/dev/vdd"
+    };
+}
+use device;
+
+/// The LUKS volume as the Pools tab lists it while it is locked: by its
+/// device, as a volume with no mapping is named. It is `luks-<uuid>` once
+/// open.
+const VOLUME: &str = device!();
 
 /// Runs `setup`, `snapshots`, `pools`, `boot`, `display` or `keys`.
 ///
@@ -254,8 +267,9 @@ fn leave_shell(test: &Test, serial: &mut Serial, vm: &mut Vm<'_>) -> Result<()> 
 fn power_off(test: &Test, driver: &mut dyn Driver, vm: &mut Vm<'_>) -> Result<()> {
     steps::run(test, driver, vm, steps::POWER_OFF)?;
     let said = vm.expect1(POWERED_OFF, POWER).is_ok();
-    test.check(said, "the palette's Power Off powers the machine off");
-    if vm.expect_eof(POWER).is_err() {
+    let ended = said && vm.expect_eof(POWER).is_ok();
+    test.check(ended, "the palette's Power Off powers the machine off");
+    if !ended {
         vm.kill();
     }
     Ok(())

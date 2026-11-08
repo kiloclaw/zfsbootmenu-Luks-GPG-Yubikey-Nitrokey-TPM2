@@ -224,7 +224,7 @@ fn the_snapshot_tasks_play_on_the_display_from_the_boot_tab_each_time() {
     ];
     let mut script = started(false);
     script.extend(tables.iter().flat_map(|table| shown(table)));
-    let said = vec![Play::Say("reboot: Power down\r\n")];
+    let said = vec![Play::Say("[    5.949740] sysrq: Power Off\r\n")];
 
     let found = played("snapshots", false, script, said, &snapshots);
 
@@ -238,7 +238,7 @@ fn the_pool_tasks_play_on_the_display_after_the_luks_dialog() {
     let mut script = started(true);
     script.extend(shown(steps::POOLS));
     script.extend(shown(steps::POWER_OFF));
-    let said = vec![Play::Say("reboot: Power down\r\n")];
+    let said = vec![Play::Say("[    5.949740] sysrq: Power Off\r\n")];
 
     let found = played("pools", true, script, said, &pools);
 

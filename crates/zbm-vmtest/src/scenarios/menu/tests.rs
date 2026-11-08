@@ -153,7 +153,7 @@ pub(super) fn shell_left() -> Vec<Play> {
 /// The palette's Power Off, and the kernel powering off.
 pub(super) fn powered_off() -> Vec<Play> {
     let mut script = played(steps::POWER_OFF);
-    script.push(Play::Say("reboot: Power down\r\n"));
+    script.push(Play::Say("[    5.949740] sysrq: Power Off\r\n"));
     script
 }
 
@@ -369,6 +369,23 @@ fn the_shell_opens_from_the_palette_and_gives_the_menu_back() {
 }
 
 #[test]
-fn the_volume_s_name_is_its_mapping_s() {
-    assert_eq!(VOLUME, format!("luks-{UUID}"));
+fn a_power_off_the_kernel_reports_only_as_power_down_fails() {
+    let mut script = played(steps::POWER_OFF);
+    script.push(Play::Say("reboot: Power down\r\n"));
+
+    let found = checked("power-down-only", script, |test, vm| {
+        power_off(test, &mut serial(), vm)
+    });
+
+    assert_eq!(
+        found.last().map(String::as_str),
+        Some("FAIL - the palette's Power Off powers the machine off"),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn a_locked_volume_is_listed_by_its_device_the_fourth_disk() {
+    let last = u8::try_from(DISKS - 1).unwrap();
+    assert_eq!(VOLUME, format!("/dev/vd{}", char::from(b'a' + last)));
 }

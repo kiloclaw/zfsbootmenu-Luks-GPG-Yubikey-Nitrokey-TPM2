@@ -9,7 +9,7 @@
 //! palette, and confirms a name typed.
 
 use super::super::super::drive::Key;
-use super::super::{VOLUME, uuid};
+use super::super::{VOLUME, device, uuid};
 use super::{Act, Await, Step, key};
 use Act::{Press, Select, SelectRow, Type};
 
@@ -380,7 +380,7 @@ pub(in crate::scenarios::menu) const POOLS: &[Step] = &[
     Step::new(
         "unlock the volume",
         &[Select(VOLUME), key('u')],
-        Await::Text(concat!("Unlock luks-", uuid!())),
+        Await::Text(concat!("Unlock ", device!())),
     )
     .showing(&["Passphrase:"]),
     Step::new(
@@ -388,7 +388,7 @@ pub(in crate::scenarios::menu) const POOLS: &[Step] = &[
         &[Type("pw"), ENTER],
         Await::Done,
     )
-    .showing(&[concat!("luks-", uuid!(), " is open")]),
+    .showing(&[concat!("is open as luks-", uuid!())]),
     Step::new(
         "the scan finds tlocked in the volume",
         &[],
