@@ -86,10 +86,28 @@ fn each_key_has_its_serial_bytes_and_its_qemu_name() {
     ];
 
     for (key, bytes, name) in keys {
-        assert_eq!(key.serial(), bytes, "{key:?}");
+        assert_eq!(key.serial().as_deref(), Some(bytes), "{key:?}");
         assert_eq!(key.qemu_name().as_deref(), Some(name), "{key:?}");
     }
     assert_eq!(Key::Char('~').qemu_name(), None);
+}
+
+#[test]
+fn a_qemu_key_has_no_serial_bytes() {
+    let key = Key::Qemu("meta_l-spc");
+    assert_eq!(key.serial(), None);
+    assert_eq!(key.qemu_name().as_deref(), Some("meta_l-spc"));
+    let settings = settings("drive-serial-qemu");
+    let test = Test::new(&settings, "drive-serial").unwrap();
+    let (mut vm, guest) = scripted(&test, Vec::new());
+
+    let pressed = Serial { pace: NOW }.press(&mut vm, Key::Qemu("shift-slash"));
+
+    let error = pressed.unwrap_err().to_string();
+    assert!(error.contains("no serial bytes"), "{error}");
+    drop(vm);
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    cleanup(&settings);
 }
 
 #[test]

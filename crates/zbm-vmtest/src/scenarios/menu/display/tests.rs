@@ -22,7 +22,8 @@ const SOON: Pace = Pace {
 };
 
 /// The countdown, as start-up draws it.
-const COUNTING: &str = " Booting tmenu/ROOT/be in 30 s. Press any key to choose another.";
+pub(in crate::scenarios::menu) const COUNTING: &str =
+    " Booting tmenu/ROOT/be in 30 s. Press any key to choose another.";
 
 /// Start-up's dialog of the LUKS volume.
 const ASKING: &str = "│ Unlock luks-0e8a5e1d │\n│ Passphrase:       │";
@@ -32,7 +33,7 @@ const TABS: &str = " [1 Boot] 2 Snapshots  3 Pools  4 Log";
 
 /// What the fake keyboard expects, and what it draws.
 #[derive(Debug)]
-enum Event {
+pub(in crate::scenarios::menu) enum Event {
     /// A key, by QEMU's name.
     Key(String),
     /// A screen, drawn when the key before it is pressed.
@@ -104,7 +105,7 @@ fn typed(text: &str) -> Vec<Event> {
 /// row holds each name selected, and the screen each step waits for. A
 /// step that presses nothing waits for the menu to change by itself: its
 /// screen is drawn with the one before.
-fn shown(steps: &[Step]) -> Vec<Event> {
+pub(in crate::scenarios::menu) fn shown(steps: &[Step]) -> Vec<Event> {
     let mut script = Vec::new();
     for step in steps {
         for act in step.acts {
@@ -134,7 +135,7 @@ fn shown(steps: &[Step]) -> Vec<Event> {
 
 /// Start-up on the display, with its dialog of the LUKS volume when
 /// `luks`: Enter skips it, and Escape stops the countdown.
-fn started(luks: bool) -> Vec<Event> {
+pub(in crate::scenarios::menu) fn started(luks: bool) -> Vec<Event> {
     let mut script = Vec::new();
     if luks {
         script.extend([Event::Key("ret".into()), Event::Draw(COUNTING.into())]);
@@ -152,6 +153,33 @@ fn display<'m>(monitor: &'m Monitor, mirror: &'m Path, pace: Pace) -> Display<'m
     }
 }
 
+/// Runs `drive` in `test` on a display whose mirror shows `first`, then
+/// each screen of `script` as its keys are pressed, at `pace`; returns
+/// what `drive` returned and how many events of `script` were left, once
+/// every key pressed was one the menu expected.
+pub(in crate::scenarios::menu) fn on_fake(
+    (test, vm): (&Test, &mut Vm<'_>),
+    first: &str,
+    script: Vec<Event>,
+    pace: Pace,
+    drive: impl FnOnce(&Test, &mut Display<'_>, &mut Vm<'_>) -> Result<()>,
+) -> (Result<()>, usize) {
+    let mirror = test.dir().join("mirror.txt");
+    draw(&mirror, first);
+    PLAYER.with(|player| {
+        *player.borrow_mut() = Player {
+            mirror: mirror.clone(),
+            script: script.into(),
+            wrong: Vec::new(),
+        };
+    });
+    let monitor = Monitor { dump: no_dump, key };
+    let driven = drive(test, &mut display(&monitor, &mirror, pace), vm);
+    let player = PLAYER.with(RefCell::take);
+    assert_eq!(player.wrong, Vec::<String>::new());
+    (driven, player.script.len())
+}
+
 /// Runs `drive` on a display whose menu starts with its LUKS dialog when
 /// `luks`, then plays `script`, while the serial console says `said`;
 /// returns the checks, once the menu took every key it expected.
@@ -160,25 +188,14 @@ fn played(
     luks: bool,
     script: Vec<Event>,
     said: Vec<Play>,
-    drive: Drive,
+    drive: Driving<'_>,
 ) -> Vec<String> {
-    let found = checked(&format!("display-{name}"), said, |test, vm| {
-        let mirror = test.dir().join("mirror.txt");
-        draw(&mirror, if luks { ASKING } else { COUNTING });
-        PLAYER.with(|player| {
-            *player.borrow_mut() = Player {
-                mirror: mirror.clone(),
-                script: script.into(),
-                wrong: Vec::new(),
-            };
-        });
-        let monitor = Monitor { dump: no_dump, key };
-        drive(test, &mut display(&monitor, &mirror, SOON), vm)
-    });
-    let player = PLAYER.with(RefCell::take);
-    assert_eq!(player.wrong, Vec::<String>::new());
-    assert!(player.script.is_empty(), "{:?}", player.script);
-    found
+    checked(&format!("display-{name}"), said, |test, vm| {
+        let first = if luks { ASKING } else { COUNTING };
+        let (driven, left) = on_fake((test, vm), first, script, SOON, drive);
+        assert_eq!(left, 0);
+        driven
+    })
 }
 
 #[test]
@@ -209,7 +226,7 @@ fn the_snapshot_tasks_play_on_the_display_from_the_boot_tab_each_time() {
     script.extend(tables.iter().flat_map(|table| shown(table)));
     let said = vec![Play::Say("reboot: Power down\r\n")];
 
-    let found = played("snapshots", false, script, said, snapshots);
+    let found = played("snapshots", false, script, said, &snapshots);
 
     let screens: usize = tables.iter().map(|table| expected(table)).sum();
     assert_eq!(found.len(), 1 + screens + 1, "{found:#?}");
@@ -223,7 +240,7 @@ fn the_pool_tasks_play_on_the_display_after_the_luks_dialog() {
     script.extend(shown(steps::POWER_OFF));
     let said = vec![Play::Say("reboot: Power down\r\n")];
 
-    let found = played("pools", true, script, said, pools);
+    let found = played("pools", true, script, said, &pools);
 
     assert_eq!(found.len(), 1 + expected(steps::POOLS) + 1, "{found:#?}");
     assert!(all_ok(&found), "{found:#?}");
@@ -239,7 +256,7 @@ fn the_palette_and_the_edited_command_line_play_on_the_display() {
          BE-INIT-DONE\r\n",
     )];
 
-    let found = played("kernel", false, script, said, kernel);
+    let found = played("kernel", false, script, said, &kernel);
 
     let screens = expected(steps::BOOT_TOUR) + expected(steps::BOOT_KERNEL);
     assert_eq!(found.len(), 1 + screens + 1, "{found:#?}");
@@ -258,7 +275,7 @@ fn a_clone_boots_from_the_display() {
         "BE-INIT-START\r\nBE-ROOT: tmenu/ROOT/booted\r\nBE-INIT-DONE\r\n",
     )];
 
-    let found = played("clone", false, script, said, clone);
+    let found = played("clone", false, script, said, &clone);
 
     assert_eq!(
         found.len(),
@@ -274,7 +291,7 @@ fn the_palette_s_reboot_resets_the_machine() {
     script.extend(shown(steps::REBOOT));
     let said = vec![Play::Say("sysrq: Resetting\r\n")];
 
-    let found = played("reboot", false, script, said, reboot);
+    let found = played("reboot", false, script, said, &reboot);
 
     assert_eq!(found.len(), 2, "{found:#?}");
     assert!(all_ok(&found), "{found:#?}");
@@ -287,7 +304,7 @@ fn a_reboot_the_kernel_does_not_report_as_a_reset_fails() {
     script.extend(shown(steps::REBOOT));
     let said = vec![Play::Say("reboot: Restarting system\r\n")];
 
-    let found = played("reboot-unsaid", false, script, said, reboot);
+    let found = played("reboot-unsaid", false, script, said, &reboot);
 
     assert_eq!(
         found.last().map(String::as_str),
@@ -329,27 +346,16 @@ fn start_on(
 ) -> (bool, Duration, Vec<String>) {
     let settings = settings(&format!("menu-display-{name}"));
     let test = Test::new(&settings, "menu-display").unwrap();
-    let mirror = test.dir().join("mirror.txt");
-    draw(&mirror, first);
-    PLAYER.with(|player| {
-        *player.borrow_mut() = Player {
-            mirror: mirror.clone(),
-            script: script.into(),
-            wrong: Vec::new(),
-        };
-    });
     let (mut vm, guest) = scripted(&test, Vec::new());
-    let monitor = Monitor { dump: no_dump, key };
     let pace = Pace { patience, ..SOON };
     let begun = Instant::now();
 
-    let started = start(&test, &mut display(&monitor, &mirror, pace), &mut vm).is_ok();
+    let (started, _) = on_fake((&test, &mut vm), first, script, pace, start);
 
     let took = begun.elapsed();
+    let started = started.is_ok();
     drop(vm);
     assert_eq!(guest.finish(), Vec::<String>::new());
-    let player = PLAYER.with(RefCell::take);
-    assert_eq!(player.wrong, Vec::<String>::new());
     let found = checks(&test);
     cleanup(&settings);
     (started, took, found)

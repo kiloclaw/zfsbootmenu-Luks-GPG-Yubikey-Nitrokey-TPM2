@@ -84,7 +84,7 @@ pub(super) struct Step {
 
 impl Step {
     /// The step `what`: `acts`, then a wait for `awaits`.
-    const fn new(what: &'static str, acts: &'static [Act], awaits: Await) -> Step {
+    pub(super) const fn new(what: &'static str, acts: &'static [Act], awaits: Await) -> Step {
         Step {
             what,
             acts,
@@ -96,7 +96,7 @@ impl Step {
     }
 
     /// The step, whose screen shows `shows`.
-    const fn showing(self, shows: &'static [&'static str]) -> Step {
+    pub(super) const fn showing(self, shows: &'static [&'static str]) -> Step {
         Step { shows, ..self }
     }
 

@@ -34,11 +34,20 @@ pub(crate) struct Monitor {
     pub(crate) key: fn(&Vm<'_>, &str) -> Result<()>,
 }
 
+/// The keyboard layouts of the image, in its order: `us` first, which the
+/// console starts with, and `de` second, which `runtime-rust-console`
+/// switches to; then the others of `menu-keys`, which Super+Space reaches
+/// in this order.
+pub(crate) const LAYOUTS: [&str; 6] = ["us", "de", "fr", "gb", "ru", "us(dvorak)"];
+
 /// The image of the test.
 pub(crate) fn spec() -> ImageSpec {
     ImageSpec {
         runtime: Some(ZbmRuntime::Rust),
-        conf: "add_drivers+=\" virtio_gpu evdev \"\nzfsbootmenu_keyboard_layouts=\"us de\"".into(),
+        conf: format!(
+            "add_drivers+=\" virtio_gpu evdev \"\nzfsbootmenu_keyboard_layouts=\"{}\"",
+            LAYOUTS.join(" ")
+        ),
         features: Some("zbm/console-mirror".into()),
         ..ImageSpec::new("console")
     }

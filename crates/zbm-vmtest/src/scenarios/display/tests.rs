@@ -52,6 +52,13 @@ fn the_machine_has_the_display_and_the_mirror_s_serial_port() {
     let spec = spec();
     assert_eq!(spec.runtime, Some(ZbmRuntime::Rust));
     assert!(spec.conf.contains("virtio_gpu evdev"), "{}", spec.conf);
+    // us first and de second, for runtime-rust-console; then menu-keys's.
+    assert!(
+        spec.conf
+            .ends_with("\nzfsbootmenu_keyboard_layouts=\"us de fr gb ru us(dvorak)\""),
+        "{}",
+        spec.conf
+    );
     // The mirror the test reads is in test builds only.
     assert_eq!(spec.features.as_deref(), Some("zbm/console-mirror"));
 }

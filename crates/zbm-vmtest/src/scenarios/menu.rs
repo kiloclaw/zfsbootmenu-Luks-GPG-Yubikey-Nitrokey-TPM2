@@ -16,7 +16,9 @@
 //! - `boot` (`boot`): the palette's entries, a boot with another kernel and
 //!   an edited command line, and the boot of a clone;
 //! - `display` (`display`): the tasks of the three, on the console on the
-//!   display, with no recovery shell.
+//!   display, with no recovery shell;
+//! - `keys` (`keys`): keys pressed by their place on six keyboard layouts,
+//!   on the console on the display, and the views they bring.
 //!
 //! Each test boots on fresh copies of the pristine disks, with
 //! `zbm.prefer=tmenu!!`, which leaves the other pools to the menu: one that
@@ -45,6 +47,7 @@ use super::drive::{Driver, Key, Serial};
 mod boot;
 mod checks;
 mod display;
+mod keys;
 mod pools;
 mod setup;
 mod snapshots;
@@ -97,7 +100,7 @@ const UUID: &str = uuid!();
 /// The name of the LUKS volume's mapping, as the menu lists it.
 const VOLUME: &str = concat!("luks-", uuid!());
 
-/// Runs `setup`, `snapshots`, `pools`, `boot` or `display`.
+/// Runs `setup`, `snapshots`, `pools`, `boot`, `display` or `keys`.
 ///
 /// # Errors
 ///
@@ -115,6 +118,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "pools" => pools::run(test),
         "boot" => boot::run(test),
         "display" => display::run(test),
+        "keys" => keys::run(test),
         _ => {
             test.check(false, &format!("unknown scenario {scenario}"));
             Ok(())

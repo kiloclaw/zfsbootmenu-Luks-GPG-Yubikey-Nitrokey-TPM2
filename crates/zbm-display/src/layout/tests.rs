@@ -369,3 +369,71 @@ fn a_character_names_its_key_and_level() {
     assert_eq!(french.character_of(3, true), Some('2'));
     assert_eq!(french.character_of(1, false), None);
 }
+
+/// The layouts of the console's image of the VM tests, in its order
+/// (`zbm-vmtest`'s `scenarios/display.rs`): `menu-keys` switches between
+/// them.
+const CONSOLE_IMAGE: [&str; 6] = ["us", "de", "fr", "gb", "ru", "us(dvorak)"];
+
+#[test]
+fn every_layout_of_the_console_image_compiles_and_types_what_menu_keys_expects() {
+    // The keys `menu-keys` presses on each layout, by code, with Shift and
+    // Caps Lock or not, and what they type there.
+    let keys: [(&str, u16, bool, bool, char); 28] = [
+        ("us", 3, false, false, '2'),
+        ("us", 2, false, false, '1'),
+        ("us", 38, false, false, 'l'),
+        ("us", 53, true, false, '?'),
+        ("de", 3, false, false, '2'),
+        ("de", 2, false, false, '1'),
+        ("de", 38, false, false, 'l'),
+        ("de", 53, true, false, '_'),
+        ("fr", 3, false, false, 'é'),
+        ("fr", 2, false, false, '&'),
+        ("fr", 53, false, false, '!'),
+        ("fr", 53, true, false, '§'),
+        ("fr", 3, false, true, 'É'),
+        ("fr", 2, false, true, '&'),
+        ("gb", 3, false, false, '2'),
+        ("gb", 2, false, false, '1'),
+        ("gb", 38, false, false, 'l'),
+        ("gb", 53, true, false, '?'),
+        ("ru", 38, false, false, 'д'),
+        ("ru", 53, true, false, ','),
+        ("ru", 46, false, false, 'с'),
+        ("ru", 38, false, true, 'Д'),
+        ("ru", 53, true, true, ','),
+        ("ru", 3, false, false, '2'),
+        ("ru", 2, false, false, '1'),
+        ("us(dvorak)", 25, false, false, 'l'),
+        ("us(dvorak)", 38, false, false, 'n'),
+        ("us(dvorak)", 26, true, false, '?'),
+    ];
+    for name in CONSOLE_IMAGE {
+        // A name the image's keymap file is named after, as the console
+        // loads it; and a layout with a character on every key.
+        assert!(compile::split(name).is_ok(), "{name}");
+        let positions = positions(name);
+        let on_every_key = MAIN_BLOCK
+            .iter()
+            .filter(|&&code| code != 86)
+            .all(|&code| positions.character_of(code, false).is_some());
+        assert!(on_every_key, "{name}");
+    }
+    for (name, code, shift, caps_lock, wanted) in keys {
+        let layout = Layout::from_keymap(name, keymap(name).as_bytes())
+            .and_then(|layout| layout.with_dead_keys(dead_keys().as_bytes()))
+            .unwrap();
+        let mut decoder = Decoder::new();
+        decoder.set_layout(Some(layout));
+        if caps_lock {
+            decoder.feed(58, 1);
+            decoder.feed(58, 0);
+        }
+        if shift {
+            decoder.feed(42, 1);
+        }
+        let typed = decoder.feed(code, 1).map(|press| press.key);
+        assert_eq!(typed, Some(Key::Char(wanted)), "{name}: {code}");
+    }
+}

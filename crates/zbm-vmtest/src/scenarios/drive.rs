@@ -58,11 +58,16 @@ pub(crate) enum Key {
     CtrlU,
     /// A character, Shift with a capital.
     Char(char),
+    /// A key by QEMU's name, which presses it by its place whatever the
+    /// layout: `slash`, `shift-slash`, `meta_l-spc`. A serial terminal has
+    /// no such key.
+    Qemu(&'static str),
 }
 
 impl Key {
-    /// The bytes a serial terminal sends for it.
-    pub(super) fn serial(self) -> String {
+    /// The bytes a serial terminal sends for it; `None` for a key by
+    /// QEMU's name.
+    pub(super) fn serial(self) -> Option<String> {
         let bytes = match self {
             Key::Escape => "\x1b",
             Key::Enter => "\r",
@@ -70,9 +75,10 @@ impl Key {
             Key::Delete => "\x1b[3~",
             Key::Home => "\x1b[H",
             Key::CtrlU => "\x15",
-            Key::Char(c) => return c.to_string(),
+            Key::Char(c) => return Some(c.to_string()),
+            Key::Qemu(_) => return None,
         };
-        bytes.to_owned()
+        Some(bytes.to_owned())
     }
 
     /// QEMU's name of it, on the US layout; `None` for a character without
@@ -86,6 +92,7 @@ impl Key {
             Key::Home => "home",
             Key::CtrlU => "ctrl-u",
             Key::Char(c) => return key_names(&c.to_string())?.pop(),
+            Key::Qemu(name) => name,
         };
         Some(name.to_owned())
     }
@@ -127,9 +134,12 @@ pub(crate) struct Serial {
 impl Driver for Serial {
     /// Sends the key's bytes. Escape is followed by a pause, longer than the
     /// menu waits for the rest of a sequence, so that the next key is not
-    /// read as one with Alt.
+    /// read as one with Alt. A key by QEMU's name has no bytes.
     fn press(&mut self, vm: &mut Vm<'_>, key: Key) -> Result<()> {
-        vm.send(&key.serial())?;
+        let bytes = key
+            .serial()
+            .ok_or_else(|| Error::Setup(format!("no serial bytes for {key:?}")))?;
+        vm.send(&bytes)?;
         if key == Key::Escape {
             thread::sleep(self.pace.pause);
         }

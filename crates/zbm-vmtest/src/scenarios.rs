@@ -76,6 +76,7 @@ pub const ALL: &[&str] = &[
     "menu-pools",
     "menu-boot",
     "menu-display",
+    "menu-keys",
     "secrets-setup",
     "secrets-passphrase",
     "secrets-keyfile",
@@ -172,6 +173,7 @@ mod tests {
             "menu-pools",
             "menu-boot",
             "menu-display",
+            "menu-keys",
         ] {
             let outcome = run(&settings, name).unwrap();
             assert_eq!(outcome.passed, 0, "{name}");

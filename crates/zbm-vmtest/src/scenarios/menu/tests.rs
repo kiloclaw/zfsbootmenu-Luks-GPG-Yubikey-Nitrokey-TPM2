@@ -62,7 +62,7 @@ pub(super) fn played(steps: &[Step]) -> Vec<Play> {
         }
         for act in step.acts {
             match *act {
-                Act::Press(key) => script.push(Play::Keys(key.serial().leak())),
+                Act::Press(key) => script.push(Play::Keys(key.serial().unwrap().leak())),
                 Act::Type(text) => script.push(Play::Keys(text)),
                 Act::Select(name) | Act::SelectRow(name) => {
                     script.push(Play::Keys("\x1b[H"));

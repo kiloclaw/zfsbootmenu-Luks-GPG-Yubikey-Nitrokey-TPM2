@@ -47,7 +47,7 @@ use super::{COUNTDOWN, GROUP, POWER, boot, steps};
 /// The command line of the boots: the menu on the display, its mirror on
 /// the second serial port, the kernel's messages on the first, a countdown
 /// long enough to stop, and `tmenu` alone imported at start-up.
-const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
+pub(super) const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
     zbm.console_serial=off zbm.console_mirror=/dev/ttyS1 zbm.timeout=30 zbm.prefer=tmenu!!";
 
 /// What the kernel says as the menu resets the machine with SysRq-b,
@@ -61,8 +61,8 @@ const PACE: Pace = Pace {
     patience: 1200,
 };
 
-/// How a boot drives the menu on the display.
-type Drive = fn(&Test, &mut Display<'_>, &mut Vm<'_>) -> Result<()>;
+/// How a boot drives the menu on the display, with what it holds.
+pub(super) type Driving<'d> = &'d dyn Fn(&Test, &mut Display<'_>, &mut Vm<'_>) -> Result<()>;
 
 /// Boots five times.
 ///
@@ -81,27 +81,27 @@ pub(super) fn run(test: &Test) -> Result<()> {
         dump: screendump,
         key: sendkey,
     };
-    let on = |label: &str, append: &str, more: &[Disk], drive: Drive| {
+    let on = |label: &str, append: &str, more: &[Disk], drive: Driving<'_>| {
         on_display(test, &image, &monitor, (label, append, more), drive)
     };
-    on("snapshots", APPEND, &[], snapshots)?;
-    on("pools", APPEND, &[], pools)?;
-    on("kernel", &saving, &fat, kernel)?;
+    on("snapshots", APPEND, &[], &snapshots)?;
+    on("pools", APPEND, &[], &pools)?;
+    on("kernel", &saving, &fat, &kernel)?;
     boot::check_record(test, &saved_record(&logs)?);
-    on("clone", APPEND, &[], clone)?;
-    on("reboot", APPEND, &[], reboot)
+    on("clone", APPEND, &[], &clone)?;
+    on("reboot", APPEND, &[], &reboot)
 }
 
 /// Boots `image` with `append` on fresh disks and `more`, as the boot
 /// `label`, with the display and its mirror, and drives the menu with
 /// `drive`. When that fails, a screenshot is kept (`<label>-failed.ppm`)
 /// and the mirror's last screen noted.
-fn on_display(
+pub(super) fn on_display(
     test: &Test,
     image: &Image,
     monitor: &Monitor,
     (label, append, more): (&str, &str, &[Disk]),
-    drive: Drive,
+    drive: Driving<'_>,
 ) -> Result<()> {
     let mirror = mirror_path(test, label);
     let mut machine = super::on_fresh(test.settings(), image, append, more)?;
@@ -132,7 +132,7 @@ fn on_display(
 /// then stops the countdown, and checks that the menu is the workspace.
 /// The group has one volume, so that the dialog shows once at most. Each
 /// wait has the boot's patience once: when neither shows, the start fails.
-fn start(test: &Test, display: &mut Display<'_>, vm: &mut Vm<'_>) -> Result<()> {
+pub(super) fn start(test: &Test, display: &mut Display<'_>, vm: &mut Vm<'_>) -> Result<()> {
     let luks = dialogs::LUKS.trim_start_matches(SCREEN);
     let countdown = COUNTDOWN.trim_start_matches(SCREEN);
     let either = format!("(?:{luks})|(?:{countdown})");
@@ -219,4 +219,4 @@ fn be_report(test: &Test, vm: &mut Vm<'_>) -> Result<Boot> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
