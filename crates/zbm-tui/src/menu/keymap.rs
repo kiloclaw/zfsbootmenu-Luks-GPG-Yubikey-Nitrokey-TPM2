@@ -1,10 +1,12 @@
 //! The key map of the menu: one table turns key presses into intents,
-//! writes the footer and the help view (`docs/dev/menu-design/keymap.md`).
+//! writes the footer, the help view and the key section of
+//! `zfsbootmenu(7)` ([`manual`]; `docs/dev/menu-design/keymap.md`).
 //!
 //! One key has one meaning in every view. The classic `MOD+key` bindings of
 //! the `fzf` menu (`MOD` is `Alt` or `Ctrl`) are aliases with their old
 //! meaning in their old view ([`CLASSIC`]); they never collide with the new
-//! keys, which hold no modifier.
+//! letters, which hold no modifier. Where the table binds a letter with
+//! `Ctrl` itself (`Ctrl-P`), its alias works with `Alt` only.
 
 use zbm_display::keys::{Key, KeyPress};
 
@@ -314,6 +316,7 @@ const fn key(c: char, contexts: &'static [Context], intent: Intent) -> Binding {
 
 mod classic;
 mod labels;
+pub mod manual;
 mod offers;
 mod workspace;
 

@@ -1,10 +1,11 @@
 # The key map
 
-One table, `keymap/` of `zbm-tui`, turns key presses into intents, writes the toolbar and the help view, and will
-generate the key binding section of `zfsbootmenu(7)`. It holds two maps until the usability sessions (UI11) choose one
-([decision 8](../../../ROADMAP.md#decisions)): the **workspace's** ([ADR 0007](../adr/0007-menu-workspace.md)), the
-menu's since UI10c, and the **classic** one, which `zbm.menu=classic` keeps for one release. `zbm-tui --demo` reads
-keys with the first, `zbm-tui --demo --classic` with the second.
+One table, `keymap/` of `zbm-tui`, turns key presses into intents, writes the toolbar and the help view, and
+generates the key binding section of `zfsbootmenu(7)` (`keymap/manual.rs`, through `cargo xtask gen-docs`). It holds
+two maps until the usability sessions (UI11) choose one ([decision 8](../../../ROADMAP.md#decisions)): the
+**workspace's** ([ADR 0007](../adr/0007-menu-workspace.md)), the menu's since UI10c, and the **classic** one, which
+`zbm.menu=classic` keeps for one release. `zbm-tui --demo` reads keys with the first, `zbm-tui --demo --classic` with
+the second.
 
 ## Keys on every keyboard
 
@@ -160,8 +161,9 @@ so here it sorts the snapshots view only.
 So people who know the `fzf` menu keep their habits, and new users learn the letters from the footer. The new
 letters hold no modifier, so the two maps meet only where the new map gives `Ctrl` a meaning of every view (`Ctrl-C`
 back, `Ctrl-L` redraw, `Ctrl-N` and `Ctrl-P` down and up): there the new meaning wins, and the alias works
-with `Alt` only. `Ctrl-S` and `Ctrl-J` may not reach the menu on serial lines (flow control, newline): their `Alt`
-forms do. The sessions confirm or reject this before R5.
+with `Alt` only. `Ctrl-S` may not reach the menu on serial lines (flow control), and a terminal (a serial line, SSH)
+sends `Ctrl-J` as a newline, which the menu reads as `Enter`: their `Alt` forms work, and `zfsbootmenu(7)` says so.
+The sessions confirm or reject this before R5.
 
 ## The toolbar and the help view
 

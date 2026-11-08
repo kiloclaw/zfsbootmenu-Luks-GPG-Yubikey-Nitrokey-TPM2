@@ -67,8 +67,9 @@ Commands:
   doc [--open]           Build the documentation, warnings as errors
   gen-docs [--check]     Write the option sections of zfsbootmenu(7),
                          zfsbootmenu-crypttab(5) and generate-zbm(5) from
-                         the table of options in zbm-config; --check fails
-                         when one is out of date
+                         the table of options in zbm-config, and the key
+                         section of zfsbootmenu(7) from the key map in
+                         zbm-tui; --check fails when one is out of date
   check-links [<binary>] Check that the release zbm (built first), or
                          <binary>, links no library but glibc's (readelf)
   check-deps [--bless]   Check the dependencies between crates against the

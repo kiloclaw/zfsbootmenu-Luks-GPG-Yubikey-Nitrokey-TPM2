@@ -195,6 +195,7 @@ pub fn key_name(code: Key, modifiers: Modifiers) -> String {
         Key::Home => text!("key-home"),
         Key::End => text!("key-end"),
         Key::Delete => text!("key-delete"),
+        Key::Backspace => text!("key-backspace"),
         Key::F(number) => text!("key-function", number = number),
         Key::Char(' ') => text!("key-space"),
         Key::Char(c) => c.to_string(),

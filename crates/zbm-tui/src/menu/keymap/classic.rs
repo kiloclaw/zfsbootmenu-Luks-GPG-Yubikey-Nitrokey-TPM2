@@ -1,10 +1,11 @@
 //! The classic bindings of the `fzf` menu: `MOD+key`, where `MOD` is `Alt`
 //! or `Ctrl`, with their old meaning in their old view (decision 8 of
-//! `docs/dev/menu-design/keymap.md`).
+//! `docs/dev/menu-design/keymap.md`). Where the menu binds the letter with
+//! `Ctrl` itself, as `Ctrl-P`, the alias works with `Alt` only: `Alt+P`.
 
 use zbm_display::keys::{Key, KeyPress};
 
-use super::{Context, Intent, Modifiers, describe};
+use super::{Context, Input, Intent, Map, Modifiers, describe, input, press};
 use crate::text::{Id, text};
 use Context::{Kernels, Main, Pools, Snapshots};
 
@@ -74,16 +75,59 @@ pub(super) fn classic(context: Context, press: KeyPress) -> Option<Intent> {
 }
 
 /// The classic bindings of `context` whose intents are `offered`, as
-/// (`MOD+K`, what it does).
+/// (`MOD+K`, what it does), or `Alt+K` where the letter with `Ctrl` means
+/// something else there.
 pub fn classic_bindings(context: Context, offered: &dyn Fn(Intent) -> bool) -> Vec<(String, Id)> {
+    aliases(context, offered)
+        .into_iter()
+        .map(|(_, key, what)| (key, what))
+        .collect()
+}
+
+/// The classic bindings of `context` whose intents are `offered`, as
+/// (letter, `MOD+K` or `Alt+K`, what it does): the help view's list and
+/// the manual's.
+pub(super) fn aliases(
+    context: Context,
+    offered: &dyn Fn(Intent) -> bool,
+) -> Vec<(char, String, Id)> {
     CLASSIC
         .iter()
         .filter_map(|(letter, meanings)| {
             let (_, intent) = meanings
                 .iter()
                 .find(|(view, intent)| *view == context && offered(*intent))?;
-            let key = text!("key-classic", letter = letter.to_uppercase().to_string());
-            Some((key, describe(context, *intent)))
+            let upper = letter.to_uppercase().to_string();
+            let key = if taken_with_ctrl(*letter, context).is_some() {
+                text!("key-alt", letter = upper)
+            } else {
+                text!("key-classic", letter = upper)
+            };
+            Some((*letter, key, describe(context, *intent)))
         })
         .collect()
+}
+
+/// What the workspace's table binds `letter` with `Ctrl` to in `context`,
+/// if that is not the classic binding's meaning: the table comes first,
+/// and the classic binding then works with `Alt` only (`Ctrl-P` selects
+/// the entry above).
+pub(super) fn taken_with_ctrl(letter: char, context: Context) -> Option<Intent> {
+    let ctrl = press(Key::Char(letter), Modifiers::CTRL);
+    match input(Map::Workspace, context, ctrl) {
+        Some(Input::Intent(intent)) if classic(context, ctrl) != Some(intent) => Some(intent),
+        _ => None,
+    }
+}
+
+/// The key a terminal's control character for `letter` with `Ctrl` reads
+/// as, when that is another key: a serial line and SSH send `Ctrl-J` as a
+/// newline, which is `Enter`. The display console reads the keyboard
+/// itself, and its `Ctrl-J` is `Ctrl-J`.
+pub(super) fn sent_as(letter: char) -> Option<KeyPress> {
+    let byte = u8::try_from(letter).ok().filter(u8::is_ascii_lowercase)? - b'a' + 1;
+    let mut keys = Vec::new();
+    zbm_display::term_keys::decode(&[byte], true, &mut keys);
+    let ctrl = press(Key::Char(letter), Modifiers::CTRL);
+    keys.into_iter().next().filter(|key| *key != ctrl)
 }

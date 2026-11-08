@@ -121,6 +121,11 @@ action-previous-place = the previous button, or the field
     .title = Previous
 action-more = more
     .title = More
+# Backspace and Ctrl-U in a field that takes text.
+action-erase = erase the last character
+    .title = Erase
+action-clear = clear the field
+    .title = Clear
 
 ## Key names, as the toolbar and the help view show them.
 
@@ -137,11 +142,14 @@ key-page-down = PgDn
 key-home = Home
 key-end = End
 key-delete = Del
+key-backspace = Backspace
 key-space = Space
 key-function = F{ $number }
 key-ctrl = Ctrl-{ $key }
 # A classic binding of the fzf menu: MOD is Alt or Ctrl.
 key-classic = MOD+{ $letter }
+# A classic binding whose Ctrl form means something else in the menu.
+key-alt = Alt+{ $letter }
 keys-up-down = Up/Down
 keys-left-right = Left/Right
 
@@ -358,6 +366,33 @@ help-classic = CLASSIC BINDINGS (MOD IS ALT OR CTRL)
 # `MOD+key` aliases of the fzf menu, named apart from `zbm.menu=classic`.
 help-zfs-version = ZFS { $version }
 help-aliases = FZF ALIASES (MOD IS ALT OR CTRL)
+
+## The key section of zfsbootmenu(7), which `cargo xtask gen-docs` writes:
+## the places that have no view of their own.
+
+manual-every-view = Every View
+manual-sheets = Sheets and Alerts
+manual-fields = Fields That Take Text
+# A classic binding of the fzf menu that works with Alt only: its Ctrl form
+# is a key of the menu, as Ctrl-P is Select.
+manual-alt-only = Alt only: { $key } is { $action }.
+# A classic binding whose Ctrl form a terminal sends as another key.
+manual-sent-as = On a serial line or over SSH, { $key } arrives as { $sent }: use Alt.
+# What the moves do, with their way: the help view says "Select" for both.
+manual-select-up = select the row above
+manual-select-down = select the row below
+manual-scroll-up = scroll up
+manual-scroll-down = scroll down
+manual-page-up = move a page up
+manual-page-down = move a page down
+manual-top = move to the top
+manual-bottom = move to the bottom
+# Where a key works, when only some of a place's dialogs or fields read it.
+manual-in-choices = in a list of choices; a review page scrolls
+manual-on-review-pages = on a review page
+manual-in-lists = in the palette, a list's filter and the methods of the unlock prompt
+manual-in-filters = in a list's filter
+manual-in-unlock = in the unlock prompt, once start-up is over
 
 ## Sizes and ages.
 

@@ -1,25 +1,32 @@
 //! `cargo xtask gen-docs`: the option sections of the manual pages, written
-//! from the table of options in `zbm-config` (`zbm_config::spec`).
+//! from the table of options in `zbm-config` (`zbm_config::spec`), and the
+//! key section of zfsbootmenu(7), written from the key map in `zbm-tui`
+//! (`zbm_tui::menu::keymap::manual`).
 //!
-//! The work is done by the example `gen_docs` of `zbm-config`, which this
-//! runs: developer tools depend on no crate of the workspace, so that they
-//! still run when one of those does not build.
+//! The work is done by the examples `gen_docs` of `zbm-config` and
+//! `gen_keys` of `zbm-tui`, which this runs in that order: developer tools
+//! depend on no crate of the workspace, so that they still run when one of
+//! those does not build.
 
 use std::path::Path;
 
 use crate::error::Result;
 use crate::process::Program;
 
-/// The command line of the example, for `root` and `check`.
-fn arguments(root: &Path, check: bool) -> Vec<String> {
+/// The examples that write the generated sections: (package, example).
+const EXAMPLES: [(&str, &str); 2] = [("zbm-config", "gen_docs"), ("zbm-tui", "gen_keys")];
+
+/// The command line of the example `example` of `package`, for `root` and
+/// `check`.
+fn arguments(root: &Path, package: &str, example: &str, check: bool) -> Vec<String> {
     let mut args: Vec<String> = [
         "run",
         "--quiet",
         "--locked",
         "-p",
-        "zbm-config",
+        package,
         "--example",
-        "gen_docs",
+        example,
         "--",
     ]
     .map(str::to_owned)
@@ -36,12 +43,26 @@ fn arguments(root: &Path, check: bool) -> Vec<String> {
 ///
 /// # Errors
 ///
-/// [`crate::error::Error::Failed`] when the example fails: a page is out of
+/// [`crate::error::Error::Failed`] when an example fails: a page is out of
 /// date (with `check`), lacks a marker, or cannot be read or written.
 pub fn run(root: &Path, check: bool) -> Result<()> {
-    Program::new("cargo", root)
-        .args(arguments(root, check))
-        .run()
+    each(&EXAMPLES, |package, example| {
+        Program::new("cargo", root)
+            .args(arguments(root, package, example, check))
+            .run()
+    })
+}
+
+/// Runs every one of `examples` with `run`, even after one fails, so that
+/// each reports its problems; then the first failure, if any.
+fn each(examples: &[(&str, &str)], mut run: impl FnMut(&str, &str) -> Result<()>) -> Result<()> {
+    let mut failed = None;
+    for (package, example) in examples {
+        if let Err(error) = run(package, example) {
+            failed.get_or_insert(error);
+        }
+    }
+    failed.map_or(Ok(()), Err)
 }
 
 #[cfg(test)]
@@ -49,12 +70,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_example_is_run_on_the_repository() {
-        let args = arguments(Path::new("/repo"), true);
+    fn the_examples_are_run_on_the_repository() {
+        let lines: Vec<String> = EXAMPLES
+            .iter()
+            .map(|(package, example)| {
+                arguments(Path::new("/repo"), package, example, true).join(" ")
+            })
+            .collect();
         assert_eq!(
-            args.join(" "),
-            "run --quiet --locked -p zbm-config --example gen_docs -- /repo --check"
+            lines,
+            [
+                "run --quiet --locked -p zbm-config --example gen_docs -- /repo --check",
+                "run --quiet --locked -p zbm-tui --example gen_keys -- /repo --check",
+            ]
         );
-        assert!(!arguments(Path::new("/repo"), false).contains(&"--check".to_owned()));
+        let written = arguments(Path::new("/repo"), "zbm-tui", "gen_keys", false);
+        assert!(!written.contains(&"--check".to_owned()));
+    }
+
+    #[test]
+    fn every_example_runs_after_one_fails_and_the_first_failure_is_kept() {
+        let mut ran = Vec::new();
+        let result = each(&EXAMPLES, |package, example| {
+            ran.push(format!("{package} {example}"));
+            Err(crate::error::Error::Failed {
+                command: example.to_owned(),
+            })
+        });
+        assert_eq!(ran, ["zbm-config gen_docs", "zbm-tui gen_keys"]);
+        assert!(matches!(
+            result,
+            Err(crate::error::Error::Failed { command }) if command == "gen_docs"
+        ));
+        assert!(each(&EXAMPLES, |_, _| Ok(())).is_ok());
     }
 }

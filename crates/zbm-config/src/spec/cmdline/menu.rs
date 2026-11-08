@@ -27,6 +27,7 @@ pools and the log on the tabs of one screen. **1** to **4** choose a tab and **T
 **j** and **k** or the arrows move, **l** or **Right** goes into the kernels of the boot environment
 selected and **h**, **Left** or **Escape** back out; **Enter** boots what is selected, **!** opens
 the recovery tools, the shell first, **/** filters and **?** lists the keys of the view.
+**The Menu's Keys** below lists every key of each view.
 
 A rollback (**r** on the Snapshots tab), a rewind to the checkpoint, a forced import and the
 destroy of snapshots (**Delete** on the Snapshots tab: those marked with **Space**, or else the one

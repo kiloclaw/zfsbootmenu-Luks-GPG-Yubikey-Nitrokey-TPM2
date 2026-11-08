@@ -35,7 +35,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │            MOD+D  Default                                                                                            │
 │            MOD+E  Edit                                                                                               │
 │            MOD+T  Revert                                                                                             │
-│            MOD+P  Pools                                                                                              │
+│            Alt+P  Pools                                                                                              │
 │            MOD+R  Shell                                                                                              │
 │            MOD+J  Chroot                                                                                             │
 │            MOD+W  Read/Write                                                                                         │

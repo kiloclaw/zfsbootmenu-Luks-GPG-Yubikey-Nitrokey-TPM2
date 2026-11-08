@@ -4254,6 +4254,7 @@ dependencies = [
  "ratatui",
  "unic-langid",
  "zbm-app",
+ "zbm-config",
  "zbm-display",
  "zbm-platform",
  "zbm-state",
