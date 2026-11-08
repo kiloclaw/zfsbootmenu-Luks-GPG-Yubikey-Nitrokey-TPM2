@@ -345,3 +345,41 @@ fn the_line_view_says_which_snapshots_are_marked() {
         assert!(marked[0].starts_with(name.name()), "{workspace}: {rows:#?}");
     }
 }
+
+#[test]
+fn a_package_database_s_manager_and_versions_are_shown_escaped() {
+    use crate::menu::world::{Event, PackageChange, PackageDiff, PackageKind};
+
+    let model = started(Capabilities::FULL).into_model();
+    let packages = PackageDiff {
+        manager: "xbps\u{2066}".to_owned(),
+        changes: vec![PackageChange {
+            name: "mesa".to_owned(),
+            kind: PackageKind::Upgraded,
+            before: Some("24.1\u{202e}".to_owned()),
+            after: Some("24.2\u{1b}[2J".to_owned()),
+            files: Vec::new(),
+        }],
+    };
+    let ready = Event::DiffReady {
+        from: "zroot/ROOT/void@before".parse().unwrap(),
+        to: None,
+        changes: Vec::new(),
+        packages: Some(packages),
+    };
+    let (model, _) = crate::menu::update(model, crate::menu::Message::Event(Box::new(ready)));
+    let (model, _) = crate::menu::update(
+        model,
+        crate::menu::Message::Key(zbm_display::keys::KeyPress::new(Key::Right)),
+    );
+
+    let text = screen(&model, 120, 40);
+
+    // The header is drawn in capitals.
+    for escaped in ["XBPS\\U{2066}", "24.1\\u{202e} → 24.2\\x1b[2J"] {
+        assert!(text.contains(escaped), "{escaped} not in\n{text}");
+    }
+    let buffer = cells(&model, 120, 40);
+    let raw = |cell: &ratatui::buffer::Cell| cell.symbol().contains(zbm_types::must_escape);
+    assert!(!buffer.content().iter().any(raw), "{text}");
+}

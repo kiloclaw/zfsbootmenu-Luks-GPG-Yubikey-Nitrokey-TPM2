@@ -37,7 +37,7 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff
         .iter()
         .filter_map(|ranked| {
             let package = packages.get(ranked.index)?;
-            let versions = package.versions(ascii);
+            let versions = Printable(&package.versions(ascii)).to_string();
             let facts = vec![Span::styled(versions.clone(), theme.style(Role::Muted))];
             let room = width.saturating_sub(versions.chars().count() + 2);
             let name = fit(&Printable(&package.name).to_string(), room, ascii);
@@ -52,7 +52,7 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff
     let header = match &diff.packages {
         Some(packages) => text!(
             "packages-since.manager",
-            manager = packages.manager.as_str(),
+            manager = Printable(&packages.manager).to_string(),
             snapshot = snapshot
         ),
         None => text!("packages-since", snapshot = snapshot),
@@ -96,7 +96,7 @@ fn kind_word(kind: PackageKind) -> String {
 /// What happened to `package`, how to undo it, and its changed files.
 fn preview_lines(theme: Theme, package: &PackageChange) -> Vec<Line<'static>> {
     let ascii = theme.is_ascii();
-    let versions = package.versions(ascii);
+    let versions = Printable(&package.versions(ascii)).to_string();
     let versions = versions.as_str();
     let what = match package.kind {
         PackageKind::Installed => text!("package-installed.since", versions = versions),

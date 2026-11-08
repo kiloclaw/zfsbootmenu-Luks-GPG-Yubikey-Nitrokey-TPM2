@@ -1,0 +1,40 @@
+ long name 00 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+long name 01 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+long-pool-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+long name 02 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+long name 00 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+luks-root
+long name 01 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+/dev/sda2]0;owned
+long name 02 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+‮evil
+long name 03 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+tank
+long name 04 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+luks-root
+long name 05 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+/dev/sda2]0;owned
+long name 06 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+‮evil
+long name 07 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+tank
+long name 08 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+luks-root
+long name 09 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+/dev/sda2]0;owned
+long name 10 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+‮evil
+long name 11 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+tank
+long name 12 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+luks-root
+long name 13 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+/dev/sda2]0;owned
+long name 14 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+‮evil
+long name 15 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+tank
+long name 16 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+luks-root
+long name 17 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y y
+/dev/sda2]0;owned

@@ -1,6 +1,9 @@
 //! The menu as words (ROADMAP.md UI8, ADR 0011): what the line view prints
 //! and what `Announce` says, from the same parts and catalogue messages as
-//! the views draw, as plain text: no glyph, no colour, no column.
+//! the views draw, as plain text: no glyph, no colour, no column. The words
+//! leave this module [`Printable`]: what the machine says names pools,
+//! devices, volumes and paths, which no terminal may act on (P13 of
+//! `docs/dev/threat-model.md`).
 
 use ratatui::text::Line;
 use zbm_types::Printable;
@@ -24,6 +27,26 @@ pub(crate) struct Said {
     pub(crate) choices: Vec<String>,
 }
 
+impl Said {
+    /// The dialog with every text [`printable`].
+    fn printable(self) -> Said {
+        Said {
+            title: printable(self.title),
+            lines: self.lines.into_iter().map(printable).collect(),
+            choices: self.choices.into_iter().map(printable).collect(),
+        }
+    }
+}
+
+/// `text` with the characters that act on a terminal escaped.
+fn printable(text: String) -> String {
+    if Printable(&text).is_plain() {
+        text
+    } else {
+        Printable(&text).to_string()
+    }
+}
+
 /// The text of `line`, its spans one after the other, without the blanks
 /// at its end.
 pub(crate) fn plain(line: &Line<'_>) -> String {
@@ -43,7 +66,7 @@ pub(crate) fn title(model: &Model) -> String {
     if model.map != keymap::Map::Workspace || path.is_empty() {
         return title;
     }
-    text!("lines-path", title = title, path = path.join(" > "))
+    printable(text!("lines-path", title = title, path = path.join(" > ")))
 }
 
 /// The title of the current screen alone.
@@ -75,7 +98,7 @@ pub(crate) fn notification(model: &Model) -> Option<String> {
         return Some(text!("working", seconds = ran / 1000));
     }
     if let Some(outcome) = &model.notification {
-        return Some(match outcome {
+        return Some(printable(match outcome {
             Outcome::Done(what) => format!("{}: {what}", text!("outcome-done")),
             Outcome::Warning(what) => format!("{}: {what}", text!("outcome-warning")),
             Outcome::Failed { what, .. } => format!("{}: {what}", text!("outcome-failed")),
@@ -84,14 +107,20 @@ pub(crate) fn notification(model: &Model) -> Option<String> {
                 text!("outcome-cancelled"),
                 text!("outcome-cancelled.what")
             ),
-        });
+        }));
     }
-    model.progress.clone()
+    model.progress.clone().map(printable)
 }
 
 /// The rows of the current screen, in the order it shows them; whether
 /// they are items to choose, which the line view numbers.
 pub(crate) fn rows(model: &Model) -> (Vec<String>, bool) {
+    let (rows, is_numbered) = screen_rows(model);
+    (rows.into_iter().map(printable).collect(), is_numbered)
+}
+
+/// The rows of [`rows`], as the screen has them.
+fn screen_rows(model: &Model) -> (Vec<String>, bool) {
     match model.screen {
         Screen::Startup => (startup(model), false),
         Screen::Main => (environments(model), true),
@@ -316,6 +345,11 @@ fn changes(model: &Model) -> Vec<String> {
 
 /// The dialog over the screen, or the palette, in words.
 pub(crate) fn dialog(model: &Model) -> Option<Said> {
+    said(model).map(Said::printable)
+}
+
+/// The dialog of [`dialog`], as the machine and the menu word it.
+fn said(model: &Model) -> Option<Said> {
     let Some(dialog) = &model.dialog else {
         return palette(model);
     };

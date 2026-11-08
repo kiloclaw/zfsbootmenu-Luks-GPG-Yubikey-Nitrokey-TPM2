@@ -169,7 +169,7 @@ night.
 | `display_data` | `zbm_startup::autosize`: `edid::parse`, `font::cell`, `Density::new`, `choice::order`; `zbm_display::psf`: `Font::parse`, `Font::subset`, `Font::to_bytes` | I13 | A1, A2 |
 | `console_output` | `zbm_console::screen::Console`: `feed` in reads of any size, `draw` (scrolling and the cursor included), `tick`, `take_replies`, `text` | I14 | A1, A3 |
 | `boot_files` | `zbm_bootenv::kernels`: `discover` (kernel names, their initramfs images and `.kcl` files, version order) and `select`; `zbm_bootenv::commandline`: `os_release`, `root_prefix` | I5 | A3 |
-| `menu_names` | `zbm_tui::menu::view` over a snapshot whose text fields are hostile, on every screen, at three sizes; checks P13: no cell holds a character that acts on a terminal | I3, I5, I8, I9 | A2, A3 |
+| `menu_names` | `zbm_tui::menu::view` and the line view's words (`lines::page`) over a snapshot whose text fields are hostile: every view and dialog of both maps, the classic and the workspace's, at four sizes, in colour and ASCII, with hostile environment, pool, snapshot, path, device, host and package names, what the ESP's boot history says, and the text of every event and outcome; checks P13: no cell holds a character that acts on a terminal, and no line the line view says does | I3, I5, I7, I8, I9, I15 | A2, A3 |
 | `key_input` | `zbm_tui::menu::term_keys::decode`, in reads of any size against all at once; `zbm_display::input::parse_events` and `keys::Decoder` (`feed`, `resync`); `zbm_display::layout`: `Layout::from_keymap`, `compile::dead_keys`, `keys::compose_key` | I10 | A1, A2, A6 |
 | `console_replies` | What `zbm_console::screen::Console` answers to any output (`take_replies`), read back by `term_keys::decode`; checks P13: no key | I14 | A3 |
 | `messages` | What ZBM's processes leave each other: `zbm_trace::crash::Report::parse`, `zbm_platform::dmesg::records` and the filter of a device's messages (`dmesg::is_about`, `dmesg::names`, and `Devices::stack` of the names a pool's label gives), the state files through `zbm_state::State` (stages, the active menu, `bootfs`, degraded pools, the command line override, the console's process, the console that handed the display back, its layout), `Zoom::parse`, `compile::split`, `parse_size`, `ZbmArgs::from_cmdline`; the session's messages, `zbm_app::session::Request::decode` and `Answer::decode`, and the console's, `zbm_app::console::Request::decode` and `Reply::decode`; the client channel's, `zbm_display::channel::FromClient::decode` and `FromConsole::decode`, each encoding back to the bytes it came from; the keyholder's, `zbm_app::keyholder::ToKeyholder::decode` and `FromKeyholder::decode`, and a remote menu's, `zbm_app::remote::ToSession::decode` and `ToMenu::decode`, each reading back as it was; the record of a saved boot, `zbm_types::BootRecord::parse`, which reads back as it was written | I11, I15, I17, I18, I19 | A1, A6 |
@@ -191,3 +191,12 @@ Findings so far:
   first. Over SSH or a serial line, that could skip or confirm a dialog. Fixed: a broken character or sequence ends
   at the first byte that cannot belong to it, and only the byte right after the carriage return of an Enter is
   joined to it; the inputs are unit tests in `term_keys`.
+- `menu_names`, once it said every view and dialog in the line view's words too (UI10e): the line view and
+  `Announce` printed what the machine says as it came, in start-up's stages, the progress and notification lines,
+  the questions, the unlock dialog's notice, the dialogs' lines and the command line being edited; and the packages
+  segment drew a package database's manager and versions so, whose bidi controls reached the cells. A volume, a
+  device or a boot environment's package database (A2, A3) could reorder or act on the line view's terminal. Fixed:
+  the words leave `view::words` printable, and the packages segment draws them through `Printable`; unit tests in
+  `lines` and `view`. On its first run it also found that the classic map's rollback confirmation added the sizes
+  of the newer snapshots without a bound: sizes a pool gives (A3) that add up past 2^64 overflowed, which ends the
+  menu, as overflow checks are on. The sum now stops at the largest; a unit test in `update`.

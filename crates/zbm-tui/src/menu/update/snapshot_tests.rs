@@ -163,6 +163,27 @@ fn the_rollback_counts_the_newer_snapshots_of_the_latest_read() {
 }
 
 #[test]
+fn the_rollback_adds_the_sizes_the_pool_gives_up_to_the_largest() {
+    let (snapshot, mut list) = machine();
+    for taken in &mut list.snapshots {
+        taken.used = u64::MAX;
+    }
+    let (model, _) = step(menu(snapshot), key('s'));
+    let (mut model, _) = step(model, event(Event::SnapshotsLoaded(list)));
+    model.set_sort(Sort::Creation);
+    // The oldest: every other snapshot is newer.
+    model.snapshots.selected = model.snapshots.matches.len() - 1;
+
+    let (model, _) = step(model, key('r'));
+
+    let Some(Dialog::Confirm { lines, .. }) = &model.dialog else {
+        panic!("{:?}", model.dialog);
+    };
+    let largest = crate::menu::format::size(u64::MAX);
+    assert!(lines[1].contains(&largest), "{lines:?}");
+}
+
+#[test]
 fn a_taken_name_is_known_only_in_a_column_read_and_zfs_refuses_the_others() {
     let mut session = Session::new(&classic(), Theme::new(Capabilities::FULL));
     session.start();

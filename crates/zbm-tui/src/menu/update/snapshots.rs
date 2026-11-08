@@ -186,7 +186,10 @@ fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
     if newer.is_empty() {
         lines.push(text!("rollback.none-destroyed"));
     } else {
-        let used: u64 = newer.iter().map(|s| s.used).sum();
+        // Sizes come from the pool: their sum stops at the largest.
+        let used = newer
+            .iter()
+            .fold(0, |sum: u64, s| sum.saturating_add(s.used));
         lines.push(text!(
             "rollback.destroyed",
             count = newer.len(),

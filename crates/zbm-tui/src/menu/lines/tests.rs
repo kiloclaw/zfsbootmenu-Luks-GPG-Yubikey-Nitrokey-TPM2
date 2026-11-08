@@ -422,3 +422,60 @@ fn round(fake: &FakeSystem, screen: &mut LineScreen<'_>) -> io::ErrorKind {
     let machine = RealMachine::new(&app, fake.system(), &NoShell, &stop, Countdown::Skip).unwrap();
     screen.run(machine).unwrap_err().kind()
 }
+
+#[test]
+fn what_the_machine_says_is_printed_escaped() {
+    use crate::menu::model::{Dialog, Editor, Screen};
+    use crate::menu::world::{Event, Question, Stage, StageState};
+
+    let mut model = started().into_model();
+    let environment = model.selected_environment().unwrap().name.clone();
+    model.progress = Some("Unlocking /dev/sda2\u{1b}]0;x\u{7}".to_owned());
+    model.screen = Screen::Startup;
+    model.snapshot.startup = vec![Stage {
+        name: "Import \u{202e}tank".to_owned(),
+        state: StageState::Failed("cannot open\u{9b}31m".to_owned()),
+    }];
+    let startup = page(&model);
+    model.screen = Screen::CommandLine;
+    model.editor = Some(Editor {
+        environment,
+        kernel: None,
+        text: "quiet\tsplash\u{2066}".to_owned(),
+    });
+    let editor = page(&model);
+    model.dialog = Some(Dialog::Error {
+        what: "Booting\u{1b}[2J failed".to_owned(),
+        why: vec!["no \u{200f}kernel".to_owned()],
+        next: vec!["run\u{7}".to_owned()],
+    });
+    let error = page(&model);
+    let asked = Event::Asked {
+        question: Question::RetryUnlock {
+            volume: "luks\u{7}a".to_owned(),
+        },
+        seconds: None,
+    };
+    let (model, _) = crate::menu::update(model, crate::menu::Message::Event(Box::new(asked)));
+    let question = page(&model);
+
+    for (page, escaped) in [
+        (&startup, "Unlocking /dev/sda2\\x1b]0;x\\x07"),
+        (
+            &startup,
+            "Import \\u{202e}tank: failed, cannot open\\x9b31m",
+        ),
+        (&editor, "quiet\\x09splash\\u{2066}"),
+        (&error, "Booting\\x1b[2J failed"),
+        (&error, "no \\u{200f}kernel"),
+        (&error, "run\\x07"),
+        (&question, "luks\\x07a"),
+    ] {
+        assert!(
+            page.iter().any(|line| line.contains(escaped)),
+            "{escaped} not in {page:#?}"
+        );
+        let raw = |line: &String| line.contains(zbm_types::must_escape);
+        assert!(!page.iter().any(raw), "{page:#?}");
+    }
+}
