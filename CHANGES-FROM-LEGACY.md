@@ -1,8 +1,10 @@
 # Changes from the legacy runtime
 
-What behaves differently in images with the Rust runtime (`zfsbootmenu_runtime=rust`) than in legacy images, and why.
-Images with the legacy runtime, the default, are unchanged. The list grows with each step of R5 in
-[ROADMAP.md](ROADMAP.md); step 7 completes it as the migration guide for the switch.
+The migration guide for the switch to the Rust runtime (RL1 in [ROADMAP.md](ROADMAP.md)): what behaves differently
+in images with the Rust runtime (`zfsbootmenu_runtime=rust`) than in legacy images, and why. Images with the legacy
+runtime, the default until that switch, are unchanged. The guide stays when the legacy runtime goes (RL2), for those
+who come from it. [The menu](#the-menu) begins with its keys, a table from each key of the `fzf` menu to the new ones;
+then come what each tab of the menu does differently, and what the menu as a whole does.
 
 The last section, [The host tools](#the-host-tools-generate-zbm-and-zbm-kcl), is different: it lists what changed in
 `generate-zbm` and `zbm-kcl`, the programs that build images and change command lines on the host, whatever runtime
@@ -214,12 +216,274 @@ console.
 - **Why:** the console draws 256 colours and true colour, and sends xterm's key sequences, as programs then expect;
   the recovery tools' chroot environments have the same entry.
 
-## Snapshots and changes (R5 step 5)
+## Start-up
 
-The snapshots view and the main view make the changes of the legacy menu: a new default, a default kernel, a
-snapshot, a rollback, a clone (promoted or not), an independent copy, and the differences since a snapshot. Each that
-writes its pool imports it read/write first and loads the environment's key, as before, with the same commands. The
-menu also restores files from a snapshot, which the legacy menu did not.
+Start-up runs on the menu's start-up view when the image has the menu and the terminal can run it (`TERM` set, and not
+`dumb`) and is 52 columns by 20 lines at least; otherwise it keeps the console of the legacy program, prompts
+included. `zluks` in the recovery shell and over SSH is unchanged.
+
+### Start-up shows its stages
+
+- **Before:** the stages' messages and the output of the programs they run scrolled by on the console.
+- **Now:** the start-up view lists the stages, the one running and the ones done, and what takes a while
+  (`Unlocking /dev/sda2 ...`) below them. What the stages' programs print goes to the log (`zlogtail`, saved logs,
+  `zbm report`) instead of the screen. `early-setup.d` hooks and the recovery shell get the console as before; the view
+  comes back after them.
+- **Why:** start-up and the menu are one screen, and a dialog can ask without the text of other programs around it.
+
+### Unlocking asks in a dialog
+
+- **Before:** console prompts, such as `Passphrase (leave empty to skip):`, `TPM2 PIN (leave empty to use another
+  method):` and `Key file passphrase (leave empty to use another method):`, with what went wrong in red lines above
+  them, and `Insert the key device ...` while waiting for a key device.
+- **Now:** the unlock dialog of the volume, which names its device, the tries left and what went wrong last (a wrong
+  passphrase, a TPM that locked itself against PIN guessing), and the keyboard layout. Enter with nothing typed skips
+  the volume's passphrase or moves on from a PIN, as before; Escape does the same. What is typed is never shown during
+  start-up. While a key device or security key is awaited, the dialog shows the seconds left: Enter looks again at once,
+  Escape stops waiting. A crypttab key script and `fido2-assert` asking for a FIDO2 PIN get the console for the time
+  they run, as hooks do, so they can ask there.
+- **Why:** the dialog says which volume asks, and why it asks again, where the console said it in lines that scrolled.
+
+### The timed prompts are questions
+
+- **Before:** red lines that counted down, with RETURN and ESCAPE: `Unable to import <pool>, retrying in <n>
+  seconds`, `LUKS device <device> is missing`, `One or more required devices are missing`, and the warning about
+  unsupported pool features.
+- **Now:** questions with a title, what happened, the countdown and two buttons: Enter does what RETURN did (try or
+  look again, go on), Escape what ESCAPE did (the recovery shell, skip, stop waiting). They go on by themselves after
+  the same delays, `zbm.retry_delay` included.
+- **Why:** the choice and its time limit are on the screen, not in the help.
+
+## The menu
+
+The `fzf` menu is replaced by the new menu, designed in [docs/dev/menu-design](docs/dev/menu-design/README.md). It
+runs as `/bin/zfsbootmenu` and `zbm`, as the old one did, so it also opens over SSH and from the recovery shell, and
+takes over from a menu already running.
+
+### Keys
+
+The tables give each key of the `fzf` menu, screen by screen, what it did, and the keys that do it now: in the
+workspace, the menu, and in the classic menu, which `zbm.menu=classic` keeps for this release. `MOD` is Alt, Ctrl or
+Ctrl-Alt, as in the `fzf` menu, whose `MOD+key` bindings both menus keep as aliases in the view where they had a
+meaning, but for those under **Gone**. `Alt+C`, `Alt+L`, `Alt+N` and `Alt+P` mark the aliases that do not work with
+Ctrl alone, as the menu binds those letters with Ctrl itself. On a serial line or over SSH, Ctrl-J arrives as `Enter`,
+so `MOD+J` takes Alt there; and on a serial line, flow control may keep Ctrl-S from the menu, so `MOD+S` takes Alt.
+The new letters are typed in lower case. [zfsbootmenu(7)](docs/man/zfsbootmenu.7.rst), The Menu's Keys, lists every key
+of the workspace and every alias, and `?` the keys of the view it is pressed in. The recovery shell's `help` still opens
+the legacy menu's help pages, which give the `fzf` keys, until the help viewer is ported (ROADMAP.md SB6).
+
+Every list:
+
+| `fzf` key | What it did | Workspace | `zbm.menu=classic` |
+| --- | --- | --- | --- |
+| `MOD+H` | the help pages of the screen | gone; `?` or `F1` in a view: the keys of the view | the same |
+| `MOD+L` | the log (`zlogtail`) | `4`, the Log tab; `Alt+L` in the four lists below | `l`; `Alt+L` |
+| `MOD+T`, at loglevel 7 | `ztrace` | gone | gone |
+| `F12`, at loglevel 7 | a debugging shell | gone; `!` opens the recovery tools, the shell first | the same |
+| typing | filtered the list | `/`, then typing; `Enter` acts on the selection, `Esc` clears the filter | the same |
+| `Enter` | chose the selection | `Enter` | `Enter` |
+| `Esc`, `Ctrl-C`, `Ctrl-G`, `Ctrl-Q` | back to the boot environments, whose list was read again | `Esc`, `Ctrl-C` or `h`: back to the Boot tab, where they clear the filter | `Esc`, `Ctrl-C`: back to the boot environments |
+| `Up`, `Down`, `Ctrl-P`, `Ctrl-N`, `Ctrl-K`, `Ctrl-J`, where the screen did not take them | moved, from the last row round to the first | `Up`, `Down`, `Ctrl-P`, `Ctrl-N`, `k`, `j`, which stop at the first and last rows | `Up`, `Down`, `Ctrl-P`, `Ctrl-N` |
+| `PgUp`, `PgDn` | a page | `PgUp`, `PgDn`; `Home`, `End` | the same |
+| `Backspace`, `Ctrl-U`, `Ctrl-W`, `Ctrl-A`, `Ctrl-E` and fzf's other editing keys, where the screen did not take them | edited the filter | `Backspace` and `Ctrl-U` in a field | the same |
+| `Shift-Up`, `Shift-Down`, the mouse | scrolled the preview, chose | gone: the inspector shows the selection | gone |
+
+The boot environments:
+
+| `fzf` key | What it did | Workspace | `zbm.menu=classic` |
+| --- | --- | --- | --- |
+| `Enter` | booted the environment, with its default kernel | `Enter`, `b` | the same |
+| `Right` | the snapshots | the kernels; the snapshots are `s` or `2` | nothing; `s` |
+| `MOD+K` | the kernels | `l`, `Right`; `MOD+K` | `k`; `MOD+K` |
+| `MOD+S` | the snapshots | `s`, `2`; `MOD+S` | `s`; `MOD+S` |
+| `MOD+D` | made it its pool's default (`bootfs`) | `d`; `MOD+D` | the same |
+| `MOD+E` | edited the command line, kept for every later boot | `e`, whose `Enter` boots with the line, kept for the environment's later boots until `MOD+T`; `MOD+E` | the same |
+| `MOD+T`, after an edit | dropped the edited line | `MOD+T` drops the environment's edit | the same |
+| `MOD+P` | the pools' status | `3`, the Pools tab; `Alt+P` | `p`; `Alt+P` |
+| `MOD+R` | the recovery shell | `!`, the recovery tools, the shell first; `MOD+R` | the same |
+| `MOD+J` | a chroot into the environment | `!`, then Chroot; `MOD+J` | `j`; `MOD+J` |
+| `MOD+W` | imported its pool read/write, or read-only again | `w`: read/write; read-only again by `i` or `Enter` on the pool in the Pools tab; `MOD+W` | `w`; read-only again by `i` or `Enter` in the pools; `MOD+W` |
+| `MOD+O` | the next sort order of the list | gone | gone |
+| `MOD+X` | the power menu | `x`; `MOD+X` | the same |
+
+The kernels of an environment:
+
+| `fzf` key | What it did | Workspace | `zbm.menu=classic` |
+| --- | --- | --- | --- |
+| `Enter` | booted the environment with this kernel | `Enter`, `b` | the same |
+| `MOD+D` | made it the default kernel | `d`; `MOD+D` | the same |
+| `MOD+U` | inherited the default kernel again | `d` on the default kernel; `MOD+U` | the same |
+| `MOD+E` | edited the command line, with this kernel | `e`; `MOD+E` | the same |
+| `Left` | the snapshots | back to the boot environments; the snapshots are `2` | nothing; `Esc`, then `s` |
+| `Right` | the pools' status | nothing; `3` | nothing; `Esc`, then `p` |
+| `Esc` | back to the boot environments | `Esc`, `h`, `Left` | `Esc` |
+
+The snapshots of an environment:
+
+| `fzf` key | What it did | Workspace | `zbm.menu=classic` |
+| --- | --- | --- | --- |
+| `Enter` | duplicated the snapshot into a new environment, named on the console | `Enter` opens the snapshot's actions, Duplicate among them; `y` | the same |
+| `MOD+X` | cloned and promoted it | `m`; `MOD+X` | the same |
+| `MOD+C` | cloned it | `c`; `Alt+C` | the same |
+| `MOD+N` | a new snapshot | `n`; `Alt+N` | the same |
+| `MOD+D` | the differences since the snapshot, or between the two selected | `f`; `MOD+D` | the same |
+| `MOD+R` | rolled back, once `ROLLBACK` was typed | `r`, then its review page, confirmed by the environment's name; `MOD+R` | `r`, then an alert, confirmed by the environment's name; `MOD+R` |
+| `MOD+J` | a read-only chroot into the snapshot | `Enter`, then Chroot; `MOD+J` | `j`; `MOD+J` |
+| `MOD+O` | the next sort order | `o`; `MOD+O` | the same |
+| `Tab`, `Shift-Tab` | selected or deselected, up to two, for the differences | `Space` marks, as many as wanted; `Tab` is the next tab | `Space` or `Tab` marks |
+| `Left`, `Esc` | back to the boot environments | `Esc`, `h`, `1` | `Esc` |
+| `Right` | the kernels | `1`, then `l` | `Esc`, then `k` |
+| none | nothing destroyed a snapshot, or booted one | `Delete` destroys the marked or the selected; `b` boots a clone; `z` folds | `b` boots a clone |
+
+The pools' status:
+
+| `fzf` key | What it did | Workspace | `zbm.menu=classic` |
+| --- | --- | --- | --- |
+| `MOD+R` | rewound the pool to its checkpoint, once `REWIND` was typed | `i`, then the rewind, on its review page; `MOD+R` | `h`, or `i` then the rewind; `MOD+R` |
+| `Enter` | back to the boot environments | the pool's details; on a device, its kernel messages; on a volume, its unlock | the pool's details; on a volume, its unlock |
+| `Left` | the kernels | nothing; `1`, then `l` | nothing; `Esc`, then `k` |
+| `Esc` | back to the boot environments | `Esc`, `h` | `Esc` |
+| none | only the imported pools were listed | `i` imports, `u` unlocks a volume, `w` imports read/write | the same |
+
+The other screens:
+
+| Key | What it did | Workspace | `zbm.menu=classic` |
+| --- | --- | --- | --- |
+| `Enter` | the countdown: booted at once | stops the countdown and boots the selected environment, the one it would boot | the same |
+| `Esc` | the countdown: the menu | stops the countdown; the menu shows already | the same |
+| other keys | the countdown: nothing | stop the countdown | the same |
+| typing, `Up`, `Down`, `Enter` | the help viewer: chose a topic | gone: help shows the keys of the view it is opened from | the same |
+| `PgUp`, `PgDn` | the help viewer: scrolled the page | `PgUp`, `PgDn`, `Up`, `Down`, `k`, `j` | `PgUp`, `PgDn`, `Up`, `Down` |
+| `Esc` | the help viewer: back | `Esc`, `h` | `Esc` |
+| typing | the differences: filtered the paths | `/`, then typing | the same |
+| `Enter`, `Esc` | the differences: back | `Esc`; `Enter` restores the marked files, or the selected one | the same |
+| none | the differences did nothing else | `Space` marks, `Left` and `Right` show the files or the packages | the same, and `Tab` marks |
+| `Up`, `Down`, `Enter`, `Esc` | the power menu | `x`, then the same | the same |
+| `Enter`, `Ctrl-C` | a name typed on the console: took it, gave up | the name's dialog: `Enter`; `Esc` or `Ctrl-C`; `Backspace`, `Ctrl-U` | the same |
+| typing `ROLLBACK`, `REWIND` | confirmed a rollback, a rewind | the target's name, on the review page | the target's name, in an alert |
+| typing `NORESUME`, `DANGEROUS` | allowed a read/write import while a suspend partition was active | the same, on the console the change takes | the same |
+
+**Gone:**
+
+- `MOD+H`, the help: `?` and `F1` open it, and `Ctrl-H` arrives as `Backspace` on a serial line and over SSH.
+- `MOD+O` in the list of boot environments: they carry no creation time or size to sort by; `o` and `MOD+O` still
+  sort the snapshots.
+- `MOD+T` (`ztrace`) and `F12` (a debugging shell) at loglevel 7; `ztrace` stays in the recovery shell.
+- `Ctrl-G` and `Ctrl-Q`, which left a list: `Esc` and `Ctrl-C` do.
+- `Ctrl-K` and `Ctrl-J` as moves: `k` and `j` move in the workspace.
+- The filter's editing keys but `Backspace` and `Ctrl-U`.
+- The preview's scrolling, and the mouse.
+- The help viewer's topics: help lists the keys of the view it is opened from.
+- The arrows' jumps from screen to screen (`Right` from the environments to the snapshots, from the kernels to the
+  pools and from the snapshots to the kernels; `Left` back): the tabs and their digits replace them.
+- The lists' wrapping from the last row to the first (`--cycle`).
+
+**Changed meaning:**
+
+- `Right` on the boot environments: the snapshots before; now, in the workspace, the kernels, and nothing in the
+  classic menu.
+- `Left` on the kernels: the snapshots before; now, in the workspace, back to the boot environments, and nothing in
+  the classic menu.
+- `Ctrl-L`, in every list: the log before; now Redraw, and the log is `Alt+L`.
+- `Ctrl-C` on the snapshots: a clone before; now back.
+- `Ctrl-N` on the snapshots: a new snapshot before; now the row below.
+- `Ctrl-P` on the boot environments: the pools' status before; now the row above.
+- `Ctrl-J` on a serial line or over SSH: a chroot on the boot environments and the snapshots, the row below on the
+  kernels and the pools' status, before; now `Enter`, which boots on the boot environments and the kernels, opens the
+  snapshot's actions on the snapshots, and the pool's details on the pools' status.
+- `Tab` on the snapshots: a selection before; now, in the workspace, the next tab.
+- `Enter` on the snapshots: a duplicate before; now the snapshot's actions.
+- `Enter` on the pools' status: back to the boot environments before; now the pool's details.
+- Typing: a filter before; now letters are keys, and `/` starts the filter.
+
+## The menu's Boot tab
+
+The boot environments and their kernels: the main view and the kernels of the classic menu.
+
+### The countdown shows the menu
+
+- **Before:** one line, `Booting <environment> in <n> seconds`, with Enter to boot at once and Escape for the menu.
+- **Now:** the menu itself, with the environment to boot selected and `Booting <environment> in <n> s. Press any key
+  to choose another.` above the list. Any key stops the countdown; Enter boots the selected environment, which is the
+  one the countdown would have booted, and Escape only stops the countdown. `zbm.timeout`, `zbm.show` and `zbm.skip`
+  mean what they meant.
+- **Why:** what is about to boot, and what else there is, can be seen without a key press.
+
+### No countdown to a snapshot
+
+- **Before:** there was no boot counting, so nothing booted in place of a default that failed. The menu's design had
+  the countdown boot a clone of the default's newest snapshot when no environment had marked a boot good.
+- **Now:** the countdown boots only environments. When the default used up its boot tries, it boots the last
+  environment that marked a boot good; with none, nothing boots on its own, and the banner says only what failed, as
+  it does with the countdown off. A snapshot is booted only when someone chooses it, under the name they give its
+  clone.
+- **Why:** the countdown cannot ask for the clone's name, and nobody may be there to find and destroy a clone it made;
+  the environment the list selects first is the default, which must not boot again.
+
+### Encrypted environments are listed locked
+
+- **Before:** the menu asked for the key of every locked encryption root before it showed the list, one prompt after
+  another.
+- **Now:** a locked environment is listed as `locked`, and its key is asked for when it boots, from its key source
+  (`org.zfsbootmenu:keysource`) first, as boots chosen in the menu did. Its kernels are listed once its key is loaded.
+- **Why:** the menu shows at once, and only the environment that boots needs its key.
+
+### Environments without kernels are listed
+
+- **Before:** an environment without a kernel was left out of the list; with none at all, the menu printed
+  `No boot environments with kernels found` and opened the recovery shell after 10 seconds.
+- **Now:** an environment without a kernel is listed, with `0 kernels`; with none at all, the menu says
+  `No Boot Environments` and how to get to the pools (the Pools tab, `3`; `p` in the classic menu) and the recovery
+  tools (`!`), and waits.
+- **Why:** an environment that is there but cannot boot is a problem to see, not to hide, and the menu is a better
+  place to recover from than a shell that opens by itself.
+
+### A key that cannot be loaded at the countdown
+
+- **Before:** the recovery shell, with `unable to load key for <environment>`.
+- **Now:** the menu says `unable to load key for <environment>` and why; another environment can be chosen, or the
+  recovery shell opened from the recovery tools.
+- **Why:** the same as above; the shell is one key away.
+
+### An edited command line is for one environment
+
+- **Before:** the edited line was saved in `/zfsbootmenu/cmdline` and used for every later boot of any environment
+  until Ctrl-T cleared it.
+- **Now:** the edited line boots in place of the environment's `org.zfsbootmenu:commandline`: `%{parent}` in it
+  stands for the parent's line, `root=` is ZFSBootMenu's, and `noresume` and the host ID are added when they apply,
+  as for the environment's own line. Nothing is saved: the menu keeps the line for that environment alone, so a boot
+  that failed can be tried again with it, until `MOD+T` drops it.
+- **Why:** the edit was made for one environment, and should not decide how the others boot.
+
+### A new default needs no key
+
+- **Before:** setting the default loaded the key of the pool's root dataset first, which could ask for a passphrase.
+- **Now:** only the pool is imported read/write; `zpool set bootfs` needs no key.
+- **Why:** the passphrase was asked for nothing.
+
+### Inheriting the default kernel asks for no key
+
+- **Before:** `set_default_kernel` loaded the environment's key, and went on when it did not load, also to inherit
+  the default kernel again.
+- **Now:** inheriting imports the pool read/write only; `zfs inherit` needs no key. Setting a default kernel still
+  loads the key, as finding the kernel's file mounts the environment, and fails when it does not load.
+- **Why:** the passphrase was asked for nothing, as for a new default environment.
+
+### The default kernel names its kernel alone
+
+- **Before:** `org.zfsbootmenu:kernel` was set to the kernel's file name followed by `$`, read as an extended regular
+  expression: the dots of `vmlinuz-6.1.10` matched any character, a `+` in a version repeated what came before it, and
+  `linux-6.1$` also matched `vmlinux-6.1`.
+- **Now:** the value is `/`, the file name with the metacharacters escaped, then `$`: `/vmlinuz-6\.12\.9\+$`. Bash's
+  `=~` reads it the same way, so the legacy runtime boots the same kernel from it.
+- **Why:** the kernel chosen is the one that boots, whatever its version holds.
+
+## The menu's Snapshots tab
+
+The snapshots view and the main view make the changes of the legacy menu: a new default and a default kernel (in the
+Boot tab above), a snapshot, a rollback, a clone (promoted or not), an independent copy, and the differences since a
+snapshot. Each that writes its pool imports it read/write first and loads the environment's key, as before, with the
+same commands. The menu also restores files from a snapshot, which the legacy menu did not.
 
 ### The changes run in the menu
 
@@ -289,6 +553,90 @@ menu also restores files from a snapshot, which the legacy menu did not.
   and names it, where a hold used to stop `zfs` only after it had destroyed the other newer snapshots.
 - **Why:** the name says which environment loses its changes.
 
+### Clones leave encryption properties out
+
+- **Before:** a clone was given every property set on its environment, `keylocation` and `keyformat` included, which
+  ZFS refuses on a clone when the environment is its own encryption root.
+- **Now:** the clone gets the other properties; it shares the key of its origin's encryption root, as every clone does.
+- **Why:** cloning an environment that is its own encryption root failed.
+
+### The differences of two snapshots leave the pool read-only
+
+- **Before:** the differences always imported the pool read/write first (`zfsbootmenu-diff`), which could ask the
+  hibernation question, also to compare two snapshots.
+- **Now:** two snapshots are compared on the pool as it is imported, the environment mounted read-only once its key
+  is loaded; the menu takes the console only when that key must be asked for. The differences against the live
+  filesystem still import the pool read/write, as `zfs diff` takes a snapshot of the filesystem for them.
+- **Why:** comparing two snapshots writes nothing, and a pool imported read-only should stay so for it.
+
+### Files are restored from a snapshot
+
+- **Before:** the differences since a snapshot could only be read; a file was put back by hand from the recovery
+  shell.
+- **Now:** in the differences against the live filesystem, `Enter` restores the marked paths, or the selected one,
+  after the environment's name is typed. The pool is imported read/write, the key is loaded, and a safety snapshot
+  `<environment>@before-restore-<UTC time>` (`%Y-%m-%d-%H%M%S`, `-2` and on for another in the same second) is taken
+  first; each path is copied back with `cp -a` from the snapshot's read-only `.zfs/snapshot/<name>` into the
+  environment, mounted read/write, keeping owner, mode and times. Nothing is deleted: a file created since the
+  snapshot stays, a directory the environment has is left as it is, and the partial copy of a directory that failed
+  is left, named in the failure. A path that is not absolute and normalised, that has a symbolic link above it in the
+  environment or the snapshot, or that is a directory in only one of them, is refused before anything is written; the
+  path itself is replaced, never written through. The differences of two snapshots restore nothing, as they did not
+  look at the live files.
+- **Why:** undoing a bad edit or upgrade of a few files should not need a rollback, which destroys the newer
+  snapshots, and rolling back to the safety snapshot undoes the restore.
+
+### Snapshots are marked as a set
+
+- **Before:** `Tab` selected up to two snapshots for the differences (`fzf --multi 2`); the Rust runtime's menu,
+  the workspace and the classic menu alike, dropped the first mark when a third was set.
+- **Now:** in the workspace and the classic menu alike, `Space` marks as many snapshots as the user likes, and drops
+  none; in the classic menu `Tab` marks too, as before. `f` compares the two marked, the older against the newer
+  whichever was marked first (two taken in the same second in the order ZFS took them), or the one marked with now;
+  with three or more, or while their list is not read, it compares nothing and says so. A list of snapshots read
+  again, after a change, takes the marks of those it no longer has. The line view says `marked` after each.
+- **Why:** a mark that goes by itself, unseen, is a surprise; and a comparison of three snapshots has no meaning, so
+  the menu says so rather than choose two of them.
+
+### Changes are reviewed before they are made
+
+- **Before:** the legacy menu asked to type `ROLLBACK` before a rollback and `REWIND` before a rewind, and, while a
+  suspend partition was active, `NORESUME` or `DANGEROUS` before the first change that imported a pool read/write, none
+  listing what the change would lose; the Rust runtime's menu asked for the target's name in an alert, which counted
+  what a rollback destroys from the snapshots it had read.
+- **Now:** in the workspace a rollback, a destroy, a forced import and a rewind open a review page, in red, which asks
+  the machine for the change's plan and shows it: what is lost (the snapshots and bookmarks with their sizes and the
+  space they free, what was written since the snapshot, or for a rewind every write since the checkpoint, with the
+  filesystems and snapshots made since), what is kept, the steps with their commands, the undo or that there is none,
+  a safer action (a clone of the snapshot instead of a rollback, a read-only import instead of a rewind), and, for an
+  import, who else may use the pool: this host, or the host ID and name it last had and when it was last written. A
+  clone or a hold of a snapshot the change destroys, or another system that has the pool imported now, makes the page
+  refuse the change and name what stops it. Otherwise the change is made once the name is typed: the environment's
+  last component for a rollback, the snapshot's short name for the destroy of one, the environment's last component
+  for several, and the pool's name for an import. `Tab` goes to the safer action, `Escape` closes the page and changes
+  nothing. In the line view the page is lines, which cannot scroll or take the safer action. The classic menu keeps
+  its confirmations, and is otherwise unchanged.
+- **Why:** what a change destroys should be read before its name is typed, from the machine as it is, not from what
+  the menu happened to read; and where ZFS would refuse, the menu says so before it imports anything read/write.
+
+### Snapshots are destroyed from the menu
+
+- **Before:** the legacy menu destroyed no snapshot: that took `zfs destroy` in the recovery shell.
+- **Now:** in the workspace, `Delete` on the Snapshots tab destroys the marked snapshots, or the selected one, after
+  their review page; `Destroy It…` in a snapshot's `Enter` menu destroys that snapshot, and the palette has an entry for
+  the selected snapshot and one for the marked ones. Only snapshots of one boot environment are destroyed, in one
+  `zfs destroy <environment>@a,b,c` that destroys all or none, and their bookmarks stay; a clone or a hold of one stops
+  it before the pool is imported read/write. The locked menu asks for the PIN first. Over SSH only the snapshots of the
+  machine's boot environments are destroyed. The classic menu does not destroy.
+- **Why:** reclaiming the space of old snapshots, or removing a bad one, needs no shell, and the review page says
+  what it frees before anything is destroyed.
+
+## The menu's Pools tab
+
+The pools, their devices and the LUKS volumes: the pools view of the classic menu. The forced import and the rewind
+are reviewed as the rollback is, under the Snapshots tab:
+[Changes are reviewed before they are made](#changes-are-reviewed-before-they-are-made).
+
 ### A pool that may not be written
 
 - **Before:** `org.zfsbootmenu:readonly` or a degraded pool showed `Operation prohibited` for ten seconds.
@@ -346,115 +694,6 @@ menu also restores files from a snapshot, which the legacy menu did not.
 - **Why:** a pool imported by mistake, or one to hand to another machine, can be let go without a shell; and why a
   disk went missing is in the kernel's messages about it.
 
-### Clones leave encryption properties out
-
-- **Before:** a clone was given every property set on its environment, `keylocation` and `keyformat` included, which
-  ZFS refuses on a clone when the environment is its own encryption root.
-- **Now:** the clone gets the other properties; it shares the key of its origin's encryption root, as every clone does.
-- **Why:** cloning an environment that is its own encryption root failed.
-
-### A new default needs no key
-
-- **Before:** setting the default loaded the key of the pool's root dataset first, which could ask for a passphrase.
-- **Now:** only the pool is imported read/write; `zpool set bootfs` needs no key.
-- **Why:** the passphrase was asked for nothing.
-
-### The differences of two snapshots leave the pool read-only
-
-- **Before:** the differences always imported the pool read/write first (`zfsbootmenu-diff`), which could ask the
-  hibernation question, also to compare two snapshots.
-- **Now:** two snapshots are compared on the pool as it is imported, the environment mounted read-only once its key
-  is loaded; the menu takes the console only when that key must be asked for. The differences against the live
-  filesystem still import the pool read/write, as `zfs diff` takes a snapshot of the filesystem for them.
-- **Why:** comparing two snapshots writes nothing, and a pool imported read-only should stay so for it.
-
-### Files are restored from a snapshot
-
-- **Before:** the differences since a snapshot could only be read; a file was put back by hand from the recovery
-  shell.
-- **Now:** in the differences against the live filesystem, `Enter` restores the marked paths, or the selected one,
-  after the environment's name is typed. The pool is imported read/write, the key is loaded, and a safety snapshot
-  `<environment>@before-restore-<UTC time>` (`%Y-%m-%d-%H%M%S`, `-2` and on for another in the same second) is taken
-  first; each path is copied back with `cp -a` from the snapshot's read-only `.zfs/snapshot/<name>` into the
-  environment, mounted read/write, keeping owner, mode and times. Nothing is deleted: a file created since the
-  snapshot stays, a directory the environment has is left as it is, and the partial copy of a directory that failed
-  is left, named in the failure. A path that is not absolute and normalised, that has a symbolic link above it in the
-  environment or the snapshot, or that is a directory in only one of them, is refused before anything is written; the
-  path itself is replaced, never written through. The differences of two snapshots restore nothing, as they did not
-  look at the live files.
-- **Why:** undoing a bad edit or upgrade of a few files should not need a rollback, which destroys the newer
-  snapshots, and rolling back to the safety snapshot undoes the restore.
-
-### Inheriting the default kernel asks for no key
-
-- **Before:** `set_default_kernel` loaded the environment's key, and went on when it did not load, also to inherit
-  the default kernel again.
-- **Now:** inheriting imports the pool read/write only; `zfs inherit` needs no key. Setting a default kernel still
-  loads the key, as finding the kernel's file mounts the environment, and fails when it does not load.
-- **Why:** the passphrase was asked for nothing, as for a new default environment.
-
-### The default kernel names its kernel alone
-
-- **Before:** `org.zfsbootmenu:kernel` was set to the kernel's file name followed by `$`, read as an extended regular
-  expression: the dots of `vmlinuz-6.1.10` matched any character, a `+` in a version repeated what came before it, and
-  `linux-6.1$` also matched `vmlinux-6.1`.
-- **Now:** the value is `/`, the file name with the metacharacters escaped, then `$`: `/vmlinuz-6\.12\.9\+$`. Bash's
-  `=~` reads it the same way, so the legacy runtime boots the same kernel from it.
-- **Why:** the kernel chosen is the one that boots, whatever its version holds.
-
-## Start-up (R5 step 4)
-
-Start-up runs on the menu's start-up view when the image has the menu and the terminal can run it (`TERM` set, and not
-`dumb`) and is 52 columns by 20 lines at least; otherwise it keeps the console of the legacy program, prompts
-included. `zluks` in the recovery shell and over SSH is unchanged.
-
-### Start-up shows its stages
-
-- **Before:** the stages' messages and the output of the programs they run scrolled by on the console.
-- **Now:** the start-up view lists the stages, the one running and the ones done, and what takes a while
-  (`Unlocking /dev/sda2 ...`) below them. What the stages' programs print goes to the log (`zlogtail`, saved logs,
-  `zbm report`) instead of the screen. `early-setup.d` hooks and the recovery shell get the console as before; the view
-  comes back after them.
-- **Why:** start-up and the menu are one screen, and a dialog can ask without the text of other programs around it.
-
-### Unlocking asks in a dialog
-
-- **Before:** console prompts, such as `Passphrase (leave empty to skip):`, `TPM2 PIN (leave empty to use another
-  method):` and `Key file passphrase (leave empty to use another method):`, with what went wrong in red lines above
-  them, and `Insert the key device ...` while waiting for a key device.
-- **Now:** the unlock dialog of the volume, which names its device, the tries left and what went wrong last (a wrong
-  passphrase, a TPM that locked itself against PIN guessing), and the keyboard layout. Enter with nothing typed skips
-  the volume's passphrase or moves on from a PIN, as before; Escape does the same. What is typed is never shown during
-  start-up. While a key device or security key is awaited, the dialog shows the seconds left: Enter looks again at once,
-  Escape stops waiting. A crypttab key script and `fido2-assert` asking for a FIDO2 PIN get the console for the time
-  they run, as hooks do, so they can ask there.
-- **Why:** the dialog says which volume asks, and why it asks again, where the console said it in lines that scrolled.
-
-### The timed prompts are questions
-
-- **Before:** red lines that counted down, with RETURN and ESCAPE: `Unable to import <pool>, retrying in <n>
-  seconds`, `LUKS device <device> is missing`, `One or more required devices are missing`, and the warning about
-  unsupported pool features.
-- **Now:** questions with a title, what happened, the countdown and two buttons: Enter does what RETURN did (try or
-  look again, go on), Escape what ESCAPE did (the recovery shell, skip, stop waiting). They go on by themselves after
-  the same delays, `zbm.retry_delay` included.
-- **Why:** the choice and its time limit are on the screen, not in the help.
-
-## The menu (R5 step 3)
-
-The `fzf` menu is replaced by the new menu, designed in [docs/dev/menu-design](docs/dev/menu-design/README.md). It
-runs as `/bin/zfsbootmenu` and `zbm`, as the old one did, so it also opens over SSH and from the recovery shell, and
-takes over from a menu already running.
-
-### The countdown shows the menu
-
-- **Before:** one line, `Booting <environment> in <n> seconds`, with Enter to boot at once and Escape for the menu.
-- **Now:** the menu itself, with the environment to boot selected and `Booting <environment> in <n> s. Press any key
-  to choose another.` above the list. Any key stops the countdown; Enter boots the selected environment, which is the
-  one the countdown would have booted, and Escape only stops the countdown. `zbm.timeout`, `zbm.show` and `zbm.skip`
-  mean what they meant.
-- **Why:** what is about to boot, and what else there is, can be seen without a key press.
-
 ### Volumes open from the menu
 
 - **Before:** the menu opened no LUKS volume. A volume that start-up skipped was opened with `zluks` in the recovery
@@ -481,58 +720,9 @@ takes over from a menu already running.
   attended, as at start-up.
 - **Why:** a passphrase typed over SSH shows who knows it, not who is at the machine; the PIN keeps the shell.
 
-### No countdown to a snapshot
+## The menu's Log tab
 
-- **Before:** there was no boot counting, so nothing booted in place of a default that failed. The menu's design had
-  the countdown boot a clone of the default's newest snapshot when no environment had marked a boot good.
-- **Now:** the countdown boots only environments. When the default used up its boot tries, it boots the last
-  environment that marked a boot good; with none, nothing boots on its own, and the banner says only what failed, as
-  it does with the countdown off. A snapshot is booted only when someone chooses it, under the name they give its
-  clone.
-- **Why:** the countdown cannot ask for the clone's name, and nobody may be there to find and destroy a clone it made;
-  the environment the list selects first is the default, which must not boot again.
-
-### Encrypted environments are listed locked
-
-- **Before:** the menu asked for the key of every locked encryption root before it showed the list, one prompt after
-  another.
-- **Now:** a locked environment is listed as `locked`, and its key is asked for when it boots, from its key source
-  (`org.zfsbootmenu:keysource`) first, as boots chosen in the menu did. Its kernels are listed once its key is loaded.
-- **Why:** the menu shows at once, and only the environment that boots needs its key.
-
-### Environments without kernels are listed
-
-- **Before:** an environment without a kernel was left out of the list; with none at all, the menu printed
-  `No boot environments with kernels found` and opened the recovery shell after 10 seconds.
-- **Now:** an environment without a kernel is listed, with `0 kernels`; with none at all, the menu says
-  `No Boot Environments` and how to get to the pools (the Pools tab, `3`; `p` in the classic menu) and the recovery
-  tools (`!`), and waits.
-- **Why:** an environment that is there but cannot boot is a problem to see, not to hide, and the menu is a better
-  place to recover from than a shell that opens by itself.
-
-### A key that cannot be loaded at the countdown
-
-- **Before:** the recovery shell, with `unable to load key for <environment>`.
-- **Now:** the menu says `unable to load key for <environment>` and why; another environment can be chosen, or the
-  recovery shell opened from the recovery tools.
-- **Why:** the same as above; the shell is one key away.
-
-### The recovery shell
-
-- **Before:** Ctrl-R in the menu.
-- **Now:** Ctrl-R and Alt-R still open it, as the old `MOD+key` bindings stay as aliases; the menu's own way is `!`,
-  the recovery tools, of which the shell is the first. As before, leaving the shell imports the pools that became
-  importable in it and opens the menu again.
-
-### An edited command line is for one boot
-
-- **Before:** the edited line was saved in `/zfsbootmenu/cmdline` and used for every later boot of any environment
-  until Ctrl-T cleared it.
-- **Now:** the edited line boots once, in place of the environment's `org.zfsbootmenu:commandline`: `%{parent}` in it
-  stands for the parent's line, `root=` is ZFSBootMenu's, and `noresume` and the host ID are added when they apply,
-  as for the environment's own line. Nothing is saved, so there is nothing to clear.
-- **Why:** the menu says the edit is for this boot only, and a line saved after a failed boot should not decide the
-  next one.
+The log since start-up, and the boots saved before: the log view of the classic menu.
 
 ### Saved logs record what was booted
 
@@ -565,6 +755,8 @@ takes over from a menu already running.
 - **Why:** after a boot that went wrong, the menu should say what was booted last and how (ADR 0016, point 7);
   reading a partition the user did not name for logs would mount it for nothing.
 
+## The menu as a whole
+
 ### The menu is the workspace
 
 - **Before:** the `fzf` menu, one list at a time; then, in the Rust runtime, the classic menu: a screen per view,
@@ -584,50 +776,12 @@ takes over from a menu already running.
 - **Why:** what needs attention, and the parts of the machine that hold it, show on one screen, and the keys move
   as other terminal programs' do (ADR 0007).
 
-### Snapshots are marked as a set
+### The recovery shell
 
-- **Before:** `Tab` selected up to two snapshots for the differences (`fzf --multi 2`); the Rust runtime's menu,
-  the workspace and the classic menu alike, dropped the first mark when a third was set.
-- **Now:** in the workspace and the classic menu alike, `Space` marks as many snapshots as the user likes, and drops
-  none; in the classic menu `Tab` marks too, as before. `f` compares the two marked, the older against the newer
-  whichever was marked first (two taken in the same second in the order ZFS took them), or the one marked with now;
-  with three or more, or while their list is not read, it compares nothing and says so. A list of snapshots read
-  again, after a change, takes the marks of those it no longer has. The line view says `marked` after each.
-- **Why:** a mark that goes by itself, unseen, is a surprise; and a comparison of three snapshots has no meaning, so
-  the menu says so rather than choose two of them.
-
-### Changes are reviewed before they are made
-
-- **Before:** the legacy menu asked to type `ROLLBACK` before a rollback and `REWIND` before a rewind, and, while a
-  suspend partition was active, `NORESUME` or `DANGEROUS` before the first change that imported a pool read/write, none
-  listing what the change would lose; the Rust runtime's menu asked for the target's name in an alert, which counted
-  what a rollback destroys from the snapshots it had read.
-- **Now:** in the workspace a rollback, a destroy, a forced import and a rewind open a review page, in red, which asks
-  the machine for the change's plan and shows it: what is lost (the snapshots and bookmarks with their sizes and the
-  space they free, what was written since the snapshot, or for a rewind every write since the checkpoint, with the
-  filesystems and snapshots made since), what is kept, the steps with their commands, the undo or that there is none,
-  a safer action (a clone of the snapshot instead of a rollback, a read-only import instead of a rewind), and, for an
-  import, who else may use the pool: this host, or the host ID and name it last had and when it was last written. A
-  clone or a hold of a snapshot the change destroys, or another system that has the pool imported now, makes the page
-  refuse the change and name what stops it. Otherwise the change is made once the name is typed: the environment's
-  last component for a rollback, the snapshot's short name for the destroy of one, the environment's last component
-  for several, and the pool's name for an import. `Tab` goes to the safer action, `Escape` closes the page and changes
-  nothing. In the line view the page is lines, which cannot scroll or take the safer action. The classic menu keeps
-  its confirmations, and is otherwise unchanged.
-- **Why:** what a change destroys should be read before its name is typed, from the machine as it is, not from what
-  the menu happened to read; and where ZFS would refuse, the menu says so before it imports anything read/write.
-
-### Snapshots are destroyed from the menu
-
-- **Before:** the legacy menu destroyed no snapshot: that took `zfs destroy` in the recovery shell.
-- **Now:** in the workspace, `Delete` on the Snapshots tab destroys the marked snapshots, or the selected one, after
-  their review page; `Destroy It…` in a snapshot's `Enter` menu destroys that snapshot, and the palette has an entry for
-  the selected snapshot and one for the marked ones. Only snapshots of one boot environment are destroyed, in one
-  `zfs destroy <environment>@a,b,c` that destroys all or none, and their bookmarks stay; a clone or a hold of one stops
-  it before the pool is imported read/write. The locked menu asks for the PIN first. Over SSH only the snapshots of the
-  machine's boot environments are destroyed. The classic menu does not destroy.
-- **Why:** reclaiming the space of old snapshots, or removing a bad one, needs no shell, and the review page says
-  what it frees before anything is destroyed.
+- **Before:** Ctrl-R in the menu.
+- **Now:** Ctrl-R and Alt-R still open it, as the old `MOD+key` bindings stay as aliases; the menu's own way is `!`,
+  the recovery tools, of which the shell is the first. As before, leaving the shell imports the pools that became
+  importable in it and opens the menu again.
 
 ### `zbm.menu`: lines, a screen, or the classic menu
 

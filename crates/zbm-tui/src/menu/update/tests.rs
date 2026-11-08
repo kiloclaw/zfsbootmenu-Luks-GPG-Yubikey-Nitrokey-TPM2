@@ -315,6 +315,24 @@ fn t6_the_command_line_is_edited_for_one_boot() {
 }
 
 #[test]
+fn an_edited_command_line_boots_again_until_mod_t_drops_it() {
+    let mut session = started();
+    session.key(Key::Char('e'));
+    session.type_text(" single");
+    session.key(Key::Enter);
+
+    // The first boot failed: Enter boots with the edited line again.
+    session.key(Key::Enter);
+    let alt_t = crate::menu::keymap::press(Key::Char('t'), crate::menu::keymap::Modifiers::ALT);
+    session.press(alt_t);
+    session.key(Key::Enter);
+
+    let edited = boot_action("zroot/ROOT/void", None, Some("quiet loglevel=4 single"));
+    let own = boot_action("zroot/ROOT/void", None, None);
+    assert_eq!(session.actions, [edited.clone(), edited, own]);
+}
+
+#[test]
 fn an_unclosed_quote_stops_the_boot_with_a_warning() {
     let mut session = started();
 
