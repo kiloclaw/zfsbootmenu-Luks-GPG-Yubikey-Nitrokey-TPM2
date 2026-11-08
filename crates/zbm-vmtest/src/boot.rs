@@ -494,8 +494,15 @@ fn reports(vm: &mut Vm<'_>, boot: &mut Boot) -> Result<()> {
     Ok(())
 }
 
-/// Follows the boot environment to its report.
-fn follow_be(vm: &mut Vm<'_>, boot: &mut Boot, timeout: u64) -> Result<()> {
+/// Follows the boot environment to its report, which it takes into
+/// `boot`; a LUKS prompt, a panic or an emergency shell before the report
+/// joins `boot`'s prompts instead (`be-luks-prompt`, `be-panic`,
+/// `be-emergency`).
+///
+/// # Errors
+///
+/// When neither the report nor one of those shows in time.
+pub(crate) fn follow_be(vm: &mut Vm<'_>, boot: &mut Boot, timeout: u64) -> Result<()> {
     let patterns = [
         r"BE-INIT-START",
         prompt::BE_ASK,

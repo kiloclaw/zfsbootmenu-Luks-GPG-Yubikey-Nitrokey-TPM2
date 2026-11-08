@@ -75,13 +75,8 @@ fn each_key_has_its_serial_bytes_and_its_qemu_name() {
     let keys = [
         (Key::Escape, "\x1b", "esc"),
         (Key::Enter, "\r", "ret"),
-        (Key::Up, "\x1b[A", "up"),
         (Key::Down, "\x1b[B", "down"),
-        (Key::Left, "\x1b[D", "left"),
-        (Key::Right, "\x1b[C", "right"),
         (Key::Delete, "\x1b[3~", "delete"),
-        (Key::Tab, "\t", "tab"),
-        (Key::BackTab, "\x1b[Z", "shift-tab"),
         (Key::Home, "\x1b[H", "home"),
         (Key::CtrlU, "\x15", "ctrl-u"),
         (Key::Char('n'), "n", "n"),
@@ -141,6 +136,23 @@ fn select_presses_down_at_most_max_times() {
     assert_eq!(fake.pressed, [Key::Down]);
     assert!(select_on("max", &mut fake, "two", 1));
     assert!(!select_on("max", &mut Fake::new(&["no list"]), "two", 5));
+}
+
+#[test]
+fn select_row_takes_a_row_that_reads_the_name_alone() {
+    const FIRMWARE: &str = "│ ▶ Reboot into Firmware Setup │\n│   Reboot │\n";
+    const REBOOT: &str = "│   Reboot into Firmware Setup │\n│ ▶ Reboot      │\n";
+    let settings = settings("drive-select-row");
+    let test = Test::new(&settings, "drive-select").unwrap();
+    let (mut vm, guest) = scripted(&test, Vec::new());
+    let mut fake = Fake::new(&[FIRMWARE, REBOOT]);
+
+    assert!(select_row(&mut fake, &mut vm, "Reboot", 5).unwrap());
+    assert_eq!(fake.pressed, [Key::Down]);
+    assert!(!select_row(&mut Fake::new(&[FIRMWARE]), &mut vm, "Reboot", 5).unwrap());
+    drop(vm);
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    cleanup(&settings);
 }
 
 #[test]

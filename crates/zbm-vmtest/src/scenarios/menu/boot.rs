@@ -22,7 +22,7 @@ use super::super::runtime::saved::saved_record;
 use super::{APPEND, GROUP, SERIAL, steps};
 
 /// The label of the FAT disk that keeps the boots' logs.
-const LABEL: &str = "ZBMMENU";
+pub(super) const LABEL: &str = "ZBMMENU";
 
 /// What the first boot edits on the command line.
 const EDITED: &str = "zbmtest.edited=1";
@@ -34,7 +34,7 @@ const KERNEL: &str = "/boot/vmlinuz-0.0.1-zbmtest";
 const CLONE: &str = "tmenu/ROOT/booted";
 
 /// How long a boot environment may take to report, in seconds.
-const BE_PATIENCE: u64 = 1200;
+pub(super) const BE_PATIENCE: u64 = 1200;
 
 /// Boots three times.
 ///
@@ -92,7 +92,7 @@ fn second(test: &Test, vm: &mut Vm<'_>, serial: &mut Serial) -> Result<Boot> {
 }
 
 /// Checks that the boot environment got the command line edited.
-fn check_edited(test: &Test, boot: &Boot) {
+pub(super) fn check_edited(test: &Test, boot: &Boot) {
     let line = boot.be_line("BE-CMDLINE");
     test.note(&format!("BE-CMDLINE: {line}"));
     test.check(
@@ -103,7 +103,7 @@ fn check_edited(test: &Test, boot: &Boot) {
 
 /// Checks the record of the first boot, `boot.json`: the second kernel,
 /// and the command line edited.
-fn check_record(test: &Test, text: &str) {
+pub(super) fn check_record(test: &Test, text: &str) {
     test.note(&format!("boot.json: {text}"));
     let record: serde_json::Value = serde_json::from_str(text).unwrap_or_default();
     let field = |name: &str| record.get(name).cloned().unwrap_or_default();
@@ -120,7 +120,7 @@ fn check_record(test: &Test, text: &str) {
 }
 
 /// Checks that the boot environment's root is the clone.
-fn check_clone(test: &Test, boot: &Boot) {
+pub(super) fn check_clone(test: &Test, boot: &Boot) {
     let root = boot.be_line("BE-ROOT");
     test.check(
         root.split_whitespace().next() == Some(CLONE),

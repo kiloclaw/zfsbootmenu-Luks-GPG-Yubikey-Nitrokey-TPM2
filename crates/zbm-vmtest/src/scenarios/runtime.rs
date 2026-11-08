@@ -87,7 +87,7 @@ use crate::vm::Vm;
 
 mod autosize;
 mod boot;
-mod colours;
+pub(crate) mod colours;
 mod console;
 mod console_comfort;
 mod console_lines;

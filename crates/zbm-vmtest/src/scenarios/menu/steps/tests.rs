@@ -1,20 +1,7 @@
 use pretty_assertions::assert_eq;
 
 use super::*;
-use crate::scenarios::menu::tests::{all_ok, checked, played, screen, serial};
-
-/// Every table, by name.
-const TABLES: &[(&str, &[Step])] = &[
-    ("shell", SHELL),
-    ("power-off", POWER_OFF),
-    ("snapshots-changes", SNAPSHOTS_CHANGES),
-    ("snapshots-destroy", SNAPSHOTS_DESTROY),
-    ("snapshots-refused", SNAPSHOTS_REFUSED),
-    ("pools", POOLS),
-    ("boot-tour", BOOT_TOUR),
-    ("boot-kernel", BOOT_KERNEL),
-    ("boot-clone", BOOT_CLONE),
-];
+use crate::scenarios::menu::tests::{TABLES, all_ok, checked, expected, played, screen, serial};
 
 /// Runs the table `steps` on a menu that shows what it waits for; returns
 /// its checks.
@@ -22,17 +9,6 @@ fn ran(name: &str, steps: &'static [Step]) -> Vec<String> {
     checked(&format!("steps-{name}"), played(steps), |test, vm| {
         run(test, &mut serial(), vm, steps)
     })
-}
-
-/// How many checks the screens of `steps` make.
-fn expected(steps: &[Step]) -> usize {
-    steps
-        .iter()
-        .map(|step| {
-            let awaited = usize::from(step.awaits != Await::Nothing);
-            awaited + step.shows.len() + step.hides.len() + step.rows.len()
-        })
-        .sum()
 }
 
 /// Runs the table of `index` and checks that each of its checks passed.
@@ -76,6 +52,12 @@ fn the_palette_tour_and_the_boots_play_on_the_menu() {
     plays(6);
     plays(7);
     plays(8);
+}
+
+#[test]
+fn the_display_s_way_back_to_the_boot_tab_and_its_reboot_play_on_the_menu() {
+    plays(9);
+    plays(10);
 }
 
 #[test]
@@ -151,6 +133,8 @@ fn a_row_holds_the_pool_as_a_whole_word_then_its_state() {
     assert!(!row.is_match("│ ▶ tother/after    read-only │"));
     assert!(!row.is_match("│ ▶ tother   read/write │\n│ tmenu   read-only │"));
     assert!(!row.is_match("┌ tother ───┐\n│ Health  ONLINE, read-only │"));
+    // On a wide screen, the inspector beside the list, on the row's line.
+    assert!(!row.is_match("│   tother   not imported ││ Health  ONLINE, read-only │"));
 }
 
 /// The name a step asks for: the `X` of "Type X to confirm:".

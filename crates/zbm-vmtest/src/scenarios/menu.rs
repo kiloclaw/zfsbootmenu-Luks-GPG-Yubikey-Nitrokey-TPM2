@@ -1,6 +1,6 @@
 //! The menu tests (ADR 0016, point 16): the core tasks of the menu, each
-//! driven through its keys on the serial console, on pools of the group's
-//! own, as the steps of `steps` say.
+//! driven through its keys on the serial console and on the display, on
+//! pools of the group's own, as the steps of `steps` say.
 //!
 //! - `setup` (`setup`): on the legacy image, as `runtime-setup` does, the
 //!   pools of the group, whose disks it keeps as pristine copies:
@@ -14,15 +14,17 @@
 //! - `pools` (`pools`): an import of each kind, a rewind, an export and the
 //!   unlock of a volume;
 //! - `boot` (`boot`): the palette's entries, a boot with another kernel and
-//!   an edited command line, and the boot of a clone.
+//!   an edited command line, and the boot of a clone;
+//! - `display` (`display`): the tasks of the three, on the console on the
+//!   display, with no recovery shell.
 //!
-//! Each of the three boots the Rust image on fresh copies of the pristine
-//! disks, with `zbm.prefer=tmenu!!`, which leaves the other pools to the
-//! menu: one that fails costs itself, and each can run again alone after
-//! `menu-setup`, within the month (UTC) the setup ran: the timeline folds
-//! the snapshots of an earlier month under its header, so that a test asks
-//! for the setup again then. What the tasks did is checked in the recovery
-//! shell (`checks`), which the palette opens.
+//! Each test boots on fresh copies of the pristine disks, with
+//! `zbm.prefer=tmenu!!`, which leaves the other pools to the menu: one that
+//! fails costs itself, and each can run again alone after `menu-setup`,
+//! within the month (UTC) the setup ran: the timeline folds the snapshots
+//! of an earlier month under its header, so that a test asks for the setup
+//! again then. What the tasks did is checked on the serial console, in the
+//! recovery shell (`checks`), which the palette opens.
 
 use std::fs;
 use std::path::PathBuf;
@@ -31,6 +33,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::boot::{dialogs, prompt};
 use crate::error::{Error, Result};
+use crate::images::Image;
 use crate::qemu::{Disk, Machine};
 use crate::record::Test;
 use crate::settings::{Settings, ZbmRuntime};
@@ -41,6 +44,7 @@ use super::drive::{Driver, Key, Serial};
 
 mod boot;
 mod checks;
+mod display;
 mod pools;
 mod setup;
 mod snapshots;
@@ -93,7 +97,7 @@ const UUID: &str = uuid!();
 /// The name of the LUKS volume's mapping, as the menu lists it.
 const VOLUME: &str = concat!("luks-", uuid!());
 
-/// Runs `setup`, `snapshots`, `pools` or `boot`.
+/// Runs `setup`, `snapshots`, `pools`, `boot` or `display`.
 ///
 /// # Errors
 ///
@@ -110,6 +114,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "snapshots" => snapshots::run(test),
         "pools" => pools::run(test),
         "boot" => boot::run(test),
+        "display" => display::run(test),
         _ => {
             test.check(false, &format!("unknown scenario {scenario}"));
             Ok(())
@@ -181,10 +186,16 @@ fn fresh_disks(settings: &Settings) -> Result<Vec<Disk>> {
 fn boot_on_fresh<'t>(test: &'t Test, label: &str, append: &str, more: &[Disk]) -> Result<Vm<'t>> {
     let settings = test.settings();
     let image = super::runtime::image(settings, "auto", ZbmRuntime::Rust, None)?;
+    let machine = on_fresh(settings, &image, append, more)?;
+    Vm::start(test, label, &machine)
+}
+
+/// The machine that boots `image` with `append`, on fresh copies of the
+/// disks and `more`.
+fn on_fresh(settings: &Settings, image: &Image, append: &str, more: &[Disk]) -> Result<Machine> {
     let mut disks = fresh_disks(settings)?;
     disks.extend(more.iter().cloned());
-    let machine = Machine::boot(&image, append).with_disks(disks);
-    Vm::start(test, label, &machine)
+    Ok(Machine::boot(image, append).with_disks(disks))
 }
 
 /// Waits for the menu: answers start-up's dialog of the LUKS volume empty,
@@ -195,9 +206,21 @@ fn start(test: &Test, serial: &mut Serial, vm: &mut Vm<'_>) -> Result<()> {
         test.step("start-up asks for the passphrase of the LUKS volume -> skipped");
         dialogs::reply(vm, "")?;
     }
-    thread::sleep(serial.pace.pause);
-    serial.press(vm, Key::Escape)?;
-    let tabs = serial.screen(vm, TABS, MENU)?;
+    let pause = serial.pace.pause;
+    stop_countdown(test, serial, vm, pause)
+}
+
+/// Stops the countdown, after `pause`, and checks that the menu is the
+/// workspace.
+fn stop_countdown(
+    test: &Test,
+    driver: &mut dyn Driver,
+    vm: &mut Vm<'_>,
+    pause: Duration,
+) -> Result<()> {
+    thread::sleep(pause);
+    driver.press(vm, Key::Escape)?;
+    let tabs = driver.screen(vm, TABS, MENU)?;
     test.check(
         tabs.is_some(),
         "the countdown stops, and the menu is the workspace: its tab bar shows the Boot tab",
@@ -224,8 +247,8 @@ fn leave_shell(test: &Test, serial: &mut Serial, vm: &mut Vm<'_>) -> Result<()> 
 }
 
 /// Powers the machine off from the palette.
-fn power_off(test: &Test, serial: &mut Serial, vm: &mut Vm<'_>) -> Result<()> {
-    steps::run(test, serial, vm, steps::POWER_OFF)?;
+fn power_off(test: &Test, driver: &mut dyn Driver, vm: &mut Vm<'_>) -> Result<()> {
+    steps::run(test, driver, vm, steps::POWER_OFF)?;
     let said = vm.expect1(POWERED_OFF, POWER).is_ok();
     test.check(said, "the palette's Power Off powers the machine off");
     if vm.expect_eof(POWER).is_err() {

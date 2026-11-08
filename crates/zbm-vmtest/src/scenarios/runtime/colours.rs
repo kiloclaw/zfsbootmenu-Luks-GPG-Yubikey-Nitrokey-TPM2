@@ -153,7 +153,7 @@ fn boot<'t>(test: &'t Test, image: &Image, name: &str, gpu: bool) -> Result<Vm<'
 /// Writes a screenshot of the machine to `path` (a PPM image). A file left
 /// there by an earlier run is removed first, so that a screenshot QEMU did
 /// not take is missing rather than an old one.
-pub(super) fn screendump(vm: &Vm<'_>, path: &Path) -> Result<()> {
+pub(crate) fn screendump(vm: &Vm<'_>, path: &Path) -> Result<()> {
     let _ = fs::remove_file(path);
     let reply = vm.monitor(&format!("screendump {}", path.display()))?;
     if !reply.is_empty() {

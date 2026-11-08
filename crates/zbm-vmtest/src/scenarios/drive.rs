@@ -9,8 +9,14 @@
 //!   reads the console's last screen in its mirror.
 //!
 //! A row is chosen with [`select`]: Down until the selected row holds the
-//! name. Filtering and Enter is not used, as the filter's best match may
-//! be another row.
+//! name, or with [`select_row`], until it reads the name alone. Filtering
+//! and Enter is not used, as the filter's best match may be another row.
+//!
+//! The mirror holds the text the display shows, drawn as on the serial
+//! console: the same box lines and the same `▶`, as the console's
+//! programs draw lines whatever the locale. Its screen is larger than
+//! 80x25 on most displays, and from about 100 columns the workspace draws
+//! its panes side by side: the inspector beside a list, on its lines.
 
 use std::path::Path;
 use std::thread;
@@ -35,44 +41,17 @@ const MOVE_LOOKS: usize = 10;
 /// How long one of those looks may wait, in seconds.
 const MOVE_PATIENCE: u64 = 5;
 
-/// How often the mirror is read while waiting for a screen.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "menu-display drives the display with it (UI10e-9)"
-    )
-)]
-const MIRROR_POLL: Duration = Duration::from_millis(200);
-
 /// A key the menu tests press.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "menu-display presses the arrows and Tab (UI10e-9)"
-    )
-)]
 pub(crate) enum Key {
     /// Escape.
     Escape,
     /// Enter.
     Enter,
-    /// The arrow up.
-    Up,
     /// The arrow down.
     Down,
-    /// The arrow left.
-    Left,
-    /// The arrow right.
-    Right,
     /// Delete.
     Delete,
-    /// Tab.
-    Tab,
-    /// Shift-Tab.
-    BackTab,
     /// Home: the top of a list.
     Home,
     /// Ctrl-U, which clears a field.
@@ -87,13 +66,8 @@ impl Key {
         let bytes = match self {
             Key::Escape => "\x1b",
             Key::Enter => "\r",
-            Key::Up => "\x1b[A",
             Key::Down => "\x1b[B",
-            Key::Right => "\x1b[C",
-            Key::Left => "\x1b[D",
             Key::Delete => "\x1b[3~",
-            Key::Tab => "\t",
-            Key::BackTab => "\x1b[Z",
             Key::Home => "\x1b[H",
             Key::CtrlU => "\x15",
             Key::Char(c) => return c.to_string(),
@@ -103,24 +77,12 @@ impl Key {
 
     /// QEMU's name of it, on the US layout; `None` for a character without
     /// one.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "menu-display drives the display with it (UI10e-9)"
-        )
-    )]
-    fn qemu_name(self) -> Option<String> {
+    pub(super) fn qemu_name(self) -> Option<String> {
         let name = match self {
             Key::Escape => "esc",
             Key::Enter => "ret",
-            Key::Up => "up",
             Key::Down => "down",
-            Key::Left => "left",
-            Key::Right => "right",
             Key::Delete => "delete",
-            Key::Tab => "tab",
-            Key::BackTab => "shift-tab",
             Key::Home => "home",
             Key::CtrlU => "ctrl-u",
             Key::Char(c) => return key_names(&c.to_string())?.pop(),
@@ -190,19 +152,12 @@ impl Driver for Serial {
 
 /// The console on the display: keys through `monitor`, screens from the
 /// mirror at `mirror`, at `pace`.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "menu-display drives the display with it (UI10e-9)"
-    )
-)]
 pub(crate) struct Display<'m> {
     /// How keys are pressed.
     pub(crate) monitor: &'m Monitor,
     /// The console's mirror.
     pub(crate) mirror: &'m Path,
-    /// A key each fifth of its pause.
+    /// A key each fifth of its pause; the mirror is read as often.
     pub(crate) pace: Pace,
 }
 
@@ -218,8 +173,8 @@ impl Driver for Display<'_> {
         type_text(vm, self.monitor, text, self.pace.pause)
     }
 
-    /// The mirror's last screen, once two reads a poll apart find it the
-    /// same, or when the time is up.
+    /// The mirror's last screen, once two reads a key's time apart find it
+    /// the same, or when the time is up.
     fn screen(&mut self, _: &mut Vm<'_>, pattern: &str, seconds: u64) -> Result<Option<String>> {
         let pattern = regex(pattern)?;
         let start = Instant::now();
@@ -235,7 +190,7 @@ impl Driver for Display<'_> {
                 return Ok(None);
             }
             before = Some(screen);
-            thread::sleep(MIRROR_POLL);
+            thread::sleep(self.pace.pause / 5);
         }
     }
 }
@@ -297,11 +252,40 @@ pub(crate) fn select(
     name: &str,
     max: usize,
 ) -> Result<bool> {
+    select_by(driver, vm, max, &|screen| has_selected(screen, name))
+}
+
+/// Presses Down as [`select`] does, until a selected row reads `row`, all
+/// of it: the palette's `Reboot`, beside `Reboot into Firmware Setup`,
+/// which holds the word too.
+///
+/// # Errors
+///
+/// When a key cannot be pressed or the screen read.
+pub(crate) fn select_row(
+    driver: &mut dyn Driver,
+    vm: &mut Vm<'_>,
+    row: &str,
+    max: usize,
+) -> Result<bool> {
+    select_by(driver, vm, max, &|screen| {
+        selected_rows(screen).contains(&row)
+    })
+}
+
+/// Presses Down, at most `max` times, until `is_it` takes the screen;
+/// whether it does, before the list ended.
+fn select_by(
+    driver: &mut dyn Driver,
+    vm: &mut Vm<'_>,
+    max: usize,
+    is_it: &dyn Fn(&str) -> bool,
+) -> Result<bool> {
     let Some(mut shown) = driver.screen(vm, SELECTION, SELECTION_PATIENCE)? else {
         return Ok(false);
     };
     for _ in 0..max {
-        if has_selected(&shown, name) {
+        if is_it(&shown) {
             return Ok(true);
         }
         let before: Vec<String> = selected_rows(&shown)
@@ -322,7 +306,7 @@ pub(crate) fn select(
         };
         shown = screen;
     }
-    Ok(has_selected(&shown, name))
+    Ok(is_it(&shown))
 }
 
 #[cfg(test)]

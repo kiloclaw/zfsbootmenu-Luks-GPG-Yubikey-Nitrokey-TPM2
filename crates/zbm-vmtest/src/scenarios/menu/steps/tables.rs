@@ -11,7 +11,7 @@
 use super::super::super::drive::Key;
 use super::super::{VOLUME, uuid};
 use super::{Act, Await, Step, key};
-use Act::{Press, Select, Type};
+use Act::{Press, Select, SelectRow, Type};
 
 /// Enter.
 const ENTER: Act = Press(Key::Enter);
@@ -41,6 +41,24 @@ pub(in crate::scenarios::menu) const POWER_OFF: &[Step] = &[Step::new(
     "the palette's Power Off",
     &[key(':'), Type("power off"), Select("Power Off"), ENTER],
     Await::Nothing,
+)];
+
+/// Reboot, from the palette: the row that reads Reboot alone, as Reboot
+/// into Firmware Setup holds the word too.
+pub(in crate::scenarios::menu) const REBOOT: &[Step] = &[Step::new(
+    "the palette's Reboot",
+    &[key(':'), Type("reboot"), SelectRow("Reboot"), ENTER],
+    Await::Nothing,
+)];
+
+/// Back to the Boot tab, where the recovery shell of the serial tests
+/// gives the menu back between two of their tables: Escape leaves a view
+/// for its tab, and a tab for the Boot tab. The display test, which opens
+/// no shell, goes on from there.
+pub(in crate::scenarios::menu) const BOOT_TAB: &[Step] = &[Step::new(
+    "back to the Boot tab",
+    &[ESCAPE, ESCAPE, key('1')],
+    Await::Text("[1 Boot]"),
 )];
 
 /// `menu-snapshots`, up to the shell: a rollback, one ZFS refuses, a new

@@ -19,6 +19,21 @@ pub(super) const NOW: Pace = Pace {
 /// milliseconds: longer than the serial console waits for it to settle.
 const SETTLED: u64 = 600;
 
+/// Every table of steps, by name.
+pub(super) const TABLES: &[(&str, &[Step])] = &[
+    ("shell", steps::SHELL),
+    ("power-off", steps::POWER_OFF),
+    ("snapshots-changes", steps::SNAPSHOTS_CHANGES),
+    ("snapshots-destroy", steps::SNAPSHOTS_DESTROY),
+    ("snapshots-refused", steps::SNAPSHOTS_REFUSED),
+    ("pools", steps::POOLS),
+    ("boot-tour", steps::BOOT_TOUR),
+    ("boot-kernel", steps::BOOT_KERNEL),
+    ("boot-clone", steps::BOOT_CLONE),
+    ("boot-tab", steps::BOOT_TAB),
+    ("reboot", steps::REBOOT),
+];
+
 /// A serial console at once.
 pub(super) fn serial() -> Serial {
     Serial { pace: NOW }
@@ -49,28 +64,48 @@ pub(super) fn played(steps: &[Step]) -> Vec<Play> {
             match *act {
                 Act::Press(key) => script.push(Play::Keys(key.serial().leak())),
                 Act::Type(text) => script.push(Play::Keys(text)),
-                Act::Select(name) => {
+                Act::Select(name) | Act::SelectRow(name) => {
                     script.push(Play::Keys("\x1b[H"));
                     script.push(Play::Say(screen(&[&format!("│ ▶ {name} │")])));
                 }
             }
         }
-        let first = match step.awaits {
-            Await::Nothing => continue,
-            Await::Text(text) => text.to_owned(),
-            Await::Done => " √ Done: it is done".to_owned(),
-            Await::Row(name, text) => format!("│ ▶ {name}   {text} │"),
+        let Some(lines) = awaited(step) else {
+            continue;
         };
-        let rows = step.rows.iter().map(|name| format!("│   {name}   │"));
-        let lines: Vec<String> = [first]
-            .into_iter()
-            .chain(step.shows.iter().map(|text| (*text).to_owned()))
-            .chain(rows)
-            .collect();
         let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
         script.push(Play::Say(screen(&lines)));
     }
     script
+}
+
+/// The lines of the screen `step` waits for, with what it must show; `None`
+/// when it waits for none.
+pub(super) fn awaited(step: &Step) -> Option<Vec<String>> {
+    let first = match step.awaits {
+        Await::Nothing => return None,
+        Await::Text(text) => text.to_owned(),
+        Await::Done => " √ Done: it is done".to_owned(),
+        Await::Row(name, text) => format!("│ ▶ {name}   {text} │"),
+    };
+    let rows = step.rows.iter().map(|name| format!("│   {name}   │"));
+    let lines = [first]
+        .into_iter()
+        .chain(step.shows.iter().map(|text| (*text).to_owned()))
+        .chain(rows)
+        .collect();
+    Some(lines)
+}
+
+/// How many checks the screens of `steps` make.
+pub(super) fn expected(steps: &[Step]) -> usize {
+    steps
+        .iter()
+        .map(|step| {
+            let awaited = usize::from(step.awaits != Await::Nothing);
+            awaited + step.shows.len() + step.hides.len() + step.rows.len()
+        })
+        .sum()
 }
 
 /// Start-up, with its dialog of the LUKS volume when `luks`, then the

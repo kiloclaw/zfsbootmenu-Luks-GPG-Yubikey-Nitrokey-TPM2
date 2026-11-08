@@ -14,12 +14,12 @@ use crate::error::{Error, Result};
 use crate::record::Test;
 use crate::vm::Vm;
 
-use super::super::drive::{Driver, Key, has_word, select};
+use super::super::drive::{Driver, Key, has_word, select, select_row};
 mod tables;
 
 pub(super) use tables::{
-    BOOT_CLONE, BOOT_KERNEL, BOOT_TOUR, POOLS, POWER_OFF, SHELL, SNAPSHOTS_CHANGES,
-    SNAPSHOTS_DESTROY, SNAPSHOTS_REFUSED,
+    BOOT_CLONE, BOOT_KERNEL, BOOT_TAB, BOOT_TOUR, POOLS, POWER_OFF, REBOOT, SHELL,
+    SNAPSHOTS_CHANGES, SNAPSHOTS_DESTROY, SNAPSHOTS_REFUSED,
 };
 
 /// How many rows [`select`] may go down a list.
@@ -45,6 +45,9 @@ pub(super) enum Act {
     /// Goes to the top of the list (Home, which a dialog and a field take
     /// for nothing), then selects the row that holds the name.
     Select(&'static str),
+    /// Goes to the top of the list, then selects the row that reads the
+    /// name alone.
+    SelectRow(&'static str),
 }
 
 /// What a step waits for once it acted.
@@ -56,8 +59,9 @@ pub(super) enum Await {
     Text(&'static str),
     /// The notification of the action's outcome, which must be done.
     Done,
-    /// A row that holds the name as a whole word, then the text: a pool
-    /// and its state.
+    /// A row that holds the name as a whole word, then the text before
+    /// the row's border: a pool and its state, and not the inspector's
+    /// text beside the list on a wide screen.
     Row(&'static str, &'static str),
 }
 
@@ -113,7 +117,7 @@ impl Step {
             Await::Text(text) => Some(loose(text)),
             Await::Done => Some(OUTCOME.to_owned()),
             Await::Row(name, text) => Some(format!(
-                r"(?m)(?:^|\s){}\s.*{}",
+                r"(?m)(?:^|\s){}\s[^│|\n]*{}",
                 regex::escape(name),
                 loose(text)
             )),
@@ -184,15 +188,29 @@ fn act_on(
     match act {
         Act::Press(key) => driver.press(vm, key),
         Act::Type(text) => driver.text(vm, text),
-        Act::Select(name) => {
-            driver.press(vm, Key::Home)?;
-            if select(driver, vm, name, ROWS)? {
-                return Ok(());
-            }
-            test.check(false, &format!("{what}: a row of {name} is selected"));
-            Err(Error::Setup(format!("{what}: no row of {name}")))
-        }
+        Act::Select(name) => select_from_top(test, driver, vm, (name, what), select),
+        Act::SelectRow(name) => select_from_top(test, driver, vm, (name, what), select_row),
     }
+}
+
+/// How a row of a name is selected: [`select`] or [`select_row`].
+type Selects = fn(&mut dyn Driver, &mut Vm<'_>, &str, usize) -> Result<bool>;
+
+/// Goes to the top of the list, then selects the row of `name` with
+/// `selects`, for the step `what`.
+fn select_from_top(
+    test: &Test,
+    driver: &mut dyn Driver,
+    vm: &mut Vm<'_>,
+    (name, what): (&str, &str),
+    selects: Selects,
+) -> Result<()> {
+    driver.press(vm, Key::Home)?;
+    if selects(driver, vm, name, ROWS)? {
+        return Ok(());
+    }
+    test.check(false, &format!("{what}: a row of {name} is selected"));
+    Err(Error::Setup(format!("{what}: no row of {name}")))
 }
 
 /// Checks what the step's `screen` shows.
