@@ -18,7 +18,7 @@ use crate::text::text;
 use zbm_types::ImportPolicy;
 
 /// What the application offers today.
-const APP: &[Offer] = &[
+pub(super) const APP: &[Offer] = &[
     Offer::Boot,
     Offer::BootSnapshot,
     Offer::SetDefaultEnvironment,
@@ -39,7 +39,7 @@ const APP: &[Offer] = &[
 
 /// Where keys are pressed: a view, with a row selected.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Place {
+pub(super) enum Place {
     Startup,
     Main,
     Kernels(usize),
@@ -53,7 +53,7 @@ enum Place {
 
 /// The demo machine with every stage done, offering `offers`: a pool of
 /// another host, a TPM2 key to seal again, boot tries used up.
-fn machine(offers: &[Offer]) -> (Snapshot, Event) {
+pub(super) fn machine(offers: &[Offer]) -> (Snapshot, Event) {
     let options = DemoOptions {
         foreign: true,
         snapshots: 3,
@@ -81,7 +81,7 @@ fn machine(offers: &[Offer]) -> (Snapshot, Event) {
 }
 
 /// The menu on `machine` with the key map `map`, at `place`.
-fn menu((snapshot, diff): &(Snapshot, Event), map: Map, place: Place) -> Model {
+pub(super) fn menu((snapshot, diff): &(Snapshot, Event), map: Map, place: Place) -> Model {
     let mut model = Model::new(snapshot.clone(), Theme::new(Capabilities::FULL));
     model.map = map;
     // The workspace's Pools tab is its tree.
@@ -138,7 +138,8 @@ fn then_action(model: &Model, then: &Then) -> Option<Action> {
                 .find(|e| &e.name == name)?;
             Some(screens::boot(model, environment, None))
         }
-        Then::Open(_) | Then::Focus(..) => None,
+        // A key's, which the keys of the view reach too.
+        Then::Open(_) | Then::Focus(..) | Then::Intent(_) => None,
     }
 }
 
@@ -172,7 +173,7 @@ fn reached(model: &Model, mut sent: Vec<Action>) -> Vec<Action> {
 
 /// Every key bound in `context` with `map`: the map's and the classic
 /// ones.
-fn presses(map: Map, context: Context) -> Vec<KeyPress> {
+pub(super) fn presses(map: Map, context: Context) -> Vec<KeyPress> {
     let bound = map
         .table()
         .into_iter()
@@ -190,7 +191,7 @@ fn presses(map: Map, context: Context) -> Vec<KeyPress> {
 /// The places to press keys at, on `machine` with the key map `map`: in
 /// the pools view, each of its rows, which the workspace's tree has more
 /// of.
-fn places(machine: &(Snapshot, Event), map: Map) -> Vec<Place> {
+pub(super) fn places(machine: &(Snapshot, Event), map: Map) -> Vec<Place> {
     let mut model = menu(machine, map, Place::Pools(0));
     model.pools.filter.clear();
     let rows = model.pools.matches.len();
@@ -315,7 +316,7 @@ fn is_refused(model: &Model) -> bool {
 }
 
 /// The demo machine offering everything.
-fn machine_all() -> (Snapshot, Event) {
+pub(super) fn machine_all() -> (Snapshot, Event) {
     machine(&Offer::ALL)
 }
 

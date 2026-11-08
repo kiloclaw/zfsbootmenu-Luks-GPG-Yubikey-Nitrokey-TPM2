@@ -13,7 +13,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                      ││   Tuesday 20 October                 1 snapshot · 43 MiB ││   Esc cancel     Up/Down select  │
 │                      ││     autosnap_2026-10-20_daily         3 d ago     43 MiB ││                                  │
 │                      ││   Monday 19 October                  1 snapshot · 56 MiB ││                                  │
-│                      ││┌ COMMANDS ─────────────────────────────────────────────── 42 of 427 ┐                        │
+│                      ││┌ COMMANDS ─────────────────────────────────────────────── 42 of 433 ┐                        │
 │                      │││ : 2026-10                                                          │                        │
 │                      │││ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-10-22_daily        │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-21_daily        │                        │

@@ -3,7 +3,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
   Boot Environments  tank DEGRADED · 3/3 open · ! 1
 ┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐
-│ ┌ COMMANDS ───────────────────────── 55 of 426 ┐ │
+│ ┌ COMMANDS ───────────────────────── 55 of 432 ┐ │
 │ │ : 2026-09                                    │ │
 │ │ ▶ Boot a clone of zroot/ROOT/void@autosnap_… │ │
 │ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │

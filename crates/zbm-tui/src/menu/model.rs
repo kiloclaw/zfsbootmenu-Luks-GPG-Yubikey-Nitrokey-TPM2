@@ -38,7 +38,7 @@ pub(crate) use self::timeline::{Group, Row, Timeline};
 pub use self::typing::TypedOn;
 
 use super::filter::Ranked;
-use super::keymap::{Context, Map, Tab};
+use super::keymap::{Context, Intent, Map, Tab};
 use super::theme::Theme;
 use super::world::{Action, DeviceLog, Environment, History, Outcome, Snapshot, Timeout};
 
@@ -115,6 +115,9 @@ pub enum Then {
     /// Open the snapshots or kernels of an environment, or its command
     /// line.
     Focus(DatasetName, Screen),
+    /// Do what a key of the view under the palette does: an action only a
+    /// character or a chord reaches (rule 1 of decision 18).
+    Intent(Intent),
 }
 
 /// A dialog over a view; not `Clone`: an unlock dialog holds a secret.

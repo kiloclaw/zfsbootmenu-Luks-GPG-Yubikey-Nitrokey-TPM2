@@ -5,7 +5,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 + BOOT ENVIRONMENTS -------------------------------------------------------- 4 +
 | > zroot/ROOT/void                                          default  6.12.9_1 |
 |   tank/ROOT/arch                                   1 warning  6.11.5-arch1-1 |
-|   t+ COMMANDS ----------------------------------------------- 55 of 426 +d64 |
+|   t+ COMMANDS ----------------------------------------------- 55 of 432 +d64 |
 |   z| : 2026-09                                                          |ric |
 |    | > Boot a clone of zroot/ROOT/void@autosnap_2026-09-30_daily        |    |
 |    |   Boot a clone of zroot/ROOT/void@autosnap_2026-09-29_daily        |    |

@@ -123,8 +123,8 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
 }
 
 /// Everything the command palette finds: environments, their kernels, the
-/// snapshots read so far, and the actions of every view the machine
-/// offers.
+/// snapshots read so far, the actions of every view the machine offers,
+/// and those of the view under it that only a key reaches.
 pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     let item = |label: String, then: Then| PaletteItem { label, then };
     let mut items = Vec::new();
@@ -180,6 +180,7 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     }
     items.extend(destroy_items(model));
     items.extend(tool_items(model));
+    items.extend(key_items(model));
     items.retain(|item| super::offers::is_offered(model, &item.then));
     items
 }
@@ -248,6 +249,25 @@ fn tool_items(model: &Model) -> Vec<PaletteItem> {
             .map(|(label, action)| item(text::get(label), Then::Act(action))),
     );
     items
+}
+
+/// The palette's entries of what only a character or a chord reaches in
+/// the view under it (rule 1 of decision 18), each with its keys: one does
+/// what its key does there.
+fn key_items(model: &Model) -> Vec<PaletteItem> {
+    let context = model.view_context();
+    keymap::commands(model.map, context)
+        .into_iter()
+        .map(|(intent, keys)| PaletteItem {
+            label: text!(
+                "palette-key",
+                action = text::title(keymap::describe(context, intent)),
+                dot = model.theme.dot(),
+                keys = keys
+            ),
+            then: Then::Intent(intent),
+        })
+        .collect()
 }
 
 /// The command line editor: `Enter` boots with the edited line, for this

@@ -315,6 +315,7 @@ const fn key(c: char, contexts: &'static [Context], intent: Intent) -> Binding {
 }
 
 mod classic;
+mod commands;
 mod labels;
 pub mod manual;
 mod offers;
@@ -323,6 +324,9 @@ mod workspace;
 
 use self::classic::classic;
 pub use self::classic::{CLASSIC, classic_bindings};
+#[cfg(test)]
+pub(crate) use self::commands::ENTER_REACHES;
+pub(crate) use self::commands::commands;
 pub use self::labels::{TOOLBAR, TOOLBAR_GAP, Tool, bindings, describe, footer, help, key_name};
 pub(crate) use self::offers::{is_offered, is_shown, label, needs_snapshot};
 pub(crate) use self::position::{Typing, input_on};
@@ -572,6 +576,8 @@ fn text(press: KeyPress) -> Option<Input> {
 
 #[cfg(test)]
 mod case_tests;
+#[cfg(test)]
+mod commands_tests;
 #[cfg(test)]
 pub(crate) mod layouts_tests;
 #[cfg(test)]

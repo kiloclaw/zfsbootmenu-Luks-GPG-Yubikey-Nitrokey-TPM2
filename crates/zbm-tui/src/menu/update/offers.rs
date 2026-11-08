@@ -3,6 +3,7 @@
 //! kind are left out, and an action of another kind that got through
 //! anyway is dropped before it leaves.
 
+use crate::menu::keymap;
 use crate::menu::model::{Choice, Make, Model, Screen, Then};
 use crate::menu::world::{Action, Offer, Outcome};
 use crate::text::text;
@@ -20,13 +21,17 @@ fn offer_of(then: &Then) -> Option<Offer> {
         Then::BootClone(_) => Some(Offer::BootSnapshot),
         // The command line is edited for a boot.
         Then::Focus(_, Screen::CommandLine) => Some(Offer::Boot),
-        Then::Open(_) | Then::Focus(..) => None,
+        Then::Open(_) | Then::Focus(..) | Then::Intent(_) => None,
     }
 }
 
 /// Whether what `then` leads to is no action, or one the machine of
-/// `model` offers.
+/// `model` offers; a key's, as the toolbar shows it in the view under the
+/// palette, which leaves out a key that does nothing to the selection.
 pub(super) fn is_offered(model: &Model, then: &Then) -> bool {
+    if let Then::Intent(intent) = then {
+        return keymap::is_shown(model.view_context(), *intent, model);
+    }
     offer_of(then).is_none_or(|kind| model.snapshot.offers.contains(&kind))
 }
 

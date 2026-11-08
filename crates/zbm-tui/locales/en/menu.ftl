@@ -591,6 +591,9 @@ palette-destroy-marked = { $count ->
     [one] Destroy the Marked Snapshot
    *[other] Destroy the { $count } Marked Snapshots
 }
+# An action that only a character or a chord reaches, and its keys, as the
+# help names them. $dot is " · ", or " | " in ASCII.
+palette-key = { $action }{ $dot }{ $keys }
 
 ## The changes since a snapshot: files and packages.
 

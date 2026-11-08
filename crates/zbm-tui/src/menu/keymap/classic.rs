@@ -97,15 +97,22 @@ pub(super) fn aliases(
             let (_, intent) = meanings
                 .iter()
                 .find(|(view, intent)| *view == context && offered(*intent))?;
-            let upper = letter.to_uppercase().to_string();
-            let key = if taken_with_ctrl(*letter, context).is_some() {
-                text!("key-alt", letter = upper)
-            } else {
-                text!("key-classic", letter = upper)
-            };
+            let key = alias_name(*letter, context);
             Some((*letter, key, describe(context, *intent)))
         })
         .collect()
+}
+
+/// The name of the classic binding of `letter` in `context`, as the help
+/// view shows it: `MOD+K`, or `Alt+K` where the letter with `Ctrl` means
+/// something else there.
+pub(super) fn alias_name(letter: char, context: Context) -> String {
+    let upper = letter.to_uppercase().to_string();
+    if taken_with_ctrl(letter, context).is_some() {
+        text!("key-alt", letter = upper)
+    } else {
+        text!("key-classic", letter = upper)
+    }
 }
 
 /// What the workspace's table binds `letter` with `Ctrl` to in `context`,
