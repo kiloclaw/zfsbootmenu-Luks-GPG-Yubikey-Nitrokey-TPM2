@@ -149,7 +149,7 @@ impl From<Key> for KeyPress {
 
 /// The characters of the keys that type one, by key code: unshifted and
 /// shifted.
-const CHARACTERS: &[(u16, char, char)] = &[
+pub(crate) const CHARACTERS: &[(u16, char, char)] = &[
     (2, '1', '!'),
     (3, '2', '@'),
     (4, '3', '#'),
@@ -210,7 +210,8 @@ fn keypad(code: u16) -> Option<(char, Option<Key>)> {
 }
 
 /// The letters, by key code, in the rows of the keyboard.
-const LETTERS: &[(u16, &str)] = &[(16, "qwertyuiop"), (30, "asdfghjkl"), (44, "zxcvbnm")];
+pub(crate) const LETTERS: &[(u16, &str)] =
+    &[(16, "qwertyuiop"), (30, "asdfghjkl"), (44, "zxcvbnm")];
 
 /// The keys that type nothing, by key code.
 const SPECIAL: &[(u16, Key)] = &[

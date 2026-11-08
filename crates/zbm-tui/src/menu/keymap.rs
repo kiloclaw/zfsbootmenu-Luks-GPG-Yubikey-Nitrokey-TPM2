@@ -318,12 +318,14 @@ mod classic;
 mod labels;
 pub mod manual;
 mod offers;
+mod position;
 mod workspace;
 
 use self::classic::classic;
 pub use self::classic::{CLASSIC, classic_bindings};
 pub use self::labels::{TOOLBAR, TOOLBAR_GAP, Tool, bindings, describe, footer, help, key_name};
 pub(crate) use self::offers::{is_offered, is_shown, label, needs_snapshot};
+pub(crate) use self::position::{Typing, input_on};
 pub use self::workspace::{Map, Tab, WORKSPACE};
 
 use Context::{Diff, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots, Startup};
@@ -570,5 +572,7 @@ fn text(press: KeyPress) -> Option<Input> {
 
 #[cfg(test)]
 mod case_tests;
+#[cfg(test)]
+mod position_tests;
 #[cfg(test)]
 mod tests;

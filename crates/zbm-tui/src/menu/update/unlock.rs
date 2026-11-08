@@ -8,7 +8,7 @@ use zbm_display::keys::{Key, KeyPress};
 use zbm_platform::secret::Secret;
 use zbm_types::Printable;
 
-use crate::menu::keymap::{self, Input, Intent, Modifiers};
+use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Dialog, Model, Prompt, Then};
 use crate::menu::world::{Action, Method, Outcome, PcrChange};
 use crate::text::{self, Id, id, text};
@@ -81,27 +81,10 @@ fn other_method(model: &Model, volume: &str, method: Method, input: Input) -> Me
 }
 
 /// `key` as the layout `Ctrl-K` chose has it, once it chose one: the
-/// character of the layout the key was typed on for the key's position
-/// (the console's own when the input does not say), turned into the chosen
-/// layout's, with the image's keymaps. Only in the unlock dialog and for
-/// action keys: the filter, the palette, a name and a typed confirmation
-/// take the characters as typed. Keys with `Ctrl` or `Alt`, a terminal's
-/// characters, and layouts whose keymap did not load are left as they are.
+/// character of the layout the key was typed on for the key's position,
+/// turned into the chosen layout's ([`Model::translation`]).
 pub(super) fn translated(model: &Model, mut key: KeyPress) -> KeyPress {
-    let keyboard = &model.snapshot.keyboard;
-    let held = Modifiers::of(&key).has_any(Modifiers::CTRL | Modifiers::ALT);
-    let is_field =
-        keymap::is_text(model.context()) && !matches!(model.dialog, Some(Dialog::Unlock(_)));
-    if held || is_field || model.is_typed_on_a_terminal() {
-        return key;
-    }
-    let to = model.layout.and_then(|chosen| keyboard.layouts.get(chosen));
-    let positions = |name: Option<&str>| name.and_then(|name| keyboard.positions.get(name));
-    if let (Key::Char(c), Some(from), Some(to)) = (
-        key.key,
-        positions(model.typed_layout()),
-        positions(to.map(String::as_str)),
-    ) {
+    if let (Key::Char(c), Some((from, to))) = (key.key, model.translation(&key)) {
         key.key = Key::Char(from.translate(to, c));
     }
     key

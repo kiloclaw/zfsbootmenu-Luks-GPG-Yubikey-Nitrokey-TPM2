@@ -87,7 +87,8 @@ fn key_press(model: &mut Model, key: KeyPress) -> Vec<Action> {
         model.notification = None;
     }
     let key = unlock::translated(model, key);
-    match keymap::input(model.map, model.context(), key) {
+    let typing = model.typing(&key);
+    match keymap::input_on(model.map, model.context(), key, typing) {
         Some(input) => handle(model, input),
         None => Vec::new(),
     }

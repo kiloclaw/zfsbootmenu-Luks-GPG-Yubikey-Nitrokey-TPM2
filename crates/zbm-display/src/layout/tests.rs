@@ -308,3 +308,64 @@ fn keys_translate_by_their_position_between_layouts() {
     assert_eq!(us.translate(&positions("de"), '€'), '€');
     assert_eq!(us.translate(&Positions::default(), 'y'), 'y');
 }
+
+#[test]
+fn alt_takes_the_us_letter_on_other_scripts() {
+    let russian = Layout::from_keymap("ru", keymap("ru").as_bytes()).unwrap();
+    let mut decoder = Decoder::new();
+    decoder.set_layout(Some(russian));
+
+    decoder.feed(56, 1);
+    let alt = decoder.feed(37, 1).unwrap();
+    assert_eq!((alt.key, alt.alt, alt.ctrl), (Key::Char('k'), true, false));
+}
+
+#[test]
+fn the_us_positions_are_the_decoder_s_and_xkb_s() {
+    let us = Positions::us();
+    let xkb = positions("us");
+    let mut decoder = Decoder::new();
+    for &code in MAIN_BLOCK.iter().filter(|&&code| code != 86) {
+        for shift in [false, true] {
+            if shift {
+                decoder.feed(42, 1);
+            }
+            let Some(Key::Char(c)) = decoder.feed(code, 1).map(|press| press.key) else {
+                panic!("the decoder types nothing on key {code}");
+            };
+            decoder.feed(code, 0);
+            decoder.feed(42, 0);
+            assert_eq!(us.key_of(c), Some((code, shift)), "{c}");
+            // XKB's same key types it at the same level.
+            assert_eq!(us.translate(&xkb, c), c, "{c}");
+        }
+    }
+    assert_eq!(xkb.key_of('q'), Some((16, false)));
+    assert_eq!(xkb.key_of('?'), Some((53, true)));
+    // XKB's key 86 types `<` and `>` too, and comes first in the block;
+    // the decoder's types nothing.
+    assert_eq!(xkb.key_of('<'), Some((86, false)));
+    assert_eq!(us.key_of('<'), Some((51, true)));
+    assert_eq!(xkb.translate(&us, '<'), '<');
+}
+
+#[test]
+fn a_character_names_its_key_and_level() {
+    let french = positions("fr");
+    assert_eq!(french.key_of('é'), Some((3, false)));
+    assert_eq!(french.key_of('2'), Some((3, true)));
+    // A dead key names the accent it types alone.
+    assert_eq!(french.key_of('^'), Some((26, false)));
+    // The third level (AltGr) is not kept, and nor is a composed letter.
+    assert_eq!(french.key_of('€'), None);
+    assert_eq!(french.key_of('ê'), None);
+    // Two keys type `/` in Russian and `<` in Dvorak: the first in the
+    // block names it.
+    assert_eq!(positions("ru").key_of('/'), Some((43, true)));
+    assert_eq!(positions("us(dvorak)").key_of('<'), Some((17, true)));
+    assert_eq!(Positions::default().key_of('a'), None);
+    // And a key names its characters.
+    assert_eq!(french.character_of(3, false), Some('é'));
+    assert_eq!(french.character_of(3, true), Some('2'));
+    assert_eq!(french.character_of(1, false), None);
+}

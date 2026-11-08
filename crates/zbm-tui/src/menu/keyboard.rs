@@ -5,3 +5,7 @@
 /// The console's own layout when the image names none: the kernel's and
 /// the console's default.
 pub const CONSOLE: &str = "us";
+
+/// The US layout, by whose keys a character the key map binds nowhere
+/// means something (`docs/dev/menu-design/keymap.md`, rule 3).
+pub(crate) const US: &str = "us";
