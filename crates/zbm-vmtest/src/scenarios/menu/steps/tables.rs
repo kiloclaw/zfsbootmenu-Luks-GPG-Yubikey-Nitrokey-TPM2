@@ -422,9 +422,10 @@ pub(in crate::scenarios::menu) const POOLS: &[Step] = &[
     ),
 ];
 
-/// `menu-boot`, first boot: the palette's entries, and those it does not
-/// offer on a machine with no boot tries and no TPM2 volume. Its Reboot
-/// into Firmware Setup is not checked: the menu offers it on BIOS too.
+/// `menu-boot`, first boot: the palette's entries, and two it offers on no
+/// machine, as the menu performs neither: boot tries back and the re-seal.
+/// Its Reboot into Firmware Setup is not checked: the menu offers it on
+/// BIOS too.
 /// Rescan the Pools is chosen over the Pools tab, not the Log tab, whose
 /// running glyph in ASCII reads as a selected row.
 pub(in crate::scenarios::menu) const BOOT_TOUR: &[Step] = &[

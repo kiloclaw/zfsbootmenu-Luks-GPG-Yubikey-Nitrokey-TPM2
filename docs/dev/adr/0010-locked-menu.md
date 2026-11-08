@@ -140,7 +140,8 @@ Refinements of the proposal:
 - A person's unlock is the state directory's record (`luks-unlocked`, `attended`), so it counts in every process of the
   boot and lasts for the boot; the PIN's proof lasts in the process that checked it, for five idle minutes.
 - The PIN is asked on the console, as a passphrase is before a boot, rather than in a dialog of the menu; the footer's
-  and palette's lock marks are left for UI10.
+  and palette's lock marks were left for UI10, and on 7 November 2026 moved to UI14, whose completion shows what each
+  command costs, a PIN among them (ADR 0016, the record of points 16 and 17).
 
 ## Answers of the maintainer
 

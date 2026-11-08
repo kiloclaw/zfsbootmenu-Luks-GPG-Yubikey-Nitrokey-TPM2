@@ -200,7 +200,8 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
   plans; a test that every action the menu can send is either performed or not offered, so `unavailable` is reached
   only from the wire.
 - The view's tests and wireframes for the workspace's tabs, columns, timeline, review pages, the boot history and the
-  attention sidebar at the three sizes, in colour, monochrome and ASCII, and in the pseudo-language at 52×20.
+  attention sidebar at the three sizes, in colour and ASCII, and in the pseudo-language at 52×20; monochrome is checked
+  cell by cell, for a colour drawn.
 - The fuzz target over every view and dialog, and the 10,000-snapshot test against B5.
 - The VM tests of point 16, in the lanes of VE5.
 - `xtask gen-docs --check` for the man page's key section.
@@ -436,10 +437,138 @@ that no recording shows yet is checked in the maintainer's VM run and by `xtask 
   point 3 says; and an `Escape` or `Enter` typed ahead on start-up's Boot tab reaches the next dialog, as in the
   classic map.
 
-What remains of UI10 is UI10e, the exit (points 16 and 17): the VM tests that drive each core task through the menu,
-these pages among them, the hostile-names fuzz target over every view of both menus, the wireframes of point 16 that
-are missing (every view has its 52×20 in the pseudo-language, but the classic views have none at 80×24), the key
-section of the man page generated from `keymap/`, and `CHANGES-FROM-LEGACY.md` as the migration guide.
+Points 16 and 17 built on 8 November 2026 (UI10e-1 to UI10e-9), as decided but for what follows. On 7 November the
+maintainer decided the details the record left open: monochrome gets no wireframes of its own, as it draws the colour
+ones' text, but a test that it draws no colour; the classic views get theirs at 80×24 in colour and ASCII, but for the
+four prototypes of point 18; ROADMAP decision 7 is decided on the in-process times, and the pool of 10,000 snapshots
+that B5 builds in a VM goes to VE6; the palette is made to open within a frame at 10,000 snapshots; the VM tests are a
+group of their own, `menu`, in the lane of `complex`; 23 more of the workspace's views and dialogs get wireframes;
+point 17's "classic aliases" are the `MOD+key` aliases of the `fzf` menu that the workspace keeps, not the classic
+map; the four letters that only Alt reaches are labelled so in the help; SE9's lock marks move to UI14; UI10 is done
+with UI10e, its VM run pending; and feature #12 stays in progress with UI11, UI14 and UI15, while #18 no longer waits
+for UI10.
+
+- **Point 16:**
+  - **the VM tests:** the group `menu` of `zbm-vmtest`, five tests on disks and under a lock of their own
+    (`docs/luks/testing.rst`). `menu-setup` makes the pools on the legacy image, as `runtime-setup` does, and keeps
+    sparse copies of their disks: `tmenu`, the test boot environment with a second kernel, files of set owners and
+    modes, and the snapshots `one` to `five`, `two` with a clone and `three` with a bookmark, and between them `held`,
+    with a hold; `tother`, with a checkpoint and a filesystem made after it; `tlocked`, in a LUKS2 volume; and
+    `tforeign`, left imported by the host `deadbeef`. Each of the others boots a Rust image, the serial tests the `auto`
+    one and `menu-display` the console's, on fresh copies of them with `zbm.prefer=tmenu!!`, so that a test that fails
+    costs only itself, and refuses to run unless `menu-setup` ran in the same month (UTC), as the timeline folds the
+    snapshots of an earlier month. On the serial console, `menu-snapshots` rolls back, is refused a rollback past a
+    clone and a hold, takes a snapshot, clones, duplicates, diffs and restores, and in the recovery shell checks the
+    files' contents, owners and modes and the safety snapshot; it destroys two marked snapshots, and the space the
+    environment's snapshots hold falls by what `zfs destroy -n -v -p` said (#15); it is refused the destroy of a held
+    and of a cloned snapshot, destroys one from the palette, and last clones and promotes. `menu-pools` imports `tother`
+    read-only, read/write and read-only again, rewinds it to its checkpoint, forces the import of `tforeign`, exports
+    it, unlocks the volume and imports `tforeign` as its last host. `menu-boot` goes through the palette's entries,
+    boots the second kernel with an edited command line, which `BE-CMDLINE` and `boot.json` show, boots a clone of
+    `five`, and powers off. `menu-display` runs the same step tables on the console on the display (`zbm.console=drm`),
+    the keys typed on QEMU's keyboard and the screens read from the console's mirror, in five boots, the last of which
+    takes the palette's Reboot. None of them has run yet.
+  - **"on the display console":** the display test opens no recovery shell, which runs on the console's
+    pseudo-terminal, where the test cannot read; what its tasks did to the disks is the serial tests' to check, and
+    it checks what the menu shows after each step: the outcomes, the tabs, the review pages and what was typed into
+    them. It reads the screen from the mirror (`zbm.console_mirror`).
+  - **"the palette's entries":** the palette offers no boot tries to give back and no re-seal on any machine, as the
+    machine performs neither (point 1's record), which `menu-boot` checks; it offers the firmware setup on BIOS too
+    (below), which no test checks. Reboot and Power Off both end the machine, which QEMU runs with `-no-reboot`: the
+    serial tests and the display test's first two boots take Power Off, its last boot Reboot, which resets the machine
+    with SysRq-b, so the kernel says `sysrq: Resetting`.
+  - **the fuzz target:** `menu_names` draws on every input what it drew before, and the input's first byte picks a
+    size (52×20, 80×24, 80×25 or 132×43), colour or ASCII, and one of five groups: every screen and the help of every
+    view; the differences, the files, the packages and the restore; the boot history and start-up's events; the
+    unlock dialogs, start-up's questions, a failed import, the re-seal and how actions end; and the sheets, the
+    classic confirmations, the names asked for and the palette. Together they draw every view and dialog of both
+    maps and every event and outcome that carries text, with the line view's page checked at every draw; 13 seeds,
+    one for each group, `hostile-long-names` and the seven of before. An environment's name is hostile only by its
+    length, its spaces and its depth, as `DatasetName` admits no other characters; escapes come in paths, snapshots,
+    devices, hosts, hold tags and packages. What it found is fixed: `view/words.rs` handed out stage names, progress and
+    outcome text, the wording of questions, dialog lines and the classic pool rows raw, `view/packages.rs` the packages'
+    versions, and the classic rollback's sum of the newer snapshots' sizes overflowed on a hostile pool.
+  - **the wireframes:** every view at 120×40, 80×25 and 52×20, at 52×20 in the pseudo-language, and at 80×24 in colour
+    and ASCII, but for point 18's four prototypes (`main-fallback`, `main-next-boot`, `may-not-boot` and
+    `diff-packages`), which have no 80×24 and no workspace form: 459 wireframes of 77 views, 32 of the classic menu and
+    45 of the workspace; UI10e added 56 classic ones at 80×24 and 138 of 23 workspace views and dialogs. "In
+    monochrome" is a test, not files: monochrome draws the text of the colour wireframes, and the test checks that no
+    cell of any wireframe at 80×24 in monochrome or ASCII carries a colour; that the selection is reversed there is the
+    theme's test, not the cells'. Drawing them found, and the views now fix: the diff's arrow for a renamed file and
+    the pool details' dot drawn as literal characters in ASCII, now the theme's glyphs, and the workspace's Pools tab,
+    which did not say that a volume's TPM2 key had changed. No existing wireframe changed but `help-120x40`, at its
+    line 38 (point 17).
+  - **"the 10,000-snapshot test against B5":** in process only (`examples/snapshots.rs`, `--runs 20`), as B5's pool
+    built by a VM test and `cargo xtask bench` are VE6's. The palette made a clone's name dialog for each snapshot's
+    "Boot a clone" entry as it opened; it now makes it when the entry is chosen (`Then::BootClone`). At 10,000
+    snapshots, median and worst of 20 runs, opening the palette fell from 11.29 and 14.81 ms to 3.99 and 6.44 in the
+    workspace at 120×40, from 10.85 and 11.29 to 3.86 and 4.13 at 80×24, and in the classic menu to 4.30 and 4.93 at
+    120×40 and 3.91 and 4.90 at 80×24; the peak memory fell from 22 to 19 MB, and every key is within a frame. Opening
+    the palette runs no matcher: decision 7 rests on the filter keys and the palette's, at most 1.18 ms median and
+    4.17 worst, and is decided for `nucleo-matcher` on one thread. The numbers are in `docs/luks/testing.rst`,
+    *Benchmarks*.
+- **Point 17:**
+  - **the man page:** `zfsbootmenu(7)` gains *The Menu's Keys*, an introduction written by hand, then *The Workspace*
+    and *Aliases of the fzf Menu*, which `xtask gen-docs` writes through `zbm-tui`'s example `gen_keys`, after
+    `zbm-config`'s `gen_docs`, with `zbm_config::docs::splice`; `gen-docs --check` and a test fail on a stale page.
+    The keys come from `keymap/` (`KEYMAP`, the workspace's tables and `CLASSIC`), not from `keymap.rs` alone. The
+    aliases are a section of their own, of definition entries rather than a table, as the legacy help viewer draws the
+    page at 52 columns; the classic map has none, as it goes with RL2. The workspace's part lists the keys of each
+    place and leaves out those the help lists where they do nothing (below). C, L, N and P are Alt only, as Ctrl-C,
+    Ctrl-L, Ctrl-N and Ctrl-P mean something else everywhere: this is computed from the map, and the help and the page
+    label them `Alt+` (`key-alt`), so that the help's "MOD is Alt or Ctrl" holds for every `MOD+` letter it shows.
+    The page also says that `MOD+J` takes Alt on a serial line or over SSH (below).
+  - **"the Rust menu's help is its help view":** in the menu; Rust images still install the legacy help viewer, whose
+    pages the recovery shell's `help` opens until SB6, and `scripts/rst2help.sh` makes them from
+    `zfsbootmenu.7.rst`, the key section included. `docs/online/` is unchanged.
+  - **the migration guide:** `CHANGES-FROM-LEGACY.md` is the guide for the switch to the Rust runtime (RL1), kept after
+    RL2. *The menu* opens with a table for each legacy screen, from the `fzf` key and what it did to the workspace's
+    key and `zbm.menu=classic`'s (61 rows), with what is gone and what changed its meaning; some `fzf` keys have no new
+    one (`MOD+O` in the list, `ztrace`, `F12`, Ctrl-G, Ctrl-Q), and three spellings of `MOD` (Alt, Ctrl, Ctrl-Alt) go
+    to one or two keys. Each tab's differences follow, the entries moved, not rewritten; one was wrong and is
+    corrected: an edited command line is kept for the environment's later boots until `MOD+T` drops it. Point 18's
+    "edit once" is read so: an edit is not written to the environment, and lasts until `MOD+T` or the menu's end.
+- **Checks:** the wireframes at every size, the classic ones and the workspace's, and the test that none draws a colour
+  in monochrome or ASCII; the `menu_names` fuzz target built under `cargo xtask lint`, with 13 seeds, and the views'
+  tests of what it found; the palette's items, labels, order and what each does the same before and after UI10e-4,
+  and `examples/snapshots.rs`; the man page's tests (every binding of the workspace named, every alias, the Alt-only
+  letters, the page up to date) and `docs::splice`'s; the harness's tests (the keys, `select` on whole words and exact
+  rows, `copy_sparse` keeping holes, the setup's order, the month check) and every step of the five tests scripted
+  against written screens; the offers test. The texts the VM tests wait for are copied from `menu.ftl` and the
+  wireframes, and no test ties them, as `zbm-vmtest` does not depend on `zbm-tui`: their first run may need its
+  patterns fixed, as UI10c's did, and may show a dialog's sentence wrapping beside a pane on the display's 128 columns,
+  or a stale outcome meeting a later wait. The VM run of UI10d and UI10e, on rebuilt images, and the recordings of
+  the new `zfs`, `zpool` and `zdb` outputs (`xtask record-zfs`) are the maintainer's.
+- **Found and left,** none of them new, each changing what the menu does or shows, or the classic wireframes:
+  - the palette offers "Reboot into Firmware Setup" on a BIOS machine too, as `Application::offers` offers
+    `Offer::FirmwareSetup` always (`zbm-app/src/application.rs`): against point 2, in no item yet;
+  - `F1` and `?` do nothing in dialogs, fields, the palette and the review pages, which take keys before the global
+    ones and none of which handles `Intent::Help` (`update/dialogs.rs`, `update/text.rs`, `update/review.rs`), so the
+    help cannot open over a dialog: in no item yet;
+  - Ctrl-J arrives as Enter on a serial line and over SSH (`zbm-display/src/term_keys.rs`), so `MOD+J` typed with Ctrl
+    boots rather than opening the chroot, while the help view shows `MOD+J`; the man page and the migration guide say
+    Alt; the label is in no item yet;
+  - the help lists keys that do nothing where it shows them: Right in Kernels, Up and Down at start-up, Home and End in
+    sheets, Ctrl-R in fields other than the unlock prompt (`keymap/`); the man page leaves them out, and the help's
+    rows, which are in wireframes, are in no item yet;
+  - Ctrl-L, "Redraw", does nothing: `Intent::Redraw` does nothing in `update/mod.rs`, and no front end forces a
+    repaint: in no item yet;
+  - at 52 columns the restore's confirmation cuts the snapshot's name in its title and never names it in its body
+    (`update/diff.rs`), and the palette's "Boot a clone of" entries of snapshots named alike, such as
+    `@autosnap_<date>`, read the same once the date is cut; both are in both maps, so the fix changes classic
+    wireframes: in no item yet.
+- **Not built:** wireframes of point 18's four prototypes at 80×24 or in the workspace; a VM test of destroy, the
+  imports or the PIN under the lock (`integrity-locked`, a later SE9 check) or of a task through the menu over SSH,
+  neither of which point 16 names; and a journal warning when `zbm.menu=classic` is chosen, RL1's if wanted.
+
+UI10 is done but for its VM run, which with `xtask record-zfs` is the maintainer's. What it leaves goes as follows.
+UI14 takes the dry run, the review page without its field (point 12), the persistent command-line edit (point 18) and
+SE9's lock marks in the footer and the palette (ADR 0010); VE6 the pool of 10,000 snapshots built by a VM test and
+`cargo xtask bench` (B5). Point 18's items stay with their features: the package changes of a diff with #21, the
+checks and boot tries with #6 and #7, the comparison of kernels with #22 and the space by month with #23. Of what
+point 1's record leaves, a FIDO2 PIN asked from the menu is CD7's; the re-seal (#11), a crypttab key script that asks
+on the terminal, and destroying an environment are in no item yet. The classic menu, with `docs/online/`, goes with
+RL2 (point 10), and decision 8, the key map, with the sessions of UI11, which run on this build.
 
 ## Questions for the maintainer
 

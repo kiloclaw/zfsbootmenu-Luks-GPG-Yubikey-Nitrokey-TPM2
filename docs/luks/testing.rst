@@ -62,11 +62,11 @@ Running the Tests
 ``zbm-vmtest run`` runs every VM test, or the named ones, one virtual machine at a time, and prints a summary. Setups
 must run before the scenarios that use their disks (``complex-setup`` before ``complex-healthy`` and so on); a setup
 recreates its disks. The groups (``layouts``, ``complex``, ``keys``, ``firmware`` and ``procedures``) use separate
-disks, as does ``runtime``, so several ``zbm-vmtest run`` processes can run different groups at the same time, given the
-memory (4 GB per virtual machine) and processors. Tests of the same group in two processes do not run at once: a test
-waits while another process runs one of its group (a lock file, ``disks/<group>.lock``), so splitting a group over
-two runs saves no time. Each run boots its own links to the ZFSBootMenu images (``zbm/in-use``), so a run that
-rebuilds an image does not take it from another; an image out of date is built by one run while the others wait for
+disks, as do ``runtime`` and ``menu``, so several ``zbm-vmtest run`` processes can run different groups at the same
+time, given the memory (4 GB per virtual machine) and processors. Tests of the same group in two processes do not run at
+once: a test waits while another process runs one of its group (a lock file, ``disks/<group>.lock``), so splitting a
+group over two runs saves no time. Each run boots its own links to the ZFSBootMenu images (``zbm/in-use``), so a run
+that rebuilds an image does not take it from another; an image out of date is built by one run while the others wait for
 it (a lock file beside it).
 
 Environment variables of the VM tests:
@@ -475,6 +475,49 @@ Following a boot
   That boot saves its logs on a FAT disk (``zbm.save_logs=LABEL=ZBMGPULOGS``), and the kernel log saved there must
   hold the hand-back, which comes after the save.
 
+``menu``: the menu's tasks, through its keys
+  The core tasks of the menu of the Rust runtime (ADR 0016, point 16), each driven through the menu's keys, on the
+  serial console and on the display, on four disks of the group's own: d0 of 1 GB, d1 to d3 of 384 MB. ``menu-setup``
+  runs first, and the others in the same month (UTC): the timeline folds the snapshots of an earlier month under its
+  header, so a test then refuses to run and asks for ``menu-setup`` again. Each serial test boots the Rust ``auto``
+  image, and ``menu-display`` the console's (below), on fresh copies of the disks the setup kept, with
+  ``zbm.timeout=30 zbm.prefer=tmenu!!``, which imports ``tmenu`` alone at start-up and leaves the other pools to the
+  menu, so a test that fails costs only itself and can run again alone. What the serial tests did to the disks is
+  checked in the recovery shell, which the palette opens.
+
+  * ``menu-setup``: makes the pools in the recovery shell of the legacy ``auto`` image, as ``runtime-setup`` does, with
+    the payload disk, then keeps sparse copies of the four disks (``pristine-0.img`` to ``pristine-3.img``). ``tmenu``
+    (d0) holds the test boot environment with a second kernel, ``0.0.1-zbmtest``, a copy of the first with its
+    initramfs, and in ``/zbmtest`` three files owned by 1234:5678 with the mode 0640; its snapshots, oldest first, are
+    ``one``, ``two`` (cloned as ``tmenu/two-clone``), ``held`` (held by ``zbmtest-hold``), ``three`` (with the bookmark
+    ``#three``), then a file changed and one removed, ``four`` and ``five``. ``tother`` (d1) has a checkpoint, and
+    ``tother/after`` made after it; ``tlocked`` (d3) is in a LUKS2 volume with a fixed UUID and the passphrase ``pw``;
+    ``tforeign`` (d2) is left imported by the host ``deadbeef``.
+  * ``menu-snapshots``: on the serial console, a rollback to ``four``; one to ``one`` refused, its review page naming
+    the clone and the hold; a new snapshot; a clone; a duplicate; the differences since ``one`` and the restore of the
+    changed and the removed file; the destroy of ``one`` and ``three``, marked; the destroy of ``held`` and of ``two``
+    refused; one destroyed from the palette; and last the clone and promote of ``four``. The recovery shell, opened
+    three times, checks that the space the snapshots hold fell by what ``zfs destroy -n -v -p`` said destroying them
+    frees (ROADMAP.md #15), the datasets, snapshots and bookmark left, the restored files' contents, owner and mode, and
+    the restore's safety snapshot ``be@before-restore-*`` (ROADMAP.md #21).
+  * ``menu-pools``: on the serial console, ``tother`` imported read-only, read/write and read-only again, then rewound
+    to its checkpoint after its review page; ``tforeign`` imported by force after its review page, which names the host
+    ``deadbeef``, then exported; the volume unlocked with ``pw`` and ``tlocked`` imported; last ``tforeign`` imported as
+    its last host. The shell checks which pools are read-only, ``tother/after`` and the checkpoint gone, the host ID
+    ``deadbeef`` and the volume's mapping.
+  * ``menu-boot``, in three boots: with a FAT disk for ``zbm.save_logs``, the palette's entries, with none to give boot
+    tries back or to re-seal; the second kernel booted with ``zbmtest.edited=1`` added to the command line, which the
+    boot environment's ``BE-CMDLINE`` must show and the boot's ``boot.json`` record, with the kernel; then a clone of
+    ``five`` booted from the palette, whose ``BE-ROOT`` must be ``tmenu/ROOT/booted``; then the palette's Power Off.
+  * ``menu-display``, in five boots: the tasks of the three on the console on the display, with the image of
+    ``runtime-rust-console`` (``zbm.console=drm zbm.console_serial=off``), the keys typed with ``sendkey`` and the
+    screens read from the console's mirror on the second serial port (``zbm.console_mirror=/dev/ttyS1``). Each boot
+    answers the start-up view's LUKS dialog empty when it shows, which leaves the volume to the menu, then does one
+    part: the snapshots and the pools, each ending with Power Off; the kernel and the edited command line, with a FAT
+    disk; the clone; and the palette's Reboot, which resets the machine (``sysrq: Resetting``). It opens no recovery
+    shell, which runs on the console's pseudo-terminal: it checks what the menu shows after each step, and leaves the
+    disks to the serial tests.
+
 Results
 -------
 
@@ -622,10 +665,16 @@ Test                              Passed  Failed  Duration
 Total                             920     0
 ================================  ======  ======  ========
 
-Every test of the table but the ``oldzfs`` ones passed again on 3 November 2026, after DM7c of ADR 0015 (``zbm-boot``
-without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to ``zfs load-key`` on its
-standard input; the boot line and the prompts of a failed boot through the front end's ``Interaction``), on images
-rebuilt for that run, in four lanes with KVM: 900 checks, each test with the count of the table.
+The ``menu`` group (UI10e, ADR 0016 point 16) has not run yet, so the table has no rows for it. With KVM, and without
+building its images (the Rust ``auto`` image, the legacy one for ``menu-setup``, and ``runtime-rust-console``'s for
+``menu-display``, which the ``runtime`` group builds too), ``menu-setup``, ``menu-pools`` and ``menu-boot`` are
+expected to take about 3 minutes each, ``menu-snapshots`` about 4.5 and ``menu-display`` 9 to 11, about 23 in all.
+
+Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
+ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to
+``zfs load-key`` on its standard input; the boot line and the prompts of a failed boot through the front end's
+``Interaction``), on images rebuilt for that run, in four lanes with KVM: 900 checks, each test with the count of the
+table.
 
 They passed again on 3 November 2026 after the rest of DM7 (``zbm-bootenv`` split out of ``zbm-boot``, the root
 argument through ``boot_root``, the narrow public API of both crates), on images rebuilt for that run, in the same four
