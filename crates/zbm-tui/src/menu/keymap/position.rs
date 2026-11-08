@@ -6,7 +6,7 @@
 //! it is typed, and text fields take every character as typed.
 
 use zbm_display::keys::{Key, KeyPress};
-use zbm_display::layout::Positions;
+use zbm_display::layout::{MAIN_BLOCK, Positions};
 
 use super::{CLASSIC, Context, Input, Map, Modifiers, folded, input, is_text};
 
@@ -25,7 +25,8 @@ pub(crate) struct Typing<'p> {
 /// with these modifiers, what the US character of its key says, at the
 /// level Shift gives. The key is that of its lower case, else its own:
 /// Caps Lock on the French digit row types `É`, which no key gives without
-/// it. A character no key of the main block gives (`AltGr`'s, a composed
+/// it; of two keys that give it, the one at that level ([`key_at`]). A
+/// character no key of the main block gives (`AltGr`'s, a composed
 /// one) and one of the keypad are as typed. Without `typing` (a terminal's
 /// characters, the kernel console's, the US layout's), [`input`] alone.
 pub(crate) fn input_on(
@@ -46,9 +47,9 @@ pub(crate) fn input_on(
     if is_bound_anywhere(map, lower, Modifiers::of(&press)) {
         return None;
     }
-    let (code, _) = [lower, c]
+    let code = [lower, c]
         .into_iter()
-        .find_map(|c| typing.layout.key_of(c))?;
+        .find_map(|c| key_at(typing.layout, c, press.shift))?;
     let us = typing.us.character_of(code, press.shift)?;
     input(
         map,
@@ -58,6 +59,20 @@ pub(crate) fn input_on(
             ..press
         },
     )
+}
+
+/// The key of `layout` that gives `c`, by key code: the first that gives
+/// it at the level `shift` says, else the first that gives it at all. Only
+/// the character reaches the menu, not the key: Dvorak's `<` is the ISO
+/// key's own and the US `w` key's with Shift, so the ISO key counts as
+/// itself and `Shift-w` as `w`; with Shift both give `>`, which counts as
+/// the first, the US `e` key.
+fn key_at(layout: &Positions, c: char, shift: bool) -> Option<u16> {
+    MAIN_BLOCK
+        .iter()
+        .copied()
+        .find(|&code| layout.character_of(code, shift) == Some(c))
+        .or_else(|| layout.key_of(c).map(|(code, _)| code))
 }
 
 /// Whether `map` binds the character `c` with `modifiers` in some view:

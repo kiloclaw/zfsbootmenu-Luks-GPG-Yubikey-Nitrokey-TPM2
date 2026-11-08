@@ -1,0 +1,101 @@
+---
+source: crates/zbm-tui/src/menu/keymap/layouts_tests/charts.rs
+description: "Each key of the main block, by Linux key code, plain and with Shift: what the layout types, the character the menu counts it as (rule 3 of docs/dev/menu-design/keymap.md), and what it does in the workspace's Boot, Snapshots and Pools tabs; · for nothing."
+---
+key      typed      counted  Boot tab         Snapshots tab    Pools tab
+41       `          `        ·                ·                ·
+41 Shift ~          ~        ·                ·                ·
+2        1          1        Tab(Boot)        Tab(Boot)        Tab(Boot)
+2 Shift  !          !        Recovery         Recovery         Recovery
+3        2          2        Tab(Snapshots)   Tab(Snapshots)   Tab(Snapshots)
+3 Shift  @          @        ·                ·                ·
+4        3          3        Tab(Pools)       Tab(Pools)       Tab(Pools)
+4 Shift  #          #        ·                ·                ·
+5        4          4        Tab(Log)         Tab(Log)         Tab(Log)
+5 Shift  $          $        ·                ·                ·
+6        5          5        ·                ·                ·
+6 Shift  %          %        ·                ·                ·
+7        6          6        ·                ·                ·
+7 Shift  ^          ^        ·                ·                ·
+8        7          7        ·                ·                ·
+8 Shift  &          &        ·                ·                ·
+9        8          8        ·                ·                ·
+9 Shift  *          *        ·                ·                ·
+10       9          9        ·                ·                ·
+10 Shift (          (        ·                ·                ·
+11       0          0        ·                ·                ·
+11 Shift )          )        ·                ·                ·
+12       -          -        ·                ·                ·
+12 Shift _          _        ·                ·                ·
+13       =          =        ·                ·                ·
+13 Shift +          +        ·                ·                ·
+16       q          q        ·                ·                ·
+16 Shift Q          Q        ·                ·                ·
+17       w          w        ReadWrite        ·                ReadWrite
+17 Shift W          W        ReadWrite        ·                ReadWrite
+18       e          e        Edit             ·                ·
+18 Shift E          E        Edit             ·                ·
+19       r          r        ·                Rollback         ·
+19 Shift R          R        ·                Rollback         ·
+20       t          t        ·                ·                ·
+20 Shift T          T        ·                ·                ·
+21       y          y        ·                Duplicate        ·
+21 Shift Y          Y        ·                Duplicate        ·
+22       u          u        ·                ·                Unlock
+22 Shift U          U        ·                ·                Unlock
+23       i          i        ·                ·                Import
+23 Shift I          I        ·                ·                Import
+24       o          o        ·                Sort             ·
+24 Shift O          O        ·                Sort             ·
+25       p          p        ·                ·                ·
+25 Shift P          P        ·                ·                ·
+26       [          [        ·                ·                ·
+26 Shift {          {        ·                ·                ·
+27       ]          ]        ·                ·                ·
+27 Shift }          }        ·                ·                ·
+43       \          \        ·                ·                ·
+43 Shift |          |        ·                ·                ·
+30       a          a        ·                ·                ·
+30 Shift A          A        ·                ·                ·
+31       s          s        Snapshots        ·                ·
+31 Shift S          S        Snapshots        ·                ·
+32       d          d        SetDefault       ·                ·
+32 Shift D          D        SetDefault       ·                ·
+33       f          f        ·                Diff             ·
+33 Shift F          F        ·                Diff             ·
+34       g          g        ·                ·                ·
+34 Shift G          G        ·                ·                ·
+35       h          h        Back             Back             Back
+35 Shift H          H        Back             Back             Back
+36       j          j        Down             Down             Down
+36 Shift J          J        Down             Down             Down
+37       k          k        Up               Up               Up
+37 Shift K          K        Up               Up               Up
+38       l          l        Kernels          ·                ·
+38 Shift L          L        Kernels          ·                ·
+39       ;          ;        ·                ·                ·
+39 Shift :          :        Palette          Palette          Palette
+40       '          '        ·                ·                ·
+40 Shift "          "        ·                ·                ·
+86       <          <        ·                ·                ·
+86 Shift >          >        ·                ·                ·
+44       z          z        ·                Fold             ·
+44 Shift Z          Z        ·                Fold             ·
+45       x          x        Power            Power            Power
+45 Shift X          X        Power            Power            Power
+46       c          c        ·                Clone            ·
+46 Shift C          C        ·                Clone            ·
+47       v          v        ·                ·                ·
+47 Shift V          V        ·                ·                ·
+48       b          b        Boot             Boot             ·
+48 Shift B          B        Boot             Boot             ·
+49       n          n        NewSnapshot      NewSnapshot      ·
+49 Shift N          N        NewSnapshot      NewSnapshot      ·
+50       m          m        ·                CloneAndPromote  ·
+50 Shift M          M        ·                CloneAndPromote  ·
+51       ,          ,        ·                ·                ·
+51 Shift <          <        ·                ·                ·
+52       .          .        ·                ·                ·
+52 Shift >          >        ·                ·                ·
+53       /          /        Filter           Filter           Filter
+53 Shift ?          ?        Help             Help             Help

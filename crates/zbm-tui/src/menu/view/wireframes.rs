@@ -42,6 +42,7 @@ struct Wireframe {
 }
 
 mod classic;
+mod layouts;
 mod workspace;
 mod workspace_dialogs;
 

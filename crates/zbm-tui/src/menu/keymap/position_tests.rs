@@ -168,6 +168,24 @@ fn the_shifted_level_counts_as_the_us_shifted_character() {
 }
 
 #[test]
+fn of_two_keys_that_type_a_character_the_one_at_its_level_counts() {
+    // Dvorak types `<` on the ISO key and with Shift on the US `w`, and
+    // `>` with Shift on both the ISO key and the US `e`.
+    let dvorak = layout(&[(17, ',', '<'), (18, '.', '>'), (86, '<', '>')]);
+    // Plain, `<` is the ISO key's, which US gives nothing.
+    assert_eq!(on(&dvorak, Context::Main, '<', NONE), None);
+    assert_eq!(
+        on(&dvorak, Context::Main, '<', Modifiers::SHIFT),
+        Some(intent(Intent::ReadWrite))
+    );
+    // The menu is told the character, not the key: `>` is the first's.
+    assert_eq!(
+        on(&dvorak, Context::Main, '>', Modifiers::SHIFT),
+        Some(intent(Intent::Edit))
+    );
+}
+
+#[test]
 fn a_keypad_character_counts_as_typed() {
     let us = Positions::us();
     let keypad = |positions: &Positions, c: char| {

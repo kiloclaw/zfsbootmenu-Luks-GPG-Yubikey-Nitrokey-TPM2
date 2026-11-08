@@ -573,6 +573,8 @@ fn text(press: KeyPress) -> Option<Input> {
 #[cfg(test)]
 mod case_tests;
 #[cfg(test)]
+pub(crate) mod layouts_tests;
+#[cfg(test)]
 mod position_tests;
 #[cfg(test)]
 mod tests;

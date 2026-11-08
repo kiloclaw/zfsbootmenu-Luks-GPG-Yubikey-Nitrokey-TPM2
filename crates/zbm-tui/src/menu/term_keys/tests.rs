@@ -2,9 +2,17 @@ use std::io::Write as _;
 
 use pretty_assertions::assert_eq;
 use zbm_display::keys::{Key, KeyPress};
+use zbm_display::layout::MAIN_BLOCK;
 
 use super::*;
-use crate::menu::keymap::{Modifiers, press};
+use crate::menu::caps::Capabilities;
+use crate::menu::demo::{DemoOptions, data};
+use crate::menu::keymap::layouts_tests::{LAYOUTS, all_positions, positions};
+use crate::menu::keymap::{Map, Modifiers, press};
+use crate::menu::model::{Model, Screen, TypedOn};
+use crate::menu::theme::Theme;
+use crate::menu::update::{Message, update};
+use crate::menu::world::{Action, Snapshot};
 
 /// `code` with no modifier.
 fn plain(code: Key) -> KeyPress {
@@ -132,4 +140,85 @@ fn only_the_line_feed_right_after_a_carriage_return_joins_it() {
     assert_eq!(keys.key(TICK).unwrap(), None);
     writer.write_all(b"\n").unwrap();
     assert_eq!(keys.key(TICK).unwrap(), enter);
+}
+
+/// The menu on a serial console under `map` in `screen`, of the machine of
+/// `snapshot`.
+fn on_a_terminal(snapshot: &Snapshot, map: Map, screen: Screen) -> Model {
+    let mut model = Model::new(snapshot.clone(), Theme::new(Capabilities::FULL));
+    model.map = map;
+    model.started = true;
+    model.screen = screen;
+    model
+}
+
+/// The press `bytes` decode into, alone.
+fn decoded(bytes: &[u8]) -> KeyPress {
+    let mut keys = Vec::new();
+    decode(bytes, true, &mut keys);
+    let [press] = keys[..] else {
+        panic!("{bytes:?} are {keys:?}");
+    };
+    press
+}
+
+/// A machine on a serial console whose image has the six layouts, `first`
+/// the console's own.
+fn serial(first: &str) -> Snapshot {
+    let mut snapshot = data::machine(&DemoOptions::default());
+    snapshot.keyboard.layouts = vec![first.to_owned(), "us".to_owned()];
+    snapshot.keyboard.positions = all_positions();
+    snapshot.keyboard.local = false;
+    snapshot
+}
+
+#[test]
+fn a_terminal_types_every_character_of_six_layouts_as_typed() {
+    let mut checked = 0;
+    for name in LAYOUTS {
+        // A terminal sends characters, whatever the console's layout.
+        let snapshot = serial(name);
+        let layout = positions(name);
+        let characters = MAIN_BLOCK
+            .iter()
+            .flat_map(|&code| [false, true].map(|shift| layout.character_of(code, shift)))
+            .flatten();
+        for c in characters {
+            let press = decoded(c.to_string().as_bytes());
+            assert_eq!(press.key, Key::Char(c));
+            for (map, screen) in [
+                (Map::Classic, Screen::Main),
+                (Map::Workspace, Screen::Main),
+                (Map::Workspace, Screen::Snapshots),
+            ] {
+                let terminal = update(on_a_terminal(&snapshot, map, screen), Message::Key(press));
+                // The same character typed on a US keyboard is as typed.
+                let us = Message::TypedOn(Some(TypedOn::Layout("us".to_owned())));
+                let keyboard = update(on_a_terminal(&snapshot, map, screen), us).0;
+                let (mut keyboard, asked) = update(keyboard, Message::Key(press));
+                keyboard.typed_on = None;
+                assert!(terminal == (keyboard, asked), "{c} on {name}, {map:?}");
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 1000, "{checked} characters");
+
+    // The keys that type nothing work.
+    let snapshot = serial("ru");
+    let terminal = |bytes: &[u8]| {
+        let model = on_a_terminal(&snapshot, Map::Workspace, Screen::Main);
+        update(model, Message::Key(decoded(bytes)))
+    };
+    assert_eq!(terminal(b"\x1b[B").0.environments.selected, 1);
+    let (up, _) = update(terminal(b"\x1b[B").0, Message::Key(decoded(b"\x1b[A")));
+    assert_eq!(up.environments.selected, 0);
+    assert_eq!(terminal(b"\t").0.screen, Screen::Snapshots);
+    assert!(terminal(b":").0.palette.is_some());
+    assert!(matches!(
+        terminal(b"\r").1.as_slice(),
+        [Action::Boot { .. }]
+    ));
+    // A Russian letter in the place of a US one means nothing.
+    assert_eq!(terminal("л".as_bytes()).0.screen, Screen::Main);
 }

@@ -9,6 +9,12 @@ use zbm_display::keys::Key;
 use zbm_platform::event::spawn_scoped_traced;
 
 use super::*;
+use crate::menu::caps::Capabilities;
+use crate::menu::demo::{DemoOptions, Session};
+use crate::menu::keymap::layouts_tests::{LAYOUTS, SixLayouts, typed};
+use crate::menu::keymap::{Context, Map};
+use crate::menu::model::Screen;
+use crate::menu::theme::Theme;
 
 const CAPS: Caps = Caps {
     columns: 12,
@@ -237,4 +243,53 @@ fn a_key_from_the_console_s_serial_terminal_is_a_character() {
             Some(TypedOn::Layout("de".to_owned()))
         ]
     );
+}
+
+/// The keys of the sample, as a US keyboard types them from the Boot tab:
+/// the kernels, the Snapshots tab, help, and `Ctrl-C` back to the tab.
+fn sample() -> [KeyPress; 4] {
+    let c = |c| KeyPress::new(Key::Char(c));
+    [c('l'), c('2'), c('?'), c('c').with_ctrl()]
+}
+
+#[test]
+fn the_console_s_cells_carry_each_layout_to_the_intent() {
+    let options = DemoOptions::default();
+    let theme = || Theme::new(Capabilities::FULL);
+    let mut us = Session::new(&options, theme());
+    us.start();
+    let shown: Vec<_> = sample()
+        .into_iter()
+        .map(|press| {
+            us.press(press);
+            us.model().screen
+        })
+        .collect();
+    // Each key changes the screen, so each checks the key it was typed as.
+    assert_eq!(
+        shown,
+        [
+            Screen::Kernels,
+            Screen::Snapshots,
+            Screen::Help(Context::Snapshots),
+            Screen::Snapshots,
+        ]
+    );
+    for name in LAYOUTS {
+        let (menu, console) = Connection::pair().unwrap();
+        let mut keys = CellKeys::new(Arc::new(menu), CAPS);
+        let mut session = Session::on(SixLayouts::new(&options), theme(), Map::Workspace);
+        session.start();
+        for (press, screen) in sample().into_iter().zip(&shown) {
+            for press in typed(name, Map::Workspace, press) {
+                let layout = name.to_owned();
+                console
+                    .send(&FromConsole::Key { press, layout }.encode())
+                    .unwrap();
+                let press = keys.key(Duration::from_secs(5)).unwrap().unwrap();
+                session.press_typed_on(press, keys.typed_on());
+            }
+            assert_eq!(session.model().screen, *screen, "{name}");
+        }
+    }
 }
