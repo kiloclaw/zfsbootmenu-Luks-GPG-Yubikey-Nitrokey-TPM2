@@ -15,6 +15,7 @@ use super::theme::{Glyph, Role};
 use super::world::Outcome;
 use crate::text::text;
 
+mod command_line;
 mod device_log;
 mod dialogs;
 mod diff;

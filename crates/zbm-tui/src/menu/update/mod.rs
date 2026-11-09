@@ -10,6 +10,7 @@ use super::keymap::{self, Input, Intent, Tab};
 use super::model::{Dialog, Model, Screen, TypedOn};
 use super::world::{Action, Event, Outcome};
 
+mod command_line;
 mod dialogs;
 mod diff;
 mod dry_run;
@@ -23,8 +24,8 @@ mod snapshots;
 mod text;
 mod unlock;
 
+pub use command_line::palette_items;
 pub use dialogs::follow;
-pub use text::palette_items;
 
 /// What happened.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -113,7 +114,7 @@ fn handle(model: &mut Model, input: Input) -> Vec<Action> {
         return dialogs::handle(model, input);
     }
     if model.palette.is_some() {
-        return text::palette(model, input);
+        return command_line::palette(model, input);
     }
     if model.screen == Screen::CommandLine {
         return text::editor(model, input);
@@ -136,7 +137,7 @@ fn handle(model: &mut Model, input: Input) -> Vec<Action> {
 /// The intents of every view; `None` when the view decides.
 fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
     match intent {
-        Intent::Palette => text::open_palette(model),
+        Intent::Palette => command_line::open_palette(model),
         Intent::Help => {
             let context = model.context();
             model.screen = Screen::Help(context);

@@ -1,8 +1,9 @@
-//! Alerts, action sheets and the command palette, over the dimmed view
+//! Alerts and action sheets, and the command palette drawn in
+//! [`command_line`](super::command_line), over the dimmed view
 //! (`docs/dev/menu-design/apple-hig.md`, rules 6 to 8).
 
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Flex, Layout, Position, Rect};
+use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
@@ -10,7 +11,6 @@ use ratatui::widgets::{
 };
 use zbm_types::{ImportPolicy, Printable};
 
-use super::lists;
 use crate::menu::format::{capitalised, fit};
 use crate::menu::model::{Choice, Dialog, Model, Naming, Then};
 use crate::menu::theme::{Glyph, Role, Theme};
@@ -71,13 +71,13 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         Some(Dialog::Review(reviewing)) => super::review::render(model, frame, area, reviewing),
         Some(Dialog::Name(naming)) => name(theme, frame, area, naming),
         Some(Dialog::Error { what, why, next }) => error(theme, frame, area, (what, why, next)),
-        None => palette(model, frame, area),
+        None => super::command_line::palette(model, frame, area),
     }
 }
 
 /// A box of `width` by `height` in the middle of `area`, cleared to the
 /// text style, so that text without a role reads as primary.
-fn centred(theme: Theme, frame: &mut Frame<'_>, area: Rect, size: (u16, u16)) -> Rect {
+pub(super) fn centred(theme: Theme, frame: &mut Frame<'_>, area: Rect, size: (u16, u16)) -> Rect {
     let (width, height) = size;
     let [row] = Layout::vertical([Constraint::Length(height.min(area.height))])
         .flex(Flex::Center)
@@ -378,48 +378,6 @@ fn error(
             danger: true,
         },
     );
-}
-
-/// The command palette: the query, then the best matches.
-fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    let Some(palette) = &model.palette else {
-        return;
-    };
-    let theme = model.theme;
-    let items = &palette.items;
-    let height = area.height.saturating_sub(2).min(16);
-    let width = area.width.saturating_sub(4).min(70);
-    let rect = centred(theme, frame, area, (width, height));
-    let count = text!(
-        "list-count-of",
-        shown = palette.matches.len(),
-        total = items.len()
-    );
-    let block = lists::counted(theme, &text!("palette-title"), &count);
-    let inner = block.inner(rect);
-    frame.render_widget(block, rect);
-    let [query, list] = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).areas(inner);
-    frame.render_widget(Paragraph::new(format!(": {}", palette.query)), query);
-    let column = u16::try_from(palette.query.chars().count() + 2).unwrap_or(u16::MAX);
-    frame.set_cursor_position(Position::new(query.x.saturating_add(column), query.y));
-    let rows: Vec<ListItem<'static>> = palette
-        .matches
-        .iter()
-        .take(usize::from(list.height).max(palette.selected + 1))
-        .filter_map(|ranked| {
-            let item = items.get(ranked.index)?;
-            let room = usize::from(list.width).saturating_sub(2);
-            let label = fit(&item.label, room, theme.is_ascii());
-            let line = Line::from(lists::highlighted(theme, &label, &ranked.positions));
-            Some(ListItem::new(line))
-        })
-        .collect();
-    let widget = List::new(rows)
-        .highlight_symbol(Line::from(format!("{} ", theme.glyph(Glyph::Selected))))
-        .highlight_spacing(HighlightSpacing::Always)
-        .highlight_style(theme.style(Role::Selected));
-    let mut state = ListState::default().with_selected(Some(palette.selected));
-    frame.render_stateful_widget(widget, list, &mut state);
 }
 
 #[cfg(test)]

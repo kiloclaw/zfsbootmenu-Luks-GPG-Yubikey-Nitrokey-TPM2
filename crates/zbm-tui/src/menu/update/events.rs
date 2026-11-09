@@ -19,7 +19,7 @@ pub(super) fn apply(model: &mut Model, event: Event) -> Vec<Action> {
         // The countdown goes on.
         Event::PoolsScanned(pools) => {
             model.replace_pools(pools);
-            super::text::palette_again(model);
+            super::command_line::palette_again(model);
         }
         Event::DeviceLogLoaded(log) => model.device_log = Some(log),
         Event::HistoryLoaded(history) => {
@@ -28,7 +28,7 @@ pub(super) fn apply(model: &mut Model, event: Event) -> Vec<Action> {
         }
         Event::SnapshotsLoaded(list) => {
             model.take_loaded(list);
-            super::text::palette_again(model);
+            super::command_line::palette_again(model);
         }
         Event::SnapshotsUnread(environment) => model.not_readable(environment),
         Event::UnlockRequested {
@@ -98,7 +98,7 @@ fn changed(model: &mut Model, snapshot: Snapshot) -> Vec<Action> {
     model.device_log = None;
     model.replace_snapshot(snapshot);
     start(model);
-    super::text::palette_again(model);
+    super::command_line::palette_again(model);
     let mut actions = super::review::again(model);
     if model.tab() == Tab::Snapshots && model.needs_load() {
         actions.extend(super::snapshots::load(model));
