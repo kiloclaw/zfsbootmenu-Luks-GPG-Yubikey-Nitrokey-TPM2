@@ -12,8 +12,9 @@ The Rust runtime, which will replace the shell one, has a new menu: a workspace 
 and Log), with columns that drill down from a pool to its environments and their kernels or snapshots, an inspector,
 and a list of what needs attention. Anything that cannot be undone opens a review page first. The same menu runs on a
 serial console at 80×24, in ASCII, over SSH, and as lines for screen readers; the `:` key opens a palette of
-commands. Build an image with `zfsbootmenu_runtime=rust` to use it; the shell runtime, with its `fzf` menu, stays the
-default until then.
+commands. Build an image with `zfsbootmenu_runtime=rust` to use it
+([step by step](#building-an-image-with-the-rust-runtime-and-the-new-menu)); the shell runtime, with its `fzf` menu,
+stays the default until then.
 
 ![The Boot tab: pools, LUKS volumes and what needs attention; the boot environments of zroot; the kernels of the
 selected one; and the inspector with its checks, command line and next steps](assets/menu/boot.png)
@@ -33,6 +34,108 @@ alternative, and the name to type to confirm](assets/menu/rollback-review.png)
 
 These are the menu's own screens of its demo machine (`zbm-tui --demo`), drawn at 120×40 in the font and colours of
 the console on the display.
+
+### Building an image with the Rust runtime and the new menu
+
+These steps build an EFI image whose boot runtime is `zbm`, the Rust program, with the new menu. They use the build
+container, which pins the kernel (Linux 7.3) and OpenZFS (2.4.4) and has every tool the image needs. Run them as root
+on a Linux machine with a UEFI firmware and its EFI system partition (ESP) mounted at `/boot/efi`.
+[Building ZFSBootMenu](docs/general/building.rst) explains every step in more detail and covers building on the host.
+
+1. **Install the tools**: `git`, `efibootmgr`, and `podman` (or Docker 23 or later).
+
+2. **Clone this repository's `claude/zbm-refactor` branch.** The default branch, `master`, still has the upstream
+   layout and none of the Rust code.
+
+   ```sh
+   git clone --branch claude/zbm-refactor \
+     https://github.com/kiloclaw/zfsbootmenu-Luks-GPG-Yubikey-Nitrokey-TPM2 /usr/src/zbm
+   ```
+
+3. **Build the container image.** It is not published; this builds it locally as `localhost/zbm-builder`, the image
+   `zbm-builder.sh` uses.
+
+   ```sh
+   cd /usr/src/zbm && podman build -t localhost/zbm-builder packaging/container
+   ```
+
+4. **Prepare a build directory** with a copy of the container's configuration:
+
+   ```sh
+   mkdir -p /root/zbm-build/dracut.conf.d
+   cp /usr/src/zbm/config/zbm-builder/config.yaml /root/zbm-build/config.yaml
+   ```
+
+5. **Choose the Rust runtime.** This build option replaces the shell runtime's boot code with `zbm`:
+
+   ```sh
+   echo 'zfsbootmenu_runtime=rust' > /root/zbm-build/dracut.conf.d/runtime.conf
+   ```
+
+6. **Add `init_on_free=1` to the image's command line**, so that the kernel zeroes the memory it frees, passphrases
+   included. Edit `Kernel.CommandLine` in `/root/zbm-build/config.yaml`:
+
+   ```yaml
+   Kernel:
+     Version: 7.3.*
+     CommandLine: zfsbootmenu ro quiet loglevel=4 nomodeset init_on_free=1
+   ```
+
+7. **(LUKS only) Add a crypttab** if your pools are on LUKS volumes and you want to choose volumes, keys or options.
+   With no crypttab, the menu offers every LUKS volume and asks for a passphrase or uses its TPM2 or FIDO2 token.
+   Copy your crypttab ([`zfsbootmenu-crypttab(5)`](docs/man/zfsbootmenu-crypttab.5.rst),
+   [`examples/crypttab`](examples/crypttab)) into the build directory and point the build at it:
+
+   ```sh
+   cp /etc/zfsbootmenu/crypttab /root/zbm-build/crypttab
+   echo 'zfsbootmenu_luks_crypttab="/build/crypttab"' > /root/zbm-build/dracut.conf.d/luks.conf
+   ```
+
+   Keep GnuPG-encrypted key files in `/root/zbm-build/keys/` and name them in the crypttab by their path in the
+   container, such as `/build/keys/zroot.key.gpg`. Key files that are not encrypted are not embedded. See
+   [ZFS Pools on LUKS Volumes](docs/general/luks.rst) for TPM2, FIDO2 (YubiKey, Nitrokey), OpenPGP cards and YubiKey
+   challenge-response.
+
+8. **Build the image.** `-l` builds the programs from your clone; without it, the container fetches upstream
+   ZFSBootMenu, which has no Rust runtime. The host's `/etc/hostid` is copied into the image.
+
+   ```sh
+   /usr/src/zbm/packaging/container/zbm-builder.sh -b /root/zbm-build -l /usr/src/zbm
+   ```
+
+   The EFI image is `/root/zbm-build/build/vmlinuz.EFI`; a kernel and initramfs pair (`vmlinuz-bootmenu`,
+   `initramfs-bootmenu.img`) is built beside it. The first build compiles the Rust programs and takes a while.
+
+9. **Copy the image to the ESP**, keeping the image you had as a backup:
+
+   ```sh
+   mkdir -p /boot/efi/EFI/zbm
+   [ -e /boot/efi/EFI/zbm/vmlinuz.EFI ] && cp /boot/efi/EFI/zbm/vmlinuz.EFI /boot/efi/EFI/zbm/vmlinuz-backup.EFI
+   cp /root/zbm-build/build/vmlinuz.EFI /boot/efi/EFI/zbm/vmlinuz.EFI
+   ```
+
+10. **Add firmware boot entries**, once. `BOOT_DISK` and `BOOT_PART` name the ESP (for `/dev/nvme0n1p1`:
+    `/dev/nvme0n1` and `1`):
+
+    ```sh
+    efibootmgr -c -d "$BOOT_DISK" -p "$BOOT_PART" -L "ZFSBootMenu (Backup)" -l '\EFI\ZBM\VMLINUZ-BACKUP.EFI'
+    efibootmgr -c -d "$BOOT_DISK" -p "$BOOT_PART" -L "ZFSBootMenu" -l '\EFI\ZBM\VMLINUZ.EFI'
+    ```
+
+    `efibootmgr -c` puts the new entry first in the boot order.
+
+11. **Reboot.** The workspace opens: the Boot tab counts down to the default boot environment (the pool's `bootfs`).
+    Press any key to choose another. **1** to **4** choose the Boot, Snapshots, Pools and Log tabs, **Enter**
+    boots what is selected, **?** lists the keys of the view, **:** opens the command line and **!** the recovery
+    tools. `zfsbootmenu(7)` describes every key and kernel option.
+
+If the new image does not boot, choose "ZFSBootMenu (Backup)" in the firmware's boot menu. To try the classic menu
+with the same image, add `zbm.menu=classic` to the command line (for this release only); to have the menu read as
+lines by a screen reader, `zbm.menu=lines`. To rebuild after an update, run `git -C /usr/src/zbm pull`, rebuild the
+container image if `packaging/container/` changed, and repeat steps 8 and 9.
+
+The Rust runtime boots, unlocks and runs the menu by itself. Its recovery shell still offers the shell runtime's
+tools, so the image keeps Bash and a few of their programs.
 
 ### ZFS pools on LUKS volumes
 
