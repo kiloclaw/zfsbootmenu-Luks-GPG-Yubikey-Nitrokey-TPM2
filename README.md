@@ -6,7 +6,33 @@ ZFSBootMenu is a Linux bootloader that attempts to provide an experience similar
 
 In essence, ZFSBootMenu is a small, self-contained Linux system that knows how to find other Linux kernels and initramfs images within ZFS filesystems. When a suitable kernel and initramfs are identified (either through an automatic process or direct user selection), ZFSBootMenu launches that kernel using the `kexec` command.
 
-![screenshot](/assets/v2.3.0-multi-be.png)
+### The new menu
+
+The Rust runtime, which will replace the shell one, has a new menu: a workspace of four tabs (Boot, Snapshots, Pools
+and Log), with columns that drill down from a pool to its environments and their kernels or snapshots, an inspector,
+and a list of what needs attention. Anything that cannot be undone opens a review page first. The same menu runs on a
+serial console at 80×24, in ASCII, over SSH, and as lines for screen readers; the `:` key opens a palette of
+commands. Build an image with `zfsbootmenu_runtime=rust` to use it; the shell runtime, with its `fzf` menu, stays the
+default until then.
+
+![The Boot tab: pools, LUKS volumes and what needs attention; the boot environments of zroot; the kernels of the
+selected one; and the inspector with its checks, command line and next steps](assets/menu/boot.png)
+
+*The Boot tab, counting down to the default environment.*
+
+![The Snapshots tab: the snapshots of zroot/ROOT/void by week, earlier months folded, with their age and size
+](assets/menu/snapshots.png)
+
+*The Snapshots tab: a timeline that folds earlier months; a snapshot can be diffed, restored from, cloned or rolled
+back.*
+
+![A review page before a rollback: the snapshots and data that are lost, the zfs command that runs, the safer
+alternative, and the name to type to confirm](assets/menu/rollback-review.png)
+
+*A rollback's review page: what is lost, the command that runs, and a safer alternative.*
+
+These are the menu's own screens of its demo machine (`zbm-tui --demo`), drawn at 120×40 in the font and colours of
+the console on the display.
 
 ### ZFS pools on LUKS volumes
 
@@ -54,9 +80,10 @@ the booted system.
 | `docs/` | Sphinx documentation and manual pages. Gentoo installation guides are in `docs/guides/gentoo/`. |
 | `assets/` | Logos, screenshots and the splash image. |
 
-The boot runtime that ships is the Bash code under `legacy/zfsbootmenu/`; the host tools `generate-zbm` and `zbm-kcl`
-are the Rust ones in `crates/`, which replaced the Perl and Bash tools and build the same images. The Rust runtime will
-replace the Bash one as a whole, after a beta; images already include its program, `zbm`, but do not use it. `make`
+The boot runtime that ships by default is the Bash code under `legacy/zfsbootmenu/`; the host tools `generate-zbm` and
+`zbm-kcl` are the Rust ones in `crates/`, which replaced the Perl and Bash tools and build the same images. The Rust
+runtime, `zbm` with the new menu, is chosen with `zfsbootmenu_runtime=rust` and will replace the Bash one as a whole,
+after a beta. `make`
 builds the Rust programs, and `make install` installs them with files from `legacy/zfsbootmenu/`, `packaging/dracut/`,
 `packaging/initcpio/`, `config/zfsbootmenu/`, `contrib/`, `examples/` and `docs/man/dist/`, plus `assets/splash.bmp`.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test
