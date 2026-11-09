@@ -26,7 +26,8 @@ Decision 18, for both maps, built by UI15 ([ADR 0007](../adr/0007-menu-workspace
 2. **No action depends on case.** A letter and its capital are one key; Shift and Caps Lock change no action. Risky
    actions open their review page instead of hiding behind Shift. As built: a character is looked up by its lower
    case, but a plain character in a text field, which is typed as is; `Ctrl` and `Alt` with a capital reach the
-   table's binding before the `fzf` aliases. The palette's query keeps its smart case, as a query is text.
+   table's binding before the `fzf` aliases. The command line's query ignores case, so Caps Lock changes nothing it
+   finds; a list's filter keeps its smart case, as a query is text.
 3. **Keys by position on the display console.** A character the map does not bind counts as the character the same key
    types on the US layout, at the same level, through the layout's `Positions` (UI1): `й` is `q`, AZERTY's `&` is `1`,
    `Ctrl` with the key labelled `с` is `Ctrl-C`. Characters the map binds count as typed. Text fields take characters
@@ -84,7 +85,7 @@ to the other in the changes.
 | Pools | `i` import…: read-only, read/write, as the host that owns it, at its checkpoint, or forced; `w` read/write…; `u` unlock…; `Enter` on a device: its kernel messages |
 | Start-up | `j` `k`, the arrows and `Enter` a choice (the digits choose none yet, in no item); between choices, as the Boot tab, only `Tab` and `Shift-Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), the arrows, `Ctrl-P` and `Ctrl-N` move, `?` and `F1` open help; any other key, the digits and `j` `k` included, starts typing ahead of the next dialog, and the tab bar names no digit. On another tab during start-up, `1` to `4` choose a tab |
 | Review page | every character, the letters, digits and `?` too, types the target's name, `Backspace` and `Ctrl-U` erase it; `Enter` the change once it is planned and named (until then the status line says what is missing), or the safer action when it has the focus; `Tab` and `Shift-Tab` move among the field, the safer action and the change; the arrows, `Ctrl-P` `Ctrl-N`, `PgUp` and `PgDn` scroll what is lost; `Esc` closes the page and sends nothing. On a page that refuses its change, which has no field, `Enter` closes it and the arrows scroll |
-| Text fields | `Backspace` erases a character, `Ctrl-U` all of them; `Ctrl-R` shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout, which then translates the unlock dialog and the keys of actions, but no other field ([unlocking](unlocking.md)). UI14 adds `Tab` completing, `Ctrl-W` deleting a word and `Ctrl-R` searching the history to the command line |
+| Text fields | `Backspace` erases a character, `Ctrl-U` all of them; `Ctrl-R` shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout, which then translates the unlock dialog and the keys of actions, but no other field ([unlocking](unlocking.md)). In the command line (`:`), `Tab` completes the query to the selected entry, `Ctrl-W` deletes its last word, `Ctrl-R` shows only the entries chosen before (at most 20, in memory for the menu's life), which the query filters, and `Ctrl-K` does nothing |
 
 Against the classic map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind
 leaves `h` for the import page, and the log leaves `l` for its tab; the pools are tab 3, so `p` is free; `Tab` goes to
@@ -122,7 +123,9 @@ workspace's.
 ### Its rules
 
 1. **One meaning per key.** A key does the same thing, or nothing, in every view. Where the `fzf` menu gave `MOD+D`
-   three meanings, the new map gives each action its own key.
+   three meanings, the new map gives each action its own key. The command line, which is no view, has keys of its own
+   in both maps (`keymap/command_line.rs`, which `Map::table` adds to each): there `Tab` completes rather than marks,
+   and `Ctrl-R` shows the commands chosen before rather than what is typed.
 2. **Letters for actions, `/` for the filter.** Lists do not filter as you type: a single letter runs an action, which
    is shown in the footer. `/` starts the filter, `Esc` ends it. This trades the `fzf` habit of typing at once for
    one-key actions that a footer can teach.
@@ -151,8 +154,10 @@ workspace's.
 | `:` | the command palette |
 | `?`, `F1` | help |
 | `Ctrl-L` | redraw the screen (for consoles that garbled it) |
-| `Ctrl-K` | in a text field: the next keyboard layout ([unlocking](unlocking.md)) |
-| `Ctrl-R` | in the unlock dialog: show what is typed, or hide it (not during start-up) |
+| `Ctrl-K` | in a text field but the command line: the next keyboard layout ([unlocking](unlocking.md)) |
+| `Ctrl-R` | in the unlock dialog: show what is typed, or hide it (not during start-up); in the command line: show only the commands chosen before, or all again |
+| `Tab` | in the command line: complete the query to the selected command |
+| `Ctrl-W` | in the command line: delete the last word of the query |
 
 ### Actions
 

@@ -22,9 +22,16 @@ const VIEWS: &[Context] = &[
     Main, Kernels, Snapshots, Pools, Diff, Packages, Recovery, Log,
 ];
 
-/// The places listed whole after the views: help, start-up, dialogs and
-/// fields.
-const OTHERS: &[Context] = &[Help, Startup, Choose, Context::Text, Review];
+/// The places listed whole after the views: help, start-up, dialogs,
+/// fields and the command line.
+const OTHERS: &[Context] = &[
+    Help,
+    Startup,
+    Choose,
+    Context::Text,
+    Context::Command,
+    Review,
+];
 
 /// The keys of a field outside the table, which `input` reads: Backspace
 /// erases, `Ctrl-U` clears.
@@ -157,8 +164,8 @@ fn keys(context: Context) -> Vec<Bound> {
 /// `None` where the menu does nothing with it though the table binds it:
 /// the primary action of a view with nothing to choose, the moves of
 /// start-up, which has nothing to select, `Right` in the kernels column,
-/// already open, help outside the views, and the first and last row of a
-/// dialog.
+/// already open, help outside the views, the first and last row of a
+/// dialog, and a page of the command line.
 fn said(context: Context, intent: Intent) -> Option<(Id, Option<Id>)> {
     use Intent::{Down, First, Last, PageDown, PageUp, Primary, Reveal, Up};
     let ignored = match context {
@@ -167,6 +174,7 @@ fn said(context: Context, intent: Intent) -> Option<(Id, Option<Id>)> {
         Kernels => intent == Intent::Kernels,
         Choose => matches!(intent, Intent::Help | First | Last),
         Context::Text | Review => intent == Intent::Help,
+        Context::Command => matches!(intent, Intent::Help | PageUp | PageDown),
         _ => false,
     };
     if ignored {
@@ -267,6 +275,7 @@ fn name(context: Context) -> String {
         Packages => format!("{}: {}", text!("view-changes"), text!("segment-packages")),
         Choose => text!("manual-sheets"),
         Context::Text => text!("manual-fields"),
+        Context::Command => text!("manual-command-line"),
         Review => text!("review-title"),
     }
 }

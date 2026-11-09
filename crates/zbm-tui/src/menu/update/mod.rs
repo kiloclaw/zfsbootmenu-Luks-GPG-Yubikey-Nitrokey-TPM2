@@ -260,6 +260,8 @@ pub(crate) fn show_failure(model: &mut Model, outcome: &Outcome) {
 #[cfg(test)]
 mod columns_tests;
 #[cfg(test)]
+mod command_line_tests;
+#[cfg(test)]
 mod commands_tests;
 #[cfg(test)]
 mod destroy_tests;

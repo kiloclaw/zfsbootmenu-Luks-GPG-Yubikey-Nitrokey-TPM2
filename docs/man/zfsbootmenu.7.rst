@@ -1351,11 +1351,11 @@ Fields That Take Text
 
 **Up**, **Ctrl-P**
 
-  Select the row above, in the palette, a list's filter and the methods of the unlock prompt.
+  Select the row above, in a list's filter and the methods of the unlock prompt.
 
 **Down**, **Ctrl-N**
 
-  Select the row below, in the palette, a list's filter and the methods of the unlock prompt.
+  Select the row below, in a list's filter and the methods of the unlock prompt.
 
 **PgUp**
 
@@ -1376,6 +1376,49 @@ Fields That Take Text
 **Ctrl-R**
 
   Show what is typed, in the unlock prompt, once start-up is over.
+
+**Backspace**
+
+  Erase the last character.
+
+**Ctrl-U**
+
+  Clear the field.
+
+The Command Line
+~~~~~~~~~~~~~~~~
+
+**Enter**
+
+  Confirm.
+
+**Esc**, **Ctrl-C**
+
+  Cancel.
+
+**Up**, **Ctrl-P**
+
+  Select the row above.
+
+**Down**, **Ctrl-N**
+
+  Select the row below.
+
+**Ctrl-L**
+
+  Redraw.
+
+**Tab**
+
+  Complete the query to the selected command.
+
+**Ctrl-W**
+
+  Delete the last word of the query.
+
+**Ctrl-R**
+
+  Show only the commands chosen before, or all again.
 
 **Backspace**
 

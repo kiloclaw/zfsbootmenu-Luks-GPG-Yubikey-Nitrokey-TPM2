@@ -439,7 +439,7 @@ fn palette(model: &Model) -> Option<Said> {
     let palette = model.palette.as_ref()?;
     let items = &palette.items;
     Some(Said {
-        title: text!("palette-title"),
+        title: super::command_line::title(palette),
         lines: vec![palette.query.clone()],
         choices: palette
             .matches

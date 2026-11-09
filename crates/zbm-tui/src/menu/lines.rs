@@ -103,7 +103,7 @@ fn tab_word(tab: Tab) -> Id {
 
 /// What `line` asks for, typed in `context` with the key map `map`.
 pub fn typed(line: &str, context: Context, map: Map) -> Typed {
-    if matches!(context, Context::Text | Context::Review) {
+    if keymap::is_text(context) {
         let text = line.trim_end_matches(['\r', '\n']);
         if text.is_empty() {
             return Typed::Keys(vec![KeyPress::new(Key::Escape)]);
@@ -170,7 +170,7 @@ fn numbered(items: &[String], headers: &[usize]) -> Vec<String> {
 /// Whether the menu takes text where `model` is: a field, a filter, the
 /// palette, the command line.
 fn is_text(model: &Model) -> bool {
-    model.context() == Context::Text
+    matches!(model.context(), Context::Text | Context::Command)
 }
 
 /// Whether the names of the tabs choose them where `model` is: in the

@@ -60,7 +60,7 @@ pub(super) fn classic(context: Context, press: KeyPress) -> Option<Intent> {
         return None;
     };
     let modifier = Modifiers::of(&press).has_any(Modifiers::ALT | Modifiers::CTRL);
-    if !modifier || context == Context::Text {
+    if !modifier || matches!(context, Context::Text | Context::Command) {
         return None;
     }
     CLASSIC

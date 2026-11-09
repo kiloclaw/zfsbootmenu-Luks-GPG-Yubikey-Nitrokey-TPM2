@@ -8,7 +8,7 @@ use zbm_display::keys::{Key, KeyPress};
 use super::key_press;
 use super::offers_tests::{APP, Place, machine, machine_all, menu, places, presses};
 use crate::menu::keymap::{self, Context, ENTER_REACHES, Input, Intent, Map};
-use crate::menu::model::{Dialog, DryRun, Model, Then};
+use crate::menu::model::{Dialog, DryRun, Model, Recent, Then};
 use crate::menu::world::{Action, Event, Offer, Snapshot};
 
 /// The demo machine.
@@ -32,8 +32,8 @@ fn effect(machine: &Machine, map: Map, place: Place, keys: &[KeyPress]) -> Effec
 /// What choosing the entry `index` of the palette at `place` does: `:`,
 /// the entry selected, `Enter`. A change the entry chose shows its plan
 /// first, then runs: it is taken as run, the dry run closed, as `Enter` on
-/// it would once the plan came; and the dry run the entry starts, which a
-/// key does not, is set aside.
+/// it would once the plan came; and the dry run the entry starts and the
+/// history it keeps, which a key does not, are set aside.
 fn chosen(machine: &Machine, map: Map, place: Place, index: usize) -> Effect {
     let mut model = menu(machine, map, place);
     let _ = key_press(&mut model, KeyPress::new(Key::Char(':')));
@@ -55,6 +55,7 @@ fn chosen(machine: &Machine, map: Map, place: Place, index: usize) -> Effect {
         model.dialog = None;
     }
     model.dry_run = DryRun::Off;
+    model.recent = Recent::default();
     model.keys = 0;
     (sent, model)
 }

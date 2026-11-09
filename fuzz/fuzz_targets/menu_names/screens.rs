@@ -26,7 +26,7 @@ const VIEWS: [Screen; 9] = [
 ];
 
 /// Every context that has a help page.
-const CONTEXTS: [Context; 13] = [
+const CONTEXTS: [Context; 14] = [
     Context::Startup,
     Context::Main,
     Context::Snapshots,
@@ -39,6 +39,7 @@ const CONTEXTS: [Context; 13] = [
     Context::Packages,
     Context::Choose,
     Context::Text,
+    Context::Command,
     Context::Review,
 ];
 

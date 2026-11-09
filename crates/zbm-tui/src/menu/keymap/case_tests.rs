@@ -9,7 +9,7 @@ use super::*;
 
 /// `c` with Caps Lock on, or with Shift: the character the keyboard sends,
 /// with the modifiers held.
-fn capital(c: char, modifiers: Modifiers) -> KeyPress {
+pub(crate) fn capital(c: char, modifiers: Modifiers) -> KeyPress {
     let upper = c.to_uppercase().next().unwrap_or(c);
     press(Key::Char(upper), modifiers)
 }
@@ -80,7 +80,7 @@ fn caps_lock_keeps_ctrl_chords_and_their_fzf_aliases_apart() {
 fn a_text_field_types_capitals_and_clears_with_caps_lock() {
     let intent = |intent| Some(Input::Intent(intent));
     for map in [Map::Classic, Map::Workspace] {
-        for context in [Context::Text, Context::Review] {
+        for context in [Context::Text, Context::Command, Context::Review] {
             let typed = |c: char, modifiers| input(map, context, capital(c, modifiers));
             assert_eq!(
                 typed('b', NONE),
@@ -98,6 +98,9 @@ fn a_text_field_types_capitals_and_clears_with_caps_lock() {
         assert_eq!(chord('u'), Some(Input::Clear), "{map:?}");
         assert_eq!(chord('k'), intent(Intent::Layout), "{map:?}");
         assert_eq!(chord('r'), intent(Intent::Reveal), "{map:?}");
+        let command = |c: char| input(map, Context::Command, capital(c, CTRL));
+        assert_eq!(command('w'), intent(Intent::DeleteWord), "{map:?}");
+        assert_eq!(command('r'), intent(Intent::History), "{map:?}");
     }
 }
 

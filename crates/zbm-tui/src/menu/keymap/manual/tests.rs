@@ -144,8 +144,8 @@ fn the_keys_left_out_do_nothing_where_they_are_left_out() {
         ),
         (
             || after(&[Key::Char(':')]),
-            Context::Text,
-            vec![plain(Key::F(1))],
+            Context::Command,
+            vec![plain(Key::F(1)), plain(Key::PageUp), plain(Key::PageDown)],
         ),
         (
             || after(&[Key::Char('/')]),
@@ -190,7 +190,7 @@ fn the_keys_left_out_do_nothing_where_they_are_left_out() {
 fn the_keys_of_some_fields_only_work_there_and_the_page_says_where() {
     let reveal = KeyPress::new(Key::Char('r')).with_ctrl();
     // The unlock prompt shows what is typed once start-up is over; the
-    // palette has nothing to show.
+    // command line shows the commands chosen before instead.
     let locked = DemoOptions {
         locked: true,
         ..DemoOptions::default()
@@ -205,7 +205,12 @@ fn the_keys_of_some_fields_only_work_there_and_the_page_says_where() {
     model.dialog = Some(Dialog::Unlock(prompt));
     let shown = pressed(model, reveal).and_then(|model| model.dialog);
     assert!(matches!(shown, Some(Dialog::Unlock(prompt)) if prompt.revealed));
-    assert!(pressed(after(&[Key::Char(':')]).into_model(), reveal).is_none());
+    let recent = pressed(after(&[Key::Char(':')]).into_model(), reveal);
+    assert!(
+        recent
+            .and_then(|model| model.palette)
+            .is_some_and(|p| p.recent)
+    );
     // A list's filter moves a page; the palette does not.
     let filter = after(&[Key::Char('2'), Key::Char('/')]).into_model();
     assert!(pressed(filter, KeyPress::new(Key::PageDown)).is_some());
@@ -217,6 +222,13 @@ fn the_keys_of_some_fields_only_work_there_and_the_page_says_where() {
     assert!(fields.contains(
         "**Ctrl-R**\n\n  Show what is typed, in the unlock prompt, once start-up is over.\n"
     ));
+    let command_line = place_of(&text, "The Command Line");
+    assert!(command_line.contains("**Ctrl-R**\n\n  Show only the commands chosen before"));
+    assert!(command_line.contains("**Tab**\n\n  Complete the query to the selected command.\n"));
+    assert!(command_line.contains("**Ctrl-W**\n\n  Delete the last word of the query.\n"));
+    assert!(command_line.contains("**Backspace**\n\n  Erase the last character.\n"));
+    assert!(!command_line.contains("**Ctrl-K**"));
+    assert!(!fields.contains("**Tab**"));
 }
 
 #[test]

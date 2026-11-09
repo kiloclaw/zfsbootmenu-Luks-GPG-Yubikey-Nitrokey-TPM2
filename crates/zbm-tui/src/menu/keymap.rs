@@ -37,9 +37,12 @@ pub enum Context {
     Packages,
     /// A choice among actions (the snapshot actions, power).
     Choose,
-    /// A field that takes text: the filter, the palette, the command line,
-    /// a secret, a typed confirmation.
+    /// A field that takes text: a list's filter, the editor of a boot's
+    /// command line, a secret, a name, a typed confirmation.
     Text,
+    /// The command line (`:`): its query takes text, and it completes,
+    /// deletes words and shows the entries chosen before.
+    Command,
     /// The review page of a change: its field takes the target's name, and
     /// `Tab` and `Shift-Tab` move among the field and the buttons.
     Review,
@@ -138,6 +141,12 @@ pub enum Intent {
     NextTab,
     /// The previous tab of the workspace.
     PreviousTab,
+    /// Complete the command line's query to the selected entry.
+    Complete,
+    /// Delete the last word of the command line's query.
+    DeleteWord,
+    /// Show only the entries chosen before, or all of them again.
+    History,
 }
 
 /// What a key press means in a context.
@@ -189,10 +198,10 @@ impl Scope {
     }
 }
 
-/// Whether `context` takes text, where letters type: a text field, or
-/// the field of a review page.
+/// Whether `context` takes text, where letters type: a text field, the
+/// command line, or the field of a review page.
 pub(crate) fn is_text(context: Context) -> bool {
-    matches!(context, Context::Text | Context::Review)
+    matches!(context, Context::Text | Context::Command | Context::Review)
 }
 
 /// How a binding shows in the toolbar.
@@ -315,6 +324,7 @@ const fn key(c: char, contexts: &'static [Context], intent: Intent) -> Binding {
 }
 
 mod classic;
+mod command_line;
 mod commands;
 mod labels;
 pub mod manual;
@@ -575,7 +585,7 @@ fn text(press: KeyPress) -> Option<Input> {
 }
 
 #[cfg(test)]
-mod case_tests;
+pub(crate) mod case_tests;
 #[cfg(test)]
 mod commands_tests;
 #[cfg(test)]

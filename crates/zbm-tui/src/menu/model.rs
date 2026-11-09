@@ -26,7 +26,7 @@ pub use self::diff::{DiffView, Segment};
 use self::list::keep;
 pub use self::list::{ListState, refilter};
 pub use self::naming::{Make, Naming, is_name_char, timestamp};
-pub use self::palette::{Palette, PaletteItem};
+pub use self::palette::{Palette, PaletteItem, Recent};
 pub(crate) use self::pools::{disk_name, host_text, pool_mode, pool_name};
 pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
@@ -192,6 +192,8 @@ pub struct Model {
     pub dialog: Option<Dialog>,
     /// The palette, when open.
     pub palette: Option<Palette>,
+    /// The entries chosen in the palette, newest first.
+    pub recent: Recent,
     /// Whether a change being chosen shows its plan first.
     pub(crate) dry_run: DryRun,
     /// The command line editor, when open.
@@ -296,6 +298,7 @@ impl Model {
             theme,
             dialog: None,
             palette: None,
+            recent: Recent::default(),
             dry_run: DryRun::Off,
             editor: None,
             environments: ListState::default(),

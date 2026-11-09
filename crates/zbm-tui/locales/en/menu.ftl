@@ -126,6 +126,13 @@ action-erase = erase the last character
     .title = Erase
 action-clear = clear the field
     .title = Clear
+# Tab, Ctrl-W and Ctrl-R in the command line (:).
+action-complete = complete the query to the selected command
+    .title = Complete
+action-delete-word = delete the last word of the query
+    .title = Delete Word
+action-recent = show only the commands chosen before, or all again
+    .title = Recent
 
 ## Key names, as the toolbar and the help view show them.
 
@@ -373,6 +380,7 @@ help-aliases = FZF ALIASES (MOD IS ALT OR CTRL)
 manual-every-view = Every View
 manual-sheets = Sheets and Alerts
 manual-fields = Fields That Take Text
+manual-command-line = The Command Line
 # A classic binding of the fzf menu that works with Alt only: its Ctrl form
 # is a key of the menu, as Ctrl-P is Select.
 manual-alt-only = Alt only: { $key } is { $action }.
@@ -390,7 +398,7 @@ manual-bottom = move to the bottom
 # Where a key works, when only some of a place's dialogs or fields read it.
 manual-in-choices = in a list of choices; a review page scrolls
 manual-on-review-pages = on a review page
-manual-in-lists = in the palette, a list's filter and the methods of the unlock prompt
+manual-in-lists = in a list's filter and the methods of the unlock prompt
 manual-in-filters = in a list's filter
 manual-in-unlock = in the unlock prompt, once start-up is over
 
@@ -579,6 +587,8 @@ button-create = Create
 confirm-type = Type { $name } to confirm:
 error-you-can = You can:
 palette-title = Commands
+# The palette's title while Ctrl-R shows only the commands chosen before.
+palette-recent = Recent
 palette-boot = Boot { $environment }
 palette-edit = Edit the command line of { $environment }
 palette-reset-tries = Give { $environment } Its Boot Tries Back

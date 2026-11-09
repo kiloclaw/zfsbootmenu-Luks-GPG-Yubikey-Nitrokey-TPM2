@@ -41,11 +41,12 @@ impl Model {
         }
     }
 
-    /// The key map context of the focus: a review page's is
-    /// [`Context::Review`] while it shows its field.
+    /// The key map context of the focus: the command line's is
+    /// [`Context::Command`], a review page's [`Context::Review`] while it
+    /// shows its field.
     pub fn context(&self) -> Context {
         if self.dialog.is_none() && self.palette.is_some() {
-            return Context::Text;
+            return Context::Command;
         }
         self.view_context()
     }

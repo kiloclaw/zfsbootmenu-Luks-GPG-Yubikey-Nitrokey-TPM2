@@ -5,7 +5,7 @@ use super::*;
 use crate::text::id;
 
 /// Every context of the menu.
-pub(super) const CONTEXTS: [Context; 13] = [
+pub(super) const CONTEXTS: [Context; 14] = [
     Startup,
     Main,
     Snapshots,
@@ -18,6 +18,7 @@ pub(super) const CONTEXTS: [Context; 13] = [
     Packages,
     Context::Choose,
     Context::Text,
+    Context::Command,
     Context::Review,
 ];
 
@@ -362,19 +363,24 @@ fn start_up_binds_tab_shift_tab_the_arrows_and_help_and_no_character_but_a_quest
     }
 }
 
-/// One meaning per key: in every view with the classic map, in each view
-/// with the workspace's, whose arrows go into a column in the Boot tab and
-/// from segment to segment in the changes.
+/// One meaning per key: in every view with the classic map, but the
+/// command line's keys, in each view with the workspace's, whose arrows go
+/// into a column in the Boot tab and from segment to segment in the
+/// changes. The command line's `Tab` and `Ctrl-R` mean there what they
+/// mean nowhere else.
 #[test]
 fn every_key_has_one_meaning_and_no_letter_depends_on_case() {
     for map in [Map::Classic, Map::Workspace] {
         let table = map.table();
         for (index, binding) in table.iter().enumerate() {
+            let is_command_line =
+                |binding: &Binding| binding.scope == Scope::Only(&[Context::Command]);
             let twice = table.iter().skip(index + 1).find(|other| {
+                let everywhere = map == Map::Classic && !is_command_line(other);
                 other.key == binding.key
                     && other.modifiers == binding.modifiers
                     && other.intent != binding.intent
-                    && (map == Map::Classic || other.scope.has_context_in_common(binding.scope))
+                    && (everywhere || other.scope.has_context_in_common(binding.scope))
             });
             assert!(twice.is_none(), "{map:?}: {binding:?} has two meanings");
             let capital = matches!(binding.key, Key::Char(c) if c.is_uppercase());
@@ -479,4 +485,28 @@ fn a_review_page_takes_its_name_as_text_and_tab_moves_among_its_buttons() {
         intent(Intent::NextTab)
     );
     assert!(!Scope::Views.contains(Context::Review));
+}
+
+#[test]
+fn ctrl_r_reveals_in_a_field_and_searches_the_history_in_the_command_line() {
+    let ctrl = |c| press(Key::Char(c), CTRL);
+    let intent = |intent| Some(Input::Intent(intent));
+    for map in [Map::Classic, Map::Workspace] {
+        let command = |press| input(map, Context::Command, press);
+        assert_eq!(input(map, Context::Text, ctrl('r')), intent(Intent::Reveal));
+        assert_eq!(command(ctrl('r')), intent(Intent::History));
+        assert_eq!(command(ctrl('w')), intent(Intent::DeleteWord));
+        assert_eq!(command(press(Key::Tab, NONE)), intent(Intent::Complete));
+        // Letters type, and a field's keys erase.
+        assert_eq!(command(plain('k')), Some(Input::Type('k')));
+        assert_eq!(command(press(Key::Backspace, NONE)), Some(Input::Erase));
+        assert_eq!(command(ctrl('u')), Some(Input::Clear));
+        // `Ctrl-K` translates no query, and no `fzf` alias works there.
+        assert_eq!(command(ctrl('k')), None);
+        assert_eq!(command(press(Key::Char('k'), Modifiers::ALT)), None);
+        // The command line's keys mean nothing elsewhere.
+        assert_eq!(input(map, Context::Text, ctrl('w')), None);
+        assert_eq!(input(map, Context::Text, press(Key::Tab, NONE)), None);
+        assert_ne!(input(map, Main, ctrl('r')), intent(Intent::History));
+    }
 }

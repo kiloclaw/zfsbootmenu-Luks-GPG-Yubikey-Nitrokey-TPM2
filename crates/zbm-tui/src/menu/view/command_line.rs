@@ -9,7 +9,7 @@ use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState, Paragraph};
 use super::dialogs::centred;
 use super::lists;
 use crate::menu::format::fit;
-use crate::menu::model::Model;
+use crate::menu::model::{Model, Palette};
 use crate::menu::theme::{Glyph, Role};
 use crate::text::text;
 
@@ -28,7 +28,7 @@ pub(super) fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         shown = palette.matches.len(),
         total = items.len()
     );
-    let block = lists::counted(theme, &text!("palette-title"), &count);
+    let block = lists::counted(theme, &title(palette), &count);
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
     let [query, list] = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).areas(inner);
@@ -53,4 +53,14 @@ pub(super) fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .highlight_style(theme.style(Role::Selected));
     let mut state = ListState::default().with_selected(Some(palette.selected));
     frame.render_stateful_widget(widget, list, &mut state);
+}
+
+/// The title of the palette: "Recent" while it shows only the entries
+/// chosen before.
+pub(super) fn title(palette: &Palette) -> String {
+    if palette.recent {
+        text!("palette-recent")
+    } else {
+        text!("palette-title")
+    }
 }

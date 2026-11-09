@@ -5,7 +5,7 @@ use zbm_display::keys::Key;
 
 use super::{Context, Footer, Intent, Map, Modifiers, Tab};
 use crate::text::{self, Id, id, text};
-use Context::{Diff, Kernels, Main, Packages, Pools, Recovery, Snapshots, Startup};
+use Context::{Command, Diff, Kernels, Main, Packages, Pools, Recovery, Snapshots, Startup, Text};
 
 /// What a key does for an intent in a context, as the toolbar and the
 /// help view say it: a message of the catalogue with a `.title`.
@@ -20,8 +20,8 @@ pub fn describe(context: Context, intent: Intent) -> Id {
         (Diff, Intent::Primary) => id!("action-restore"),
         (Packages, Intent::Primary) => id!("action-show-files"),
         (Recovery, Intent::Primary) => id!("action-run"),
-        (Startup | Context::Text, Intent::Primary) => id!("action-confirm"),
-        (Context::Choose | Context::Text, Intent::Back) => id!("action-cancel"),
+        (Startup | Text | Command, Intent::Primary) => id!("action-confirm"),
+        (Context::Choose | Text | Command, Intent::Back) => id!("action-cancel"),
         (_, Intent::Back) => id!("action-back"),
         (_, Intent::Kernels) => id!("action-kernels"),
         (_, Intent::Snapshots) => id!("action-snapshots"),
@@ -61,12 +61,22 @@ pub fn describe(context: Context, intent: Intent) -> Id {
         (_, Intent::Layout) => id!("action-keyboard-layout"),
         (_, Intent::Reveal) => id!("action-show-typed"),
         (_, Intent::Segment) => id!("action-segment"),
-        (_, Intent::Tab(Tab::Boot)) => id!("action-tab-boot"),
-        (_, Intent::Tab(Tab::Snapshots)) => id!("action-tab-snapshots"),
-        (_, Intent::Tab(Tab::Pools)) => id!("action-tab-pools"),
-        (_, Intent::Tab(Tab::Log)) => id!("action-tab-log"),
+        (_, Intent::Tab(tab)) => to_tab(tab),
         (_, Intent::NextTab) => id!("action-next-tab"),
         (_, Intent::PreviousTab) => id!("action-previous-tab"),
+        (_, Intent::Complete) => id!("action-complete"),
+        (_, Intent::DeleteWord) => id!("action-delete-word"),
+        (_, Intent::History) => id!("action-recent"),
+    }
+}
+
+/// What the key of `tab` does: it chooses that tab.
+fn to_tab(tab: Tab) -> Id {
+    match tab {
+        Tab::Boot => id!("action-tab-boot"),
+        Tab::Snapshots => id!("action-tab-snapshots"),
+        Tab::Pools => id!("action-tab-pools"),
+        Tab::Log => id!("action-tab-log"),
     }
 }
 
