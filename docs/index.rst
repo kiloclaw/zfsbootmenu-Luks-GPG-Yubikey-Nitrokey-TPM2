@@ -66,6 +66,7 @@
   :includehidden:
   :hidden:
 
+  general/building
   general/binary-releases
   general/bootenvs-and-you
   general/container-building

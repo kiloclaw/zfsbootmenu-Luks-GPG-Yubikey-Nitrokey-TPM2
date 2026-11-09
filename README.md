@@ -88,6 +88,8 @@ builds the Rust programs, and `make install` installs them with files from `lega
 `packaging/initcpio/`, `config/zfsbootmenu/`, `contrib/`, `examples/` and `docs/man/dist/`, plus `assets/splash.bmp`.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test
 each part, and [ROADMAP.md](ROADMAP.md) for the target architecture and the work left, features included.
+[Building ZFSBootMenu](docs/general/building.rst) walks through building and installing your own image, in the build
+container or on the host, with LUKS and hardware keys.
 
 ### For more details, see:
 
