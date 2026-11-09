@@ -70,6 +70,7 @@ fn a_rollback_loses_what_zfs_took_after_it_even_in_the_same_second() {
             freed: Some(8192),
             keeps: vec![Keep::Snapshots(1), Keep::Bookmarks(1)],
             undo: None,
+            host_id_stays: false,
             safer: Some(Safer::Clone(first)),
             stops: Vec::new(),
             pool_use: None,
@@ -388,11 +389,14 @@ fn a_host_that_cannot_be_read_is_unknown_and_the_import_goes_on() {
 #[test]
 fn an_action_that_needs_no_review_has_none() {
     let zfs = machine();
-    let take = Action::CreateSnapshot(snapshot("zroot/ROOT/void@new"));
-    let strict = Action::Import(pool("zroot"), import(ImportPolicy::Strict, false, None));
+    let clone = Action::Clone(
+        snapshot("zroot/ROOT/void@first"),
+        "zroot/ROOT/copy".parse().unwrap(),
+    );
+    let export = Action::Export(pool("zroot"));
 
-    assert_eq!(review(&zfs, &take), Review::default());
-    assert_eq!(review(&zfs, &strict), Review::default());
+    assert_eq!(review(&zfs, &clone), Review::default());
+    assert_eq!(review(&zfs, &export), Review::default());
 }
 
 #[test]

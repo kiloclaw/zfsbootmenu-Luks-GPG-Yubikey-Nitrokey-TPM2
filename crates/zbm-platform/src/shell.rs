@@ -95,6 +95,26 @@ pub fn quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }
 
+/// Whether `c` means nothing to a shell in a word, wherever it is.
+pub fn is_plain(c: char) -> bool {
+    c.is_ascii_alphanumeric() || "_./:+,=@%-".contains(c)
+}
+
+/// `text` as one shell word for a command line a person reads: as it is
+/// when a shell reads nothing in it, otherwise in single quotes
+/// ([`quote`]); of `name=value`, the value alone, as
+/// `org.zfsbootmenu:commandline='quiet loglevel=4'`.
+pub fn word(text: &str) -> String {
+    let plain = |text: &str| !text.is_empty() && text.chars().all(is_plain);
+    if plain(text) {
+        return text.to_owned();
+    }
+    match text.split_once('=') {
+        Some((name, value)) if plain(name) => format!("{name}={}", quote(value)),
+        _ => quote(text),
+    }
+}
+
 /// Why a text is not plain shell words.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WordsError {
@@ -304,5 +324,33 @@ b""#
             assert!(!error.to_string().is_empty());
         }
         assert!(WordsError::Glob('?').to_string().contains("match files"));
+    }
+
+    #[test]
+    fn a_word_is_quoted_only_where_a_shell_reads_something_in_it() {
+        for plain in [
+            "tank/ROOT/be@a%c",
+            "readonly=off",
+            "org.zfsbootmenu:active=",
+            "-o",
+        ] {
+            assert_eq!(word(plain), plain);
+        }
+        for (text, quoted) in [
+            ("", "''"),
+            ("~root", "'~root'"),
+            ("my pool", "'my pool'"),
+            ("a b=c", "'a b=c'"),
+            ("=a b", "'=a b'"),
+            ("it's", r"'it'\''s'"),
+            (
+                "commandline=quiet loglevel=4",
+                "commandline='quiet loglevel=4'",
+            ),
+            ("bootfs=my pool/ROOT", "bootfs='my pool/ROOT'"),
+        ] {
+            assert_eq!(word(text), quoted, "{text}");
+            assert_eq!(split_words(quoted), Ok(vec![text.to_owned()]), "{text}");
+        }
     }
 }

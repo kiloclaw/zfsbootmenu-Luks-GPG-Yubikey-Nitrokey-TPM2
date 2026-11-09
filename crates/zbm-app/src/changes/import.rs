@@ -318,13 +318,12 @@ pub(super) fn steps(
 
 /// The step that imports `pool` with `options` under `policy`.
 fn import_step(pool: &PoolName, options: ImportOptions, policy: ImportPolicy) -> Step {
-    let arguments = options.import(pool, policy).arguments().join(" ");
     Step {
+        command: Some(options.import(pool, policy).to_string()),
         kind: StepKind::Import {
             pool: pool.clone(),
             options,
         },
-        command: Some(format!("zpool {arguments}")),
     }
 }
 

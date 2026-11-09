@@ -58,14 +58,11 @@ pub fn quoted(command: &zbm_platform::exec::Command) -> String {
         .chain(command.get_args().iter().map(OsString::as_os_str))
         .map(|part| {
             let part = part.to_string_lossy();
-            let plain = !part.is_empty()
-                && part
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || "-_=+/.,:@%^".contains(c));
+            let plain = !part.is_empty() && part.chars().all(zbm_platform::shell::is_plain);
             if plain {
                 part.into_owned()
             } else {
-                format!("'{}'", part.replace('\'', r"'\''"))
+                zbm_platform::shell::quote(&part)
             }
         })
         .collect::<Vec<_>>()

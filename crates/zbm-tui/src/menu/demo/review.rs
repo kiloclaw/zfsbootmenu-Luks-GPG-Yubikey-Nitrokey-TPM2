@@ -6,11 +6,14 @@
 //! written since the checkpoint; a forced import says who used the pool
 //! last. Of the default environment's daily snapshots, that of 18 October
 //! has a clone and that of 19 October a hold; it has two bookmarks, older
-//! than its snapshots.
+//! than its snapshots. The other changes have their plans
+//! ([`plans`]).
 
+use zbm_platform::shell::word;
 use zbm_types::{ImportPolicy, PoolName, SnapshotName};
 
 use super::data::NOW;
+use super::plans;
 use super::snapshots::Lists;
 use super::untrusted;
 use crate::menu::world::{
@@ -54,6 +57,13 @@ const FOREIGN_WRITTEN: u64 = NOW - 2 * 86_400 - 5 * 3600;
 /// [`Action::Plan`] of `action` on the machine `snapshot`, whose snapshots
 /// `lists` holds: its plan, or, for an action that has none, a failure.
 pub(super) fn planned(snapshot: &Snapshot, lists: &Lists, action: Action) -> Event {
+    if !action.has_plan() {
+        return Event::Finished(Outcome::Failed {
+            what: "nothing to plan".to_owned(),
+            why: vec!["only a change has a plan".to_owned()],
+            next: Vec::new(),
+        });
+    }
     let plan = match &action {
         Action::Rollback(target) => rollback(lists, target),
         Action::Destroy(snapshots) => destroy(lists, snapshots),
@@ -61,13 +71,7 @@ pub(super) fn planned(snapshot: &Snapshot, lists: &Lists, action: Action) -> Eve
         Action::Import(pool, options) if options.policy == ImportPolicy::Force => {
             forced(snapshot, pool, *options)
         }
-        _ => {
-            return Event::Finished(Outcome::Failed {
-                what: "nothing to plan".to_owned(),
-                why: vec!["only a change has a plan".to_owned()],
-                next: Vec::new(),
-            });
-        }
+        _ => plans::plan_of(snapshot, &action),
     };
     Event::Planned {
         action: Box::new(action),
@@ -141,13 +145,14 @@ fn rollback(lists: &Lists, target: &SnapshotName) -> Plan {
             .chain(bookmarks(target.dataset()))
             .collect(),
         undo: None,
+        host_id_stays: false,
         safer: Some(Safer::Clone(target.clone())),
         stops,
         pool_use: None,
     };
     let change = Step {
         kind: StepKind::Rollback(target.clone()),
-        command: Some(format!("zfs rollback -r {target}")),
+        command: Some(format!("zfs rollback -r {}", plans::shell(target))),
     };
     plan(vec![change], review)
 }
@@ -186,13 +191,16 @@ fn destroy(lists: &Lists, snapshots: &[SnapshotName]) -> Plan {
     let short: Vec<&str> = snapshots.iter().map(SnapshotName::name).collect();
     let change = Step {
         kind: StepKind::Destroy(snapshots.to_vec()),
-        command: Some(format!("zfs destroy {environment}@{}", short.join(","))),
+        command: Some(format!(
+            "zfs destroy {}",
+            word(&format!("{environment}@{}", short.join(",")))
+        )),
     };
     plan(vec![change], review)
 }
 
 /// The plan of `steps` with `review`: done, unless something stops it.
-fn plan(steps: Vec<Step>, review: Review) -> Plan {
+pub(super) fn plan(steps: Vec<Step>, review: Review) -> Plan {
     let outcome = if review.stops.is_empty() {
         Outcome::Done(String::new())
     } else {
@@ -221,7 +229,7 @@ pub(super) fn why(stop: &Stop) -> String {
 }
 
 /// The import of `pool` with `options`, as its step.
-fn import(pool: &PoolName, options: ImportOptions) -> Step {
+pub(super) fn import(pool: &PoolName, options: ImportOptions) -> Step {
     let force = if options.policy == ImportPolicy::Force {
         " -f"
     } else {
@@ -242,7 +250,8 @@ fn import(pool: &PoolName, options: ImportOptions) -> Step {
             options,
         },
         command: Some(format!(
-            "zpool import -N{force} -o readonly={readonly}{rewind} {pool}"
+            "zpool import -N{force} -o readonly={readonly}{rewind} {}",
+            plans::shell(pool)
         )),
     }
 }
@@ -296,7 +305,7 @@ fn rewind(snapshot: &Snapshot, lists: &Lists, pool: &PoolName, options: ImportOp
     };
     let export = Step {
         kind: StepKind::Export(pool.clone()),
-        command: Some(format!("zpool export {pool}")),
+        command: Some(format!("zpool export {}", plans::shell(pool))),
     };
     plan(vec![export, import(pool, options)], review)
 }

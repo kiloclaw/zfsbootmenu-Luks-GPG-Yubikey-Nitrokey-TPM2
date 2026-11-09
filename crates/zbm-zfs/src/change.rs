@@ -8,6 +8,7 @@
 
 use std::fmt;
 
+use zbm_platform::shell::word;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use crate::model::{
@@ -185,16 +186,20 @@ impl ZfsChange {
 }
 
 impl fmt::Display for ZfsChange {
-    /// The command line that makes it: `zfs snapshot tank/ROOT/be@new`.
+    /// The command line that makes it, as a shell would take it: `zfs
+    /// snapshot tank/ROOT/be@new`, and each argument a shell would split
+    /// or read in single quotes, as `zfs set
+    /// org.zfsbootmenu:commandline='quiet loglevel=4' tank/ROOT/be`.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (program, args) = self.command();
         if let ZfsChange::SendReceive { snapshot, .. } = self {
+            let snapshot = word(&snapshot.to_string());
             write!(formatter, "zfs send -p -w {snapshot} | zfs recv")?;
         } else {
             write!(formatter, "{program}")?;
         }
         for arg in args {
-            write!(formatter, " {arg}")?;
+            write!(formatter, " {}", word(&arg))?;
         }
         Ok(())
     }

@@ -61,7 +61,7 @@ impl App<'_> {
             Action::BootSnapshot(_, target) => Some(target),
             _ => None,
         };
-        if (!action.is_change() && boots.is_none()) || matches!(action, Action::Diff(..)) {
+        if !action.has_plan() {
             return None;
         }
         let system = console.with_runner(self.context.runner());

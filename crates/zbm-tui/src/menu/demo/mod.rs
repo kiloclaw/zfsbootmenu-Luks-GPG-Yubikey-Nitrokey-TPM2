@@ -10,6 +10,7 @@ pub mod data;
 mod health;
 mod history;
 mod keyboard;
+mod plans;
 mod review;
 mod session;
 mod snapshots;

@@ -14,7 +14,7 @@ use std::time::Duration;
 use zbm_platform::event::Reply;
 use zbm_sys::console::{Watch, wait_ready};
 use zbm_sys::socket::Connection;
-use zbm_types::{DatasetName, SnapshotName};
+use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use super::{Received, ToMenu, ToSession};
 use crate::model::{Action, Event, Outcome};
@@ -225,22 +225,29 @@ fn refusal(served: &Served<'_, '_>, action: &Action) -> Option<String> {
 }
 
 /// Why the session does not plan `planned` for a remote menu, if it does
-/// not: it must be a change, of a boot environment of the machine or of a
-/// pool the menu shows, the one of the identifier it names, if it names
-/// one. Nothing else has a plan, and is refused before it is read.
+/// not: it must have a plan ([`Action::has_plan`]), and be of a boot
+/// environment of the machine or of a pool the menu shows, the one of the
+/// identifier it names, if it names one. What has no plan is refused
+/// before anything is read, and so is a planned action of none of these.
 fn planned_refusal(served: &Served<'_, '_>, planned: &Action) -> Option<String> {
-    if let Action::Destroy(snapshots) = planned {
-        return destroy_refusal(served, snapshots);
+    let no_plan = || Some("only a change has a plan".to_owned());
+    match planned {
+        _ if !planned.has_plan() => no_plan(),
+        Action::Destroy(snapshots) => destroy_refusal(served, snapshots),
+        Action::Import(pool, options) => pool_refusal(served, pool, options.id),
+        Action::Export(pool) => pool_refusal(served, pool, None),
+        _ => match planned.changed_environment() {
+            Some(environment) => (!served.service.is_environment(environment))
+                .then(|| "the machine has no such boot environment".to_owned()),
+            None => no_plan(),
+        },
     }
-    if let Some(environment) = planned.changed_environment() {
-        return (!served.service.is_environment(environment))
-            .then(|| "the machine has no such boot environment".to_owned());
-    }
-    let (pool, id) = match planned {
-        Action::Import(pool, options) => (pool, options.id),
-        Action::Export(pool) => (pool, None),
-        _ => return Some("only a change has a plan".to_owned()),
-    };
+}
+
+/// Why the session does not plan a change of `pool` for a remote menu, if
+/// it does not: the menu must show it, the one of identifier `id`, if
+/// given.
+fn pool_refusal(served: &Served<'_, '_>, pool: &PoolName, id: Option<u64>) -> Option<String> {
     let pools = served.service.pools();
     let known = pools
         .iter()

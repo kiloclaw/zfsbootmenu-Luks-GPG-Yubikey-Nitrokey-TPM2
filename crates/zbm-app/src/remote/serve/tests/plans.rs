@@ -91,6 +91,51 @@ fn a_remote_menu_plans_only_what_it_is_shown() {
 }
 
 #[test]
+fn the_session_refuses_the_plan_of_what_has_none() {
+    let fake = shown();
+    let snapshot = |name: &str| -> zbm_types::SnapshotName { name.parse().unwrap() };
+    let environment: DatasetName = "tank/ROOT/be".parse().unwrap();
+    let unplanned = Some("only a change has a plan");
+
+    for action in [
+        // Of a boot environment the machine has, and still no plan: the
+        // differences change nothing, and nothing is read for them.
+        Action::Diff(snapshot("tank/ROOT/be@old"), None),
+        Action::Diff(
+            snapshot("tank/ROOT/be@old"),
+            Some(snapshot("tank/ROOT/be@new")),
+        ),
+        Action::ResetBootTries(environment.clone()),
+        Action::LoadSnapshots(environment.clone()),
+        Action::Boot {
+            environment,
+            kernel: None,
+            command_line: None,
+            countdown: false,
+        },
+        Action::Chroot("tank/ROOT/be".parse().unwrap()),
+        Action::ScanPools,
+    ] {
+        assert_eq!(
+            refusal_of(&fake, &plan(action.clone())).as_deref(),
+            unplanned,
+            "{action:?}"
+        );
+    }
+    let lines = fake.runner.lines();
+    assert!(
+        lines.iter().all(|line| !line.starts_with("zfs list")),
+        "{lines:?}"
+    );
+    // The boot of a snapshot has its clone's plan.
+    let boot = Action::BootSnapshot(
+        snapshot("tank/ROOT/be@old"),
+        "tank/ROOT/new".parse().unwrap(),
+    );
+    assert_eq!(refusal_of(&fake, &plan(boot)), None);
+}
+
+#[test]
 fn a_refused_plan_reads_nothing_of_what_it_names() {
     let fake = shown();
 

@@ -14,7 +14,8 @@
 //!   the pool read-only without the rewind is safer;
 //! - a forced import is undone by an export; it reads who else may use
 //!   the pool, and a pool another system has imported now stops it;
-//!   nothing is safer, as importing as the last host is not.
+//!   nothing is safer, as importing as the last host is not;
+//! - a change that loses nothing has what undoes it ([`undo`]).
 //!
 //! A read that fails leaves what it gives unknown, and is logged.
 
@@ -35,7 +36,7 @@ pub(super) fn review(zfs: &dyn Zfs, action: &Action) -> Review {
         Action::Import(pool, options) if options.policy == ImportPolicy::Force => {
             forced(zfs, pool, *options)
         }
-        _ => Review::default(),
+        _ => undo::review(zfs, action),
     }
 }
 
@@ -338,6 +339,8 @@ fn pool_use(zfs: &dyn Zfs, pool: &PoolName, id: Option<u64>) -> (PoolUse, Vec<St
     };
     (used, stops)
 }
+
+mod undo;
 
 #[cfg(test)]
 mod tests;

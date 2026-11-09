@@ -23,6 +23,11 @@ fn changes() -> Vec<ZfsChange> {
             property: "org.zfsbootmenu:active".into(),
             value: "on".into(),
         },
+        ZfsChange::Set {
+            dataset: dataset("tank/ROOT/be"),
+            property: "org.zfsbootmenu:commandline".into(),
+            value: "quiet loglevel=4".into(),
+        },
         ZfsChange::Inherit {
             dataset: dataset("tank/ROOT/be"),
             property: "org.zfsbootmenu:kernel".into(),
@@ -99,7 +104,9 @@ fn a_change_shows_the_command_the_cli_runs() {
                 "zfs send -p -w tank/ROOT/be@new | zfs recv -u -o canmount=noauto tank/ROOT/copy"
             );
         } else {
-            assert_eq!(change.to_string(), ran);
+            // A quoted argument is the runner's once its quotes go: the
+            // runner passes each argument as it is, with no shell.
+            assert_eq!(change.to_string().replace('\'', ""), ran);
         }
     }
     assert_eq!(
@@ -268,4 +275,64 @@ fn a_destroy_names_the_snapshots_of_one_dataset_in_one_argument() {
         ZfsChange::Destroy(vec![b]).to_string(),
         "zfs destroy tank/ROOT/be@b"
     );
+}
+
+#[test]
+fn a_value_with_spaces_is_quoted_as_a_shell_would_take_it() {
+    let set = |value: &str| ZfsChange::Set {
+        dataset: dataset("tank/ROOT/be"),
+        property: "org.zfsbootmenu:commandline".into(),
+        value: value.into(),
+    };
+
+    assert_eq!(
+        set("quiet loglevel=4").to_string(),
+        "zfs set org.zfsbootmenu:commandline='quiet loglevel=4' tank/ROOT/be"
+    );
+    assert_eq!(
+        set("it's $HOME; rm -rf *").to_string(),
+        r"zfs set org.zfsbootmenu:commandline='it'\''s $HOME; rm -rf *' tank/ROOT/be"
+    );
+    // The command run is unchanged: one argument, unquoted.
+    assert_eq!(
+        set("quiet loglevel=4").command().1,
+        [
+            "set",
+            "org.zfsbootmenu:commandline=quiet loglevel=4",
+            "tank/ROOT/be"
+        ]
+    );
+    let pool = ZfsChange::SetPool {
+        pool: "tank".parse().unwrap(),
+        property: "comment".into(),
+        value: "a b".into(),
+    };
+    assert_eq!(pool.to_string(), "zpool set comment='a b' tank");
+    let clone = ZfsChange::Clone {
+        snapshot: snapshot(),
+        target: dataset("tank/ROOT/copy"),
+        properties: vec![(
+            "org.zfsbootmenu:commandline".to_owned(),
+            "ro quiet".to_owned(),
+        )],
+    };
+    assert_eq!(
+        clone.to_string(),
+        "zfs clone -o org.zfsbootmenu:commandline='ro quiet' tank/ROOT/be@new tank/ROOT/copy"
+    );
+}
+
+#[test]
+fn only_an_argument_a_shell_would_read_otherwise_is_quoted() {
+    // A pool named with a space is quoted; the other changes are not.
+    assert_eq!(
+        ZfsChange::Export("my pool".parse().unwrap()).to_string(),
+        "zpool export 'my pool'"
+    );
+    let lines: Vec<String> = changes()
+        .iter()
+        .filter(|change| !matches!(change, ZfsChange::Set { value, .. } if value.contains(' ')))
+        .map(ToString::to_string)
+        .collect();
+    assert!(lines.iter().all(|line| !line.contains('\'')), "{lines:?}");
 }

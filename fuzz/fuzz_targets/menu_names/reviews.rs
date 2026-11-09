@@ -161,6 +161,7 @@ fn hostile_plan(
         freed: Some(u64::MAX),
         keeps: vec![Keep::Snapshots(usize::MAX), Keep::Bookmarks(1)],
         undo: Some(Box::new(Action::Export(target.pool()))),
+        host_id_stays: refused,
         safer: safer(action, target),
         stops: if refused {
             hostile_stops(next, target, &host)

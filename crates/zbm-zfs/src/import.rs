@@ -1,6 +1,9 @@
 //! [`Import`]: how `zpool import` imports pools, as a request whose command
 //! line only this crate builds.
 
+use std::fmt;
+
+use zbm_platform::shell::word;
 use zbm_types::{ImportPolicy, PoolName};
 
 /// Which pools an import imports.
@@ -171,5 +174,39 @@ impl<'a> Import<'a> {
         args.extend(self.options().into_iter().map(str::to_owned));
         args.push(self.pool_argument());
         args
+    }
+}
+
+impl fmt::Display for Import<'_> {
+    /// The command line that runs it, as a shell would take it: `zpool
+    /// import -N -o readonly=on 'my pool'`.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "zpool")?;
+        for arg in self.arguments() {
+            write!(formatter, " {}", word(&arg))?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn an_import_prints_as_a_shell_would_take_it() {
+        let tank: PoolName = "tank".parse().unwrap();
+        let spaced: PoolName = "my pool".parse().unwrap();
+
+        assert_eq!(
+            Import::pool(&tank).to_string(),
+            "zpool import -N -o readonly=on tank"
+        );
+        assert_eq!(
+            Import::pool(&spaced).access(Access::ReadWrite).to_string(),
+            "zpool import -N -o readonly=off 'my pool'"
+        );
     }
 }

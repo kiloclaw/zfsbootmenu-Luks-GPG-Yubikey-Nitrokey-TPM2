@@ -396,6 +396,7 @@ fn a_plan_crosses_with_its_review_and_one_without_reads_as_reviewed_empty() {
         freed: Some(4096),
         keeps: vec![Keep::Snapshots(2), Keep::Bookmarks(1)],
         undo: Some(Box::new(Action::Export(pool.clone()))),
+        host_id_stays: true,
         safer: Some(Safer::Clone(snapshot("tank/ROOT/be@old"))),
         stops: vec![
             Stop::Clone {

@@ -182,7 +182,7 @@ impl FakeZfs {
     }
 
     /// Makes the change `operation`, such as `rollback`, or the read
-    /// `status`, `importable`, `pool_host`, `checkpoint`,
+    /// `pools`, `status`, `importable`, `pool_host`, `checkpoint`,
     /// `snapshot_details`, `holds` or `destroy_space`, fail with
     /// `message`.
     #[must_use]
@@ -255,6 +255,7 @@ impl Zfs for FakeZfs {
     fn pools(&self) -> Result<Vec<Pool>, ZfsError> {
         self.record("pools".to_owned());
         let state = self.state.borrow();
+        pools::planned(&state, "pools", "zpool list")?;
         Ok(state
             .pools
             .iter()

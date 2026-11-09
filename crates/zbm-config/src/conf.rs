@@ -108,11 +108,6 @@ fn is_name(name: &str) -> bool {
         && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
-/// Characters a word may hold outside quotes without the shell changing them.
-fn is_plain(c: char) -> bool {
-    c.is_ascii_alphanumeric() || "_./:+,=@%-".contains(c)
-}
-
 /// The value of one shell word that ends the line: single-quoted parts,
 /// double-quoted parts without expansions, backslash escapes and plain
 /// characters, in any sequence. `None` if the word needs more of the shell.
@@ -139,7 +134,7 @@ fn word(text: &str) -> Option<String> {
                 // Only blanks may follow the word.
                 return chars.all(|c| c == ' ' || c == '\t').then_some(value);
             }
-            c if is_plain(c) => value.push(c),
+            c if zbm_platform::shell::is_plain(c) => value.push(c),
             _ => return None,
         }
     }

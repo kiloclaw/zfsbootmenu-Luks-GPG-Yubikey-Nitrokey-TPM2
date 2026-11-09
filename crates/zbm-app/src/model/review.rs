@@ -29,6 +29,10 @@ pub struct Review {
     pub keeps: Vec<Keep>,
     /// The action that undoes it; `None` when nothing does.
     pub undo: Option<Box<Action>>,
+    /// Whether it adopts the host ID of the host that last imported its
+    /// pool, which stays adopted when the pool is exported again: nothing
+    /// undoes that.
+    pub host_id_stays: bool,
     /// An action that gives most of what it gives, and loses nothing.
     pub safer: Option<Safer>,
     /// What stops it, which ZFS would refuse it for: the plan fails.

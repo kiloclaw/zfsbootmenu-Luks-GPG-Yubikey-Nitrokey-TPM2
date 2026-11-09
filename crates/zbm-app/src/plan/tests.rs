@@ -272,7 +272,7 @@ fn a_default_kernel_and_a_restore_plan_their_steps_and_change_nothing() {
                 property: "org.zfsbootmenu:kernel".into(),
             },
             command: Some(
-                "zfs set org.zfsbootmenu:kernel=/vmlinuz-6\\.12\\.9\\+$ tank/ROOT/be".into()
+                "zfs set org.zfsbootmenu:kernel='/vmlinuz-6\\.12\\.9\\+$' tank/ROOT/be".into()
             ),
         }]
     );
@@ -413,6 +413,7 @@ fn a_snapshot_boot_plans_its_clone_then_the_boot_and_does_neither() {
     assert!(plan.steps.is_empty(), "{plan:?}");
 }
 
+mod has_plan;
 mod reviews;
 
 #[test]

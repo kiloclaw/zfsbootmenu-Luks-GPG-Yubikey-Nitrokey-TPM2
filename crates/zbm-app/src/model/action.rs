@@ -238,6 +238,15 @@ impl Action {
         )
     }
 
+    /// Whether the action has a plan, which a dry run shows
+    /// ([`App::plan`](crate::App::plan)): a change but the differences of
+    /// a snapshot, which changes nothing, and the boot of a snapshot,
+    /// which is its clone's.
+    pub fn has_plan(&self) -> bool {
+        (self.is_change() && !matches!(self, Action::Diff(..)))
+            || matches!(self, Action::BootSnapshot(..))
+    }
+
     /// Whether the change writes its pool, which it imports read/write
     /// first: every change but the diff of two snapshots, which reads
     /// them, an import, which is how the pool is imported, and an export;
