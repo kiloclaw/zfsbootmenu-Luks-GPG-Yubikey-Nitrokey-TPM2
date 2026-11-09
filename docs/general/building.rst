@@ -55,10 +55,17 @@ Clone this repository:
 
 .. code-block:: bash
 
-  git clone https://github.com/kiloclaw/zfsbootmenu-Luks-GPG-Yubikey-Nitrokey-TPM2 /usr/src/zbm
+  git clone --branch claude/zbm-refactor \
+    https://github.com/kiloclaw/zfsbootmenu-Luks-GPG-Yubikey-Nitrokey-TPM2 /usr/src/zbm
 
-The rest of this page uses ``/usr/src/zbm``. To build another branch or tag, check it out in the clone first
-(``git -C /usr/src/zbm checkout <branch>``).
+.. warning::
+
+  The repository's default branch, ``master``, still holds the upstream layout: it has no ``packaging/``, no
+  ``crates/`` and none of the LUKS code. Everything on this page needs the ``claude/zbm-refactor`` branch. In a clone
+  of ``master``, ``podman build`` fails with ``context must be a directory: "/usr/src/zbm/packaging/container"``;
+  switch the clone with ``git -C /usr/src/zbm checkout claude/zbm-refactor``.
+
+The rest of this page uses ``/usr/src/zbm``. To update the clone later, run ``git -C /usr/src/zbm pull``.
 
 The Rust programs build offline: ``.cargo/config.toml`` points Cargo at the crates vendored in ``vendor/``. Only the
 compiler must be installed:
@@ -699,6 +706,10 @@ Check the result
 
 Troubleshooting
 ---------------
+
+``context must be a directory: "/usr/src/zbm/packaging/container"``
+  The clone has the ``master`` branch, which has no ``packaging/``. Run
+  ``git -C /usr/src/zbm checkout claude/zbm-refactor`` and build again.
 
 ``zbm, which plans every ZFSBootMenu image, is not at /usr/libexec/zfsbootmenu/zbm``
   ``zbm`` is not installed. ``make core dracut`` does not install it; run ``make install``, or set ``zfsbootmenu_zbm``.
