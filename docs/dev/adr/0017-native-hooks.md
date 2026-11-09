@@ -1,6 +1,7 @@
 # ADR 0017: Built-in hooks as boot steps, the hook API version 2, and the generated `zfunc` library
 
-- **Status:** accepted, 4 November 2026 (proposed on 3 November)
+- **Status:** accepted, 4 November 2026 (proposed on 3 November); point 10 amended by [ADR 0018](0018-recovery-tools.md) on 9 November 2026
+  (`zbm zfunc` asks for the PIN for `zfs_chroot` too)
 - **Decides:** item SB5 of [ROADMAP.md](../../../ROADMAP.md), with fixes 21 and 22 of the review of 27 October 2026,
   and which of SB5 and SB6 owns the compatibility library that `crates/DESIGN.md` gives to "package F"
 - **Governs:** `zbm-bootenv`'s `hooks` module, the stages that run hooks (`zbm-startup`'s `40-early-hooks`, the

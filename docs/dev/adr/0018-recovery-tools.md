@@ -1,6 +1,6 @@
 # ADR 0018: The recovery tools as `zbm` applets, help from the code's tables, and `fzf` out of Rust images
 
-- **Status:** proposed, 9 November 2026
+- **Status:** accepted, 9 November 2026 (proposed the same day)
 - **Decides:** item SB6 of [ROADMAP.md](../../../ROADMAP.md) (`ROADMAP.md:617`): the form of every tool of the legacy
   `bin/`, `libexec/` and `lib/` that ADR 0017 left to SB6 (`docs/dev/adr/0017-native-hooks.md:129-130`), the LUKS
   libraries among them; which of the 54 functions still legacy (`crates/zbm/src/zfunc.rs:112-166`) get Rust code in
@@ -469,3 +469,19 @@ SB6's goes to its item: the 51 functions to SB14, the files, `pre-init` and the 
     do not show in it: SB14's;
   - the legacy runtime's help pages were made on 26 October, before `zfsbootmenu.7.rst`'s change of 8 November, so
     its key section is not in them: frozen as they are, VE7's with `rst2help.sh`.
+
+## Answers of the maintainer
+
+Accepted as proposed, on 9 November 2026:
+
+1. **The help viewer:** topics from the code's tables (commands, keys, options) in a pager of `zbm-tui` with its own
+   key context, lines without a terminal, no pages in Rust images; `rst2help.sh` to VE7.
+2. **Which functions SB6 makes native:** `zfs_chroot`, `zreport` and `zbmcmdline`.
+3. **The 51 remaining functions:** a new item, SB14 (L, needs SB5, phase 4), which SB7 needs; SB7 stays S. SB14's
+   row and SB7's were written into ROADMAP.md on acceptance, so SB6h checks them rather than writing them.
+4. **The PIN at a chroot in a locked image:** `zbm zfunc`'s `zfs_chroot` and the `zfs-chroot` applet ask for it as
+   `emergency_shell` does, amending ADR 0017 point 10.
+5. **New Recovery Tools entries:** none; the view keeps UI10's seven entries.
+6. **`zsnapshots`:** the menu on the Snapshots tab, environments only.
+7. **`logs`:** ZFSBootMenu's errors and warnings in the kernel log, and `ztrace` as its `--trace`.
+8. **Completions:** written by `zbm-host` for the commands' names, listing what the legacy ones listed but kernels.
