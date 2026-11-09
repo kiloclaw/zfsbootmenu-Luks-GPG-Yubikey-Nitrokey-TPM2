@@ -27,14 +27,14 @@ use crate::menu::world::{
 };
 use crate::text::text;
 
-fn theme() -> Theme {
+pub(super) fn theme() -> Theme {
     Theme::new(Capabilities::FULL)
 }
 
 /// The demo under the workspace, started, on the Snapshots tab, with the
 /// review page of the rollback to the daily snapshot of 20 October open,
 /// as the demo plans it.
-fn rollback_page() -> Session {
+pub(super) fn rollback_page() -> Session {
     let mut session = Session::new(&DemoOptions::default(), theme());
     session.start();
     session.key(Key::Escape);
@@ -56,7 +56,7 @@ fn reviewed(action: Action, plan: Plan) -> Model {
 }
 
 /// A plan that ends well with `review`.
-fn plan(review: Review) -> Plan {
+pub(super) fn plan(review: Review) -> Plan {
     Plan {
         steps: Vec::new(),
         outcome: Outcome::Done(String::new()),
@@ -77,7 +77,7 @@ fn forced(pool: PoolName) -> Action {
 
 /// The text of the page drawn at `width` by `height`, its lines without
 /// the borders, joined by a space: a sentence wrapped reads whole.
-fn prose(model: &Model, width: u16, height: u16) -> String {
+pub(super) fn prose(model: &Model, width: u16, height: u16) -> String {
     let drawn = screen(model, width, height);
     let lines: Vec<&str> = drawn
         .lines()
@@ -88,14 +88,14 @@ fn prose(model: &Model, width: u16, height: u16) -> String {
 }
 
 /// `model` drawn at `width` by `height`.
-fn buffer(model: &Model, width: u16, height: u16) -> Buffer {
+pub(super) fn buffer(model: &Model, width: u16, height: u16) -> Buffer {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal.draw(|frame| view(model, frame)).unwrap();
     terminal.backend().buffer().clone()
 }
 
 /// The style of the button `label`, as drawn at 80 by 24.
-fn button(model: &Model, label: &str) -> Style {
+pub(super) fn button(model: &Model, label: &str) -> Style {
     let buffer = buffer(model, 80, 24);
     let drawn = format!("[ {label} ]");
     for y in 0..24 {

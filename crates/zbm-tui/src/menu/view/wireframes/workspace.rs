@@ -167,10 +167,12 @@ fn startup_wireframes() -> Vec<Wireframe> {
 /// October, the environment's name typed in part; the rollback to that of
 /// 17 October, which a clone and a hold of newer snapshots stop; the rewind
 /// of `tank` to its checkpoint, from the imports of `i`; the forced
-/// import of the pool of another host start-up could not import; and the
+/// import of the pool of another host start-up could not import; the dry
+/// run of a snapshot taken from the command line, its entry below those
+/// of the four environments' snapshots, once named, with its undo; and the
 /// destroys ([`destroy_wireframes`]).
 fn review_wireframes() -> Vec<Wireframe> {
-    use Step::{Char, Code, Text};
+    use Step::{Char, Code, Ctrl, Text};
     let frame = |name, keys| Wireframe {
         name,
         options: workspace(),
@@ -237,6 +239,21 @@ fn review_wireframes() -> Vec<Wireframe> {
                 Text("back"),
             ],
         },
+        frame(
+            "workspace-dry-run",
+            &[
+                Char(':'),
+                Text("snapshot"),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Enter),
+                Ctrl('u'),
+                Text("before-upgrade"),
+                Code(Key::Enter),
+            ],
+        ),
     ];
     all.extend(destroy_wireframes());
     all

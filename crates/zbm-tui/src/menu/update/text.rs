@@ -115,7 +115,9 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
                 .matches
                 .get(palette.selected)
                 .and_then(|r| palette.items.get(r.index));
-            // A boot from here is checked as from the lists: it may not boot.
+            // A change chosen here shows its plan first. A boot from here is
+            // checked as from the lists: it may not boot.
+            super::dry_run::start(model);
             return match chosen.map(|item| item.then.clone()) {
                 Some(Then::Act(boot @ Action::Boot { .. })) => super::screens::guarded(model, boot),
                 Some(then) => dialogs::follow(model, then),

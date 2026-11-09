@@ -61,7 +61,7 @@ pub(super) fn apply(model: &mut Model, event: Event) -> Vec<Action> {
                 model.dialog = None;
             }
         }
-        // Its review page's; the dry run's come with UI14.
+        // Its review page's, or its dry run's.
         Event::Planned { action, plan } => super::review::planned(model, &action, plan),
         Event::StageStarted(name) => stage(model, name, StageState::Running),
         Event::StageFinished { stage: name, state } => stage(model, name, state),

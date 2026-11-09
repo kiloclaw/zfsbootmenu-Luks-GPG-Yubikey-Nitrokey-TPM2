@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 BBóótt] 2 SSñáppshóóts  3 PPóólls  4 LLóg   ! 6
+┌──────────────────────────────────────────────────┐
+│ TTákéé théé Sñáápshhót zroot/ROOT/void@before-u… │
+│ ÑÑóthhíñgg háss çhááñgééd ýéét: Éññtérr rúññs    │
+│ ítt, Ésçç léáávéss ít.                           │
+│ WWHÁTT ÍS LLÓSTT                                 │
+│ ÑÑóthhíñgg.                                      │
+│ SSTÉPPS                                          │
+│ 1. Íímpóórt zroot rréádd/wrííté                  │
+│ 2. Ttákéé zroot/ROOT/void@before-upgrade         │
+│    zfs snapshot zroot/ROOT/void@before-upgrade   │
+│ ÚÚñdóó: désstróóý                                │
+│ zroot/ROOT/void@before-upgrade.                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                           [ ÇÇáñççél ]  [ RRúñ ] │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér RRúñ   ÉÉsç ÇÇáñççél   ÚÚp/Dóówñ SSçróóll

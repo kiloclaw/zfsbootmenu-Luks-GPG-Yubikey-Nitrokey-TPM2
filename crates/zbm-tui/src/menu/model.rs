@@ -30,7 +30,7 @@ pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
 pub use self::recovery::{RECOVERY, RecoveryTool};
 pub use self::review::Reviewing;
-pub(crate) use self::review::{Focus, Lost};
+pub(crate) use self::review::{DryRun, Focus, Lost};
 pub(crate) use self::snapshots::Column;
 pub use self::sort::Sort;
 use self::timeline::Folds;
@@ -218,6 +218,8 @@ pub struct Model {
     pub dialog: Option<Dialog>,
     /// The palette, when open.
     pub palette: Option<Palette>,
+    /// Whether a change being chosen shows its plan first.
+    pub(crate) dry_run: DryRun,
     /// The command line editor, when open.
     pub editor: Option<Editor>,
     /// The environments of the main view, sorted, defaults first.
@@ -320,6 +322,7 @@ impl Model {
             theme,
             dialog: None,
             palette: None,
+            dry_run: DryRun::Off,
             editor: None,
             environments: ListState::default(),
             snapshots: ListState::default(),

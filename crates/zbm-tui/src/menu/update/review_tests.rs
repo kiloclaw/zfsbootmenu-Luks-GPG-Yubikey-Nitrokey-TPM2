@@ -224,7 +224,7 @@ fn a_change_of_the_machine_plans_the_page_again_once() {
 /// until the next tick, one by one, as a machine that reads its pools for
 /// seconds; a cancel ends every action not done, as the service's does,
 /// and it notes it.
-struct Planner {
+pub(super) struct Planner {
     inner: FakeMachine,
     holds: fn(&Action) -> bool,
     waiting: VecDeque<Action>,
@@ -233,7 +233,7 @@ struct Planner {
 
 impl Planner {
     /// The demo machine, its plans and what `holds` names held.
-    fn new(holds: fn(&Action) -> bool) -> (Planner, Rc<Cell<bool>>) {
+    pub(super) fn new(holds: fn(&Action) -> bool) -> (Planner, Rc<Cell<bool>>) {
         let cancelled = Rc::new(Cell::new(false));
         let machine = Planner {
             inner: FakeMachine::new(&DemoOptions::default()),

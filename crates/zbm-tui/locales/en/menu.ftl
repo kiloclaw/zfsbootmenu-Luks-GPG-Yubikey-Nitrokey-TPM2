@@ -805,6 +805,12 @@ review-kept-every-bookmark = { $count ->
 review-no-undo = No undo: what is lost cannot be brought back.
 review-undo = It can be undone.
 review-undo-export = Undo: export { $pool }.
+review-undo-destroy = Undo: destroy { $snapshot }.
+# $access is pool-read-only or pool-read-write.
+review-undo-import = Undo: import { $pool } { $access } again.
+review-undo-default = Undo: make { $environment } the default again.
+review-undo-inherit-kernel = Undo: let { $environment } inherit its default kernel again.
+review-host-id-stays = No undo: the host ID it adopts stays adopted, even once the pool is exported.
 review-safer-clone = Safer: clone { $snapshot } as a new boot environment, and keep everything.
 review-safer-import = Safer: import it read-only, without the rewind, and lose nothing.
 review-button-clone = Clone Instead
@@ -834,12 +840,35 @@ review-step-export = export { $pool }
 review-step-import = import { $pool } { $access }
 review-step-force-import = force the import of { $pool } { $access }
 review-step-rewind = import { $pool } rewound to its checkpoint
-review-step-adopt-hostid = take the host ID that last imported { $pool }
+# Only when the import with this machine's host ID fails.
+review-step-adopt-hostid = if the import fails, take the host ID that last imported { $pool }
 review-step-boot = boot { $environment }
 review-step-restore = { $count ->
     [one] restore one path from { $snapshot }
    *[other] restore { $count } paths from { $snapshot }
 }
+
+## The dry run of a change chosen on the command line (ADR 0007, point 5;
+## ADR 0016, point 12): its review page without the field.
+
+dry-run-asks = Nothing has changed yet: Enter runs it, Esc leaves it.
+dry-run-loses-nothing = Nothing is lost, and the menu has no undo for it.
+dry-run-snapshot = Take the Snapshot { $snapshot }
+dry-run-clone = Clone { $snapshot } as { $environment }
+dry-run-clone-promote = Clone { $snapshot } as { $environment } and Promote It
+dry-run-duplicate = Duplicate { $snapshot } as { $environment }
+dry-run-boot-clone = Boot a Clone of { $snapshot } as { $environment }
+dry-run-default = Make { $environment } the Default
+dry-run-kernel = Make { $kernel } the Default Kernel of { $environment }
+dry-run-inherit-kernel = Let { $environment } Inherit Its Default Kernel
+dry-run-restore = { $count ->
+    [one] Restore One Path from { $snapshot }
+   *[other] Restore { $count } Paths from { $snapshot }
+}
+# $access is pool-read-only or pool-read-write.
+dry-run-import = Import { $pool } { $access }
+dry-run-import-last-host = Import { $pool } { $access } with Its Last Host ID
+dry-run-export = Export { $pool }
 
 ## Naming a new snapshot or boot environment.
 

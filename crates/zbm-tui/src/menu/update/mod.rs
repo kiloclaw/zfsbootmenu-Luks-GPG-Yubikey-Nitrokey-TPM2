@@ -12,6 +12,7 @@ use super::world::{Action, Event, Outcome};
 
 mod dialogs;
 mod diff;
+mod dry_run;
 mod events;
 mod history;
 mod lists;
@@ -58,7 +59,10 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
             Vec::new()
         }
         Message::Tick(ms) => tick(&mut model, ms),
-        Message::Event(event) => events::apply(&mut model, *event),
+        Message::Event(event) => {
+            dry_run::machine(&mut model, &event);
+            events::apply(&mut model, *event)
+        }
         Message::Busy(busy) => {
             model.working = busy.then(|| model.working.unwrap_or(0));
             if !busy {
@@ -77,7 +81,9 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
     (model, actions)
 }
 
-/// A key press: it stops the countdown, then does what the key map says.
+/// A key press: it stops the countdown, then does what the key map says;
+/// a change the command line chose shows its plan first
+/// ([`dry_run::intercept`]).
 fn key_press(model: &mut Model, key: KeyPress) -> Vec<Action> {
     model.keys = model.keys.saturating_add(1);
     if model.countdown.take().is_some() && key.key == Key::Escape {
@@ -89,7 +95,10 @@ fn key_press(model: &mut Model, key: KeyPress) -> Vec<Action> {
     let key = unlock::translated(model, key);
     let typing = model.typing(&key);
     match keymap::input_on(model.map, model.context(), key, typing) {
-        Some(input) => handle(model, input),
+        Some(input) => {
+            let actions = handle(model, input);
+            dry_run::intercept(model, actions)
+        }
         None => Vec::new(),
     }
 }
@@ -253,6 +262,8 @@ mod columns_tests;
 mod commands_tests;
 #[cfg(test)]
 mod destroy_tests;
+#[cfg(test)]
+mod dry_run_tests;
 #[cfg(test)]
 mod health_tests;
 #[cfg(test)]

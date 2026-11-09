@@ -5,7 +5,10 @@
 //! its steps, their commands muted; its undo, or none; the safer action;
 //! who else may use the pool it imports; then the field of the name and
 //! the buttons, at the bottom. Text from the machine is drawn printable.
+//! The dry run of a change is the same page without the field, which says
+//! that nothing has changed yet ([`dry_run`]).
 
+mod dry_run;
 mod steps;
 #[cfg(test)]
 mod tests;
@@ -24,7 +27,7 @@ use crate::menu::format::{age, date, fit, size};
 use crate::menu::model::{Focus, Lost, Model, Reviewing, host_text};
 use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::world::{Action, Keep, Loss, Outcome, PoolUse, Review, Safer};
-use crate::text::text;
+use crate::text::{self, id, text};
 
 /// How many rows of what is lost the line view says, before how many
 /// more there are.
@@ -69,7 +72,7 @@ pub(crate) fn title(reviewing: &Reviewing) -> String {
         Action::Import(pool, options) if options.policy == ImportPolicy::Force => {
             text!("force-import.title", pool = pool.to_string())
         }
-        _ => text!("review-title"),
+        action => dry_run::title(action).unwrap_or_else(|| text!("review-title")),
     }
 }
 
@@ -92,7 +95,7 @@ pub(crate) fn refusal(reviewing: &Reviewing) -> Vec<String> {
 }
 
 /// What the page asks, first: to wait for the plan; why it refuses the
-/// change; or the name typed.
+/// change; the name typed; or, on a dry run, `Enter` to run it.
 pub(crate) fn asks(reviewing: &Reviewing) -> Vec<String> {
     if reviewing.plan.is_none() {
         return vec![text!("review-planning")];
@@ -101,6 +104,9 @@ pub(crate) fn asks(reviewing: &Reviewing) -> Vec<String> {
         let mut lines = vec![text!("review-refused")];
         lines.extend(refusal(reviewing));
         return lines;
+    }
+    if reviewing.typed.is_none() {
+        return vec![text!("dry-run-asks")];
     }
     vec![text!("confirm-type", name = reviewing.name.as_str())]
 }
@@ -145,14 +151,7 @@ pub(crate) fn after(model: &Model, reviewing: &Reviewing) -> Vec<Part> {
         parts.push(part(text!("review-steps"), Role::Header));
         parts.extend(steps(&plan.steps));
     }
-    parts.push(match review.undo.as_deref() {
-        Some(Action::Export(pool)) => part(
-            text!("review-undo-export", pool = pool.to_string()),
-            Role::Text,
-        ),
-        Some(_) => part(text!("review-undo"), Role::Text),
-        None => part(text!("review-no-undo"), Role::Warning),
-    });
+    parts.push(dry_run::undo(reviewing, review));
     match reviewing.safer(&model.snapshot.offers) {
         Some(Safer::Clone(snapshot)) => parts.push(part(
             text!("review-safer-clone", snapshot = snapshot.name()),
@@ -259,7 +258,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, reviewing
     let theme = model.theme;
     frame.render_widget(Clear, area);
     frame.buffer_mut().set_style(area, theme.style(Role::Text));
-    let block = frame_block(theme, true);
+    let block = frame_block(theme, dry_run::is_danger(reviewing));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let asked = asked_line(theme, reviewing);
@@ -289,19 +288,20 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, reviewing
     frame.render_widget(Paragraph::new(line), button_row);
 }
 
-/// What the page asks first, as lines: to wait for the plan, or why it
-/// refuses the change; nothing once it asks for the name. When they take
-/// more than `rows` rows wrapped in `width` columns, the last row says
-/// how many more there are.
+/// What the page asks first, as lines: to wait for the plan, why it
+/// refuses the change, or, on a dry run, `Enter`; nothing once it asks for
+/// the name. When they take more than `rows` rows wrapped in `width`
+/// columns, the last row says how many more there are.
 fn head_lines(theme: Theme, reviewing: &Reviewing, width: u16, rows: u16) -> Vec<Line<'static>> {
-    if reviewing.plan.is_some() && !reviewing.is_refused() {
+    if reviewing.plan.is_some() && reviewing.has_field() {
         return Vec::new();
     }
+    let refused = reviewing.is_refused();
     let mut lines: Vec<Line<'static>> = asks(reviewing)
         .into_iter()
         .enumerate()
         .map(|(index, line)| {
-            let role = match (reviewing.plan.is_some(), index) {
+            let role = match (refused, index) {
                 (false, _) => Role::Accent,
                 (true, 0) => Role::Danger,
                 (true, _) => Role::Text,
@@ -504,7 +504,8 @@ fn render_field(
 /// The buttons: **OK** on a page that refuses the change; else
 /// **Cancel**, the safer action, and the change, disabled until it is
 /// planned and named; the one `Enter` presses shows it, and the change
-/// shows the focus even disabled. **Cancel**, which `Esc` presses, goes
+/// shows the focus even disabled. A dry run that loses nothing has **Run**
+/// for its change, not a danger. **Cancel**, which `Esc` presses, goes
 /// first when they do not fit in `width`.
 fn button_line(model: &Model, reviewing: &Reviewing, width: usize) -> Line<'static> {
     let theme = model.theme;
@@ -530,13 +531,20 @@ fn button_line(model: &Model, reviewing: &Reviewing, width: usize) -> Line<'stat
         all.push((label, kind));
     }
     // `Enter` presses the change from the field too, once it is ready.
+    let danger = dry_run::is_danger(reviewing);
     let kind = match (reviewing.is_ready(), reviewing.focus) {
         (true, Focus::Safer) => Kind::Normal,
-        (true, _) => Kind::Destructive,
+        (true, _) if danger => Kind::Destructive,
+        (true, _) => Kind::Default,
         (false, Focus::Verb) => Kind::Waiting,
         (false, _) => Kind::Disabled,
     };
-    all.push((verb(&reviewing.action), kind));
+    let label = if danger {
+        verb(&reviewing.action)
+    } else {
+        text::title(id!("action-run"))
+    };
+    all.push((label, kind));
     let used: usize = all.iter().map(|(label, _)| label.chars().count() + 6).sum();
     if used > width + 2 {
         all.remove(0);

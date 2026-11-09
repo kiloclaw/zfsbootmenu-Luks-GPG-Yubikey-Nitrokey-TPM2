@@ -1,7 +1,8 @@
 //! The review page of a change (ADR 0016, points 12 to 15): what it
 //! loses, keeps and allows, as the machine plans it, then the target's
 //! name typed. The workspace opens it where the classic map asks for the
-//! name in an alert.
+//! name in an alert, and, without the field, as the dry run of a change
+//! the command line chose.
 
 use std::collections::BTreeSet;
 
@@ -19,6 +20,18 @@ pub(crate) enum Focus {
     Safer,
     /// The button of the change.
     Verb,
+}
+
+/// Whether a change being chosen shows its plan before it runs: one the
+/// command line chose does, from its `Enter` while the dialogs it opened
+/// are open; one a key of a view chose does not.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum DryRun {
+    /// The change runs once chosen.
+    #[default]
+    Off,
+    /// The change, once chosen, shows its plan first.
+    Pending,
 }
 
 /// A row of what a change loses, as its page lists it.
@@ -39,12 +52,12 @@ pub struct Reviewing {
     /// Its plan, with what it loses, keeps and allows; `None` while the
     /// machine plans it.
     pub plan: Option<Plan>,
-    /// What was typed; `None` for a page without the field.
+    /// What was typed; `None` for a dry run, a page without the field.
     pub typed: Option<String>,
     /// What has to be typed: the last component of the environment rolled
     /// back, as the classic map asks; the short name of the one snapshot
     /// destroyed, or the last component of the environment whose several
-    /// snapshots are; the name of a pool imported.
+    /// snapshots are; the name of a pool imported; nothing for a dry run.
     pub name: String,
     /// How many rows the list of what is lost is scrolled down.
     pub scroll: usize,
@@ -75,6 +88,20 @@ impl Reviewing {
         })
     }
 
+    /// The dry run of `action`, which the command line chose, before its
+    /// plan: the page without the field (ADR 0016, point 12), whose
+    /// `Enter` asks for the change once it is planned.
+    pub(crate) fn dry_run(action: Action) -> Reviewing {
+        Reviewing {
+            action,
+            plan: None,
+            typed: None,
+            name: String::new(),
+            scroll: 0,
+            focus: Focus::Verb,
+        }
+    }
+
     /// Whether the plan came and refuses the change: something stops it, as
     /// ZFS would refuse it, or a step would fail.
     pub(crate) fn is_refused(&self) -> bool {
@@ -90,11 +117,11 @@ impl Reviewing {
     }
 
     /// Whether `Enter` asks for the change: the plan came, refuses nothing,
-    /// and the name was typed as it is.
+    /// and the name was typed as it is, on a page with the field.
     pub(crate) fn is_ready(&self) -> bool {
         self.plan.is_some()
             && !self.is_refused()
-            && self.typed.as_deref() == Some(self.name.as_str())
+            && self.typed.as_deref().is_none_or(|typed| typed == self.name)
     }
 
     /// The safer action, when the plan gives one the machine `offers`;

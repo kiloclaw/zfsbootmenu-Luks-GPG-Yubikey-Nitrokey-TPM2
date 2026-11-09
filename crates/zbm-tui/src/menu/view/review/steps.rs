@@ -101,13 +101,18 @@ fn step(kind: &StepKind) -> String {
     }
 }
 
+/// `access`, in words: read-only, or read/write.
+pub(super) fn access(access: Access) -> String {
+    match access {
+        Access::ReadOnly => text!("pool-read-only"),
+        Access::ReadWrite => text!("pool-read-write"),
+    }
+}
+
 /// What the import of `pool` with `options` does, in words.
 fn import_step(pool: &zbm_types::PoolName, options: &ImportOptions) -> String {
     let pool = pool.to_string();
-    let access = match options.access {
-        Access::ReadOnly => text!("pool-read-only"),
-        Access::ReadWrite => text!("pool-read-write"),
-    };
+    let access = access(options.access);
     if options.rewind {
         text!("review-step-rewind", pool = pool)
     } else if options.policy == ImportPolicy::Force {

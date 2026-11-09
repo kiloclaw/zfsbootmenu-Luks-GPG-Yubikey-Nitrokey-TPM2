@@ -6,7 +6,8 @@
 //! `Delete` destroys; `i` imports, `w` imports read/write, `u` unlocks;
 //! `l` opens the kernels, `e` edits the command line; `:` opens the
 //! palette. Enter opens a snapshot's actions, chooses in a sheet and the
-//! palette, and confirms a name typed.
+//! palette, confirms a name typed, and runs a change the palette chose
+//! once its dry run shows its plan.
 
 use super::super::super::drive::Key;
 use super::super::{VOLUME, device, uuid};
@@ -259,9 +260,10 @@ pub(in crate::scenarios::menu) const SNAPSHOTS_REFUSED: &[Step] = &[
     ),
 ];
 
-/// `menu-pools`: an import of each kind, a rewind, an export, the unlock
-/// of the volume, and last the import that takes the host ID of the host
-/// that last imported `tforeign`.
+/// `menu-pools`: an import of each kind, a rewind, an export from the
+/// palette, after its dry run, the unlock of the volume, and last the
+/// import that takes the host ID of the host that last imported
+/// `tforeign`.
 ///
 /// `w` imports read/write and never toggles back: the import's choices
 /// offer read-only again. The forced import is read-only, as its review
@@ -368,10 +370,11 @@ pub(in crate::scenarios::menu) const POOLS: &[Step] = &[
         Await::Row("tforeign", "read-only"),
     ),
     Step::new(
-        "export tforeign from the palette",
+        "export tforeign from the palette: its dry run",
         &[key(':'), Type("export"), Select("Export tforeign"), ENTER],
-        Await::Done,
+        Await::Text("zpool export tforeign"),
     ),
+    Step::new("export tforeign: run", &[ENTER], Await::Done),
     Step::new(
         "tforeign is not imported",
         &[],
@@ -528,7 +531,8 @@ pub(in crate::scenarios::menu) const BOOT_KERNEL: &[Step] = &[
 ];
 
 /// `menu-boot`, second boot: a clone of `five`, from the palette, which
-/// lists the snapshots of an environment once they are read.
+/// lists the snapshots of an environment once they are read, and shows
+/// the clone's plan before it boots.
 pub(in crate::scenarios::menu) const BOOT_CLONE: &[Step] = &[
     Step::new(
         "the Snapshots tab of tmenu/ROOT/be",
@@ -547,8 +551,9 @@ pub(in crate::scenarios::menu) const BOOT_CLONE: &[Step] = &[
     )
     .showing(&["Name: tmenu/ROOT/be_NEW"]),
     Step::new(
-        "boot a clone of five: booted",
+        "boot a clone of five: booted, its dry run",
         &[CLEAR, Type("booted"), ENTER],
-        Await::Nothing,
+        Await::Text("zfs clone"),
     ),
+    Step::new("boot a clone of five: run", &[ENTER], Await::Nothing),
 ];
