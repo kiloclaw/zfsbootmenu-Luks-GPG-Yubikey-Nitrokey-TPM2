@@ -7,6 +7,22 @@ use super::{Context, Footer, Intent, Map, Modifiers, Tab};
 use crate::text::{self, Id, id, text};
 use Context::{Command, Diff, Kernels, Main, Packages, Pools, Recovery, Snapshots, Startup, Text};
 
+/// The name of the view of `context`, as help says it, and the command
+/// line's entry of that help.
+pub(crate) fn view_name(context: Context) -> Id {
+    match context {
+        Startup => id!("view-startup"),
+        Snapshots => id!("view-snapshots"),
+        Kernels => id!("view-kernels"),
+        Pools => id!("view-pools"),
+        Recovery => id!("view-recovery"),
+        Context::Log => id!("view-log"),
+        Diff | Packages => id!("view-changes"),
+        Command => id!("view-commands"),
+        _ => id!("view-main"),
+    }
+}
+
 /// What a key does for an intent in a context, as the toolbar and the
 /// help view say it: a message of the catalogue with a `.title`.
 pub fn describe(context: Context, intent: Intent) -> Id {

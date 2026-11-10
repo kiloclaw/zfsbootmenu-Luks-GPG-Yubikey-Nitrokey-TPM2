@@ -12,7 +12,7 @@ use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::keymap::case_tests::capital;
 use crate::menu::keymap::{Context, Modifiers};
-use crate::menu::model::{Model, Palette, Recent, Screen, Then};
+use crate::menu::model::{Model, Palette, PaletteItem, Recent, Screen, Then};
 use crate::menu::theme::Theme;
 use crate::menu::world::Action;
 use crate::text::{self, Language, text};
@@ -101,36 +101,48 @@ fn tab_completes_the_query_to_the_selected_entry() {
 
     press(&mut model, KeyPress::new(Key::Tab));
 
-    assert_eq!(palette(&model).query, chosen);
+    // The command's name and target, which finds the entry again.
+    let boot = text!("command-boot");
+    let query = palette(&model).query.clone();
+    assert!(query.starts_with(&format!("{boot} ")), "{query}");
     assert_eq!(selected(&model), chosen);
     // With nothing found, it leaves the query alone.
     type_text(&mut model, "qqqq");
     press(&mut model, KeyPress::new(Key::Tab));
-    assert_eq!(palette(&model).query, format!("{chosen}qqqq"));
+    assert_eq!(palette(&model).query, format!("{query}qqqq"));
 }
 
 #[test]
 fn tab_keeps_its_entry_selected_when_another_ranks_as_high() {
-    let mut model = menu();
+    // The snapshots of the selected environment read, on the Boot tab.
+    let mut session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::FULL));
+    session.start();
+    for key in [Key::Escape, Key::Char('2'), Key::Char('1')] {
+        session.key(key);
+    }
+    let mut model = session.into_model();
     press(&mut model, KeyPress::new(Key::Char(':')));
-    let reboot = text!("power-reboot");
-    let firmware = text!("power-firmware-setup");
-    // Chosen before, the firmware setup's entry comes first under
-    // `Ctrl-R`, and a query that finds both keeps that order.
-    for label in [&reboot, &firmware] {
-        let item = palette(&model).items.iter().find(|i| i.label == *label);
-        let then = item.expect("the demo offers it").then.clone();
-        model.recent.chose(&then);
+    let boot = |item: &&PaletteItem| matches!(item.then, Then::Act(Action::Boot { .. }));
+    let clone = |item: &&PaletteItem| matches!(item.then, Then::BootClone(_));
+    let items = &palette(&model).items;
+    let environment = items.iter().find(boot).expect("a boot").clone();
+    let snapshot = items.iter().find(clone).expect("a snapshot read").clone();
+    // Chosen before, the clone's entry comes first under `Ctrl-R`, and the
+    // environment's command, which the clone's starts with, finds both in
+    // that order.
+    for item in [&environment, &snapshot] {
+        model.recent.chose(&item.then);
     }
     press(&mut model, ctrl('r'));
-    assert_eq!(found(&model), [firmware.clone(), reboot.clone()]);
+    let both = [snapshot.label.clone(), environment.label.clone()];
+    assert_eq!(found(&model), both);
     press(&mut model, KeyPress::new(Key::Down));
 
     press(&mut model, KeyPress::new(Key::Tab));
 
-    assert_eq!(palette(&model).query, reboot);
-    assert_eq!(found(&model), [firmware, reboot.clone()]);
-    assert_eq!(selected(&model), reboot);
+    assert_eq!(palette(&model).query, environment.also);
+    assert_eq!(found(&model), both);
+    assert_eq!(selected(&model), environment.label);
 }
 
 #[test]
@@ -281,7 +293,141 @@ fn ctrl_k_does_nothing_in_the_command_line() {
     assert_eq!(actions, []);
     assert_eq!(palette(&model), &before);
     assert_eq!(model.layout, layout);
-    // Help does not open over it either.
+}
+
+#[test]
+fn f1_opens_the_help_of_the_command_line_and_esc_comes_back_to_its_query() {
+    let mut model = menu();
+    press(&mut model, KeyPress::new(Key::Char('2')));
+    press(&mut model, KeyPress::new(Key::Char(':')));
+    type_text(&mut model, "re");
+    press(&mut model, KeyPress::new(Key::Down));
+    let before = palette(&model).clone();
+
     press(&mut model, KeyPress::new(Key::F(1)));
+    assert_eq!(model.palette, None);
+    assert_eq!(model.screen, Screen::Help(Context::Command));
+    assert_eq!(model.context(), Context::Help);
+    // The tab stays the one the command line was open on, and the status
+    // says where Esc goes back to.
+    assert_eq!(model.tab(), crate::menu::keymap::Tab::Snapshots);
+    let page = crate::menu::lines::page(&model).join("\n");
+    for name in ["Ctrl-W", "Ctrl-R", "Tab", &text!("command-rollback")] {
+        assert!(page.contains(name), "{name}: {page}");
+    }
+
+    press(&mut model, KeyPress::new(Key::Escape));
+    assert_eq!(model.screen, Screen::Snapshots);
     assert_eq!(palette(&model), &before);
+    // Its entry opens it too; leaving it by a tab forgets the line.
+    press(&mut model, KeyPress::new(Key::Escape));
+    let view = text!("view-commands");
+    choose(&mut model, &text!("palette-help", view = view.as_str()));
+    assert_eq!(model.screen, Screen::Help(Context::Command));
+    press(&mut model, KeyPress::new(Key::Char('1')));
+    assert_eq!(model.palette_on_help, None);
+    press(&mut model, KeyPress::new(Key::Escape));
+    assert_eq!(model.palette, None);
+}
+
+#[test]
+fn the_revert_entry_drops_the_edited_command_line_and_says_so() {
+    let mut model = menu();
+    let void: zbm_types::DatasetName = "zroot/ROOT/void".parse().unwrap();
+    let has_revert = |model: &Model| {
+        let items = super::palette_items(model);
+        items
+            .iter()
+            .any(|item| item.then == Then::Revert(void.clone()))
+    };
+    assert!(!has_revert(&model));
+    model
+        .edited
+        .push((void.clone(), Untrusted::new("quiet".to_owned())));
+    assert!(has_revert(&model));
+
+    let name = text!("command-revert");
+    assert_eq!(choose(&mut model, &format!("{name} zroot/ROOT/void")), []);
+    assert_eq!(model.edited, []);
+    let said = text!("command-line-reverted", environment = "zroot/ROOT/void");
+    assert_eq!(
+        model.notification,
+        Some(crate::menu::world::Outcome::Done(said))
+    );
+    assert_eq!(model.dialog, None);
+}
+
+#[test]
+fn the_revert_key_says_nothing_when_no_command_line_was_edited() {
+    let mut model = menu();
+    model.map = crate::menu::keymap::Map::Classic;
+    let alt_t = KeyPress::new(Key::Char('t')).with_alt();
+    assert_eq!(press(&mut model, alt_t), []);
+    assert_eq!(model.notification, None);
+    let void: zbm_types::DatasetName = "zroot/ROOT/void".parse().unwrap();
+    model
+        .edited
+        .push((void, Untrusted::new("quiet".to_owned())));
+    assert_eq!(press(&mut model, alt_t), []);
+    assert_eq!(model.edited, []);
+    assert!(model.notification.is_some());
+}
+
+#[test]
+fn the_log_stays_scrolled_under_the_command_line_s_help() {
+    let mut model = menu();
+    press(&mut model, KeyPress::new(Key::Char('4')));
+    assert_eq!(model.screen, Screen::Log);
+    model.scroll = 3;
+    press(&mut model, KeyPress::new(Key::Char(':')));
+    press(&mut model, KeyPress::new(Key::F(1)));
+    assert_eq!(model.scroll, 0);
+    press(&mut model, KeyPress::new(Key::Escape));
+    assert_eq!(model.screen, Screen::Log);
+    assert_eq!(model.scroll, 3);
+    assert!(model.palette.is_some());
+}
+
+#[test]
+fn a_clone_s_boot_is_found_by_its_name_and_tab_names_it() {
+    for language in [Language::English, Language::Lookalike] {
+        text::in_language(language, || {
+            // The snapshots of the selected environment read.
+            let options = DemoOptions::default();
+            let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
+            session.start();
+            for key in [Key::Escape, Key::Char('2'), Key::Char('1')] {
+                session.key(key);
+            }
+            let mut model = session.into_model();
+            press(&mut model, KeyPress::new(Key::Char(':')));
+            let clone = |item: &PaletteItem| match &item.then {
+                Then::BootClone(name) => Some((item.clone(), name.clone())),
+                _ => None,
+            };
+            let items = &palette(&model).items;
+            let (snapshot, name) = items.iter().find_map(clone).expect("a snapshot read");
+            let query = format!("{} {name}", text!("command-boot"));
+            // In English the label says the name: no other is built. In the
+            // look-alike language it does not, and the name is built.
+            let first = snapshot.also.lines().next().unwrap_or_default();
+            let built = if language == Language::English {
+                ""
+            } else {
+                &query
+            };
+            assert_eq!(first, built, "{language:?}");
+            type_text(&mut model, &query);
+            let palette_now = palette(&model);
+            let at = (palette_now.matches.iter())
+                .position(|r| palette_now.items[r.index] == snapshot)
+                .unwrap_or_else(|| panic!("{language:?}: {query}"));
+            model.palette.as_mut().unwrap().selected = at;
+
+            press(&mut model, KeyPress::new(Key::Tab));
+
+            assert_eq!(palette(&model).query, query, "{language:?}");
+            assert_eq!(selected(&model), snapshot.label, "{language:?}");
+        });
+    }
 }

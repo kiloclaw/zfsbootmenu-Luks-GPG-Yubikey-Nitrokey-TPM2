@@ -28,16 +28,19 @@ impl Model {
         }
     }
 
-    /// The tab of the workspace the current screen belongs to.
+    /// Opens the Boot tab, which ends the marks and the changes shown.
+    pub(crate) fn open_boot_tab(&mut self) {
+        self.screen = self.boot_view();
+        self.marked.clear();
+        self.diff = None;
+    }
+
+    /// The tab of the workspace the current screen belongs to; the help of
+    /// the command line, that of the screen the command line was open over.
     pub fn tab(&self) -> Tab {
-        use Context::{Diff, Packages};
-        match self.screen {
-            Screen::Snapshots
-            | Screen::Diff
-            | Screen::Help(Context::Snapshots | Diff | Packages) => Tab::Snapshots,
-            Screen::Pools | Screen::Help(Context::Pools) => Tab::Pools,
-            Screen::Log | Screen::Help(Context::Log) => Tab::Log,
-            _ => Tab::Boot,
+        match (&self.palette_on_help, self.screen) {
+            (Some((_, under, _)), Screen::Help(Context::Command)) => tab_of(*under),
+            (_, screen) => tab_of(screen),
         }
     }
 
@@ -110,5 +113,18 @@ impl Model {
             Screen::Diff => self.diff.as_mut().map(DiffView::active_list_mut),
             _ => None,
         }
+    }
+}
+
+/// The tab of the workspace `screen` belongs to.
+fn tab_of(screen: Screen) -> Tab {
+    use Context::{Diff, Packages};
+    match screen {
+        Screen::Snapshots | Screen::Diff | Screen::Help(Context::Snapshots | Diff | Packages) => {
+            Tab::Snapshots
+        }
+        Screen::Pools | Screen::Help(Context::Pools) => Tab::Pools,
+        Screen::Log | Screen::Help(Context::Log) => Tab::Log,
+        _ => Tab::Boot,
     }
 }

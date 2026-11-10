@@ -179,11 +179,7 @@ fn mark_away(model: &mut Model) {
 /// [`open_tab`], but for what it says.
 fn switch_tab(model: &mut Model, tab: Tab) -> Vec<Action> {
     match tab {
-        Tab::Boot => {
-            model.screen = model.boot_view();
-            model.marked.clear();
-            model.diff = None;
-        }
+        Tab::Boot => model.open_boot_tab(),
         Tab::Snapshots => {
             let shown = model
                 .focus
@@ -235,16 +231,27 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
             return dialogs::follow(model, then);
         }
         Intent::Shell => return vec![Action::Shell],
-        Intent::RevertCommandLine => {
-            model.edited.retain(|(edited, _)| *edited != name);
-            model.notification = Some(Outcome::Done(text!(
-                "command-line-reverted",
-                environment = name.to_string()
-            )));
-        }
+        Intent::RevertCommandLine => revert(model, &name),
         _ => {}
     }
     Vec::new()
+}
+
+/// Drops the command line edited for the boots of `environment`, which
+/// boots with its own again, and says so; nothing when none was edited,
+/// as the command line offers it only then: no key does what no entry
+/// does (rule 1 of decision 18), and nothing says a change that was not
+/// made.
+pub(super) fn revert(model: &mut Model, environment: &zbm_types::DatasetName) {
+    let before = model.edited.len();
+    model.edited.retain(|(edited, _)| edited != environment);
+    if model.edited.len() == before {
+        return;
+    }
+    model.notification = Some(Outcome::Done(text!(
+        "command-line-reverted",
+        environment = environment.to_string()
+    )));
 }
 
 /// The kernels of the focused environment.
@@ -351,7 +358,7 @@ fn shadowed(model: &mut Model, pool: &Pool) {
 
 /// Opening `volume`: its device, as the mapping it was opened as before,
 /// when its name is one, else its default name.
-fn open(volume: &Volume) -> Action {
+pub(super) fn open(volume: &Volume) -> Action {
     let device = volume.device.get().clone();
     let name = volume.name.get();
     Action::Open {

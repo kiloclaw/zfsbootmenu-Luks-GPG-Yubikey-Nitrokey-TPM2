@@ -203,4 +203,30 @@ fn confirmations_names_errors_and_the_palette_are_said_too() {
     let said = dialog(session.model()).unwrap();
     assert_eq!(said.title, text!("palette-title"));
     assert!(!said.choices.is_empty());
+    // The headings of its sections, which are no choices.
+    assert_eq!(said.headers.first(), Some(&0));
+    assert_eq!(said.choices[0], text!("section-actions"));
+    let headings = said.headers.iter().map(|at| said.choices[*at].clone());
+    let headings: Vec<String> = headings.collect();
+    let expected = [
+        text!("section-actions"),
+        text!("section-items"),
+        text!("section-help"),
+    ];
+    assert_eq!(headings, expected);
+}
+
+#[test]
+fn the_command_line_s_help_says_its_command_names_under_their_header() {
+    let mut model = started().into_model();
+    model.screen = Screen::Help(keymap::Context::Command);
+    let (said, _) = rows(&model);
+    let header = text!("help-command-names");
+    let at = said.iter().position(|row| *row == header);
+    let at = at.unwrap_or_else(|| panic!("no header: {said:?}"));
+    let boot = text!("command-boot");
+    assert!(said[at + 1].starts_with(&format!("{boot}: ")), "{said:?}");
+    assert_eq!(said.len() - at - 1, keymap::COMMAND_NAMES.len());
+    model.screen = Screen::Help(keymap::Context::Main);
+    assert!(!rows(&model).0.contains(&header));
 }

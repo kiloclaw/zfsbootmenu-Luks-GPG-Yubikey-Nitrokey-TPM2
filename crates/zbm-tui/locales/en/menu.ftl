@@ -373,6 +373,8 @@ help-classic = CLASSIC BINDINGS (MOD IS ALT OR CTRL)
 # `MOD+key` aliases of the fzf menu, named apart from `zbm.menu=classic`.
 help-zfs-version = ZFS { $version }
 help-aliases = FZF ALIASES (MOD IS ALT OR CTRL)
+# The help of the command line: the names it finds its commands by.
+help-command-names = COMMAND NAMES, THEN WHAT THEY ACT ON
 
 ## The key section of zfsbootmenu(7), which `cargo xtask gen-docs` writes:
 ## the places that have no view of their own.
@@ -381,6 +383,8 @@ manual-every-view = Every View
 manual-sheets = Sheets and Alerts
 manual-fields = Fields That Take Text
 manual-command-line = The Command Line
+manual-command-names = Command Names
+manual-command-names-intro = The command line finds a command by its name, in the menu's language or in English, then by the name of what it acts on: an environment, a snapshot, a kernel, a pool, a volume or a view. Tab completes the selected entry's command and target, and F1 lists the names.
 # A classic binding of the fzf menu that works with Alt only: its Ctrl form
 # is a key of the menu, as Ctrl-P is Select.
 manual-alt-only = Alt only: { $key } is { $action }.
@@ -604,6 +608,117 @@ palette-destroy-marked = { $count ->
 # An action that only a character or a chord reaches, and its keys, as the
 # help names them. $dot is " · ", or " | " in ASCII.
 palette-key = { $action }{ $dot }{ $keys }
+palette-revert = Revert the Command Line of { $environment }
+palette-default = Make { $environment } the Default
+palette-snapshot = Take a Snapshot of { $environment }
+palette-chroot = Chroot into { $target }
+palette-default-kernel = Make { $kernel } the Default Kernel of { $environment }
+palette-inherit = Inherit the Default Kernel of { $environment }
+palette-roll-back = Roll Back to { $snapshot }
+palette-clone = Clone { $snapshot }
+palette-duplicate = Duplicate { $snapshot }
+palette-promote = Clone { $snapshot } and Promote the Clone
+palette-diff = Show Differences from { $snapshot } to Now
+palette-read-write = Import { $pool } Read/Write
+palette-read-only = Import { $pool } Read-Only
+palette-import = Import { $pool }
+palette-import-last-host = Import { $pool } with Its Last Host ID
+palette-import-force = Force the Import of { $pool }
+palette-rewind = Rewind { $pool } to Its Checkpoint
+palette-unlock = Unlock { $volume }
+palette-go-environment = Go to { $environment }
+palette-go-pool = Go to the Pool { $pool }
+palette-go-volume = Go to the Volume { $volume }
+# The help of a view, or of the command line, by its name.
+palette-help = Help: { $view }
+# The sections of the command line, drawn above their entries.
+section-recent = Recent
+section-actions = Actions
+section-items = Items
+section-help = Help
+# The command line, as help names what Esc returns to.
+view-commands = Command Line
+# The names of the command line's commands, which it finds in the menu's
+# language and in English, before what they act on: "boot zroot/ROOT/void".
+# Short, lower case, one word where it can be; what follows says what each
+# does, for its help and zfsbootmenu(7).
+command-boot = boot
+    .what = boot an environment, or a new clone of a snapshot
+command-edit = edit
+    .what = edit the command line an environment boots with, until reverted
+command-revert = revert
+    .what = go back to an environment's own command line
+command-default = default
+    .what = make an environment, or a kernel of it, the default
+command-inherit = inherit
+    .what = inherit the default kernel of an environment
+command-snapshot = snapshot
+    .what = take a snapshot of an environment
+command-chroot = chroot
+    .what = open a shell in an environment or a snapshot
+command-tries = tries
+    .what = give an environment its boot tries back
+command-rollback = rollback
+    .what = roll an environment back to a snapshot
+command-clone = clone
+    .what = clone a snapshot as a new boot environment
+command-promote = promote
+    .what = clone a snapshot and promote the clone
+command-duplicate = duplicate
+    .what = duplicate a snapshot as an independent copy
+command-diff = diff
+    .what = show the differences from a snapshot to now
+command-destroy = destroy
+    .what = destroy the selected snapshot, or the marked ones
+command-export = export
+    .what = export a pool
+command-import = import
+    .what = import a pool with this host's ID
+command-import-last-host = import -l
+    .what = import a pool with the host ID that last imported it
+command-import-force = import -f
+    .what = force the import of a pool another host may use
+command-rewind = rewind
+    .what = rewind a pool to its checkpoint
+command-read-write = readwrite
+    .what = import a pool read/write
+command-read-only = readonly
+    .what = import a pool read-only
+command-unlock = unlock
+    .what = unlock a LUKS volume
+command-reseal = reseal
+    .what = seal a volume's TPM2 key again
+command-rescan = rescan
+    .what = scan for pools again
+command-shell = shell
+    .what = open the recovery shell
+command-power = power
+    .what = followed by { command-power.off }, { command-power.reboot } or { command-power.firmware }: power off, reboot, or reboot into the firmware setup
+    .off = off
+    .reboot = reboot
+    .firmware = firmware
+command-sort = sort
+    .what = sort the snapshots another way
+command-fold = fold
+    .what = fold the group of the selected snapshot, or unfold it
+command-mark = mark
+    .what = mark the selected snapshot, or unmark it
+command-filter = filter
+    .what = filter the list
+command-go = go
+    .what = go to an environment, a pool or a volume
+command-kernels = kernels
+    .what = show the kernels of an environment
+command-snapshots = snapshots
+    .what = show the snapshots of an environment
+command-pools = pools
+    .what = show the pools and volumes
+command-recovery = recovery
+    .what = show the recovery tools
+command-log = log
+    .what = show the log
+command-help = help
+    .what = show the keys of a view, or of the command line
 
 ## The changes since a snapshot: files and packages.
 

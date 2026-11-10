@@ -145,7 +145,7 @@ fn the_keys_left_out_do_nothing_where_they_are_left_out() {
         (
             || after(&[Key::Char(':')]),
             Context::Command,
-            vec![plain(Key::F(1)), plain(Key::PageUp), plain(Key::PageDown)],
+            vec![plain(Key::PageUp), plain(Key::PageDown)],
         ),
         (
             || after(&[Key::Char('/')]),
@@ -314,4 +314,19 @@ fn the_manual_page_is_up_to_date() {
         updated == text,
         "{PAGE} is out of date: run `cargo xtask gen-docs`"
     );
+}
+
+#[test]
+fn the_page_lists_every_command_name_with_what_it_does() {
+    let text = workspace();
+    let names = place_of(&text, &text!("manual-command-names"));
+    for (name, what) in COMMAND_NAMES {
+        let entry = format!("**{}**\n\n  ", text::get(*name));
+        assert!(names.contains(&entry), "{entry}");
+        let said = crate::menu::format::capitalised(&text::get(*what));
+        assert!(names.contains(&said), "{said}");
+    }
+    // After the keys of the command line, which say F1 lists them.
+    let line = place_of(&text, &text!("manual-command-line"));
+    assert!(line.contains("**F1**"), "{line}");
 }

@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 6
+ zroot › zroot/ROOT/void
+┌ ┌ COMMANDS ─────────────────────────── 3 of 55 ┐ ┐
+│ │ : pools                                      │ │
+│ │   ACTIONS                                    │ │
+│ │ ▶ Rescan the Pools                           │ │
+│ │   ITEMS                                      │ │
+│ │   Pools and volumes                          │ │
+│ │   HELP                                       │ │
+└─│   Help: Pools and Volumes                    │─┘
+┌ │                                              │ ┐
+│ │                                              │ │
+│ │                                              │ │
+│ │                                              │ │
+│ │                                              │ │
+│ │                                              │ │
+│ │                                              │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

@@ -24,8 +24,10 @@ pub(super) fn workspace_dialog_wireframes() -> Vec<Wireframe> {
 }
 
 /// The search field filtered by `ta`; the command line edited for one
-/// boot; the palette finding snapshots by date in the Snapshots tab; the
-/// power dialog; the recovery tools; the outcome of setting a default on
+/// boot; the palette finding snapshots by date in the Snapshots tab, and
+/// finding `pools` on the Boot tab, under its actions, items and help
+/// (with the query empty, the actions alone fill the frame); the power
+/// dialog; the recovery tools; the outcome of setting a default on
 /// the notification line; help for the Snapshots tab; and the Log tab
 /// during start-up, `Shift-Tab` from the Boot tab.
 fn boot_dialog_wireframes() -> Vec<Wireframe> {
@@ -46,6 +48,7 @@ fn boot_dialog_wireframes() -> Vec<Wireframe> {
             "workspace-palette",
             &[Char('2'), Char(':'), Text("2026-10")],
         ),
+        frame("workspace-commands", &[Char(':'), Text("pools")]),
         frame("workspace-power", &[Char('x')]),
         frame("workspace-recovery", &[Char('!')]),
         frame("workspace-notification", &[Code(Key::Down), Char('d')]),

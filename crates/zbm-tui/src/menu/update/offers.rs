@@ -21,7 +21,7 @@ fn offer_of(then: &Then) -> Option<Offer> {
         Then::BootClone(_) => Some(Offer::BootSnapshot),
         // The command line is edited for a boot.
         Then::Focus(_, Screen::CommandLine) => Some(Offer::Boot),
-        Then::Open(_) | Then::Focus(..) | Then::Intent(_) => None,
+        Then::Open(_) | Then::Focus(..) | Then::Intent(_) | Then::Go(_) | Then::Revert(_) => None,
     }
 }
 

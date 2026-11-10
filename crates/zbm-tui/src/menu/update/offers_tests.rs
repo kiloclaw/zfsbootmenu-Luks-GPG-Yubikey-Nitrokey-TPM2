@@ -11,7 +11,7 @@ use super::{events, key_press, palette_items, screens};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine};
 use crate::menu::keymap::{self, CLASSIC, Context, Map, Modifiers};
-use crate::menu::model::{Dialog, Model, Screen, Then};
+use crate::menu::model::{Dialog, Model, PaletteItem, Screen, Then};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Access, Action, Event, Offer, Outcome, Snapshot, StageState};
 use crate::text::text;
@@ -139,7 +139,7 @@ fn then_action(model: &Model, then: &Then) -> Option<Action> {
             Some(screens::boot(model, environment, None))
         }
         // A key's, which the keys of the view reach too.
-        Then::Open(_) | Then::Focus(..) | Then::Intent(_) => None,
+        Then::Open(_) | Then::Focus(..) | Then::Intent(_) | Then::Go(_) | Then::Revert(_) => None,
     }
 }
 
@@ -388,6 +388,20 @@ fn a_volume_does_not_open_again_while_the_machine_works() {
 }
 
 #[test]
+fn the_command_line_does_not_open_a_volume_again_while_the_machine_works() {
+    let mut model = menu(&machine_all(), Map::Classic, Place::Pools(3));
+    let opens = |model: &Model| {
+        let items = palette_items(model);
+        let open = |item: &&PaletteItem| matches!(item.then, Then::Act(Action::Open { .. }));
+        items.iter().filter(open).count()
+    };
+    assert!(opens(&model) > 0);
+    // As between two questions of the action that opens it.
+    model.working = Some(0);
+    assert_eq!(opens(&model), 0);
+}
+
+#[test]
 fn the_toolbar_help_menus_recovery_and_palette_show_only_what_is_offered() {
     let machine = machine(APP);
     let model = menu(&machine, Map::Classic, Place::Snapshots);
@@ -430,10 +444,16 @@ fn the_toolbar_help_menus_recovery_and_palette_show_only_what_is_offered() {
     assert_eq!(model.recovery.matches.len(), tools.len());
     assert_eq!(tools.len(), 6, "every tool but the chroot");
     let palette = palette_items(&model);
+    // Neither a chroot, the tries given back, a volume opened nor one
+    // sealed again; the imports' confirmations are offered.
     assert!(palette.iter().all(|item| !matches!(
         item.then,
-        Then::Act(Action::Chroot(_) | Action::ResetBootTries(_))
-    ) && !matches!(item.then, Then::Confirm { .. })));
+        Then::Act(Action::Chroot(_) | Action::ResetBootTries(_) | Action::Open { .. })
+            | Then::Confirm {
+                action: Action::Reseal(_),
+                ..
+            }
+    )));
 }
 
 #[test]

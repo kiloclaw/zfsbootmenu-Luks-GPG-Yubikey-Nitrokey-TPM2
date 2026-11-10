@@ -18,11 +18,12 @@ Decision 18, for both maps, built by UI15 ([ADR 0007](../adr/0007-menu-workspace
    in each view, the palette (`:`, the command line for now) lists each action that only a character or a chord reaches
    there, as *action · keys*, where the toolbar would show its key, and choosing it does what the key does. Not listed:
    what `Enter`, an arrow, `Tab`, `Esc`, `Delete`, a page key, `Home`, `End` or a function key reaches; what the palette
-   has entries of its own for (a boot, the views, the recovery shell, power); and what an `Enter` menu reaches (a
-   snapshot's roll back, clone, clone and promote, duplicate and chroot, a volume's unlock; a snapshot's diff and a
-   pool's rewind are listed, as their keys do more than the menus). The filter is listed in every list, the redraw and
-   the digits are not, and a text field's chords have none. The digits choose a tab, but no start-up choice yet, in no
-   item.
+   has entries of its own for (an environment's boot, default, new snapshot, chroot and reverted command line, a
+   kernel's default and the inherited one, a pool's imports, read/write or read-only, the views, the recovery shell,
+   power); and what an `Enter` menu reaches (a snapshot's roll back, clone, clone and promote, duplicate and chroot, a
+   volume's unlock; a snapshot's diff and a pool's rewind are listed, as their keys do more than the menus). The filter
+   is listed in every list, the redraw and the digits are not, and a text field's chords have none. The digits choose
+   a tab, but no start-up choice yet, in no item.
 2. **No action depends on case.** A letter and its capital are one key; Shift and Caps Lock change no action. Risky
    actions open their review page instead of hiding behind Shift. As built: a character is looked up by its lower
    case, but a plain character in a text field, which is typed as is; `Ctrl` and `Alt` with a capital reach the
@@ -56,8 +57,12 @@ Decision 18, for both maps, built by UI15 ([ADR 0007](../adr/0007-menu-workspace
      with key 86 (`>`) edits too, as Shift with Dvorak's `.` does: the menu gets the character, not the key; in no item
      yet.
 4. **The command line knows every language.** It matches the command names of the catalogue in the menu's language
-   and the English names. As built: the palette finds each entry by its label in the menu's language and by its
-   English one, whichever matches better; the line view takes its words in English too.
+   and the English names. As built: the palette finds each entry by its label, and by its command's name and target
+   (`rollback zroot/ROOT/void@pre-upgrade`), in the menu's language and in English, whichever matches better; the row
+   shows the label alone, and `Tab` completes to the name and target. The names are the `command-*` messages of the
+   catalogue, which `keymap/commands.rs` lists (`COMMAND_NAMES`, and `command_name` for each intent); the command
+   line's help (`F1` there) and the section "Command Names" of `zfsbootmenu(7)`, which `cargo xtask gen-docs` writes,
+   list them. The line view takes its words in English too.
 
 The tests: rule 2 on both tables, that no binding is a capital and that a capital does what its letter does in every
 view (`keymap/case_tests.rs`), and one meaning per key, in the whole classic map and in each view of the workspace's
@@ -68,8 +73,8 @@ Caps Lock, with Shift and after `Ctrl-K`, through the model's messages; four key
 character as a terminal's bytes; the charts; and 14 wireframes replayed on five layouts
 (`view/wireframes/layouts.rs`). Rule 4 in a language of look-alike letters compiled in tests only
 (`update/palette_language_tests.rs`). The VM test `menu-keys` types by position on the six layouts on the console
-on the display ([testing](../../luks/testing.rst)). UI14 builds the command names, their completion and the `Enter`
-menus' entries of rule 1.
+on the display ([testing](../../luks/testing.rst)). UI14 built the command names and their completion
+(`keymap/commands_tests.rs`, `update/palette_language_tests.rs`); the `Enter` menus' entries of rule 1 are UI14-7's.
 
 ## The workspace's map
 
@@ -85,7 +90,7 @@ to the other in the changes.
 | Pools | `i` import…: read-only, read/write, as the host that owns it, at its checkpoint, or forced; `w` read/write…; `u` unlock…; `Enter` on a device: its kernel messages |
 | Start-up | `j` `k`, the arrows and `Enter` a choice (the digits choose none yet, in no item); between choices, as the Boot tab, only `Tab` and `Shift-Tab` choose a tab (`Tab` passes over the Snapshots tab, which has no boot environment yet), the arrows, `Ctrl-P` and `Ctrl-N` move, `?` and `F1` open help; any other key, the digits and `j` `k` included, starts typing ahead of the next dialog, and the tab bar names no digit. On another tab during start-up, `1` to `4` choose a tab |
 | Review page | every character, the letters, digits and `?` too, types the target's name, `Backspace` and `Ctrl-U` erase it; `Enter` the change once it is planned and named (until then the status line says what is missing), or the safer action when it has the focus; `Tab` and `Shift-Tab` move among the field, the safer action and the change; the arrows, `Ctrl-P` `Ctrl-N`, `PgUp` and `PgDn` scroll what is lost; `Esc` closes the page and sends nothing. On a page that refuses its change, which has no field, `Enter` closes it and the arrows scroll |
-| Text fields | `Backspace` erases a character, `Ctrl-U` all of them; `Ctrl-R` shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout, which then translates the unlock dialog and the keys of actions, but no other field ([unlocking](unlocking.md)). In the command line (`:`), `Tab` completes the query to the selected entry, `Ctrl-W` deletes its last word, `Ctrl-R` shows only the entries chosen before (at most 20, in memory for the menu's life), which the query filters, and `Ctrl-K` does nothing |
+| Text fields | `Backspace` erases a character, `Ctrl-U` all of them; `Ctrl-R` shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout, which then translates the unlock dialog and the keys of actions, but no other field ([unlocking](unlocking.md)). In the command line (`:`), `Tab` completes the query to the selected entry's command and target, `Ctrl-W` deletes its last word, `Ctrl-R` shows only the entries chosen before (at most 20, in memory for the menu's life), which the query filters, `F1` opens its help, with these keys and the command names, whose `Esc` returns to it with its query, and `Ctrl-K` does nothing |
 
 Against the classic map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind
 leaves `h` for the import page, and the log leaves `l` for its tab; the pools are tab 3, so `p` is free; `Tab` goes to
@@ -111,9 +116,10 @@ The other keys are the classic map's: `!` opens the recovery tools, the shell fi
 the layout `Model::typing` gives (`model/typing.rs`: the one the key was typed on, from `TypedOn`, or the one `Ctrl-K`
 translated it into), and `update/mod.rs` is its only caller, after `Ctrl-K`'s translation (`update/unlock.rs`,
 `Model::translation`). `keymap/commands.rs` lists what only a character or a chord reaches in a view, which the palette
-shows (rule 1; `ENTER_REACHES` names what an `Enter` menu reaches instead), and `filter::rank_named` ranks a palette
-entry by its label and its English name, which the palette builds a second time with `text::in_language` when the menu's
-language is not English (rule 4).
+shows (rule 1; `ENTER_REACHES` names what an `Enter` menu reaches instead), and the commands' names (rule 4).
+`filter::rank_named` ranks a palette entry by its label and the names it is also known by, one a line: its command and
+target, and in another language the English ones and the English label, which the palette builds a second time with
+`text::in_language` (rule 4).
 
 ## The classic map
 
@@ -156,7 +162,7 @@ workspace's.
 | `Ctrl-L` | redraw the screen (for consoles that garbled it) |
 | `Ctrl-K` | in a text field but the command line: the next keyboard layout ([unlocking](unlocking.md)) |
 | `Ctrl-R` | in the unlock dialog: show what is typed, or hide it (not during start-up); in the command line: show only the commands chosen before, or all again |
-| `Tab` | in the command line: complete the query to the selected command |
+| `Tab` | in the command line: complete the query to the selected command's name and target |
 | `Ctrl-W` | in the command line: delete the last word of the query |
 
 ### Actions

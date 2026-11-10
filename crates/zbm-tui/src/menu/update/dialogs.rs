@@ -159,8 +159,9 @@ pub(super) fn force_import<'p>(map: Map, pool: impl Into<Named<'p>>) -> Then {
 }
 
 /// Does what `then` says: asks for an action, opens a confirmation, a
-/// review page, which asks for the plan of its change, or a screen; or
-/// does what a key of the view does, if the machine offers it.
+/// review page, which asks for the plan of its change, or a screen; goes
+/// to a place, or reverts a command line; or does what a key of the view
+/// does, if the machine offers it.
 pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
     match then {
         Then::Act(action) => return vec![action],
@@ -176,6 +177,8 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
         }
         Then::Focus(environment, screen) => return screens::focus(model, environment, screen),
         Then::Intent(intent) => return super::handle(model, Input::Intent(intent)),
+        Then::Go(place) => model.go(&place),
+        Then::Revert(environment) => screens::revert(model, &environment),
     }
     Vec::new()
 }

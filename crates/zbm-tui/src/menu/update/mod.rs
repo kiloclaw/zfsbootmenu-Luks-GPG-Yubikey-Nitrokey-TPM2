@@ -6,7 +6,7 @@
 
 use zbm_display::keys::{Key, KeyPress};
 
-use super::keymap::{self, Input, Intent, Tab};
+use super::keymap::{self, Context, Input, Intent, Tab};
 use super::model::{Dialog, Model, Screen, TypedOn};
 use super::world::{Action, Event, Outcome};
 
@@ -95,13 +95,19 @@ fn key_press(model: &mut Model, key: KeyPress) -> Vec<Action> {
     }
     let key = unlock::translated(model, key);
     let typing = model.typing(&key);
-    match keymap::input_on(model.map, model.context(), key, typing) {
+    let actions = match keymap::input_on(model.map, model.context(), key, typing) {
         Some(input) => {
             let actions = handle(model, input);
             dry_run::intercept(model, actions)
         }
         None => Vec::new(),
+    };
+    // The command line kept while its help shows goes once a key left the
+    // help otherwise than by `Esc`.
+    if model.screen != Screen::Help(Context::Command) {
+        model.palette_on_help = None;
     }
+    actions
 }
 
 /// An input, routed to the focused element.
@@ -183,6 +189,7 @@ fn back(model: &mut Model) {
             model.refresh();
         }
         Screen::Startup => {}
+        Screen::Help(Context::Command) => command_line::close_help(model),
         Screen::Help(context) => model.screen = screens::screen_of(context),
         Screen::Diff => {
             model.screen = Screen::Snapshots;
@@ -283,6 +290,8 @@ mod palette_language_tests;
 mod question_tests;
 #[cfg(test)]
 mod review_tests;
+#[cfg(test)]
+mod sections_tests;
 #[cfg(test)]
 mod snapshot_tests;
 #[cfg(test)]

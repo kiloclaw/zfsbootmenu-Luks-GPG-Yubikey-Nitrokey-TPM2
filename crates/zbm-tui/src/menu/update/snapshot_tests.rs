@@ -230,7 +230,13 @@ fn the_palette_open_finds_the_snapshots_that_come() {
     let palette = model.palette.as_ref().unwrap();
     assert_eq!(palette.items.len(), count + 400);
     assert_eq!(palette.matches.len(), palette.items.len());
-    assert!(matches!(&palette.items[4].then, Then::BootClone(_)));
+    // After the environment's own actions.
+    let first = palette
+        .items
+        .iter()
+        .position(|item| matches!(item.then, Then::BootClone(_)));
+    let chroot = text!("palette-chroot", target = "zroot/ROOT/void");
+    assert_eq!(palette.items[first.unwrap() - 1].label, chroot);
 }
 
 /// The Name dialog the boot of a clone of `snapshot` opens from a list.
@@ -257,7 +263,7 @@ fn the_palette_boots_a_clone_of_each_snapshot_read_newest_first_named_once_chose
     let clones = &items[first..first + newest.len()];
     assert_eq!(
         items[first - 1].label,
-        text!("palette-edit", environment = "zroot/ROOT/void")
+        text!("palette-chroot", target = "zroot/ROOT/void")
     );
     for (item, snapshot) in clones.iter().zip(newest) {
         let label = text!("palette-boot-clone", snapshot = snapshot.name.to_string());

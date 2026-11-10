@@ -1,24 +1,36 @@
-//! What only a character or a chord reaches, which rule 1 of decision 18
-//! (ADR 0007) puts in the command palette: the palette lists each such
-//! action of the view under it with its keys, and choosing one does what
-//! the key does. Not listed: what another key reaches there (`Enter`, an
-//! arrow, `Tab`, `Esc`, `Delete`, a page key, `Home`, `End` or a function
-//! key), what the palette names by entries of its own, and what an `Enter`
-//! menu of the view reaches. A text field types the characters, and its
-//! chords (`Ctrl-K`, `Ctrl-R`) have no palette there.
+//! The commands of the command palette. What only a character or a chord
+//! reaches, which rule 1 of decision 18 (ADR 0007) puts in the palette:
+//! the palette lists each such action of the view under it with its keys,
+//! and choosing one does what the key does. Not listed: what another key
+//! reaches there (`Enter`, an arrow, `Tab`, `Esc`, `Delete`, a page key,
+//! `Home`, `End` or a function key), what the palette names by entries of
+//! its own, and what an `Enter` menu of the view reaches. A text field
+//! types the characters, and its chords (`Ctrl-K`, `Ctrl-R`) have no
+//! palette there. And the commands' names (rule 4), which the palette
+//! finds in the menu's language and in English.
 
 use zbm_display::keys::Key;
 
 use super::classic::{CLASSIC, alias_name};
 use super::{Context, Intent, Map, is_text, key_name};
+use crate::text::{Id, id};
 
 /// What the palette names by entries of its own: the boot of an
-/// environment, its kernels and snapshots, the views, the recovery shell,
-/// power, and the palette itself.
+/// environment, its kernels and snapshots, its default, a snapshot of it,
+/// a chroot into it, its command line reverted, and the default kernel
+/// inherited; a pool's imports, read/write or read-only; the views, the
+/// recovery shell, power, and the palette itself.
 const PALETTE_HAS: &[Intent] = &[
     Intent::Boot,
     Intent::Kernels,
     Intent::Snapshots,
+    Intent::SetDefault,
+    Intent::NewSnapshot,
+    Intent::Chroot,
+    Intent::RevertCommandLine,
+    Intent::InheritDefault,
+    Intent::Import,
+    Intent::ReadWrite,
     Intent::Pools,
     Intent::Log,
     Intent::Recovery,
@@ -26,6 +38,101 @@ const PALETTE_HAS: &[Intent] = &[
     Intent::Shell,
     Intent::Palette,
 ];
+
+/// The names of the palette's commands, each with what it does: what a
+/// query finds an entry by, before its target, as `boot zroot/ROOT/void`
+/// (rule 4 of decision 18). The help of the command line and
+/// `zfsbootmenu(7)` list them.
+pub(crate) const COMMAND_NAMES: &[(Id, Id)] = &[
+    (id!("command-boot"), id!("command-boot.what")),
+    (id!("command-edit"), id!("command-edit.what")),
+    (id!("command-revert"), id!("command-revert.what")),
+    (id!("command-default"), id!("command-default.what")),
+    (id!("command-inherit"), id!("command-inherit.what")),
+    (id!("command-snapshot"), id!("command-snapshot.what")),
+    (id!("command-chroot"), id!("command-chroot.what")),
+    (id!("command-tries"), id!("command-tries.what")),
+    (id!("command-rollback"), id!("command-rollback.what")),
+    (id!("command-clone"), id!("command-clone.what")),
+    (id!("command-promote"), id!("command-promote.what")),
+    (id!("command-duplicate"), id!("command-duplicate.what")),
+    (id!("command-diff"), id!("command-diff.what")),
+    (id!("command-destroy"), id!("command-destroy.what")),
+    (id!("command-export"), id!("command-export.what")),
+    (id!("command-import"), id!("command-import.what")),
+    (
+        id!("command-import-last-host"),
+        id!("command-import-last-host.what"),
+    ),
+    (
+        id!("command-import-force"),
+        id!("command-import-force.what"),
+    ),
+    (id!("command-rewind"), id!("command-rewind.what")),
+    (id!("command-read-write"), id!("command-read-write.what")),
+    (id!("command-read-only"), id!("command-read-only.what")),
+    (id!("command-unlock"), id!("command-unlock.what")),
+    (id!("command-reseal"), id!("command-reseal.what")),
+    (id!("command-rescan"), id!("command-rescan.what")),
+    (id!("command-shell"), id!("command-shell.what")),
+    (id!("command-power"), id!("command-power.what")),
+    (id!("command-sort"), id!("command-sort.what")),
+    (id!("command-fold"), id!("command-fold.what")),
+    (id!("command-mark"), id!("command-mark.what")),
+    (id!("command-filter"), id!("command-filter.what")),
+    (id!("command-go"), id!("command-go.what")),
+    (id!("command-kernels"), id!("command-kernels.what")),
+    (id!("command-snapshots"), id!("command-snapshots.what")),
+    (id!("command-pools"), id!("command-pools.what")),
+    (id!("command-recovery"), id!("command-recovery.what")),
+    (id!("command-log"), id!("command-log.what")),
+    (id!("command-help"), id!("command-help.what")),
+];
+
+/// The name of the command that does what `intent` does, as
+/// [`COMMAND_NAMES`] has it; `None` for what moves, chooses, cancels or
+/// types, and for the command line itself, which no command opens.
+pub(crate) fn command_name(intent: Intent) -> Option<Id> {
+    use Intent::{
+        Back, Complete, DeleteWord, Down, First, History, Last, Layout, NextTab, PageDown, PageUp,
+        Palette, PreviousTab, Primary, Redraw, Reveal, Segment, Tab, Up,
+    };
+    let name = match intent {
+        Primary | Back | Up | Down | PageUp | PageDown | First | Last | Palette | Redraw
+        | Layout | Reveal | Segment | Tab(_) | NextTab | PreviousTab | Complete | DeleteWord
+        | History => return None,
+        Intent::Boot => id!("command-boot"),
+        Intent::Edit => id!("command-edit"),
+        Intent::RevertCommandLine => id!("command-revert"),
+        Intent::SetDefault => id!("command-default"),
+        Intent::InheritDefault => id!("command-inherit"),
+        Intent::NewSnapshot => id!("command-snapshot"),
+        Intent::Chroot => id!("command-chroot"),
+        Intent::Rollback => id!("command-rollback"),
+        Intent::Clone => id!("command-clone"),
+        Intent::CloneAndPromote => id!("command-promote"),
+        Intent::Duplicate => id!("command-duplicate"),
+        Intent::Diff => id!("command-diff"),
+        Intent::Destroy => id!("command-destroy"),
+        Intent::Import => id!("command-import"),
+        Intent::Rewind => id!("command-rewind"),
+        Intent::ReadWrite => id!("command-read-write"),
+        Intent::Unlock => id!("command-unlock"),
+        Intent::Shell => id!("command-shell"),
+        Intent::Power => id!("command-power"),
+        Intent::Sort => id!("command-sort"),
+        Intent::Fold => id!("command-fold"),
+        Intent::Mark => id!("command-mark"),
+        Intent::Filter => id!("command-filter"),
+        Intent::Kernels => id!("command-kernels"),
+        Intent::Snapshots => id!("command-snapshots"),
+        Intent::Pools => id!("command-pools"),
+        Intent::Recovery => id!("command-recovery"),
+        Intent::Log => id!("command-log"),
+        Intent::Help => id!("command-help"),
+    };
+    Some(name)
+}
 
 /// What an `Enter` menu of a view reaches, as its key does: a snapshot's
 /// actions (`update/snapshots.rs`) and a volume's unlock, which `Enter` on

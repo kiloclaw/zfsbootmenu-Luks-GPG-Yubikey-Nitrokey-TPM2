@@ -13,8 +13,9 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                      ││   Tuesday 20 October                 1 snapshot · 43 MiB ││   Esc cancel     Up/Down select  │
 │                      ││     autosnap_2026-10-20_daily         3 d ago     43 MiB ││                                  │
 │                      ││   Monday 19 October                  1 snapshot · 56 MiB ││                                  │
-│                      ││┌ COMMANDS ─────────────────────────────────────────────── 42 of 433 ┐                        │
+│                      ││┌ COMMANDS ─────────────────────────────────────────────── 42 of 467 ┐                        │
 │                      │││ : 2026-10                                                          │                        │
+│                      │││   ACTIONS                                                          │                        │
 │                      │││ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-10-22_daily        │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-21_daily        │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-20_daily        │                        │
@@ -27,7 +28,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-13_daily        │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-12_daily        │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-11_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-10_daily        │                        │
 │                      ││└────────────────────────────────────────────────────────────────────┘                        │
 │                      ││     autosnap_2026-10-11_daily        12 d ago     69 MiB ││                                  │
 │                      ││   Week of 1 October                4 snapshots · 172 MiB ││                                  │

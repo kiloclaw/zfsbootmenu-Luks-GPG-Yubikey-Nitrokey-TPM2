@@ -1,6 +1,7 @@
 //! Rule 1 of decision 18 (ADR 0007): what only a character or a chord
-//! reaches is in the palette of its view, and choosing it there does what
-//! the key does; on the demo machine, with both maps.
+//! reaches is in the palette of its view, found by its command's name
+//! (rule 4), and choosing it there does what the key does; on the demo
+//! machine, with both maps.
 
 use pretty_assertions::assert_eq;
 use zbm_display::keys::{Key, KeyPress};
@@ -8,7 +9,7 @@ use zbm_display::keys::{Key, KeyPress};
 use super::key_press;
 use super::offers_tests::{APP, Place, machine, machine_all, menu, places, presses};
 use crate::menu::keymap::{self, Context, ENTER_REACHES, Input, Intent, Map};
-use crate::menu::model::{Dialog, DryRun, Model, Recent, Then};
+use crate::menu::model::{Dialog, DryRun, Model, PaletteItem, Recent, Then};
 use crate::menu::world::{Action, Event, Offer, Snapshot};
 
 /// The demo machine.
@@ -61,11 +62,16 @@ fn chosen(machine: &Machine, map: Map, place: Place, index: usize) -> Effect {
 }
 
 /// The entries of the palette at `place`.
-fn entries(machine: &Machine, map: Map, place: Place) -> Vec<Then> {
+fn items(machine: &Machine, map: Map, place: Place) -> Vec<PaletteItem> {
     let mut model = menu(machine, map, place);
     let _ = key_press(&mut model, KeyPress::new(Key::Char(':')));
-    let palette = model.palette.expect("the palette opens");
-    palette.items.into_iter().map(|item| item.then).collect()
+    model.palette.expect("the palette opens").items
+}
+
+/// What the entries of the palette at `place` do.
+fn entries(machine: &Machine, map: Map, place: Place) -> Vec<Then> {
+    let items = items(machine, map, place);
+    items.into_iter().map(|item| item.then).collect()
 }
 
 /// What `Enter` at `place` does after the keys `before`, and each entry of
@@ -105,23 +111,40 @@ fn intent_of(map: Map, context: Context, press: KeyPress) -> Option<Intent> {
     }
 }
 
-/// Whether what `key` did is done by an entry of the palette, by `Enter`
-/// or an entry of its menu (`others`); or the key opened a menu whose
-/// every entry the palette has, as power's.
-fn is_reached(key: &Effect, others: &[Effect], palette: &[Then]) -> bool {
-    if others.iter().any(|other| other == key) {
+/// Whether what `key` did is done by `Enter` or an entry of its menu
+/// (`entered`), or by an entry of the palette (`chosen`, one effect for
+/// each of `palette`) that a command's name finds; or the key opened a
+/// menu whose every entry is such an entry of the palette, as power's.
+fn is_reached(
+    key: &Effect,
+    entered: &[Effect],
+    chosen: &[Effect],
+    palette: &[PaletteItem],
+) -> bool {
+    if entered.contains(key) {
         return true;
     }
+    let is_named = |item: &PaletteItem| {
+        item.also
+            .lines()
+            .next()
+            .is_some_and(|name| !name.is_empty())
+    };
+    let named = |index: usize| palette.get(index).is_some_and(is_named);
+    if let Some(index) = chosen.iter().position(|effect| effect == key) {
+        return named(index);
+    }
     match &key.1.dialog {
-        Some(Dialog::Choose { choices, .. }) => {
-            choices.iter().all(|choice| palette.contains(&choice.then))
-        }
+        Some(Dialog::Choose { choices, .. }) => choices.iter().all(|choice| {
+            let index = palette.iter().position(|item| item.then == choice.then);
+            index.is_some_and(named)
+        }),
         _ => false,
     }
 }
 
 #[test]
-fn every_action_only_a_character_reaches_is_in_the_palette_of_its_view() {
+fn every_action_only_a_character_reaches_is_a_command_of_its_view() {
     let machine = machine_all();
     let mut checked = 0;
     for map in [Map::Classic, Map::Workspace] {
@@ -131,11 +154,11 @@ fn every_action_only_a_character_reaches_is_in_the_palette_of_its_view() {
             .filter(|p| *p != Place::Startup)
         {
             let context = menu(&machine, map, place).context();
-            let palette = entries(&machine, map, place);
-            let mut others: Vec<Effect> = (0..palette.len())
+            let palette = items(&machine, map, place);
+            let chosen: Vec<Effect> = (0..palette.len())
                 .map(|index| chosen(&machine, map, place, index))
                 .collect();
-            others.extend(entered(&machine, map, place, &[]));
+            let entered = entered(&machine, map, place, &[]);
             let unchanged = effect(&machine, map, place, &[]);
             for press in presses(map, context) {
                 let Some(intent) = intent_of(map, context, press) else {
@@ -153,7 +176,7 @@ fn every_action_only_a_character_reaches_is_in_the_palette_of_its_view() {
                     continue;
                 }
                 let at = format!("{map:?} {place:?} {press:?} {intent:?}");
-                assert!(is_reached(&key, &others, &palette), "{at}");
+                assert!(is_reached(&key, &entered, &chosen, &palette), "{at}");
                 checked += 1;
             }
         }
@@ -178,20 +201,8 @@ fn choosing_a_key_s_entry_does_what_the_key_does() {
         (Map::Classic, Place::Snapshots, key('o'), Intent::Sort),
         (Map::Workspace, Place::Snapshots, key('z'), Intent::Fold),
         (Map::Workspace, Place::Snapshots, key(' '), Intent::Mark),
-        (Map::Workspace, Place::Main, key('d'), Intent::SetDefault),
-        (
-            Map::Classic,
-            Place::Kernels(1),
-            key('d'),
-            Intent::SetDefault,
-        ),
-        (Map::Workspace, Place::Main, key('n'), Intent::NewSnapshot),
-        (
-            Map::Classic,
-            Place::Snapshots,
-            key('n'),
-            Intent::NewSnapshot,
-        ),
+        (Map::Workspace, Place::Kernels(1), key('e'), Intent::Edit),
+        (Map::Classic, Place::Snapshots, key('f'), Intent::Diff),
     ];
     for (map, place, press, intent) in cases {
         let at = format!("{map:?} {place:?} {intent:?}");
@@ -214,22 +225,72 @@ fn choosing_a_key_s_entry_does_what_the_key_does() {
     assert_eq!(model.marked.iter().next().cloned(), selected);
 }
 
+/// The entry of the palette at `place` that does what `press` does there,
+/// as its index.
+fn entry_doing(machine: &Machine, map: Map, place: Place, press: KeyPress) -> Option<usize> {
+    let by_key = effect(machine, map, place, &[press]);
+    let count = entries(machine, map, place).len();
+    (0..count).find(|index| chosen(machine, map, place, *index) == by_key)
+}
+
+#[test]
+fn an_action_with_an_entry_of_its_own_has_no_key_s_entry() {
+    let machine = machine_all();
+    let key = |c| KeyPress::new(Key::Char(c));
+    let alt = |c| KeyPress::new(Key::Char(c)).with_alt();
+    let cases = [
+        (Map::Workspace, Place::Main, key('d'), Intent::SetDefault),
+        (Map::Workspace, Place::Main, key('n'), Intent::NewSnapshot),
+        (Map::Workspace, Place::Main, key('w'), Intent::ReadWrite),
+        (Map::Workspace, Place::Main, alt('j'), Intent::Chroot),
+        (Map::Classic, Place::Main, key('j'), Intent::Chroot),
+        (
+            Map::Classic,
+            Place::Snapshots,
+            key('n'),
+            Intent::NewSnapshot,
+        ),
+        (
+            Map::Classic,
+            Place::Kernels(1),
+            key('d'),
+            Intent::SetDefault,
+        ),
+        (
+            Map::Workspace,
+            Place::Kernels(1),
+            alt('u'),
+            Intent::InheritDefault,
+        ),
+    ];
+    for (map, place, press, intent) in cases {
+        let at = format!("{map:?} {place:?} {intent:?}");
+        assert_eq!(entry_of(&machine, map, place, intent), None, "{at}");
+        let palette = entries(&machine, map, place);
+        let index = entry_doing(&machine, map, place, press);
+        let then = index.and_then(|index| palette.get(index));
+        assert!(
+            then.is_some_and(|then| !matches!(then, Then::Intent(_))),
+            "{at}"
+        );
+    }
+}
+
 #[test]
 fn an_entry_of_what_the_machine_does_not_offer_is_not_listed() {
-    let main = [Intent::SetDefault, Intent::NewSnapshot, Intent::ReadWrite];
+    let kinds: [fn(&Then) -> bool; 4] = [
+        |then| matches!(then, Then::Act(Action::SetDefaultEnvironment(_))),
+        |then| matches!(then, Then::Act(Action::Chroot(_))),
+        |then| matches!(then, Then::Act(Action::Import(..))),
+        |then| matches!(then, Then::Name(_)),
+    ];
     for map in [Map::Classic, Map::Workspace] {
-        let all = machine_all();
+        let all = entries(&machine_all(), map, Place::Main);
         let boot = machine(&[Offer::Boot]);
-        for intent in main {
-            assert!(
-                entry_of(&all, map, Place::Main, intent).is_some(),
-                "{intent:?}"
-            );
-            assert_eq!(
-                entry_of(&boot, map, Place::Main, intent),
-                None,
-                "{intent:?}"
-            );
+        let only_boot = entries(&boot, map, Place::Main);
+        for kind in kinds {
+            assert!(all.iter().any(kind), "{map:?}");
+            assert!(!only_boot.iter().any(kind), "{map:?}");
         }
         // What starts nothing on the machine is always listed.
         assert!(entry_of(&boot, map, Place::Main, Intent::Filter).is_some());
@@ -272,15 +333,14 @@ fn a_key_the_selected_row_does_not_take_has_no_entry() {
     let machine = machine_all();
     let map = Map::Workspace;
     // A volume's row takes none of its pool's keys, which a pool's row
-    // of the same tree lists.
+    // of the same tree lists: the rewind, whose key says when the pool has
+    // no checkpoint; its imports have entries of their own.
     let volume = enter_place(&machine, map, Context::Pools);
     let rows = menu(&machine, map, Place::Pools(0)).pools.matches.len();
-    for intent in [Intent::Import, Intent::ReadWrite, Intent::Rewind] {
-        assert_eq!(entry_of(&machine, map, volume, intent), None, "{intent:?}");
-        let listed =
-            (0..rows).any(|row| entry_of(&machine, map, Place::Pools(row), intent).is_some());
-        assert!(listed, "{intent:?}");
-    }
+    let rewind = Intent::Rewind;
+    assert_eq!(entry_of(&machine, map, volume, rewind), None);
+    let listed = (0..rows).any(|row| entry_of(&machine, map, Place::Pools(row), rewind).is_some());
+    assert!(listed);
     // The header of a folded group marks nothing.
     assert!(entry_of(&machine, map, Place::Snapshots, Intent::Mark).is_some());
     let mut model = menu(&machine, map, Place::Snapshots);
@@ -346,4 +406,27 @@ fn what_an_enter_menu_reaches_is_in_that_menu() {
     }
     // Each intent of the list, in each map, by its letter or its alias.
     assert!(checked >= 12, "{checked}");
+}
+
+#[test]
+fn each_import_of_a_pool_is_an_entry_of_its_own() {
+    let machine = machine_all();
+    let mut checked = 0;
+    for map in [Map::Classic, Map::Workspace] {
+        let rows = places(&machine, map).into_iter();
+        for place in rows.filter(|place| matches!(place, Place::Pools(_))) {
+            assert_eq!(entry_of(&machine, map, place, Intent::Import), None);
+            let (_, model) = effect(&machine, map, place, &[KeyPress::new(Key::Char('i'))]);
+            let Some(Dialog::Choose { choices, .. }) = &model.dialog else {
+                continue;
+            };
+            let palette = entries(&machine, map, place);
+            for choice in choices {
+                let at = format!("{map:?} {place:?} {}", choice.label);
+                assert!(palette.contains(&choice.then), "{at}");
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked >= 6, "{checked}");
 }

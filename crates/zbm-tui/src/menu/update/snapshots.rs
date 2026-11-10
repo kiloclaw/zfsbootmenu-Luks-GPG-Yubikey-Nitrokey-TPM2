@@ -166,7 +166,7 @@ pub(super) fn load(model: &mut Model) -> Vec<Action> {
 /// plans; under the classic map its confirmation: what is lost, from the
 /// snapshots read with the last snapshot of the machine or after it, and
 /// the name to type.
-fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
+pub(super) fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
     if model.map == Map::Workspace {
         return Then::Review(Action::Rollback(snapshot.name.clone()));
     }
@@ -258,7 +258,7 @@ pub(super) fn boot_clone(model: &Model, name: &SnapshotName) -> Then {
 }
 
 /// The name of an independent copy of `snapshot`.
-fn duplicate(model: &Model, snapshot: &SnapshotInfo) -> Then {
+pub(super) fn duplicate(model: &Model, snapshot: &SnapshotInfo) -> Then {
     let name = &snapshot.name;
     Then::Name(Naming::new(
         Make::Duplicate(name.clone()),
@@ -269,7 +269,7 @@ fn duplicate(model: &Model, snapshot: &SnapshotInfo) -> Then {
 }
 
 /// The name of a clone of `name` that is promoted: what promoting does.
-fn promote(model: &Model, name: &SnapshotName) -> Then {
+pub(super) fn promote(model: &Model, name: &SnapshotName) -> Then {
     let environment = name.dataset();
     Then::Name(Naming::new(
         Make::Promote(name.clone()),

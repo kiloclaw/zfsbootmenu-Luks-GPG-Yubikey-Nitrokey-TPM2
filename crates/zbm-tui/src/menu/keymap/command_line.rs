@@ -2,10 +2,11 @@
 //! maps (ADR 0007, its keys table): `Tab` completes the query, `Ctrl-W`
 //! deletes its last word, `Ctrl-R` shows the entries chosen before. The
 //! toolbar leaves them out, as it does the other keys of a field, and
-//! `zfsbootmenu(7)` lists them with those: help is a view's, and `F1`
-//! opens none from a field or the command line. `Ctrl-K` is not bound
-//! there: the command line's query is never translated, and `Ctrl-R` keeps
-//! showing what is typed in the other fields.
+//! `zfsbootmenu(7)` lists them with those. `F1` opens the command line's
+//! help, which `Esc` leaves for the command line again; from another field
+//! it opens none. `Ctrl-K` is not bound there: the command line's query is
+//! never translated, and `Ctrl-R` keeps showing what is typed in the other
+//! fields.
 
 use zbm_display::keys::Key;
 

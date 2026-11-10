@@ -5,10 +5,7 @@ use pretty_assertions::assert_eq;
 
 use super::tests::CONTEXTS;
 use super::*;
-use Intent::{
-    Chroot, Diff, Edit, Filter, Fold, Import, InheritDefault, Mark, NewSnapshot, ReadWrite,
-    RevertCommandLine, Rewind, SetDefault, Sort,
-};
+use Intent::{Diff, Edit, Filter, Fold, Mark, Rewind, Sort};
 
 /// `commands` with keys of their own, to compare.
 fn owned(commands: &[(Intent, &str)]) -> Vec<(Intent, String)> {
@@ -22,27 +19,15 @@ fn owned(commands: &[(Intent, &str)]) -> Vec<(Intent, String)> {
 type Listed = (Map, Context, &'static [(Intent, &'static str)]);
 
 /// What the palette lists in the views of each map with more than a
-/// filter. The classic map's `j` chroots, its `h` rewinds, and its `Tab`
-/// marks.
+/// filter: what it has no entries of its own for. The classic map's `h`
+/// rewinds, and its `Tab` marks.
 const EXPECTED: &[Listed] = &[
-    (
-        Map::Workspace,
-        Main,
-        &[
-            (SetDefault, "d, MOD+D"),
-            (NewSnapshot, "n"),
-            (ReadWrite, "w, MOD+W"),
-            (Filter, "/"),
-            (RevertCommandLine, "MOD+T"),
-            (Chroot, "MOD+J"),
-        ],
-    ),
+    (Map::Workspace, Main, &[(Filter, "/")]),
     (
         Map::Workspace,
         Snapshots,
         &[
             (Diff, "f, MOD+D"),
-            (NewSnapshot, "n, Alt+N"),
             (Filter, "/"),
             (Sort, "o, MOD+O"),
             (Mark, "Space"),
@@ -52,61 +37,22 @@ const EXPECTED: &[Listed] = &[
     (
         Map::Workspace,
         Kernels,
-        &[
-            (Edit, "e, MOD+E"),
-            (SetDefault, "d, MOD+D"),
-            (Filter, "/"),
-            (InheritDefault, "MOD+U"),
-        ],
+        &[(Edit, "e, MOD+E"), (Filter, "/")],
     ),
-    (
-        Map::Workspace,
-        Pools,
-        &[
-            (Import, "i"),
-            (ReadWrite, "w"),
-            (Filter, "/"),
-            (Rewind, "MOD+R"),
-        ],
-    ),
+    (Map::Workspace, Pools, &[(Filter, "/"), (Rewind, "MOD+R")]),
     (
         Map::Workspace,
         Context::Diff,
         &[(Filter, "/"), (Mark, "Space")],
     ),
-    // The classic map: `j` chroots, `h` rewinds, and `Tab` marks.
-    (
-        Map::Classic,
-        Main,
-        &[
-            (SetDefault, "d, MOD+D"),
-            (NewSnapshot, "n"),
-            (ReadWrite, "w, MOD+W"),
-            (Chroot, "j, MOD+J"),
-            (Filter, "/"),
-            (RevertCommandLine, "MOD+T"),
-        ],
-    ),
+    // The classic map: `h` rewinds, and `Tab` marks.
+    (Map::Classic, Main, &[(Filter, "/")]),
     (
         Map::Classic,
         Snapshots,
-        &[
-            (Diff, "f, MOD+D"),
-            (NewSnapshot, "n, Alt+N"),
-            (Filter, "/"),
-            (Sort, "o, MOD+O"),
-        ],
+        &[(Diff, "f, MOD+D"), (Filter, "/"), (Sort, "o, MOD+O")],
     ),
-    (
-        Map::Classic,
-        Pools,
-        &[
-            (Import, "i"),
-            (ReadWrite, "w"),
-            (Rewind, "h, MOD+R"),
-            (Filter, "/"),
-        ],
-    ),
+    (Map::Classic, Pools, &[(Rewind, "h, MOD+R"), (Filter, "/")]),
     (Map::Classic, Context::Diff, &[(Filter, "/")]),
 ];
 
@@ -125,7 +71,7 @@ fn the_palette_lists_what_only_a_character_or_a_chord_reaches() {
                 "{map:?} {context:?}"
             );
         }
-        assert_eq!(commands(map, Kernels).len(), 4);
+        assert_eq!(commands(map, Kernels).len(), 2);
         for context in [Startup, Log, Context::Help, Context::Choose] {
             assert_eq!(commands(map, context), [], "{map:?} {context:?}");
         }
@@ -203,4 +149,69 @@ fn digits_only_shorten_the_way_to_a_tab() {
     }
     // `1` to `4` in the workspace's views with the tab bar but start-up.
     assert_eq!(digits, 4 * 9);
+}
+
+#[test]
+fn every_action_bound_to_a_character_has_a_command_name() {
+    let mut checked = 0;
+    for map in [Map::Classic, Map::Workspace] {
+        for context in CONTEXTS.into_iter().filter(|context| !is_text(*context)) {
+            let bound = map.table().into_iter();
+            let mut intents: Vec<Intent> = bound
+                .filter(|binding| map.is_bound(binding, context))
+                .filter(|binding| matches!(binding.key, Key::Char(_)) && binding.modifiers == NONE)
+                .map(|binding| binding.intent)
+                .collect();
+            // The classic aliases, chords of a character.
+            for (_, meanings) in CLASSIC {
+                let meant = meanings.iter().filter(|(view, _)| *view == context);
+                intents.extend(meant.map(|(_, intent)| *intent));
+            }
+            // What moves or chooses, as the workspace's `j` and `k`, is no
+            // action; the palette opens the command line; a digit only
+            // shortens the way to a tab.
+            let commands = intents.into_iter().filter(|intent| !is_move(*intent));
+            for intent in commands {
+                let at = format!("{map:?} {context:?} {intent:?}");
+                let name = command_name(intent).expect(&at);
+                assert!(
+                    COMMAND_NAMES.iter().any(|(known, _)| *known == name),
+                    "{at}"
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 60, "{checked}");
+    // And no two commands share a name.
+    let names: Vec<_> = COMMAND_NAMES
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
+    let mut unique = names.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), names.len());
+}
+
+/// Whether `intent` moves or chooses, which no command does, or opens the
+/// command line, or a tab, which a digit only shortens the way to.
+fn is_move(intent: Intent) -> bool {
+    use Intent::{
+        Back, Down, First, Last, NextTab, PageDown, PageUp, Palette, PreviousTab, Primary, Up,
+    };
+    matches!(
+        intent,
+        Up | Down
+            | PageUp
+            | PageDown
+            | First
+            | Last
+            | Primary
+            | Back
+            | NextTab
+            | PreviousTab
+            | Palette
+            | Intent::Tab(_)
+    )
 }

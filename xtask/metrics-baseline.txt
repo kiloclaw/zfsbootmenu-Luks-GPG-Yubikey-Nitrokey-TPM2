@@ -25,7 +25,7 @@ zbm-sys                    0           0               0            0           
 zbm-testkit                0           0               0            0              0             0             0              0             0              0            0            63           0
 zbm-tools                  0           0               4            0              0             0             0              0             0              0            0            52           0
 zbm-trace                  0           0               0            0              0             0             0              0             0              0            0            50           0
-zbm-tui                    0           0               0            0              0             0             0              0             0              0            0           154           0
+zbm-tui                    0           0               0            0              0             0             0              0             0              0            0           156           0
 zbm-types                  0           0               0            0              0             0             0              0             0              0            0            46           0
 zbm-vmtest                 0           0               0            0              0             0             0              0             0              0            0           153           0
 zbm-zfs                    0           0               0            0              0             0             0              0             0              0            0            64           0

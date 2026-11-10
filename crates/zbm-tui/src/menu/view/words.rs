@@ -25,6 +25,9 @@ pub(crate) struct Said {
     pub(crate) lines: Vec<String>,
     /// The choices, in order; empty when it has none to number.
     pub(crate) choices: Vec<String>,
+    /// The indexes of the headings among `choices`, in order, which are
+    /// said but not numbered: the command line's sections.
+    pub(crate) headers: Vec<usize>,
 }
 
 impl Said {
@@ -34,6 +37,7 @@ impl Said {
             title: printable(self.title),
             lines: self.lines.into_iter().map(printable).collect(),
             choices: self.choices.into_iter().map(printable).collect(),
+            headers: self.headers,
         }
     }
 }
@@ -298,8 +302,10 @@ fn log(model: &Model) -> Vec<String> {
         .collect()
 }
 
-/// Help: the keys of the view it was opened from; in the workspace, after
-/// the version of the ZFS module running, as its header says.
+/// Help: the keys of the view it was opened from, and in the command line's
+/// the names of its commands, under their header, as the help view draws
+/// them; in the workspace, after the version of the ZFS module running, as
+/// its header says.
 fn help(model: &Model, context: keymap::Context) -> Vec<String> {
     let workspace = model.map == keymap::Map::Workspace;
     let version = model.snapshot.zfs_version.as_ref().filter(|_| workspace);
@@ -321,6 +327,22 @@ fn help(model: &Model, context: keymap::Context) -> Vec<String> {
             keys.into_iter()
                 .map(|(keys, what)| format!("{keys}: {}", text::title(what))),
         )
+        .chain(command_names(context))
+        .collect()
+}
+
+/// The names of the command line's commands on the help of `context`, each
+/// with what it does, after their header; none on another help.
+fn command_names(context: keymap::Context) -> Vec<String> {
+    let names = super::screens::command_names(context);
+    if names.is_empty() {
+        return Vec::new();
+    }
+    let names = names
+        .into_iter()
+        .map(|(name, what)| format!("{name}: {what}"));
+    std::iter::once(text!("help-command-names"))
+        .chain(names)
         .collect()
 }
 
@@ -365,6 +387,7 @@ fn said(model: &Model) -> Option<Said> {
                 .filter(|line| !line.is_empty())
                 .collect(),
             choices: Vec::new(),
+            headers: Vec::new(),
         },
         Dialog::Question(asking) => asked(asking),
         Dialog::Choose {
@@ -376,6 +399,7 @@ fn said(model: &Model) -> Option<Said> {
             title: title.clone(),
             lines: lines.clone(),
             choices: choices.iter().map(|choice| choice.label.clone()).collect(),
+            headers: Vec::new(),
         },
         Dialog::Confirm {
             title, lines, name, ..
@@ -387,6 +411,7 @@ fn said(model: &Model) -> Option<Said> {
             ]
             .concat(),
             choices: Vec::new(),
+            headers: Vec::new(),
         },
         Dialog::Review(reviewing) => super::review::said(model, reviewing),
         Dialog::Name(naming) => named(naming),
@@ -400,6 +425,7 @@ fn said(model: &Model) -> Option<Said> {
                 title: what.clone(),
                 lines,
                 choices: Vec::new(),
+                headers: Vec::new(),
             }
         }
     })
@@ -412,6 +438,7 @@ fn named(naming: &Naming) -> Said {
         title: naming.title.clone(),
         lines: [naming.lines.clone(), vec![typed]].concat(),
         choices: Vec::new(),
+        headers: Vec::new(),
     }
 }
 
@@ -431,22 +458,30 @@ fn asked(asking: &Asking) -> Said {
         title: wording.title,
         lines,
         choices: Vec::new(),
+        headers: Vec::new(),
     }
 }
 
-/// The command palette, when it is open: what it found.
+/// The command palette, when it is open: what it found, each section's
+/// heading before its first entry.
 fn palette(model: &Model) -> Option<Said> {
     let palette = model.palette.as_ref()?;
-    let items = &palette.items;
+    let mut choices = Vec::new();
+    let mut headers = Vec::new();
+    for (at, ranked) in palette.matches.iter().enumerate() {
+        if let Some(section) = palette.heading_at(at) {
+            headers.push(choices.len());
+            choices.push(super::command_line::section_name(section));
+        }
+        if let Some(item) = palette.items.get(ranked.index) {
+            choices.push(item.label.clone());
+        }
+    }
     Some(Said {
         title: super::command_line::title(palette),
         lines: vec![palette.query.clone()],
-        choices: palette
-            .matches
-            .iter()
-            .filter_map(|ranked| items.get(ranked.index))
-            .map(|item| item.label.clone())
-            .collect(),
+        choices,
+        headers,
     })
 }
 

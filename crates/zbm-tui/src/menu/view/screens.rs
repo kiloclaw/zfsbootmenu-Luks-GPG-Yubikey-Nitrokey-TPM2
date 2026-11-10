@@ -14,7 +14,7 @@ use crate::menu::keymap::{self, Context, Map};
 use crate::menu::model::{Column, Model, RECOVERY, recovery_tools};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Kernel, Level, PoolHost, Stage, StageState, VolumeState};
-use crate::text::{self, text};
+use crate::text::{self, Id, text};
 
 /// Start-up as a checklist (rule 10): each stage with a glyph, and the
 /// step count in the header.
@@ -437,8 +437,9 @@ pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Co
 }
 
 /// The lines of the help view: the bindings of `context`, then the
-/// aliases or the classic bindings, each section under its header. In the
-/// workspace the keys' column is as wide as its widest keys.
+/// aliases or the classic bindings, and in the command line's the names of
+/// its commands, each section under its header. In the workspace the keys'
+/// column is as wide as its widest keys.
 fn help_lines(model: &Model, context: Context) -> Vec<Line<'static>> {
     let theme = model.theme;
     let workspace = model.map == Map::Workspace;
@@ -449,12 +450,17 @@ fn help_lines(model: &Model, context: Context) -> Vec<Line<'static>> {
     } else {
         text!("help-classic")
     };
+    let titled = |rows: Vec<(String, Id)>| -> Vec<(String, String)> {
+        let rows = rows.into_iter();
+        rows.map(|(keys, what)| (keys, text::title(what))).collect()
+    };
     let sections = [
         (
             text!("help-this-view"),
-            keymap::help(model.map, context, &offered, &said),
+            titled(keymap::help(model.map, context, &offered, &said)),
         ),
-        (aliases, keymap::classic_bindings(context, &offered)),
+        (aliases, titled(keymap::classic_bindings(context, &offered))),
+        (text!("help-command-names"), command_names(context)),
     ];
     let longest = sections.iter().flat_map(|(_, rows)| rows);
     let longest = longest.map(|(keys, _)| keys.chars().count()).max();
@@ -468,11 +474,28 @@ fn help_lines(model: &Model, context: Context) -> Vec<Line<'static>> {
         for (keys, what) in rows {
             lines.push(Line::from(vec![
                 Span::styled(format!("{keys:>column$}  "), theme.style(Role::Key)),
-                Span::raw(text::title(what)),
+                Span::raw(what),
             ]));
         }
     }
     lines
+}
+
+/// The names of the command line's commands, with what each does, on the
+/// help of `context` when it is the command line's; none on another.
+pub(super) fn command_names(context: Context) -> Vec<(String, String)> {
+    if context != Context::Command {
+        return Vec::new();
+    }
+    let names = keymap::COMMAND_NAMES.iter();
+    names
+        .map(|(name, what)| {
+            (
+                text::get(*name),
+                crate::menu::format::capitalised(&text::get(*what)),
+            )
+        })
+        .collect()
 }
 
 /// A scroll offset as ratatui takes it.

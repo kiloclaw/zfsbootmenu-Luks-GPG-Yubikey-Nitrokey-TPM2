@@ -17,7 +17,7 @@ use super::{Message, update};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::keymap::{self, Context, Intent, Map};
-use crate::menu::model::{Dialog, DryRun, Model, Reviewing, Then};
+use crate::menu::model::{Dialog, DryRun, Make, Model, Reviewing, Then};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Action, Event, Outcome, Plan, Question, Review};
 use crate::text::id;
@@ -82,9 +82,9 @@ fn choose(model: Model, is_it: impl Fn(&Then) -> bool) -> (Model, Vec<Action>) {
     press(model, Key::Enter)
 }
 
-/// Whether `then` does what a key of the view does for `intent`.
-fn is_key(intent: Intent) -> impl Fn(&Then) -> bool {
-    move |then| *then == Then::Intent(intent)
+/// Whether `then` asks for the name of a new snapshot.
+fn is_new_snapshot(then: &Then) -> bool {
+    matches!(then, Then::Name(naming) if matches!(naming.make, Make::Snapshot(_)))
 }
 
 /// Whether `then` exports a pool.
@@ -172,7 +172,7 @@ fn escape_on_a_dry_run_sends_nothing() {
 fn a_named_make_shows_its_plan_after_its_name() {
     let session = snapshots(3);
 
-    let (model, actions) = choose(session.into_model(), is_key(Intent::NewSnapshot));
+    let (model, actions) = choose(session.into_model(), is_new_snapshot);
     assert_eq!(actions, []);
     assert!(matches!(model.dialog, Some(Dialog::Name(_))));
     assert_eq!(model.dry_run, DryRun::Pending);
@@ -339,7 +339,7 @@ fn machine(model: Model, event: Event) -> (Model, Vec<Action>) {
 /// The Name dialog of a snapshot, which `:` and "New snapshot" open, the
 /// dry run pending.
 fn naming() -> Model {
-    let (model, _) = choose(snapshots(3).into_model(), is_key(Intent::NewSnapshot));
+    let (model, _) = choose(snapshots(3).into_model(), is_new_snapshot);
     assert!(matches!(model.dialog, Some(Dialog::Name(_))));
     assert_eq!(model.dry_run, DryRun::Pending);
     model

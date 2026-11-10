@@ -26,7 +26,7 @@ pub use self::diff::{DiffView, Segment};
 use self::list::keep;
 pub use self::list::{ListState, refilter};
 pub use self::naming::{Make, Naming, is_name_char, timestamp};
-pub use self::palette::{Palette, PaletteItem, Recent};
+pub use self::palette::{Palette, PaletteItem, Place, Recent, Section};
 pub(crate) use self::pools::{disk_name, host_text, pool_mode, pool_name};
 pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
@@ -119,6 +119,10 @@ pub enum Then {
     /// Do what a key of the view under the palette does: an action only a
     /// character or a chord reaches (rule 1 of decision 18).
     Intent(Intent),
+    /// Open the tab of this place, with it selected.
+    Go(Place),
+    /// Drop the command line edited for the boots of this environment.
+    Revert(DatasetName),
 }
 
 /// A dialog over a view; not `Clone`: an unlock dialog holds a secret.
@@ -192,6 +196,10 @@ pub struct Model {
     pub dialog: Option<Dialog>,
     /// The palette, when open.
     pub palette: Option<Palette>,
+    /// The palette while its help shows, the screen it was open over and
+    /// how far that screen was scrolled: `Esc` on the help opens it again,
+    /// with its query, over the screen as it was.
+    pub palette_on_help: Option<(Palette, Screen, usize)>,
     /// The entries chosen in the palette, newest first.
     pub recent: Recent,
     /// Whether a change being chosen shows its plan first.
@@ -298,6 +306,7 @@ impl Model {
             theme,
             dialog: None,
             palette: None,
+            palette_on_help: None,
             recent: Recent::default(),
             dry_run: DryRun::Off,
             editor: None,

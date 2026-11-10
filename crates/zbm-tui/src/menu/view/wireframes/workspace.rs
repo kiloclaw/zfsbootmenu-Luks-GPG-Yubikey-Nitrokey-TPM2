@@ -244,10 +244,6 @@ fn review_wireframes() -> Vec<Wireframe> {
             &[
                 Char(':'),
                 Text("snapshot"),
-                Code(Key::Down),
-                Code(Key::Down),
-                Code(Key::Down),
-                Code(Key::Down),
                 Code(Key::Enter),
                 Ctrl('u'),
                 Text("before-upgrade"),

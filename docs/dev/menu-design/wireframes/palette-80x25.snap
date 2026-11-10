@@ -6,21 +6,21 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ ▶ zroot/ROOT/void                                          default  6.12.9_1 │
 │   tank/ROOT/arch                                   1 warning  6.11.5-arch1-1 │
 │   tank/ROOT/debian                                 1 problem  6.1.0-26-amd64 │
-│   z┌ COMMANDS ─────────────────────────────────────────────── 55 of 432 ┐ric │
+│   z┌ COMMANDS ─────────────────────────────────────────────── 55 of 456 ┐ric │
 │    │ : 2026-09                                                          │    │
+│    │   ACTIONS                                                          │    │
 │    │ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-09-30_daily        │    │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-29_daily        │    │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-28_daily        │    │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-27_daily        │    │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-26_daily        │    │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-25_daily        │    │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-24_daily        │    │
-└────│   Boot a clone of zroot/ROOT/void@autosnap_2026-09-23_daily        │────┘
-┌ zro│   Boot a clone of zroot/ROOT/void@autosnap_2026-09-22_daily        │ult ┐
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-21_daily        │    │
-│   B│   Boot a clone of zroot/ROOT/void@autosnap_2026-09-20_daily        │    │
+└────│   Boot a clone of zroot/ROOT/void@autosnap_2026-09-24_daily        │────┘
+┌ zro│   Boot a clone of zroot/ROOT/void@autosnap_2026-09-23_daily        │ult ┐
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-22_daily        │    │
+│   B│   Boot a clone of zroot/ROOT/void@autosnap_2026-09-21_daily        │    │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-20_daily        │    │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-19_daily        │    │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-18_daily        │    │
 │    └────────────────────────────────────────────────────────────────────┘    │
 │   Encryption  key loaded                                                     │
 │ Command Line  quiet loglevel=4 · from zroot/ROOT                             │

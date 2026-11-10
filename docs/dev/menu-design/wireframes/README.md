@@ -22,7 +22,7 @@ keep their names:
 | `unlock-pin` | a TPM2 PIN asked at start-up, two digits typed and not shown |
 | `import-problem` | a pool of another host, and what can be done |
 | `import-failed` | the error after a plain retry: what failed, why, what next |
-| `palette` | the command palette finding snapshots by date, once the snapshots view read them |
+| `palette` | the command palette finding snapshots by date, once the snapshots view read them, under the heading of its actions |
 | `recovery` | the recovery tools |
 | `log` | the log since start |
 | `help` | help for the main view, which scrolls |
@@ -49,7 +49,7 @@ keep their names:
 | `workspace-destroy-review` | `2`, down three, `Space`, up one, `Space`, then `Delete`: the review page of the destroy of the two marked snapshots, of 20 and 21 October, oldest first, with their sizes under their total, the space freed, the environment's two bookmarks kept, the step with its command, no undo and nothing safer, then the field with the environment's name, `void` (for several snapshots; one snapshot's page asks for its short name), typed in part and the **Destroy** button |
 | `workspace-destroy-refused` | `2`, down eleven and `Delete`: the destroy of the daily snapshot of 18 October, which its clone stops: the page names it first, has no field, and its **OK** closes it |
 | `workspace-rewind-review` | `i` on `tank` in the Pools tab, then `Rewind…`: the review page of the rewind to its checkpoint: every write since it, the snapshot taken since, the export and the import with their commands, the read-only import that is safer, and this host, which has it imported |
-| `workspace-dry-run` | `:`, `snapshot`, down four to `Snapshot · n`, `Enter`, then the name `before-upgrade` and `Enter`: the dry run of the snapshot, the review page without its field (ADR 0016, point 12): nothing has changed yet, it loses nothing, its steps and command, the destroy that undoes it, in the normal frame with **Run** |
+| `workspace-dry-run` | `:`, `snapshot`, `Enter` on the first action, `Take a Snapshot of zroot/ROOT/void`, then the name `before-upgrade` and `Enter`: the dry run of the snapshot, the review page without its field (ADR 0016, point 12): nothing has changed yet, it loses nothing, its steps and command, the destroy that undoes it, in the normal frame with **Run** |
 | `workspace` | the workspace's Boot tab: the tab bar, with the host ID and the time at 120 columns, the sidebar of pools, volumes and what needs attention, the path, the boot environments grouped by pool, the kernels of the selection beside them from 80 columns, the inspector with its next steps |
 | `workspace-kernels` | `l` from the Boot tab: the kernels column of the second environment, its kernel in the path and the inspector |
 | `workspace-columns` | `Right` into the kernels of `tank/ROOT/arch`, the first environment of the second pool, and down one: the path `tank › tank/ROOT/arch › 6.10.10-arch1-1` |
@@ -64,6 +64,7 @@ keep their names:
 | `workspace-filter` | `/` and `ta` on the Boot tab: the search field at the top of the column, two environments of four left |
 | `workspace-command-line` | `e` and ` systemd.unit=rescue.target` typed: the command line edited for one boot, under the tab bar |
 | `workspace-palette` | `2`, `:` and `2026-10`: the command palette over the Snapshots tab, finding the snapshots of October by date |
+| `workspace-commands` | `:` and `pools` on the Boot tab: the command line's sections, actions, items and help, each under its heading |
 | `workspace-power` | `x`: power off, reboot, firmware setup, over the Boot tab |
 | `workspace-recovery` | `!`: the recovery tools, under the tab bar |
 | `workspace-notification` | down one and `d`: the outcome of setting a default, on the notification line, `zroot/ROOT/ubuntu` the new default |

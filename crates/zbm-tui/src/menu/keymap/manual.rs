@@ -10,8 +10,10 @@
 use zbm_display::keys::Key;
 
 use super::classic::{aliases as letters, sent_as, taken_with_ctrl};
-use super::{CLASSIC, Context, Input, Intent, Map, Modifiers, describe, input, key_name};
-use crate::text::{self, Id, id, text};
+use super::{
+    CLASSIC, COMMAND_NAMES, Context, Input, Intent, Map, Modifiers, describe, input, key_name,
+};
+use crate::text::{self, Id, Language, id, text};
 use Context::{
     Choose, Diff, Help, Kernels, Log, Main, Packages, Pools, Recovery, Review, Snapshots, Startup,
 };
@@ -75,8 +77,33 @@ pub fn workspace() -> String {
     }
     for other in OTHERS {
         places.push(place(&name(*other), &keys(*other)));
+        if *other == Context::Command {
+            places.push(command_names());
+        }
     }
     places.join("\n")
+}
+
+/// The names of the command line's commands, under their title: each in
+/// bold, with its English name where the page's language has another, and
+/// what it does.
+fn command_names() -> String {
+    let title = text!("manual-command-names");
+    let underline = "~".repeat(title.chars().count());
+    let entries: Vec<String> = COMMAND_NAMES
+        .iter()
+        .map(|(id, what)| {
+            let mut names = vec![text::get(*id)];
+            let english = text::in_language(Language::English, || text::get(*id));
+            if !names.contains(&english) {
+                names.push(english);
+            }
+            let what = text::get(*what);
+            entry(&names, &sentence_of(&what))
+        })
+        .collect();
+    let intro = text!("manual-command-names-intro");
+    format!("{title}\n{underline}\n\n{intro}\n\n{}", entries.join("\n"))
 }
 
 /// The classic aliases of the `fzf` menu that the workspace keeps, one
@@ -164,8 +191,8 @@ fn keys(context: Context) -> Vec<Bound> {
 /// `None` where the menu does nothing with it though the table binds it:
 /// the primary action of a view with nothing to choose, the moves of
 /// start-up, which has nothing to select, `Right` in the kernels column,
-/// already open, help outside the views, the first and last row of a
-/// dialog, and a page of the command line.
+/// already open, help outside the views and the command line, the first
+/// and last row of a dialog, and a page of the command line.
 fn said(context: Context, intent: Intent) -> Option<(Id, Option<Id>)> {
     use Intent::{Down, First, Last, PageDown, PageUp, Primary, Reveal, Up};
     let ignored = match context {
@@ -174,7 +201,7 @@ fn said(context: Context, intent: Intent) -> Option<(Id, Option<Id>)> {
         Kernels => intent == Intent::Kernels,
         Choose => matches!(intent, Intent::Help | First | Last),
         Context::Text | Review => intent == Intent::Help,
-        Context::Command => matches!(intent, Intent::Help | PageUp | PageDown),
+        Context::Command => matches!(intent, PageUp | PageDown),
         _ => false,
     };
     if ignored {
@@ -250,6 +277,11 @@ fn sentence(what: Id, at: Option<Id>) -> String {
         Some(at) => format!("{}, {}", text::get(what), text::get(at)),
         None => text::get(what),
     };
+    sentence_of(&said)
+}
+
+/// `said` as a sentence: its first letter capital, and a full stop.
+fn sentence_of(said: &str) -> String {
     let mut chars = said.chars();
     let first: String = chars
         .next()

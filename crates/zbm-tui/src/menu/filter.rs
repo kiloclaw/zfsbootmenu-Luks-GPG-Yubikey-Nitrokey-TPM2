@@ -23,13 +23,13 @@ pub fn rank<'a>(items: impl IntoIterator<Item = &'a str>, query: &str) -> Vec<Ra
     rank_named(items, query, CaseMatching::Smart)
 }
 
-/// The items that `query` matches, each by the better of its two names:
-/// the one shown, and another it is also known by, as the English name of
-/// a command in another language (rule 4 of decision 18). The positions
-/// are the shown name's, and none when the other name matched better, as
-/// they mark what is drawn. Best first; every item in order when the query
-/// is empty; equal scores keep the order of the items. `case` says how
-/// the query's capitals match.
+/// The items that `query` matches, each by the best of its names: the one
+/// shown, and the others it is also known by, one a line, as a command's
+/// name and target, and its English ones in another language (rule 4 of
+/// decision 18). The positions are the shown name's, and none when
+/// another name matched better, as they mark what is drawn. Best first;
+/// every item in order when the query is empty; equal scores keep the
+/// order of the items. `case` says how the query's capitals match.
 pub fn rank_named<'a>(
     items: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
     query: &str,
@@ -56,7 +56,12 @@ pub fn rank_named<'a>(
             let haystack = Utf32Str::new(shown, &mut buffer);
             let shown_score = pattern.indices(haystack, &mut matcher, &mut indices);
             let other_score = other
-                .and_then(|other| pattern.score(Utf32Str::new(other, &mut buffer), &mut matcher));
+                .into_iter()
+                .flat_map(str::lines)
+                .fold(None, |best, other| {
+                    let score = pattern.score(Utf32Str::new(other, &mut buffer), &mut matcher);
+                    best.max(score)
+                });
             let score = match (shown_score, other_score) {
                 (Some(shown), Some(other)) if other > shown => {
                     indices.clear();
@@ -142,6 +147,14 @@ mod tests {
         assert_eq!(tied[0].positions, [0, 1, 2, 3, 4]);
         let none = rank_named([("a", Some("b"))], "c", CaseMatching::Smart);
         assert_eq!(none, Vec::new());
+        // Each line of the other names is a name of its own: a query
+        // matches one of them whole, not parts of two.
+        let lines = [("x", Some("boot void\nboot arch"))];
+        assert_eq!(rank_named(lines, "boot arch", CaseMatching::Smart).len(), 1);
+        assert_eq!(
+            rank_named(lines, "voidboot", CaseMatching::Smart),
+            Vec::new()
+        );
     }
 
     #[test]

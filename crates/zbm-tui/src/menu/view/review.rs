@@ -232,6 +232,7 @@ pub(crate) fn said(model: &Model, reviewing: &Reviewing) -> Said {
         title: title(reviewing),
         lines,
         choices: Vec::new(),
+        headers: Vec::new(),
     }
 }
 

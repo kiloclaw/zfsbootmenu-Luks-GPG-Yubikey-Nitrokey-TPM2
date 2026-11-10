@@ -1,6 +1,8 @@
-//! The command palette: what it finds, its query and its selection.
+//! The command palette: what it finds, by section, its query and its
+//! selection, and its help.
 
 mod entries;
+mod items;
 
 use nucleo_matcher::pattern::CaseMatching;
 
@@ -8,8 +10,8 @@ use self::entries::entries;
 use super::dialogs;
 use super::text::edit;
 use crate::menu::filter::Ranked;
-use crate::menu::keymap::{Input, Intent};
-use crate::menu::model::{Model, Palette, PaletteItem, Recent, Then};
+use crate::menu::keymap::{Context, Input, Intent};
+use crate::menu::model::{Model, Palette, PaletteItem, Recent, Screen, Section, Then};
 use crate::menu::world::Action;
 use crate::text::{self, Language};
 
@@ -17,11 +19,12 @@ use crate::text::{self, Language};
 /// empty, the entries chosen before first.
 pub(super) fn open_palette(model: &mut Model) {
     let items = palette_items(model);
-    let matches = rank(&items, "", &model.recent, false);
+    let (matches, chosen) = rank(&items, "", &model.recent, false);
     model.palette = Some(Palette {
         query: String::new(),
         items,
         matches,
+        chosen,
         selected: 0,
         recent: false,
     });
@@ -29,26 +32,49 @@ pub(super) fn open_palette(model: &mut Model) {
 
 /// Makes what the open palette finds again, as the machine sent a
 /// snapshot, its pools or snapshots, keeping the query; the selection
-/// stays in range.
+/// stays on its entry where it still is, else in range.
 pub(super) fn palette_again(model: &mut Model) {
     if model.palette.is_none() {
         return;
     }
     let items = palette_items(model);
     if let Some(palette) = &mut model.palette {
-        palette.matches = rank(&items, &palette.query, &model.recent, palette.recent);
+        let (matches, chosen) = rank(&items, &palette.query, &model.recent, palette.recent);
+        let then = (palette.matches.get(palette.selected))
+            .and_then(|ranked| palette.items.get(ranked.index))
+            .map(|item| item.then.clone());
+        palette.matches = matches;
+        palette.chosen = chosen;
         palette.items = items;
-        palette.selected = palette
-            .selected
-            .min(palette.matches.len().saturating_sub(1));
+        // The selection stays on its entry where it still is.
+        let found = then.and_then(|then| {
+            (palette.matches.iter()).position(|ranked| {
+                palette
+                    .items
+                    .get(ranked.index)
+                    .is_some_and(|i| i.then == then)
+            })
+        });
+        palette.selected = found.unwrap_or_else(|| {
+            palette
+                .selected
+                .min(palette.matches.len().saturating_sub(1))
+        });
     }
 }
 
-/// The palette's `items` that `query` matches, by their labels or their
-/// English ones, whatever their case: Caps Lock changes nothing found.
-/// With `only_recent`, the entries chosen before alone, newest first among
-/// equals; with the query empty, those first, then the others.
-fn rank(items: &[PaletteItem], query: &str, recent: &Recent, only_recent: bool) -> Vec<Ranked> {
+/// The palette's `items` that `query` matches, by their labels or the
+/// names they are also known by, whatever their case: Caps Lock changes
+/// nothing found. They come by section, best first in each; with
+/// `only_recent`, the entries chosen before alone, newest first among
+/// equals; with the query empty, those first, then the others. Also how
+/// many of the first are the entries chosen before.
+fn rank(
+    items: &[PaletteItem],
+    query: &str,
+    recent: &Recent,
+    only_recent: bool,
+) -> (Vec<Ranked>, usize) {
     let chosen = if only_recent || query.is_empty() {
         recent.found_in(items)
     } else {
@@ -56,14 +82,52 @@ fn rank(items: &[PaletteItem], query: &str, recent: &Recent, only_recent: bool) 
     };
     if !only_recent && chosen.is_empty() {
         let every: Vec<usize> = (0..items.len()).collect();
-        return rank_among(items, &every, query);
+        return (by_section(items, rank_among(items, &every, query)), 0);
     }
+    let count = chosen.len();
     let mut order = chosen;
     if !only_recent {
         let others = (0..items.len()).filter(|index| !order.contains(index));
         order.extend(others.collect::<Vec<_>>());
     }
-    rank_among(items, &order, query)
+    let ranked = rank_among(items, &order, query);
+    if only_recent {
+        let count = ranked.len();
+        return (ranked, count);
+    }
+    // The query is empty: the entries chosen before are the first.
+    let mut ranked = ranked;
+    let others = by_section(items, ranked.split_off(count));
+    ranked.extend(others);
+    (ranked, count)
+}
+
+/// `ranked` by the section of its entries, in the order of [`Section`],
+/// each keeping its order: one pass to sort them, one to join them; none
+/// when they are in that order, as the entries are built and the empty
+/// query finds them.
+fn by_section(items: &[PaletteItem], ranked: Vec<Ranked>) -> Vec<Ranked> {
+    let section = |found: &Ranked| {
+        items
+            .get(found.index)
+            .map_or(Section::Actions, |i| i.section)
+    };
+    if ranked.is_sorted_by_key(section) {
+        return ranked;
+    }
+    let mut actions = Vec::new();
+    let mut places = Vec::new();
+    let mut help = Vec::new();
+    for found in ranked {
+        match items.get(found.index).map(|item| item.section) {
+            Some(Section::Items) => places.push(found),
+            Some(Section::Help) => help.push(found),
+            _ => actions.push(found),
+        }
+    }
+    actions.extend(places);
+    actions.extend(help);
+    actions
 }
 
 /// The entries of `items` at `order` that `query` matches, as indexes of
@@ -71,7 +135,7 @@ fn rank(items: &[PaletteItem], query: &str, recent: &Recent, only_recent: bool) 
 fn rank_among(items: &[PaletteItem], order: &[usize], query: &str) -> Vec<Ranked> {
     let names = order.iter().filter_map(|index| {
         let item = items.get(*index)?;
-        Some((item.label.as_str(), item.english.as_deref()))
+        Some((item.label.as_str(), Some(item.also.as_str())))
     });
     let ranked = crate::menu::filter::rank_named(names, query, CaseMatching::Ignore);
     ranked
@@ -105,6 +169,10 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
             if let Some(then) = &then {
                 model.recent.chose(then);
             }
+            if then == Some(COMMAND_HELP) {
+                open_help(model, palette);
+                return Vec::new();
+            }
             // A change chosen here shows its plan first. A boot from here is
             // checked as from the lists: it may not boot.
             super::dry_run::start(model);
@@ -113,6 +181,10 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
                 Some(then) => dialogs::follow(model, then),
                 None => Vec::new(),
             };
+        }
+        Input::Intent(Intent::Help) => {
+            open_help(model, palette);
+            return Vec::new();
         }
         Input::Intent(Intent::Up) => palette.selected = palette.selected.saturating_sub(1),
         Input::Intent(Intent::Down) => palette.selected = (palette.selected + 1).min(last),
@@ -131,14 +203,42 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
     Vec::new()
 }
 
+/// The help of the command line, as its entry opens it.
+const COMMAND_HELP: Then = Then::Open(Screen::Help(Context::Command));
+
+/// Opens the help of the command line over the screen it is open over,
+/// which is kept with it, and its scroll: `Esc` on the help opens it again
+/// ([`close_help`]).
+fn open_help(model: &mut Model, palette: Palette) {
+    model.palette_on_help = Some((palette, model.screen, model.scroll));
+    model.screen = Screen::Help(Context::Command);
+    model.scroll = 0;
+}
+
+/// `Esc` on the help of the command line: the command line again, with its
+/// query, over the screen it was open over, scrolled as it was, and what
+/// it finds now; the main view if it was not kept.
+pub(super) fn close_help(model: &mut Model) {
+    let Some((palette, under, scroll)) = model.palette_on_help.take() else {
+        model.screen = model.boot_view();
+        return;
+    };
+    model.screen = under;
+    model.scroll = scroll;
+    model.palette = Some(palette);
+    palette_again(model);
+}
+
 /// What the palette finds for its query, from the top.
 fn find_again(palette: &mut Palette, recent: &Recent) {
-    palette.matches = rank(&palette.items, &palette.query, recent, palette.recent);
+    (palette.matches, palette.chosen) =
+        rank(&palette.items, &palette.query, recent, palette.recent);
     palette.selected = 0;
 }
 
-/// `Tab`: the query becomes the selected entry's label, and the entry
-/// stays selected.
+/// `Tab`: the query becomes the selected entry's command name and target,
+/// in the menu's language, and the entry stays selected; a clone's boot,
+/// which its label alone finds, makes them now.
 fn complete(palette: &mut Palette, recent: &Recent) {
     let Some(index) = palette.matches.get(palette.selected).map(|r| r.index) else {
         return;
@@ -146,7 +246,11 @@ fn complete(palette: &mut Palette, recent: &Recent) {
     let Some(item) = palette.items.get(index) else {
         return;
     };
-    palette.query.clone_from(&item.label);
+    palette.query = match (item.also.lines().next(), &item.then) {
+        (Some(command), _) if !command.is_empty() => command.to_owned(),
+        (_, Then::BootClone(snapshot)) => entries::clone_command(snapshot),
+        _ => String::new(),
+    };
     find_again(palette, recent);
     let at = palette.matches.iter().position(|r| r.index == index);
     palette.selected = at.unwrap_or(0);
@@ -162,19 +266,21 @@ fn delete_word(query: &mut String) {
     query.truncate(kept);
 }
 
-/// Everything the command palette finds: environments, their kernels, the
-/// snapshots read so far, the actions of every view the machine offers,
-/// and those of the view under it that only a key reaches. In a language
-/// other than English, each also has its English label, which the palette
-/// matches too (rule 4 of decision 18); in English, they are built once.
+/// Everything the command palette finds: what changes or runs something
+/// (environments, the snapshots read so far, pools, volumes, the
+/// selection of the view under it, the tools, and what only a key reaches
+/// there), where to go, and help; what the machine offers. Each is found
+/// by its command's name and target too, and in a language other than
+/// English by its English name, target and label (rule 4 of decision 18);
+/// in English, they are built once.
 pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     let mut items = entries(model);
     if text::language() == Language::English {
         return items;
     }
     // The same model gives the same entries in the same order, whatever
-    // the language: each takes the English label of its twin. Were they to
-    // differ, none would have one.
+    // the language: each is also known by the English name, target and
+    // label of its twin. Were they to differ, none would be.
     let english = text::in_language(Language::English, || entries(model));
     let kind = std::mem::discriminant::<Then>;
     let is_paired = items.len() == english.len()
@@ -185,7 +291,7 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     debug_assert!(is_paired);
     if is_paired {
         for (item, twin) in items.iter_mut().zip(english) {
-            item.english = Some(twin.label);
+            item.also = format!("{}\n{}\n{}", item.also, twin.also, twin.label);
         }
     }
     items

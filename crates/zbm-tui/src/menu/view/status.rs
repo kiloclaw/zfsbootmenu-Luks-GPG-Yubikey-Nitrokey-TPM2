@@ -15,7 +15,7 @@ use crate::menu::keymap::{self, Context, Intent, Map, Tab};
 use crate::menu::model::{Model, Screen};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Level, VolumeState, worst_pool};
-use crate::text::text;
+use crate::text::{self, text};
 
 /// Below this width the status takes its short forms.
 const NARROW: u16 = 100;
@@ -240,17 +240,13 @@ fn back(model: &Model) -> Option<String> {
     }
 }
 
-/// The name of the view of `context`, for the back label of help.
+/// The name of the view of `context`, for the back label of help: the
+/// short one of start-up and of the pools.
 fn context_name(context: Context) -> String {
     match context {
         Context::Startup => text!("view-startup.short"),
-        Context::Snapshots => text!("view-snapshots"),
-        Context::Kernels => text!("view-kernels"),
         Context::Pools => text!("view-pools.short"),
-        Context::Recovery => text!("view-recovery"),
-        Context::Log => text!("view-log"),
-        Context::Diff | Context::Packages => text!("view-changes"),
-        _ => text!("view-main"),
+        other => text::get(keymap::view_name(other)),
     }
 }
 

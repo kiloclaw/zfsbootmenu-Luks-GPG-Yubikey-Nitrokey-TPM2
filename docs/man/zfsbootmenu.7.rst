@@ -1392,6 +1392,10 @@ The Command Line
 
   Confirm.
 
+**F1**
+
+  Help.
+
 **Esc**, **Ctrl-C**
 
   Cancel.
@@ -1427,6 +1431,159 @@ The Command Line
 **Ctrl-U**
 
   Clear the field.
+
+Command Names
+~~~~~~~~~~~~~
+
+The command line finds a command by its name, in the menu's language or in English, then by the name of what it acts on: an environment, a snapshot, a kernel, a pool, a volume or a view. Tab completes the selected entry's command and target, and F1 lists the names.
+
+**boot**
+
+  Boot an environment, or a new clone of a snapshot.
+
+**edit**
+
+  Edit the command line an environment boots with, until reverted.
+
+**revert**
+
+  Go back to an environment's own command line.
+
+**default**
+
+  Make an environment, or a kernel of it, the default.
+
+**inherit**
+
+  Inherit the default kernel of an environment.
+
+**snapshot**
+
+  Take a snapshot of an environment.
+
+**chroot**
+
+  Open a shell in an environment or a snapshot.
+
+**tries**
+
+  Give an environment its boot tries back.
+
+**rollback**
+
+  Roll an environment back to a snapshot.
+
+**clone**
+
+  Clone a snapshot as a new boot environment.
+
+**promote**
+
+  Clone a snapshot and promote the clone.
+
+**duplicate**
+
+  Duplicate a snapshot as an independent copy.
+
+**diff**
+
+  Show the differences from a snapshot to now.
+
+**destroy**
+
+  Destroy the selected snapshot, or the marked ones.
+
+**export**
+
+  Export a pool.
+
+**import**
+
+  Import a pool with this host's ID.
+
+**import -l**
+
+  Import a pool with the host ID that last imported it.
+
+**import -f**
+
+  Force the import of a pool another host may use.
+
+**rewind**
+
+  Rewind a pool to its checkpoint.
+
+**readwrite**
+
+  Import a pool read/write.
+
+**readonly**
+
+  Import a pool read-only.
+
+**unlock**
+
+  Unlock a LUKS volume.
+
+**reseal**
+
+  Seal a volume's TPM2 key again.
+
+**rescan**
+
+  Scan for pools again.
+
+**shell**
+
+  Open the recovery shell.
+
+**power**
+
+  Followed by off, reboot or firmware: power off, reboot, or reboot into the firmware setup.
+
+**sort**
+
+  Sort the snapshots another way.
+
+**fold**
+
+  Fold the group of the selected snapshot, or unfold it.
+
+**mark**
+
+  Mark the selected snapshot, or unmark it.
+
+**filter**
+
+  Filter the list.
+
+**go**
+
+  Go to an environment, a pool or a volume.
+
+**kernels**
+
+  Show the kernels of an environment.
+
+**snapshots**
+
+  Show the snapshots of an environment.
+
+**pools**
+
+  Show the pools and volumes.
+
+**recovery**
+
+  Show the recovery tools.
+
+**log**
+
+  Show the log.
+
+**help**
+
+  Show the keys of a view, or of the command line.
 
 Review the Change
 ~~~~~~~~~~~~~~~~~

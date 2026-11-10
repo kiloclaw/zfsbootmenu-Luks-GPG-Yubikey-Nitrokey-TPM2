@@ -202,7 +202,7 @@ pub fn page(model: &Model) -> Vec<String> {
         page.push(String::new());
         page.push(said.title.clone());
         page.extend(said.lines.iter().map(|line| format!("  {line}")));
-        page.extend(numbered(&said.choices, &[]));
+        page.extend(numbered(&said.choices, &said.headers));
     }
     page.push(String::new());
     if model.context() == Context::Review {
