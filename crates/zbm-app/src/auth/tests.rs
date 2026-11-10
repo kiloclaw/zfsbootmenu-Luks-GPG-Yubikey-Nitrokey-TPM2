@@ -70,6 +70,23 @@ fn a_locked_image_needs_a_proof_which_lasts_while_it_is_used() {
 }
 
 #[test]
+fn no_time_is_left_when_attended_or_unlocked() {
+    let locked = Authority::new(Lock::On("hash".to_owned()));
+    assert_eq!(locked.proof_left(false, at(0)), None);
+    locked.prove(Verified::new(), at(10));
+    assert_eq!(locked.proof_left(false, at(10)), Some(IDLE));
+    assert_eq!(locked.proof_left(false, at(100)), Some(at(210)));
+    assert_eq!(locked.proof_left(false, at(10 + IDLE.as_secs())), None);
+    // A person who opened a volume needs no proof: none counts down.
+    locked.prove(Verified::new(), at(400));
+    assert_eq!(locked.proof_left(true, at(400)), None);
+
+    let open = Authority::new(Lock::Off);
+    open.prove(Verified::new(), at(0));
+    assert_eq!(open.proof_left(false, at(0)), None);
+}
+
+#[test]
 fn the_gate_runs_the_shell_the_runtime_chose() {
     let fake = FakeSystem::new();
     let authority = Authority::new(Lock::Off);

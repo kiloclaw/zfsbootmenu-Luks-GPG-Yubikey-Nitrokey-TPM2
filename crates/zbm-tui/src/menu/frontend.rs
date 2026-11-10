@@ -350,6 +350,9 @@ where
             while let Some(action) = session.console_action() {
                 self.give_back()?;
                 session.perform(action);
+                // The machine is read again after the action, which counts
+                // its time: the ticks count from then.
+                last_tick = self.clock.now();
                 self.take_back()?;
             }
         }
@@ -357,4 +360,4 @@ where
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

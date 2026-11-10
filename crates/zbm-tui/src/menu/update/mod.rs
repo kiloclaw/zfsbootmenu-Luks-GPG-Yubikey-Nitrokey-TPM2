@@ -200,16 +200,17 @@ fn back(model: &mut Model) {
 }
 
 /// Time passed: the tab bar's clock advances, and with it the timeline's
-/// days; the countdown runs, as start-up's dialog's does; and the first
-/// time after the main view opened with no countdown running, the menu
-/// asks the machine to scan the pools, which the views list once it
-/// answers, and the workspace asks for the boot history, which its
-/// inspector shows. While the countdown runs, nothing is read: the boot it
-/// ends with would wait for the scan, and Escape would cancel the scan
-/// instead of stopping the countdown.
+/// days; the PIN's proof counts down; the countdown runs, as start-up's
+/// dialog's does; and the first time after the main view opened with no
+/// countdown running, the menu asks the machine to scan the pools, which
+/// the views list once it answers, and the workspace asks for the boot
+/// history, which its inspector shows. While the countdown runs, nothing
+/// is read: the boot it ends with would wait for the scan, and Escape
+/// would cancel the scan instead of stopping the countdown.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
     model.ticked = model.ticked.saturating_add(ms);
     model.follow_clock();
+    lapse(model, ms);
     let mut actions = count_down(model, ms);
     let counting = model.countdown.is_some();
     if actions.is_empty() && model.started && !counting && !model.scanned {
@@ -218,6 +219,24 @@ fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
         actions.extend(history::load(model));
     }
     actions
+}
+
+/// The PIN's proof counts down a second for each 1000 of the `ms` the
+/// ticks count from the snapshot that said how long it lasts; once none is
+/// left, what the lock keeps is marked again, as the machine asks for the
+/// PIN then.
+fn lapse(model: &mut Model, ms: u64) {
+    let Some(left) = model.snapshot.proof_left else {
+        return;
+    };
+    let ticked = model.proof_ticked.saturating_add(ms);
+    model.proof_ticked = ticked % 1000;
+    let left = u64::from(left).saturating_sub(ticked / 1000);
+    model.snapshot.proof_left = u32::try_from(left).ok().filter(|left| *left > 0);
+    if model.snapshot.proof_left.is_none() {
+        model.snapshot.menu_locked = true;
+        command_line::palette_again(model);
+    }
 }
 
 /// The countdown runs, and when it ends boots the selection: the default

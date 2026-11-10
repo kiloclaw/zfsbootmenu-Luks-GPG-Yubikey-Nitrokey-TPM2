@@ -99,7 +99,14 @@ impl<M: Machine> Session<M> {
         let Some(model) = self.model.take() else {
             return;
         };
+        let ticked = matches!(message, Message::Tick(_));
+        let unlocked = !model.snapshot.menu_locked;
         let (model, actions) = update(model, message);
+        // The menu counted the PIN's proof down to none: the machine, which
+        // routes what the lock keeps, takes it to the console again too.
+        if ticked && unlocked && model.snapshot.menu_locked {
+            self.machine.relock();
+        }
         self.model = Some(model);
         for action in actions {
             if !action.is_read() {

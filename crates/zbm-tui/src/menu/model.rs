@@ -298,6 +298,9 @@ pub struct Model {
     /// The milliseconds the ticks counted since the snapshot's time: the
     /// tab bar's clock is that time and these.
     pub ticked: u64,
+    /// The milliseconds the ticks counted since the snapshot's proof last
+    /// lost a second ([`Snapshot::proof_left`]); each snapshot starts anew.
+    pub proof_ticked: u64,
 }
 
 impl Model {
@@ -347,6 +350,7 @@ impl Model {
             typed_on: None,
             map: Map::default(),
             ticked: 0,
+            proof_ticked: 0,
             snapshot,
         };
         model.refresh();
@@ -462,6 +466,7 @@ impl Model {
             if new.now != self.snapshot.now {
                 self.ticked = 0;
             }
+            self.proof_ticked = 0;
             self.snapshot = new;
             if relisted {
                 self.ages = ages;

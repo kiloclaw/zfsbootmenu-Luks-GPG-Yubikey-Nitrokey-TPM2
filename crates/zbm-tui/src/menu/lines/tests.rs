@@ -516,3 +516,26 @@ fn what_the_machine_says_is_printed_escaped() {
         assert!(!page.iter().any(raw), "{page:#?}");
     }
 }
+
+#[test]
+fn the_time_an_action_takes_on_the_console_counts_once_in_lines() {
+    let clock = FakeClock::new();
+    let console = FakeConsole::new().with_clock(clock.clone());
+    // The menu opens; the recovery tools, their first, the shell; then
+    // time passes.
+    console.timeout().secret(b"!").secret(b"ok");
+    for _ in 0..10 {
+        console.timeout();
+    }
+    let proving = crate::menu::frontend::tests::Proving::new(clock.clone());
+    let mut session = Session::on(proving, Theme::new(Capabilities::ASCII), Map::default());
+    let mut front = LineFront::new(&console, &clock);
+
+    front.run(&mut session).unwrap();
+
+    // The snapshot read after the action counted the 25 s already.
+    assert!(clock.now() >= std::time::Duration::from_secs(25));
+    let model = session.model();
+    assert_eq!(model.snapshot.proof_left, Some(300));
+    assert!(model.ticked < 1000, "{}", model.ticked);
+}

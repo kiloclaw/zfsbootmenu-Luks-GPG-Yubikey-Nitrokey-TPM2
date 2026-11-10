@@ -5,9 +5,9 @@
 //! maps, on the demo machine.
 
 use pretty_assertions::assert_eq;
-use zbm_display::keys::Key;
+use zbm_display::keys::{Key, KeyPress};
 
-use super::is_kept;
+use super::{Message, is_kept, update};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::keymap::{self, Intent, Tool};
@@ -15,7 +15,7 @@ use crate::menu::model::{Model, Then};
 use crate::menu::theme::Theme;
 use crate::menu::view::tests::screen;
 use crate::menu::view::words;
-use crate::menu::world::Action;
+use crate::menu::world::{Action, Event};
 use crate::text::{self, text};
 
 /// The demo with the menu `locked`, under the classic map or the
@@ -304,4 +304,51 @@ fn the_line_view_says_the_keys_costs_and_mark() {
     let line = said.choices.iter().find(|c| c.starts_with(&default));
     let expected = format!("{default}{dot}d{dot}{} {mark}", text!("cost-writes"));
     assert_eq!(line, Some(&expected), "{said:?}");
+}
+
+#[test]
+fn the_marks_come_back_when_the_proof_lapses() {
+    let mark = keymap::lock_mark();
+    let enter = text!("key-enter");
+    let changed = |model: Model, locked: bool, left: Option<u32>| {
+        let mut snapshot = model.snapshot.clone();
+        snapshot.menu_locked = locked;
+        snapshot.proof_left = left;
+        update(
+            model,
+            Message::Event(Box::new(Event::Changed(Box::new(snapshot)))),
+        )
+        .0
+    };
+    let step = |model: Model, message: Message| update(model, message).0;
+    let kept = |model: &Model| {
+        let palette = model.palette.as_ref().expect("the command line is open");
+        (palette.items.iter()).filter(|item| item.costs.pin).count()
+    };
+    // The PIN was typed: the proof lasts 2 s more.
+    let mut model = changed(started(true, false).into_model(), false, Some(2));
+    model = step(model, Message::Key(KeyPress::new(Key::Down)));
+    assert_eq!(tool(&toolbar(&model, 200), &enter).mark, None);
+    model = step(model, Message::Key(KeyPress::new(Key::Char(':'))));
+    assert_eq!(kept(&model), 0);
+
+    model = step(model, Message::Tick(1500));
+    assert_eq!(model.snapshot.proof_left, Some(1));
+    assert!(!model.snapshot.menu_locked);
+    // It lapses with the command line open, whose entries are marked.
+    model = step(model, Message::Tick(600));
+    assert_eq!(model.snapshot.proof_left, None);
+    assert!(model.snapshot.menu_locked);
+    assert!(kept(&model) > 0);
+    model = step(model, Message::Key(KeyPress::new(Key::Escape)));
+    let tools = toolbar(&model, 200);
+    assert_eq!(tool(&tools, &enter).mark.as_deref(), Some(mark.as_str()));
+
+    // The snapshot read after a kept action counts afresh.
+    model = changed(model, false, Some(300));
+    assert_eq!(tool(&toolbar(&model, 200), &enter).mark, None);
+    model = step(model, Message::Tick(299_999));
+    assert!(!model.snapshot.menu_locked);
+    model = step(model, Message::Tick(1));
+    assert!(model.snapshot.menu_locked);
 }

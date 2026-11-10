@@ -195,3 +195,80 @@ fn the_console_is_lent_to_what_takes_it_and_the_size_followed() {
     assert_eq!(why, "");
     assert_eq!(*input.modes.borrow(), ["release", "take", "release"]);
 }
+
+/// A machine whose recovery shell takes the console for 25 s on `clock`,
+/// after which it is read again with the PIN's proof lasting 300 s, as one
+/// typed then; it ends the menu after three ticks more.
+pub(crate) struct Proving {
+    snapshot: Snapshot,
+    clock: FakeClock,
+    ticks_after: Option<usize>,
+}
+
+impl Proving {
+    pub(crate) fn new(clock: FakeClock) -> Proving {
+        Proving {
+            snapshot: Snapshot {
+                offers: [Offer::Shell].into(),
+                ..Snapshot::default()
+            },
+            clock,
+            ticks_after: None,
+        }
+    }
+}
+
+impl Machine for Proving {
+    fn snapshot(&self) -> &Snapshot {
+        &self.snapshot
+    }
+
+    fn tick(&mut self) -> Vec<Event> {
+        match &mut self.ticks_after {
+            None => vec![Event::Changed(Box::new(self.snapshot.clone()))],
+            Some(3) => vec![Event::Leaving(String::new())],
+            Some(ticks) => {
+                *ticks += 1;
+                Vec::new()
+            }
+        }
+    }
+
+    fn apply(&mut self, action: Action) -> Vec<Event> {
+        if action != Action::Shell {
+            return Vec::new();
+        }
+        self.clock.advance(Duration::from_secs(25));
+        self.ticks_after = Some(0);
+        self.snapshot.proof_left = Some(300);
+        self.snapshot.now += 25;
+        vec![Event::Changed(Box::new(self.snapshot.clone()))]
+    }
+
+    fn needs_console(&self, action: &Action) -> bool {
+        *action == Action::Shell
+    }
+}
+
+#[test]
+fn the_time_an_action_takes_on_the_console_counts_once() {
+    let input = Scripted::default();
+    input.wait(1);
+    input.press(&[Key::Char('!'), Key::Enter]);
+    input.wait(10);
+    let mut session = Session::on(
+        Proving::new(input.clock.clone()),
+        Theme::new(Capabilities::FULL),
+        Map::default(),
+    );
+
+    let before = input.clock.now();
+    frontend(&input).run(&mut session).unwrap();
+
+    // The snapshot read after the action counted the 25 s already: the
+    // ticks after it count only their own time, in the proof and the clock.
+    assert!(input.clock.now() >= before + Duration::from_secs(25));
+    let model = session.model();
+    assert_eq!(model.snapshot.proof_left, Some(300));
+    assert!(model.ticked < 1000, "{}", model.ticked);
+}

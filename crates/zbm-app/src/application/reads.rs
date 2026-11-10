@@ -32,6 +32,23 @@ pub(super) fn may_move_pools(action: &Action) -> bool {
 }
 
 impl App<'_> {
+    /// Whether what the lock keeps is locked now, on the machine of `files`.
+    fn is_menu_locked(&self, files: &dyn zbm_platform::Files) -> bool {
+        self.lock_now(&zbm_state::State::new(files, &self.runtime.base))
+            .0
+    }
+
+    /// Whether what the lock keeps is locked now, by `state`, and the whole
+    /// seconds the proof lasts, which the menu counts down: both of one
+    /// reading of the clock and of the attended unlock, so that they agree.
+    pub(super) fn lock_now(&self, state: &zbm_state::State<'_>) -> (bool, Option<u32>) {
+        let attended = state.has_attended_unlock();
+        let now = self.context.clock().now();
+        let left = (self.authority.proof_left(attended, now))
+            .and_then(|left| u32::try_from(left.as_secs()).ok());
+        (self.authority.is_locked(attended, now), left)
+    }
+
     /// Applies `action` without taking the console: the volumes', the
     /// changes of package D ([`Action::is_change`]) whose pool is writable
     /// and whose key is loaded, and what only reads the machine

@@ -222,6 +222,11 @@ impl Machine for RealMachine<'_, '_> {
         action.needs_console_on(&self.snapshot) && *action != Action::Shell
     }
 
+    fn relock(&mut self) {
+        self.snapshot.menu_locked = true;
+        self.snapshot.proof_left = None;
+    }
+
     fn is_busy(&self) -> bool {
         self.service.as_ref().is_some_and(ServiceHandle::is_busy)
     }

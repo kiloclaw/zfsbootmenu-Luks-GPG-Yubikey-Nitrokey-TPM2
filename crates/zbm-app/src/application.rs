@@ -209,13 +209,6 @@ impl<'a> App<'a> {
         App { authority, ..self }
     }
 
-    /// Whether what the lock keeps is locked now, on the machine of `files`.
-    fn is_menu_locked(&self, files: &dyn zbm_platform::Files) -> bool {
-        let state = zbm_state::State::new(files, &self.runtime.base);
-        self.authority
-            .is_locked(state.has_attended_unlock(), self.context.clock().now())
-    }
-
     /// Whether `action` may run: the lock does not keep it, or someone
     /// proved themselves, as a person who opened a volume did, or by the
     /// PIN typed on `system`'s console now, which a keyholder checks.
@@ -529,6 +522,7 @@ impl Application for App<'_> {
                     .any(|known| known.imported && known.name == pool)
             });
         let (environments, loaded) = self.environments(&zfs).map_err(SnapshotError::from)?;
+        let (menu_locked, proof_left) = self.lock_now(&state);
         Ok(Snapshot {
             startup: read::startup(&state),
             pools,
@@ -539,7 +533,8 @@ impl Application for App<'_> {
             log: read::log(files, &self.runtime.base),
             keyboard: self.keyboard(),
             bootfs,
-            menu_locked: self.is_menu_locked(files),
+            menu_locked,
+            proof_left,
             offers: self.offers(files),
             host: read::host(files, &state),
             zfs_version: read::zfs_version(files),
@@ -563,6 +558,8 @@ impl Application for App<'_> {
             }
         }
         snapshot.now = read::now(self.context.clock());
+        // The menu counts the proof down from when the snapshot comes.
+        (snapshot.menu_locked, snapshot.proof_left) = self.lock_now(&state);
     }
 
     /// Applies `action`, then, when it may have imported, exported or

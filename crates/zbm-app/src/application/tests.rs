@@ -1,6 +1,8 @@
 use std::path::Path;
+use std::time::Duration;
 
 use zbm_config::args::ZbmArgs;
+use zbm_platform::Clock as _;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
@@ -58,7 +60,7 @@ fn the_snapshot_s_time_is_when_its_kernels_were_read() {
 
     let mut snapshot = app.snapshot().unwrap();
     let read = snapshot.now;
-    fake.clock.advance(std::time::Duration::from_secs(8));
+    fake.clock.advance(Duration::from_secs(8));
     app.read_kernels(&mut snapshot, fake.system());
 
     assert!(read > 0);
@@ -188,6 +190,39 @@ fn the_locked_menu_refuses_what_it_keeps_until_the_pin_is_typed_on_the_console()
         .with_keyholders(&none)
         .apply(&rollback, Through::Console(fake.system(), &NoShell));
     assert!(is_refused(&events), "{events:?}");
+}
+
+#[test]
+fn the_snapshot_says_how_long_the_proof_lasts_from_when_its_kernels_were_read() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "");
+    let runtime = Runtime::default();
+    let authority = Authority::new(auth::Lock::On("hash".to_owned()));
+    let app = App::new(Context::new(fake.system()), &runtime).with_authority(&authority);
+    let read = || {
+        let snapshot = app.snapshot().unwrap();
+        (snapshot.menu_locked, snapshot.proof_left)
+    };
+    assert_eq!(read(), (true, None));
+
+    authority.prove(auth::Verified::new(), fake.clock.now());
+    assert_eq!(read(), (false, Some(300)));
+    // The whole seconds left: the menu counts them down.
+    fake.clock.advance(Duration::from_millis(120_500));
+    assert_eq!(read(), (false, Some(179)));
+
+    // The menu counts from when the kernels were read, which takes time.
+    let mut snapshot = app.snapshot().unwrap();
+    let mut with_kernels = |after: Duration| {
+        fake.clock.advance(after);
+        app.read_kernels(&mut snapshot, fake.system());
+        (snapshot.menu_locked, snapshot.proof_left)
+    };
+    assert_eq!(with_kernels(Duration::from_secs(8)), (false, Some(171)));
+    assert_eq!(with_kernels(Duration::from_millis(171_500)), (true, None));
+    assert_eq!(read(), (true, None));
 }
 
 #[test]

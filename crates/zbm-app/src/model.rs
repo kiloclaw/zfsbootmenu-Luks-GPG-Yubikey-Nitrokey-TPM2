@@ -81,6 +81,11 @@ pub struct Snapshot {
     /// [`Action::is_kept_by_lock`] asks for the PIN on the console first.
     #[serde(default)]
     pub menu_locked: bool,
+    /// The whole seconds the PIN's proof lasts if nothing more is done
+    /// with it, after which the menu is locked again: none when the lock
+    /// is off, when a person opened a volume this boot, or with no proof.
+    #[serde(default)]
+    pub proof_left: Option<u32>,
     /// The kinds of action this machine performs now: the menu shows and
     /// sends only these ([`Snapshot::is_offered`]). None by default.
     #[serde(default)]

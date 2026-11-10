@@ -158,8 +158,14 @@ fn an_action_that_takes_the_console_waits_until_the_session_performed_it() {
                 machine.apply(Action::Shell),
                 [Event::Leaving(String::new())]
             );
-            machine.apply(Action::ResetBootTries("tank/ROOT/be".parse().unwrap()));
+            let reset = Action::ResetBootTries("tank/ROOT/be".parse().unwrap());
+            machine.apply(reset.clone());
             events.extend(until_idle(&mut machine));
+            // Once the menu counted the PIN's proof out, what the lock
+            // keeps takes the console, where the PIN is asked.
+            assert!(!machine.needs_console(&reset));
+            machine.relock();
+            assert!(machine.needs_console(&reset));
             events
         },
     );

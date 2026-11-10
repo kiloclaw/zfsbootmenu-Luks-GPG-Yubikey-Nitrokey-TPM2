@@ -57,7 +57,14 @@ pub trait Machine {
     fn needs_console(&self, _action: &Action) -> bool {
         false
     }
+
+    /// The PIN's proof lapsed, as the menu counted it down
+    /// ([`Snapshot::proof_left`]): what the lock keeps takes the console
+    /// again, where the machine asks for the PIN.
+    fn relock(&mut self) {}
 }
 
+#[cfg(test)]
+mod lapse_tests;
 #[cfg(test)]
 mod tests;

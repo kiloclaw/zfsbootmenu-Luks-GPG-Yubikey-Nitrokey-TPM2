@@ -114,16 +114,23 @@ impl Authority {
     /// no person opened a volume this boot (`attended`), and the proof, if
     /// any, is older than [`IDLE`] at `now`.
     pub fn is_locked(&self, attended: bool, now: Duration) -> bool {
-        self.lock.is_on() && !attended && !self.has_proof(now)
+        self.lock.is_on() && !attended && self.proof_left(attended, now).is_none()
     }
 
-    /// Whether a proof was used within [`IDLE`] before `now`.
-    fn has_proof(&self, now: Duration) -> bool {
+    /// How long the proof lasts after `now` if nothing more is done with
+    /// it, before what the lock keeps needs another: none when the lock is
+    /// off, when a person opened a volume this boot (`attended`), who needs
+    /// no proof, or when no proof was used within [`IDLE`] before `now`.
+    pub fn proof_left(&self, attended: bool, now: Duration) -> Option<Duration> {
+        if !self.lock.is_on() || attended {
+            return None;
+        }
         let last_used = *self
             .last_used
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        last_used.is_some_and(|at| now.saturating_sub(at) < IDLE)
+        let left = IDLE.saturating_sub(now.saturating_sub(last_used?));
+        (!left.is_zero()).then_some(left)
     }
 
     /// The authorisation at `now`, which uses the proof: at once without a

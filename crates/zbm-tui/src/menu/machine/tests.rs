@@ -109,6 +109,11 @@ fn the_real_machine_opens_the_menu_and_reads_itself_again_after_an_action() {
     assert!(machine.needs_console(&Action::Reboot));
     assert!(!machine.needs_console(&Action::Shell));
     assert!(!machine.needs_console(&Action::ResetBootTries("tank/ROOT/be".parse().unwrap())));
+    // Once the menu counted the PIN's proof out, what the lock keeps
+    // takes the console, where the PIN is asked, until the next read.
+    machine.relock();
+    assert!(machine.needs_console(&Action::ResetBootTries("tank/ROOT/be".parse().unwrap())));
+    assert_eq!(machine.snapshot().proof_left, None);
     let events = machine.apply(Action::Shell);
     assert!(matches!(events.as_slice(), [Event::Leaving(why)] if why.is_empty()));
     // The fake has no /proc: the reset fails, and the menu goes on.

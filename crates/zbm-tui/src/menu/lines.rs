@@ -353,6 +353,9 @@ impl<'a> LineFront<'a> {
             }
             while let Some(action) = session.console_action() {
                 session.perform(action);
+                // The machine is read again after the action, which counts
+                // its time: the ticks count from then.
+                last_tick = self.clock.now();
                 // The action wrote on the console: the page again.
                 self.shown.clear();
             }

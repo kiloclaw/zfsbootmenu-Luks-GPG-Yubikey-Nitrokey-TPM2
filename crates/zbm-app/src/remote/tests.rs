@@ -449,3 +449,22 @@ fn a_plan_crosses_with_its_review_and_one_without_reads_as_reviewed_empty() {
     let read: Plan = serde_json::from_value(bare).unwrap();
     assert_eq!(read.review, Review::default());
 }
+
+#[test]
+fn a_snapshot_crosses_with_the_proof_s_time_and_one_without_it_still_reads() {
+    let snapshot = Snapshot {
+        proof_left: Some(42),
+        ..long_snapshot()
+    };
+    let message = ToMenu::Snapshot(Some(Box::new(snapshot.clone())));
+    assert_eq!(ToMenu::decode(&message.encode().unwrap()).unwrap(), message);
+
+    // A snapshot of the same version without the field, as an older peer
+    // sends it, reads as one with no proof.
+    let mut older = serde_json::to_value(&snapshot).unwrap();
+    let removed = older.as_object_mut().unwrap().remove("proof_left");
+    assert_eq!(removed, Some(serde_json::json!(42)));
+    let read: Snapshot = serde_json::from_value(older).unwrap();
+    assert_eq!(read.proof_left, None);
+    assert_eq!(read.now, snapshot.now);
+}

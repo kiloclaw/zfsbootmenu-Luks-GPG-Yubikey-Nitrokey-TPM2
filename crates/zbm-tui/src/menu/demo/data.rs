@@ -115,6 +115,8 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         log: log(),
         now: NOW,
         menu_locked: options.menu_locked,
+        // The demo asks for no PIN: it never holds a proof.
+        proof_left: None,
         // The demo answers every action.
         offers: Offer::ALL.into_iter().collect(),
         loaded: Vec::new(),
