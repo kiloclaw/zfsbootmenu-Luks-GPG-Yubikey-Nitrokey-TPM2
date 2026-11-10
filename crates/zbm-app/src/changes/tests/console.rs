@@ -29,6 +29,7 @@ fn a_change_takes_the_console_on_a_read_only_pool_or_a_locked_environment() {
         command_line: CommandLine {
             value: Untrusted::default(),
             origin: Origin::Default,
+            expanded: Untrusted::default(),
         },
         snapshot_count: 0,
         newest_snapshot: None,
@@ -91,6 +92,7 @@ fn the_diff_of_two_snapshots_takes_the_console_only_for_a_locked_key() {
         command_line: CommandLine {
             value: Untrusted::default(),
             origin: crate::model::Origin::Default,
+            expanded: Untrusted::default(),
         },
         snapshot_count: 0,
         newest_snapshot: None,

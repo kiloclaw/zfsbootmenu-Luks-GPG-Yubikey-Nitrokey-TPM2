@@ -81,13 +81,100 @@ fn environments_carry_their_command_line_and_where_it_was_set() {
     assert!(!is_environment(&zfs, &"zroot/ROOT/old".parse().unwrap()));
     assert!(!is_environment(&zfs, &"zroot/ROOT".parse().unwrap()));
     assert!(!is_environment(&zfs, &"zroot/ROOT/gone".parse().unwrap()));
-    let none = command_line(&zfs, &"zroot/ROOT/gone".parse().unwrap());
+    let none = command_line(&Lines::new(&zfs), &"zroot/ROOT/gone".parse().unwrap());
     assert_eq!(
         (none.value.get().as_str(), none.origin),
         ("", Origin::Default)
     );
     assert_eq!(origin(&Source::Temporary), Origin::Local);
     assert_eq!(origin(&Source::Inherited(String::new())), Origin::Default);
+}
+
+#[test]
+fn an_inherited_line_is_read_with_its_parent_expanded() {
+    let zfs = FakeZfs::new()
+        .pool("zroot")
+        .filesystem("zroot", &[(COMMAND_LINE, "spl_hostid=1")])
+        .filesystem(
+            "zroot/ROOT",
+            &[(COMMAND_LINE, "%{parent} quiet"), ("mountpoint", "none")],
+        )
+        .filesystem("zroot/ROOT/void", &[("mountpoint", "/")])
+        .filesystem("zroot/ROOT/ubuntu", &[("mountpoint", "/")])
+        .filesystem(
+            "zroot/ROOT/arch",
+            &[("mountpoint", "/"), (COMMAND_LINE, "ro %{parent}")],
+        )
+        .filesystem(
+            "zroot/ROOT/plain",
+            &[("mountpoint", "/"), (COMMAND_LINE, "rw")],
+        );
+
+    let environments = environments(&zfs, None).unwrap();
+
+    let line = |name: &str| {
+        let found = environments.iter().find(|e| e.name.as_str() == name);
+        let line = &found.unwrap().command_line;
+        (line.value.get().as_str(), line.expanded.get().as_str())
+    };
+    // An inherited line is its ancestor's expansion: the parent's
+    // arguments once, not `quiet` again.
+    assert_eq!(
+        line("zroot/ROOT/void"),
+        ("%{parent} quiet", "spl_hostid=1 quiet")
+    );
+    assert_eq!(
+        line("zroot/ROOT/ubuntu"),
+        ("%{parent} quiet", "spl_hostid=1 quiet")
+    );
+    assert_eq!(
+        line("zroot/ROOT/arch"),
+        ("ro %{parent}", "ro spl_hostid=1 quiet")
+    );
+    assert_eq!(line("zroot/ROOT/plain"), ("rw", "rw"));
+    // One property read per dataset, whichever environments expand it.
+    let reads: Vec<String> = zfs
+        .calls()
+        .into_iter()
+        .filter(|call| call.starts_with("property "))
+        .collect();
+    let datasets = [
+        "zroot/ROOT/arch",
+        "zroot/ROOT",
+        "zroot",
+        "zroot/ROOT/plain",
+        "zroot/ROOT/ubuntu",
+        "zroot/ROOT/void",
+    ];
+    let expected: Vec<String> = datasets
+        .iter()
+        .map(|dataset| format!("property {dataset} {COMMAND_LINE}"))
+        .collect();
+    assert_eq!(reads, expected);
+}
+
+#[test]
+fn a_parent_whose_line_is_unset_expands_to_nothing() {
+    let zfs = FakeZfs::new().pool("zroot").filesystem(
+        "zroot/ROOT/void",
+        &[("mountpoint", "/"), (COMMAND_LINE, "%{parent} quiet")],
+    );
+
+    let line = command_line(&Lines::new(&zfs), &"zroot/ROOT/void".parse().unwrap());
+
+    // `%{parent}` stands for nothing, as when booting: the unset line of
+    // zroot/ROOT (`-`) ends the expansion before zroot.
+    assert_eq!(line.expanded.get(), " quiet");
+    let read = |dataset: &str| format!("property {dataset} {COMMAND_LINE}");
+    assert_eq!(zfs.calls(), [read("zroot/ROOT/void"), read("zroot/ROOT")]);
+}
+
+#[test]
+fn a_name_that_is_no_dataset_s_has_no_command_line() {
+    let zfs = FakeZfs::new().pool("zroot");
+
+    assert_eq!(Lines::new(&zfs).commandline("zroot/ROOT/../x"), None);
+    assert!(zfs.calls().is_empty());
 }
 
 /// LUKS2 metadata with a TPM2 token that needs a PIN and a Clevis binding.

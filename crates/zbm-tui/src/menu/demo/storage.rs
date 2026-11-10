@@ -6,6 +6,7 @@ use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 use super::data::NOW;
 use super::snapshots::Lists;
 use super::untrusted;
+use crate::menu::model::own_command_line;
 use crate::menu::world::{
     Access, Action, CommandLine, Environment, Event, ImportOptions, Origin, Outcome, Snapshot,
     SnapshotInfo, restore_snapshot,
@@ -73,7 +74,7 @@ fn boot_message(
         })
         .unwrap_or_default();
     let line = command_line
-        .or_else(|| environment.map(|e| e.command_line.value.clone()))
+        .or_else(|| environment.map(|e| own_command_line(e).clone()))
         .unwrap_or_default();
     format!(
         "Booting {name} with kernel {} and the command line \"{}\"",
@@ -361,6 +362,7 @@ pub(super) fn add_backup_environment(snapshot: &mut Snapshot, pool: &PoolName) {
         command_line: CommandLine {
             value: untrusted("quiet"),
             origin: Origin::Local,
+            expanded: untrusted("quiet"),
         },
         ..template
     });

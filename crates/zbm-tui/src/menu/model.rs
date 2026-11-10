@@ -41,7 +41,7 @@ pub use self::typing::TypedOn;
 
 use super::keymap::{Context, Intent, Map, Tab};
 use super::theme::Theme;
-use super::world::{Action, DeviceLog, Environment, History, Outcome, Snapshot, Timeout};
+use super::world::{Action, DeviceLog, Environment, History, Origin, Outcome, Snapshot, Timeout};
 
 /// What a refresh keeps selected: the environment and the snapshot named,
 /// the row of the pools view ([`Model::selected_row`]), and the kernel
@@ -538,14 +538,15 @@ impl Model {
             .find(|environment| &environment.name == focus)
     }
 
-    /// The command line `environment` boots with: the edited one, else its
-    /// own.
+    /// The command line `environment` boots with, which its editor starts
+    /// from: the edited one, else its own as the menu shows it, with an
+    /// inherited `%{parent}` expanded.
     pub fn command_line(&self, environment: &Environment) -> Untrusted<String> {
         self.edited
             .iter()
             .find(|(name, _)| *name == environment.name)
             .map_or_else(
-                || environment.command_line.value.clone(),
+                || own_command_line(environment).clone(),
                 |(_, line)| line.clone(),
             )
     }
@@ -572,6 +573,16 @@ impl Model {
             Timeout::Skip => Some(0),
             Timeout::Wait => None,
         }
+    }
+}
+
+/// The command line of `environment` as the menu shows and edits it: an
+/// inherited one with `%{parent}` expanded, so that an edit holds the
+/// parent's arguments once; else the property's value.
+pub(crate) fn own_command_line(environment: &Environment) -> &Untrusted<String> {
+    match environment.command_line.origin {
+        Origin::Inherited(_) => &environment.command_line.expanded,
+        Origin::Local | Origin::Default => &environment.command_line.value,
     }
 }
 

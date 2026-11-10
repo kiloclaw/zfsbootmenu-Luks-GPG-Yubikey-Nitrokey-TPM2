@@ -5,7 +5,9 @@ use zbm_types::{ImportPolicy, Untrusted};
 use super::action_of::action_of;
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent, Map, Tab};
-use crate::menu::model::{Choice, Column, Editor, ListState, Model, Screen, Then};
+use crate::menu::model::{
+    Choice, Column, Editor, ListState, Model, Screen, Then, own_command_line,
+};
 use crate::menu::world::{Access, Action, Environment, Outcome, Pool, Verdict, Volume};
 use crate::text::text;
 
@@ -44,7 +46,7 @@ pub(super) fn boot(
     kernel: Option<Untrusted<String>>,
 ) -> Action {
     let line = model.command_line(environment);
-    let edited = line != environment.command_line.value;
+    let edited = line != *own_command_line(environment);
     Action::Boot {
         environment: environment.name.clone(),
         kernel,

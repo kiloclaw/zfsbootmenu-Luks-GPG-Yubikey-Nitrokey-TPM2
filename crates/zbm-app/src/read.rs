@@ -9,19 +9,21 @@
 //! listing; the snapshots themselves are read when their column opens
 //! ([`snapshot_list`], ADR 0016 point 6).
 
-use std::collections::BTreeSet;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use zbm_display::layout::{Layout, Positions};
 use zbm_types::Untrusted;
 
 use zbm_config::options::ZbmOptions;
+use zbm_config::parent::{CommandLineSource, read_kcl_prop};
 use zbm_luks::device::is_open;
 use zbm_luks::tokens::list_tokens;
 use zbm_luks::unlocker::Unlocker;
 use zbm_platform::{Clock, Files};
 use zbm_state::State;
 use zbm_types::{DatasetName, HostId, PoolName};
-use zbm_zfs::{Source, Zfs, ZfsError};
+use zbm_zfs::{Property, Source, Zfs, ZfsError};
 
 use crate::Encryption;
 use crate::model::{
@@ -64,21 +66,74 @@ fn origin(source: &Source) -> Origin {
     }
 }
 
-/// The command line of `dataset`, with where it was set.
-fn command_line(zfs: &dyn Zfs, dataset: &DatasetName) -> CommandLine {
-    match zfs.property(dataset, COMMAND_LINE) {
-        Ok(property) => CommandLine {
-            value: Untrusted::new(property.value().unwrap_or_default().to_owned()),
-            origin: if property.value().is_some() {
-                origin(&property.source)
-            } else {
-                Origin::Default
-            },
-        },
-        Err(_) => CommandLine {
+/// The command lines of the datasets a snapshot read reaches, each read
+/// once: an environment's own, and its ancestors' when `%{parent}` is
+/// expanded, by the expansion booting uses.
+struct Lines<'a> {
+    zfs: &'a dyn Zfs,
+    read: RefCell<BTreeMap<String, Option<Property>>>,
+}
+
+impl<'a> Lines<'a> {
+    fn new(zfs: &'a dyn Zfs) -> Lines<'a> {
+        Lines {
+            zfs,
+            read: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    /// The command line property of `dataset`, read the first time only;
+    /// `None` when it cannot be read.
+    fn property(&self, dataset: &str) -> Option<Property> {
+        if let Some(property) = self.read.borrow().get(dataset) {
+            return property.clone();
+        }
+        let property = dataset
+            .parse::<DatasetName>()
+            .ok()
+            .and_then(|name| self.zfs.property(&name, COMMAND_LINE).ok());
+        self.read
+            .borrow_mut()
+            .insert(dataset.to_owned(), property.clone());
+        property
+    }
+}
+
+impl CommandLineSource for Lines<'_> {
+    fn commandline(&self, filesystem: &str) -> Option<String> {
+        self.property(filesystem).map(|property| property.value)
+    }
+
+    fn inherited_source(&self, filesystem: &str) -> Option<String> {
+        self.property(filesystem)
+            .map(|property| match property.source {
+                Source::Inherited(_) => property.source.to_string(),
+                _ => String::new(),
+            })
+    }
+}
+
+/// The command line of `dataset`, with where it was set and its
+/// expansion by booting's own: the ancestors' lines are read only when it
+/// holds `%{parent}`.
+fn command_line(lines: &Lines<'_>, dataset: &DatasetName) -> CommandLine {
+    let Some(property) = lines.property(dataset.as_str()) else {
+        return CommandLine {
             value: Untrusted::default(),
             origin: Origin::Default,
+            expanded: Untrusted::default(),
+        };
+    };
+    // The messages are booting's; the menu shows the line itself.
+    let expanded = read_kcl_prop(lines, dataset.as_str(), &mut Vec::new());
+    CommandLine {
+        value: Untrusted::new(property.value().unwrap_or_default().to_owned()),
+        origin: if property.value().is_some() {
+            origin(&property.source)
+        } else {
+            Origin::Default
         },
+        expanded: Untrusted::new(expanded.unwrap_or_default()),
     }
 }
 
@@ -110,6 +165,7 @@ pub(crate) fn environments(
     zfs: &dyn Zfs,
     unsummed: Option<&DatasetName>,
 ) -> Result<Vec<Environment>, ZfsError> {
+    let lines = Lines::new(zfs);
     let defaults: BTreeSet<DatasetName> = zfs
         .pools()?
         .into_iter()
@@ -134,7 +190,7 @@ pub(crate) fn environments(
                 is_default: defaults.contains(&dataset.name),
                 encryption,
                 kernels: Vec::new(),
-                command_line: command_line(zfs, &dataset.name),
+                command_line: command_line(&lines, &dataset.name),
                 snapshot_count,
                 newest_snapshot,
                 checks: Vec::new(),

@@ -39,7 +39,10 @@ pub fn hostile(next: &mut impl FnMut() -> Untrusted<String>) -> Snapshot {
                 is_default: false,
             },
         ];
+        // The menu shows an inherited line's expansion, any other its
+        // value: both carry the input.
         environment.command_line.value = next();
+        environment.command_line.expanded = environment.command_line.value.clone();
     }
     for volume in &mut snapshot.volumes {
         volume.name = next();

@@ -333,6 +333,19 @@ fn an_edited_command_line_boots_again_until_mod_t_drops_it() {
 }
 
 #[test]
+fn an_inherited_line_edited_does_not_repeat_its_parent_s_arguments() {
+    let mut session = started();
+    for typed in ["", " single"] {
+        session.key(Key::Char('e'));
+        session.type_text(typed);
+        session.key(Key::Enter);
+    }
+    let void = |line| boot_action("zroot/ROOT/void", None, line);
+    let edited = void(Some("quiet loglevel=4 single"));
+    assert_eq!(session.actions, [void(None), edited]);
+}
+
+#[test]
 fn an_unclosed_quote_stops_the_boot_with_a_warning() {
     let mut session = started();
 

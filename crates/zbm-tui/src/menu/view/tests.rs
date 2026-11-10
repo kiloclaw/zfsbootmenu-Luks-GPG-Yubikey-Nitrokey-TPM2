@@ -219,6 +219,8 @@ fn hostile_names_are_shown_escaped() {
     }];
     environment.command_line.value = Untrusted::new("quiet\u{202e}x\u{9b}1m".to_owned());
     let line = environment.command_line.value.get().clone();
+    // The line is inherited: the menu shows its expansion.
+    environment.command_line.expanded = environment.command_line.value.clone();
     model.snapshot.volumes[0].name = Untrusted::new("luks\u{7}a".to_owned());
     model.snapshot.log.entries = vec![crate::menu::world::LogEntry {
         level: crate::menu::world::Level::Warning,

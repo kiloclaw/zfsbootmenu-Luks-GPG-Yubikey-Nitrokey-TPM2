@@ -267,10 +267,23 @@ fn kernels(versions: &[&str], default: Option<&str>) -> Vec<Kernel> {
         .collect()
 }
 
-fn inherited(value: &str, from: &str) -> CommandLine {
+/// The command line `value`, set on its environment.
+fn local(value: &str) -> CommandLine {
+    CommandLine {
+        value: untrusted(value),
+        origin: Origin::Local,
+        expanded: untrusted(value),
+    }
+}
+
+/// A command line inherited from `from`, whose value is `value` and
+/// `expanded` once `%{parent}` is: in the demo, `zroot/ROOT` sets
+/// `%{parent} loglevel=4`, and `zroot` sets `quiet`.
+fn inherited(value: &str, expanded: &str, from: &str) -> CommandLine {
     CommandLine {
         value: untrusted(value),
         origin: Origin::Inherited(dataset(from)),
+        expanded: untrusted(expanded),
     }
 }
 
@@ -312,7 +325,7 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
             true,
             Encryption::Unlocked,
             kernels(&["6.12.9_1", "6.12.8_1", "6.8.0_1"], None),
-            inherited("quiet loglevel=4", "zroot/ROOT"),
+            inherited("%{parent} loglevel=4", "quiet loglevel=4", "zroot/ROOT"),
         ),
         environment(
             "zroot/ROOT/ubuntu",
@@ -326,21 +339,18 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
                 &["6.8.0-48-generic", "6.8.0-47-generic"],
                 Some("6.8.0-47-generic"),
             ),
-            inherited("quiet loglevel=4", "zroot/ROOT"),
+            inherited("%{parent} loglevel=4", "quiet loglevel=4", "zroot/ROOT"),
         ),
         environment(
             "tank/ROOT/arch",
             false,
             Encryption::None,
             kernels(&["6.11.5-arch1-1", "6.10.10-arch1-1"], None),
-            CommandLine {
-                value: untrusted(if options.long_command_line {
-                    LONG_COMMAND_LINE
-                } else {
-                    "rw quiet splash"
-                }),
-                origin: Origin::Local,
-            },
+            local(if options.long_command_line {
+                LONG_COMMAND_LINE
+            } else {
+                "rw quiet splash"
+            }),
         ),
         environment(
             "tank/ROOT/debian",
@@ -350,6 +360,7 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
             CommandLine {
                 value: Untrusted::default(),
                 origin: Origin::Default,
+                expanded: Untrusted::default(),
             },
         ),
     ]

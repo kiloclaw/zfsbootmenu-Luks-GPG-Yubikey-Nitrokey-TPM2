@@ -17,6 +17,7 @@ fn snapshot() -> Snapshot {
         command_line: CommandLine {
             value: Untrusted::new(line.to_owned()),
             origin,
+            expanded: Untrusted::new(line.to_owned()),
         },
         snapshot_count: 0,
         newest_snapshot: None,

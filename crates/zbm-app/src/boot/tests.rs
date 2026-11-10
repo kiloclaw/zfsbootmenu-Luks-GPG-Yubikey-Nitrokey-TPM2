@@ -364,6 +364,7 @@ fn environment(name: &str, encryption: model::Encryption) -> model::Environment 
         command_line: model::CommandLine {
             value: zbm_types::Untrusted::default(),
             origin: model::Origin::Default,
+            expanded: zbm_types::Untrusted::default(),
         },
         snapshot_count: 0,
         newest_snapshot: None,

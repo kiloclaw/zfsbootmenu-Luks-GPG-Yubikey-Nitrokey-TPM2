@@ -11,7 +11,7 @@ use zbm_app::Encryption;
 use super::{health, history, lists};
 use crate::menu::format::{age, fit};
 use crate::menu::keymap::Map;
-use crate::menu::model::Model;
+use crate::menu::model::{Model, own_command_line};
 use crate::menu::theme::Role;
 use crate::menu::world::{Environment, Health, Origin, SnapshotInfo};
 use crate::text::text;
@@ -460,7 +460,7 @@ fn encryption(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
 
 fn command_line(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
     let line = model.command_line(environment);
-    let origin = if line == environment.command_line.value {
+    let origin = if line == *own_command_line(environment) {
         match &environment.command_line.origin {
             Origin::Local => text!("origin-local"),
             Origin::Inherited(from) => text!("origin-inherited", from = from.to_string()),

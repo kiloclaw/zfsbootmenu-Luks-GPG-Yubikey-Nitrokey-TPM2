@@ -1,9 +1,10 @@
 use std::os::fd::AsFd as _;
 
 use pretty_assertions::assert_eq;
+use zbm_types::Untrusted;
 
 use super::*;
-use crate::model::{Method, Stage, StageState};
+use crate::model::{CommandLine, Method, Origin, Stage, StageState};
 
 const WAIT: Option<Duration> = Some(Duration::from_secs(5));
 
@@ -467,4 +468,25 @@ fn a_snapshot_crosses_with_the_proof_s_time_and_one_without_it_still_reads() {
     let read: Snapshot = serde_json::from_value(older).unwrap();
     assert_eq!(read.proof_left, None);
     assert_eq!(read.now, snapshot.now);
+}
+
+#[test]
+fn a_command_line_crosses_with_its_expansion_and_one_without_it_reads_as_its_value() {
+    let line = |value: &str, expanded: &str| CommandLine {
+        value: Untrusted::new(value.to_owned()),
+        origin: Origin::Inherited(dataset("zroot/ROOT")),
+        expanded: Untrusted::new(expanded.to_owned()),
+    };
+    let sent = line("%{parent} loglevel=4", "spl_hostid=1 loglevel=4");
+    let encoded = serde_json::to_value(&sent).unwrap();
+    let crossed: CommandLine = serde_json::from_value(encoded.clone()).unwrap();
+    assert_eq!(crossed, sent);
+
+    // A line without the field, as an older peer sends it, reads as its
+    // value, which that peer's menu showed.
+    let mut older = encoded;
+    let removed = older.as_object_mut().unwrap().remove("expanded");
+    assert_eq!(removed, Some(serde_json::json!("spl_hostid=1 loglevel=4")));
+    let read: CommandLine = serde_json::from_value(older).unwrap();
+    assert_eq!(read, line("%{parent} loglevel=4", "%{parent} loglevel=4"));
 }

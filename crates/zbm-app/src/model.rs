@@ -7,6 +7,7 @@
 //! ROADMAP.md fills them from the real one.
 
 mod action;
+mod command_line;
 mod devices;
 mod diff;
 mod health;
@@ -26,6 +27,7 @@ use zbm_types::Untrusted;
 use zbm_types::{DatasetName, HostId, PoolName};
 
 pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
+pub use self::command_line::CommandLine;
 pub use self::devices::{Device, DeviceClass, DeviceErrors, DeviceLog, DeviceState, PoolHost};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Tries, Verdict, worst};
@@ -279,15 +281,6 @@ pub struct Kernel {
     pub is_default: bool,
 }
 
-/// The command line of a boot environment.
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct CommandLine {
-    /// The command line.
-    pub value: Untrusted<String>,
-    /// Where it was set.
-    pub origin: Origin,
-}
-
 /// Where a property was set.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Origin {
@@ -503,6 +496,7 @@ mod tests {
             command_line: CommandLine {
                 value: Untrusted::default(),
                 origin: Origin::Default,
+                expanded: Untrusted::default(),
             },
             snapshot_count: 0,
             newest_snapshot: None,
