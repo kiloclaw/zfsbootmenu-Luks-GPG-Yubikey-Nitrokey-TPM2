@@ -27,26 +27,34 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     Vec::new()
 }
 
-/// Asks to restore the marked paths, or the selected one: a typed
-/// confirmation that says what is replaced and how to undo it. Only a diff
-/// against the live filesystem restores.
+/// Asks to restore the marked paths, or the selected one, as
+/// [`restore_of`] says; says when the selected path is one the snapshot
+/// does not have.
 fn restore(model: &mut Model) {
+    if let Some(then) = restore_of(model) {
+        dialogs::follow(model, then);
+        return;
+    }
     let Some(diff) = model.diff.as_ref().filter(|diff| diff.to.is_none()) else {
         return;
     };
+    let created = diff
+        .selected()
+        .map_or_else(String::new, |c| c.path.printable().to_string());
+    model.notification = Some(Outcome::Warning(text!(
+        "restore-nothing",
+        path = created,
+        snapshot = diff.from.name()
+    )));
+}
+
+/// The restore of the marked paths, or the selected one: a typed
+/// confirmation that says what is replaced and how to undo it. Only a diff
+/// against the live filesystem restores, and only paths the snapshot has.
+pub(super) fn restore_of(model: &Model) -> Option<Then> {
+    let diff = model.diff.as_ref().filter(|diff| diff.to.is_none())?;
     let paths = diff.to_restore();
-    if paths.is_empty() {
-        let created = diff
-            .selected()
-            .map_or_else(String::new, |c| c.path.printable().to_string());
-        model.notification = Some(Outcome::Warning(text!(
-            "restore-nothing",
-            path = created,
-            snapshot = diff.from.name()
-        )));
-        return;
-    }
-    model.dialog = Some(dialogs::confirm(confirmation(diff, paths)));
+    (!paths.is_empty()).then(|| confirmation(diff, paths))
 }
 
 /// The confirmation of restoring `paths` from the snapshot of `diff`. The

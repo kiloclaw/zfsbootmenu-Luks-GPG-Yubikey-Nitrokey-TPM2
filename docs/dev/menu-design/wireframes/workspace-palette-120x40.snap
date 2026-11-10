@@ -16,18 +16,18 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                      ││┌ COMMANDS ─────────────────────────────────────────────── 42 of 467 ┐                        │
 │                      │││ : 2026-10                                                          │                        │
 │                      │││   ACTIONS                                                          │                        │
-│                      │││ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-10-22_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-21_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-20_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-19_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-18_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-17_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-16_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-15_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-14_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-13_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-12_daily        │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-11_daily        │                        │
+│                      │││ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-10-22_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-21_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-20_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-19_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-18_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-17_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-16_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-15_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-14_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-13_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-12_… read/write │                        │
+│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10-11_… read/write │                        │
 │                      ││└────────────────────────────────────────────────────────────────────┘                        │
 │                      ││     autosnap_2026-10-11_daily        12 d ago     69 MiB ││                                  │
 │                      ││   Week of 1 October                4 snapshots · 172 MiB ││                                  │

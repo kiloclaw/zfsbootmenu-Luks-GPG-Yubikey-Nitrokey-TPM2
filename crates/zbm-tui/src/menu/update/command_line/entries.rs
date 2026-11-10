@@ -9,7 +9,7 @@ use zbm_types::{DatasetName, ImportPolicy};
 use super::super::{dialogs, offers, screens, snapshots, unlock};
 use super::items;
 use crate::menu::keymap::{self, Map};
-use crate::menu::model::{Model, PaletteItem, Screen, Section, Then};
+use crate::menu::model::{Costs, Model, PaletteItem, Screen, Section, Then};
 use crate::menu::world::{Access, Action, VolumeState};
 use crate::text::{self, Id, id, text};
 
@@ -32,6 +32,8 @@ pub(super) fn item(
         also,
         section,
         then,
+        keys: String::new(),
+        costs: Costs::default(),
     }
 }
 
@@ -218,8 +220,7 @@ fn pool_actions(model: &Model) -> Vec<PaletteItem> {
             items.push(action(label, &force, at, then));
         }
         if pool.imported && pool.checkpoint == Some(true) {
-            let lines = vec![text!("rewind", pool = at), text!("rewind.discarded")];
-            let then = dialogs::rewind(model.map, named, lines);
+            let then = dialogs::rewind(model.map, named, screens::rewind_lines(pool));
             items.push(action(
                 text!("palette-rewind", pool = at),
                 &rewind,
@@ -409,19 +410,15 @@ fn tool_actions() -> Vec<PaletteItem> {
 }
 
 /// What only a character or a chord reaches in the view under the
-/// palette (rule 1 of decision 18), each with its keys and found by its
-/// command's name: one does what its key does there.
+/// palette (rule 1 of decision 18), found by its command's name, with its
+/// keys on the right ([`super::costs::annotate`]): one does what its key
+/// does there.
 fn key_actions(model: &Model) -> Vec<PaletteItem> {
     let context = model.view_context();
     keymap::commands(model.map, context)
         .into_iter()
-        .map(|(intent, keys)| {
-            let label = text!(
-                "palette-key",
-                action = text::title(keymap::describe(context, intent)),
-                dot = model.theme.dot(),
-                keys = keys
-            );
+        .map(|(intent, _)| {
+            let label = text::title(keymap::describe(context, intent));
             let name = keymap::command_name(intent).map(text::get);
             action(label, &name.unwrap_or_default(), "", Then::Intent(intent))
         })

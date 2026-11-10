@@ -26,7 +26,7 @@ pub use self::diff::{DiffView, Segment};
 use self::list::keep;
 pub use self::list::{ListState, refilter};
 pub use self::naming::{Make, Naming, is_name_char, timestamp};
-pub use self::palette::{Palette, PaletteItem, Place, Recent, Section};
+pub use self::palette::{Costs, Palette, PaletteItem, Place, Recent, Section};
 pub(crate) use self::pools::{disk_name, host_text, pool_mode, pool_name};
 pub use self::prompt::{Asking, Prompt};
 pub(crate) use self::recovery::recovery_tools;
@@ -116,6 +116,9 @@ pub enum Then {
     /// Open the snapshots or kernels of an environment, or its command
     /// line.
     Focus(DatasetName, Screen),
+    /// Open the command line of an environment for a boot with this
+    /// kernel, as its version names it: the kernels' `e`.
+    EditFor(DatasetName, Untrusted<String>),
     /// Do what a key of the view under the palette does: an action only a
     /// character or a chord reaches (rule 1 of decision 18).
     Intent(Intent),

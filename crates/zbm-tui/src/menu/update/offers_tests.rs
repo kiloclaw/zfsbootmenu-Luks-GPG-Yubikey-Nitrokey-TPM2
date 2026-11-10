@@ -138,6 +138,14 @@ fn then_action(model: &Model, then: &Then) -> Option<Action> {
                 .find(|e| &e.name == name)?;
             Some(screens::boot(model, environment, None))
         }
+        Then::EditFor(name, kernel) => {
+            let environment = model
+                .snapshot
+                .environments
+                .iter()
+                .find(|e| &e.name == name)?;
+            Some(screens::boot(model, environment, Some(kernel.clone())))
+        }
         // A key's, which the keys of the view reach too.
         Then::Open(_) | Then::Focus(..) | Then::Intent(_) | Then::Go(_) | Then::Revert(_) => None,
     }

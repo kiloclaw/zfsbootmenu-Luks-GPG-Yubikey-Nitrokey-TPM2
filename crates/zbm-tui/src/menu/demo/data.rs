@@ -114,7 +114,7 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         },
         log: log(),
         now: NOW,
-        menu_locked: false,
+        menu_locked: options.menu_locked,
         // The demo answers every action.
         offers: Offer::ALL.into_iter().collect(),
         loaded: Vec::new(),

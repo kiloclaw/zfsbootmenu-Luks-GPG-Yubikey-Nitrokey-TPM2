@@ -152,13 +152,26 @@ pub struct Tool {
     pub label: String,
     /// Whether it is `? More`, which opens help with every key.
     pub is_more: bool,
+    /// The lock's mark after its label, the word of the PIN's cost, when
+    /// the locked menu keeps what its key does (ADR 0010).
+    pub mark: Option<String>,
 }
 
 impl Tool {
-    /// The columns it takes: its key, a space and its label.
+    /// The columns it takes: its key, a space and its label, then a space
+    /// and its mark.
     pub fn width(&self) -> usize {
-        self.key.chars().count() + 1 + self.label.chars().count()
+        let mark = self
+            .mark
+            .as_ref()
+            .map_or(0, |mark| mark.chars().count() + 1);
+        self.key.chars().count() + 1 + self.label.chars().count() + mark
     }
+}
+
+/// The lock's mark: the word of the PIN's cost (ADR 0010).
+pub(crate) fn lock_mark() -> String {
+    text::get(id!("cost-pin"))
 }
 
 /// The toolbar of `context` in the key map `map` for a screen `width`
@@ -166,13 +179,15 @@ impl Tool {
 /// [`TOOLBAR`] actions that fit whole, as `Enter Boot`, the most important
 /// first; then `? More`, which opens help with every key, wherever help can
 /// be opened. Only the intents `offered` are shown, each labelled as `said`
-/// says.
+/// says, and marked with the lock where the locked menu keeps what it
+/// does, as `kept` says.
 pub fn footer(
     map: Map,
     context: Context,
     width: usize,
     offered: &dyn Fn(Intent) -> bool,
     said: &dyn Fn(Intent) -> Id,
+    kept: &dyn Fn(Intent) -> bool,
 ) -> Vec<Tool> {
     let all = bindings(map, context, offered, said);
     let more = all
@@ -182,10 +197,12 @@ pub fn footer(
             key: key.clone(),
             label: text::title(id!("action-more")),
             is_more: true,
+            mark: None,
         });
     let mut used = more.as_ref().map_or(0, |more| more.width() + TOOLBAR_GAP);
     let mut shown = Vec::new();
-    for (_, key, what) in all
+    let mut mark = None;
+    for (intent, key, what) in all
         .into_iter()
         .filter(|(intent, ..)| *intent != Intent::Help)
     {
@@ -193,6 +210,7 @@ pub fn footer(
             key,
             label: text::title(what),
             is_more: false,
+            mark: kept(intent).then(|| mark.get_or_insert_with(lock_mark).clone()),
         };
         let gap = if shown.is_empty() { 0 } else { TOOLBAR_GAP };
         if shown.len() == TOOLBAR || used + gap + tool.width() > width {
@@ -243,23 +261,35 @@ pub fn help(
     offered: &dyn Fn(Intent) -> bool,
     said: &dyn Fn(Intent) -> Id,
 ) -> Vec<(String, Id)> {
-    let mut lines: Vec<(Intent, Vec<String>)> = Vec::new();
-    for binding in map
-        .table()
+    keys_by(map, context, &|intent| offered(intent).then_some(intent))
         .into_iter()
-        .filter(|binding| map.is_bound(binding, context) && offered(binding.intent))
-    {
+        .map(|(intent, keys)| (keys, said(intent)))
+        .collect()
+}
+
+/// Every key of `context` in the key map `map`, those shown only in help
+/// too, the keys of what `does` says their intents do together, as the
+/// help view names them: (what they do, `Enter, b`). The intents `does`
+/// maps to nothing are left out.
+pub(crate) fn keys_by<T: PartialEq>(
+    map: Map,
+    context: Context,
+    does: &dyn Fn(Intent) -> Option<T>,
+) -> Vec<(T, String)> {
+    let mut keys: Vec<(T, Vec<String>)> = Vec::new();
+    let bound = map.table().into_iter();
+    for binding in bound.filter(|binding| map.is_bound(binding, context)) {
+        let Some(what) = does(binding.intent) else {
+            continue;
+        };
         let name = key_name(binding.key, binding.modifiers);
-        match lines
-            .iter_mut()
-            .find(|(intent, _)| *intent == binding.intent)
-        {
-            Some((_, keys)) => keys.push(name),
-            None => lines.push((binding.intent, vec![name])),
+        match keys.iter_mut().find(|(known, _)| *known == what) {
+            Some((_, names)) if names.contains(&name) => {}
+            Some((_, names)) => names.push(name),
+            None => keys.push((what, vec![name])),
         }
     }
-    lines
-        .into_iter()
-        .map(|(intent, keys)| (keys.join(", "), said(intent)))
+    keys.into_iter()
+        .map(|(what, names)| (what, names.join(", ")))
         .collect()
 }

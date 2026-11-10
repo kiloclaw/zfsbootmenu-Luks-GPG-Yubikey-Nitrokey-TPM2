@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot [2 Snapshots] 3 Pools  4 Log            tank DEGRADED · 3/3 open · ! 6
+ zroot › zroot/ROOT/void › pre-upgrade
+┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────── 400 ┐
+│   zroot · ONLINE     ││   Today                         1 snapshot · 1.1 GiB │
+│ ▶ z┌ COMMANDS ────────────────────────────────────────────── 467 of 467 ┐GiB │
+│   z│ :                                                                  │MiB │
+│   t│   ACTIONS                                                          │MiB │
+│   t│ ▶ Boot zroot/ROOT/void                                             │MiB │
+│   t│   Edit the command line of zroot/ROOT/void                     PIN │MiB │
+│    │   Make zroot/ROOT/void the Default                  read/write PIN │MiB │
+│    │   Take a Snapshot of zroot/ROOT/void              n read/write PIN │MiB │
+│    │   Chroot into zroot/ROOT/void                                  PIN │MiB │
+│    │   Boot a clone of zroot/ROOT/void@pre-upgrade     b read/write PIN │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │MiB │
+└────│   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │────┘
+┌ pre│   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │────┐
+│  En│   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │    │
+│    └────────────────────────────────────────────────────────────────────┘    │
+│         Used  1.1 GiB                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Confirm   Esc Cancel   Up/Down Select

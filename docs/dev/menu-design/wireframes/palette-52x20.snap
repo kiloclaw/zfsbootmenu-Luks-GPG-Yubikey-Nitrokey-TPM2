@@ -6,18 +6,18 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ ┌ COMMANDS ───────────────────────── 55 of 456 ┐ │
 │ │ : 2026-09                                    │ │
 │ │   ACTIONS                                    │ │
-│ │ ▶ Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-└─│   Boot a clone of zroot/ROOT/void@autosnap_… │─┘
-┌ │   Boot a clone of zroot/ROOT/void@autosnap_… │ ┐
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
-│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │ ▶ Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+└─│   Boot a clone of zroot/ROOT/voi… read/write │─┘
+┌ │   Boot a clone of zroot/ROOT/voi… read/write │ ┐
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
+│ │   Boot a clone of zroot/ROOT/voi… read/write │ │
 │ └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
  Enter Confirm   Esc Cancel   Up/Down Select

@@ -605,9 +605,6 @@ palette-destroy-marked = { $count ->
     [one] Destroy the Marked Snapshot
    *[other] Destroy the { $count } Marked Snapshots
 }
-# An action that only a character or a chord reaches, and its keys, as the
-# help names them. $dot is " · ", or " | " in ASCII.
-palette-key = { $action }{ $dot }{ $keys }
 palette-revert = Revert the Command Line of { $environment }
 palette-default = Make { $environment } the Default
 palette-snapshot = Take a Snapshot of { $environment }
@@ -636,6 +633,15 @@ section-recent = Recent
 section-actions = Actions
 section-items = Items
 section-help = Help
+# What a command asks for before it acts, drawn after its keys: a review
+# page that asks for its target's name, the read/write import of a pool
+# imported read-only, the key of a locked environment, and the PIN of a
+# locked menu, which is also the lock's mark after the toolbar's label of a
+# key the lock keeps (ADR 0010).
+cost-review = review
+cost-writes = read/write
+cost-key = key
+cost-pin = PIN
 # The command line, as help names what Esc returns to.
 view-commands = Command Line
 # The names of the command line's commands, which it finds in the menu's

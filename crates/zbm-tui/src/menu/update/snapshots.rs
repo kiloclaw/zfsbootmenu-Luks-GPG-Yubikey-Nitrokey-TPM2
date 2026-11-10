@@ -5,64 +5,55 @@
 
 use zbm_types::{DatasetName, SnapshotName};
 
+use super::action_of::action_of;
 use super::dialogs;
 use crate::menu::format::{age, size};
-use crate::menu::keymap::{self, Intent, Map};
+use crate::menu::keymap::{self, Context, Intent, Map};
 use crate::menu::model::{Choice, Make, Model, Naming, Then};
 use crate::menu::world::{Action, Outcome, SnapshotInfo};
 use crate::text::text;
 
-/// What `intent` does on the snapshots view.
+/// What `intent` does on the snapshots view: the order, the folds and the
+/// marks change; `Enter` opens the actions of the selected snapshot;
+/// another key does what [`action_of`] says, or says why it does nothing.
 pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     if intent == Intent::Sort {
         model.set_sort(model.sort.next());
         return Vec::new();
-    }
-    if intent == Intent::NewSnapshot {
-        let Some(environment) = model.focus.clone() else {
-            return Vec::new();
-        };
-        let then = new_snapshot(model, environment);
-        return dialogs::follow(model, then);
     }
     // `Enter` on a folded group of the timeline opens it, as `z` does.
     if intent == Intent::Fold || (intent == Intent::Primary && model.folded_group().is_some()) {
         model.fold();
         return Vec::new();
     }
-    let snapshot = model.selected_snapshot().cloned();
-    if intent == Intent::Diff
-        && let Some(actions) = diff(model, snapshot.as_ref().map(|s| &s.name))
-    {
-        return actions;
+    if let Some(snapshot) = model.selected_snapshot().cloned() {
+        match intent {
+            Intent::Primary => {
+                actions(model, &snapshot);
+                return Vec::new();
+            }
+            Intent::Mark => {
+                mark(model, &snapshot.name);
+                return Vec::new();
+            }
+            _ => {}
+        }
     }
-    if intent == Intent::Destroy && !model.marked.is_empty() {
-        let then = destroy_marked(model);
+    if let Some(then) = action_of(model, Context::Snapshots, intent) {
         return dialogs::follow(model, then);
     }
-    let Some(snapshot) = snapshot else {
-        return on_folded(model, intent);
-    };
-    let name = snapshot.name.clone();
-    let then = match intent {
-        Intent::Primary => {
-            actions(model, &snapshot);
-            return Vec::new();
+    match diff_of(model) {
+        Err(count) if intent == Intent::Diff => {
+            let said = if count > 2 {
+                text!("diff-marks", count = count)
+            } else {
+                text!("diff-unread")
+            };
+            model.notification = Some(Outcome::Warning(said));
+            Vec::new()
         }
-        Intent::Mark => {
-            mark(model, &name);
-            return Vec::new();
-        }
-        Intent::Boot => boot_clone(model, &name),
-        Intent::Rollback => rollback(model, &snapshot),
-        Intent::Destroy => destroy(vec![&name]),
-        Intent::Clone => clone(model, &name),
-        Intent::Duplicate => duplicate(model, &snapshot),
-        Intent::CloneAndPromote => promote(model, &name),
-        Intent::Chroot => Then::Act(Action::Chroot(name.into())),
-        _ => return Vec::new(),
-    };
-    dialogs::follow(model, then)
+        _ => on_folded(model, intent),
+    }
 }
 
 /// Marks or unmarks a snapshot; as many as the person likes.
@@ -75,26 +66,17 @@ fn mark(model: &mut Model, name: &SnapshotName) {
 /// The diff of the two marked snapshots, the older against the newer, or
 /// of the one marked or else the selection against now; none with
 /// neither. Three marks or more are no diff, nor are marks while the
-/// column's list is not read, which the status line says.
-fn diff(model: &mut Model, selected: Option<&SnapshotName>) -> Option<Vec<Action>> {
+/// column's list is not read: then the count of the marks, which the
+/// status line says.
+pub(super) fn diff_of(model: &Model) -> Result<Option<Action>, usize> {
     let count = model.marked.len();
-    let action = match model.marked_by_age().as_deref() {
-        _ if count > 2 => None,
-        Some([older, newer]) => Some(Action::Diff((*older).clone(), Some((*newer).clone()))),
-        Some([only]) => Some(Action::Diff((*only).clone(), None)),
-        Some(_) => Some(Action::Diff(selected?.clone(), None)),
-        None => None,
-    };
-    let Some(action) = action else {
-        let said = if count > 2 {
-            text!("diff-marks", count = count)
-        } else {
-            text!("diff-unread")
-        };
-        model.notification = Some(Outcome::Warning(said));
-        return Some(Vec::new());
-    };
-    Some(dialogs::follow(model, Then::Act(action)))
+    match model.marked_by_age().as_deref() {
+        _ if count > 2 => Err(count),
+        Some([older, newer]) => Ok(Some(Action::Diff((*older).clone(), Some((*newer).clone())))),
+        Some([only]) => Ok(Some(Action::Diff((*only).clone(), None))),
+        Some(_) => Ok((model.selected_snapshot()).map(|s| Action::Diff(s.name.clone(), None))),
+        None => Err(count),
+    }
 }
 
 /// What a snapshot's `intent` does with no snapshot selected: on the

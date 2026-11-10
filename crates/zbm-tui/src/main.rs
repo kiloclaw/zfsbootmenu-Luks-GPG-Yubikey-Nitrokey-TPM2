@@ -36,6 +36,8 @@ Options:
   --next-boot            the running system asked to boot tank/ROOT/arch once
   --tpm-changed          the firmware was updated: the TPM keeps the key of
                          luks-zroot-a, and the passphrase is asked instead
+  --menu-locked          the menu is locked: what the lock keeps is marked
+                         PIN (the demo asks for no PIN)
   --classic              the classic menu (zbm.menu=classic): its screens and
                          keys, in place of the workspace's tabs (ADR 0007)
   --workspace            accepted and ignored: the workspace is the default
@@ -89,6 +91,7 @@ fn parse(args: &[String]) -> Result<Arguments, String> {
             "--failing" => parsed.options.failing = true,
             "--next-boot" => parsed.options.next_boot = true,
             "--tpm-changed" => parsed.options.tpm_changed = true,
+            "--menu-locked" => parsed.options.menu_locked = true,
             "--classic" => parsed.options.classic = true,
             "--workspace" => {}
             "--theme" => {
@@ -219,12 +222,13 @@ mod tests {
     fn the_demo_options_are_parsed() {
         let line = "--demo --locked --foreign --wait --failing --next-boot --tpm-changed \
                     --classic --workspace --theme ascii --size 52x20 --log-keys k \
-                    --language pseudo";
+                    --language pseudo --menu-locked";
         let parsed = arguments(line).unwrap();
 
         assert!(parsed.options.locked && parsed.options.foreign);
         assert!(parsed.options.failing && parsed.options.next_boot);
         assert!(parsed.options.tpm_changed && parsed.options.classic);
+        assert!(parsed.options.menu_locked);
         assert_eq!(parsed.options.timeout, None);
         assert_eq!(parsed.theme, Some(Capabilities::ASCII));
         assert_eq!(parsed.size, Some((52, 20)));

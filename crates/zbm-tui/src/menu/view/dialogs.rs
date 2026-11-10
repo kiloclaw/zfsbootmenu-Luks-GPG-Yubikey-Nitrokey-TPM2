@@ -12,8 +12,10 @@ use ratatui::widgets::{
 use zbm_types::{ImportPolicy, Printable};
 
 use crate::menu::format::{capitalised, fit};
+use crate::menu::keymap;
 use crate::menu::model::{Choice, Dialog, Model, Naming, Then};
 use crate::menu::theme::{Glyph, Role, Theme};
+use crate::menu::update;
 use crate::menu::world::Action;
 use crate::text::text;
 
@@ -60,7 +62,16 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             lines,
             choices,
             selected,
-        }) => sheet(theme, frame, area, (title, lines, choices, *selected)),
+        }) => {
+            let marks = marks(model, choices);
+            sheet(
+                theme,
+                frame,
+                area,
+                (title, lines, choices, *selected),
+                &marks,
+            );
+        }
         Some(Dialog::Confirm {
             title,
             lines,
@@ -173,12 +184,14 @@ fn body_lines(theme: Theme, lines: &[String]) -> Vec<Line<'static>> {
 }
 
 /// An action sheet: the item, a message, the actions, then **Cancel** set
-/// apart. Destructive actions are red; those that ask first end in `…`.
+/// apart. Destructive actions are red; those that ask first end in `…`;
+/// those the locked menu keeps carry its mark.
 fn sheet(
     theme: Theme,
     frame: &mut Frame<'_>,
     area: Rect,
     dialog: (&String, &Vec<String>, &Vec<Choice>, usize),
+    marks: &[Option<String>],
 ) {
     let (title, lines, choices, selected) = dialog;
     let width = alert_width(area);
@@ -203,20 +216,51 @@ fn sheet(
     let heading = Line::styled(heading, theme.style(Role::Title)).centered();
     frame.render_widget(Paragraph::new(heading), head);
     frame.render_widget(Paragraph::new(message).wrap(Wrap { trim: true }), text);
-    actions(theme, frame, (list, rule, cancel), (choices, selected));
+    actions(
+        theme,
+        frame,
+        (list, rule, cancel),
+        (choices, selected),
+        marks,
+    );
 }
 
-/// The actions of a sheet in `list`, the separator in `rule`, and Cancel,
-/// which is selected after the last action.
+/// The lock's mark of each of `choices` that the locked menu of `model`
+/// keeps (ADR 0010); none when it is not locked.
+pub(super) fn marks(model: &Model, choices: &[Choice]) -> Vec<Option<String>> {
+    let Some(mark) = model.snapshot.menu_locked.then(keymap::lock_mark) else {
+        return Vec::new();
+    };
+    choices
+        .iter()
+        .map(|choice| {
+            update::costs_of(model, &choice.then)
+                .pin
+                .then(|| mark.clone())
+        })
+        .collect()
+}
+
+/// The actions of a sheet in `list`, each followed by its mark in `marks`,
+/// the separator in `rule`, and Cancel, which is selected after the last
+/// action.
 fn actions(
     theme: Theme,
     frame: &mut Frame<'_>,
     (list, rule, cancel): (Rect, Rect, Rect),
     (choices, selected): (&[Choice], usize),
+    marks: &[Option<String>],
 ) {
     let items: Vec<ListItem<'static>> = choices
         .iter()
-        .map(|choice| ListItem::new(action_line(theme, choice)))
+        .enumerate()
+        .map(|(at, choice)| {
+            let mut line = action_line(theme, choice);
+            if let Some(Some(mark)) = marks.get(at) {
+                line.push_span(Span::styled(format!(" {mark}"), theme.style(Role::Warning)));
+            }
+            ListItem::new(line)
+        })
         .collect();
     let marker = format!("{} ", theme.glyph(Glyph::Selected));
     let widget = List::new(items)

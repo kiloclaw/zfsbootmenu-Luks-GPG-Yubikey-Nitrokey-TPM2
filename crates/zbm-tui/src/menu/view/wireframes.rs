@@ -246,6 +246,9 @@ fn every_character_drawn_is_in_the_console_fonts() {
         crate::text::Language::Pseudo,
     ] {
         let old = crate::text::set_language(language);
+        // The lock's mark, which the locked menu's wireframes draw too.
+        let mark = crate::menu::keymap::lock_mark();
+        missing.extend(mark.chars().filter(|c| !fonts.contains(c)));
         for wireframe in wireframes() {
             let session = play(&wireframe, Capabilities::FULL);
             for (width, height) in SIZES {

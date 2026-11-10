@@ -337,8 +337,8 @@ pub use self::classic::{CLASSIC, classic_bindings};
 #[cfg(test)]
 pub(crate) use self::commands::ENTER_REACHES;
 pub(crate) use self::commands::{COMMAND_NAMES, command_name, commands};
-pub(crate) use self::labels::view_name;
 pub use self::labels::{TOOLBAR, TOOLBAR_GAP, Tool, bindings, describe, footer, help, key_name};
+pub(crate) use self::labels::{keys_by, lock_mark, view_name};
 pub(crate) use self::offers::{is_offered, is_shown, label, needs_snapshot};
 pub(crate) use self::position::{Typing, input_on};
 pub use self::workspace::{Map, Tab, WORKSPACE};

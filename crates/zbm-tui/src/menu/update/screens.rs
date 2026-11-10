@@ -1,13 +1,11 @@
 //! The intents of the main, kernels, pools and recovery views.
 
-use zbm_types::{ImportPolicy, PoolName, Untrusted};
+use zbm_types::{ImportPolicy, Untrusted};
 
+use super::action_of::action_of;
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent, Map, Tab};
-use crate::menu::model::{
-    Choice, Column, Editor, Item, Kind, ListState, Model, Node, RECOVERY, RecoveryTool, Screen,
-    Then,
-};
+use crate::menu::model::{Choice, Column, Editor, ListState, Model, Screen, Then};
 use crate::menu::world::{Access, Action, Environment, Outcome, Pool, Verdict, Volume};
 use crate::text::text;
 
@@ -208,33 +206,21 @@ fn switch_tab(model: &mut Model, tab: Tab) -> Vec<Action> {
     Vec::new()
 }
 
-/// The main view.
+/// What `intent` does on the main view, as [`action_of`] says.
 fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
-    let Some(environment) = model.selected_environment().cloned() else {
-        return Vec::new();
-    };
-    let name = environment.name.clone();
-    match intent {
-        Intent::Primary | Intent::Boot => {
-            let action = boot(model, &environment, None);
-            return guarded(model, action);
-        }
-        Intent::Kernels => return focus(model, name, Screen::Kernels),
-        Intent::Snapshots => return focus(model, name, Screen::Snapshots),
-        Intent::Edit => return focus(model, name, Screen::CommandLine),
-        Intent::SetDefault => return vec![Action::SetDefaultEnvironment(name)],
-        Intent::Pools => model.screen = Screen::Pools,
-        Intent::ReadWrite => return vec![read_write(model, &name.pool())],
-        Intent::Chroot => return vec![Action::Chroot(name.into())],
-        Intent::NewSnapshot => {
-            let then = super::snapshots::new_snapshot(model, name);
-            return dialogs::follow(model, then);
-        }
-        Intent::Shell => return vec![Action::Shell],
-        Intent::RevertCommandLine => revert(model, &name),
-        _ => {}
+    match action_of(model, Context::Main, intent) {
+        Some(then) => send(model, then),
+        None => Vec::new(),
     }
-    Vec::new()
+}
+
+/// Follows `then`, which a key or the command line chose: a boot is
+/// [`guarded`].
+pub(super) fn send(model: &mut Model, then: Then) -> Vec<Action> {
+    match then {
+        Then::Act(boot @ Action::Boot { .. }) => guarded(model, boot),
+        then => dialogs::follow(model, then),
+    }
 }
 
 /// Drops the command line edited for the boots of `environment`, which
@@ -254,37 +240,25 @@ pub(super) fn revert(model: &mut Model, environment: &zbm_types::DatasetName) {
     )));
 }
 
-/// The kernels of the focused environment.
+/// The kernels of the focused environment, as [`action_of`] says.
 fn kernels(model: &mut Model, intent: Intent) -> Vec<Action> {
-    let Some(environment) = model.focused().cloned() else {
-        return Vec::new();
-    };
-    let Some(kernel) = model
-        .kernels
-        .selected_item()
-        .and_then(|index| environment.kernels.get(index))
-        .cloned()
-    else {
-        return Vec::new();
-    };
-    let name = environment.name.clone();
-    match intent {
-        Intent::Primary | Intent::Boot => {
-            let action = boot(model, &environment, Some(kernel.version));
-            guarded(model, action)
-        }
-        Intent::SetDefault if kernel.is_default => vec![Action::InheritDefaultKernel(name)],
-        Intent::SetDefault => vec![Action::SetDefaultKernel(name, kernel.version)],
-        Intent::InheritDefault => vec![Action::InheritDefaultKernel(name)],
-        Intent::Edit => {
-            let actions = focus(model, name, Screen::CommandLine);
-            if let Some(editor) = &mut model.editor {
-                editor.kernel = Some(kernel.version);
-            }
-            actions
-        }
-        _ => Vec::new(),
+    match action_of(model, Context::Kernels, intent) {
+        Some(then) => send(model, then),
+        None => Vec::new(),
     }
+}
+
+/// Opens the command line of `environment` for a boot with `kernel`.
+pub(super) fn edit_for(
+    model: &mut Model,
+    environment: zbm_types::DatasetName,
+    kernel: Untrusted<String>,
+) -> Vec<Action> {
+    let actions = focus(model, environment, Screen::CommandLine);
+    if let Some(editor) = &mut model.editor {
+        editor.kernel = Some(kernel);
+    }
+    actions
 }
 
 /// Pools and volumes. A volume opens through the machine, which asks for
@@ -295,57 +269,36 @@ fn kernels(model: &mut Model, intent: Intent) -> Vec<Action> {
 /// the tree; on a vdev, as on its pool, it opens the pool's details, and
 /// the other keys of a vdev or a device act on its pool.
 fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
-    if let Some(volume) = model.selected_volume() {
-        if !matches!(intent, Intent::Primary | Intent::Unlock) || model.working.is_some() {
-            return Vec::new();
-        }
-        return vec![open(volume)];
+    if let Some(then) = action_of(model, Context::Pools, intent) {
+        return send(model, then);
     }
-    if intent == Intent::Primary
-        && let Some(Node {
-            kind: Kind::Device,
-            item: Item::Device(_, device),
-            ..
-        }) = model
-            .selected_node()
-            .filter(|_| model.map == Map::Workspace)
-    {
-        let path = Untrusted::new(device.path().to_owned());
-        return vec![Action::LoadDeviceLog(path)];
+    if model.selected_volume().is_some() {
+        return Vec::new();
     }
     let Some(pool) = model.selected_pool().cloned() else {
         return Vec::new();
     };
-    let named = dialogs::Named::of(model, &pool);
     match intent {
         Intent::Primary => dialogs::pool_details(model, &pool),
         Intent::Import => import_choices(model, &pool),
-        Intent::ReadWrite if model.is_shadowed(&pool) => shadowed(model, &pool),
-        Intent::ReadWrite => {
-            return vec![dialogs::import(
-                named,
-                Access::ReadWrite,
-                ImportPolicy::Strict,
-            )];
-        }
-        // Unknown, as for a pool that is not imported, the machine checks.
-        Intent::Rewind if pool.checkpoint == Some(false) => {
+        Intent::ReadWrite => shadowed(model, &pool),
+        Intent::Rewind => {
             model.notification = Some(Outcome::Warning(text!(
                 "pool-no-checkpoint",
                 pool = pool.name.to_string()
             )));
         }
-        Intent::Rewind => {
-            let lines = vec![
-                text!("rewind", pool = pool.name.to_string()),
-                text!("rewind.discarded"),
-            ];
-            let then = dialogs::rewind(model.map, named, lines);
-            return dialogs::follow(model, then);
-        }
         _ => {}
     }
     Vec::new()
+}
+
+/// What the rewind of `pool` says it discards.
+pub(super) fn rewind_lines(pool: &Pool) -> Vec<String> {
+    vec![
+        text!("rewind", pool = pool.name.to_string()),
+        text!("rewind.discarded"),
+    ]
 }
 
 /// Says that `pool` is not imported while a pool of its name is.
@@ -367,18 +320,6 @@ pub(super) fn open(volume: &Volume) -> Action {
     }
 }
 
-/// The read/write import of `pool`, the imported pool of that name, by its
-/// identifier when a pool not imported has the name too.
-fn read_write(model: &Model, pool: &PoolName) -> Action {
-    let imported = model
-        .snapshot
-        .pools
-        .iter()
-        .find(|known| known.imported && &known.name == pool);
-    let named = imported.map_or_else(|| pool.into(), |known| dialogs::Named::of(model, known));
-    dialogs::import(named, Access::ReadWrite, ImportPolicy::Strict)
-}
-
 /// The ways to import `pool`: imported, with the other access, and rewound
 /// to its checkpoint when it has one; not imported, as this host, as the
 /// host that last imported it, or forced, unless a pool of its name is
@@ -389,13 +330,9 @@ fn import_choices(model: &mut Model, pool: &Pool) {
     let choices = if pool.imported {
         let mut choices = vec![dialogs::toggle(named, pool.writable)];
         if pool.checkpoint == Some(true) {
-            let lines = vec![
-                text!("rewind", pool = name.as_str()),
-                text!("rewind.discarded"),
-            ];
             choices.push(Choice {
                 label: text!("pool-rewind"),
-                then: dialogs::rewind(model.map, named, lines),
+                then: dialogs::rewind(model.map, named, rewind_lines(pool)),
             });
         }
         choices
@@ -430,35 +367,10 @@ fn import_choices(model: &mut Model, pool: &Pool) {
     dialogs::choose_offered(model, &title, Vec::new(), choices);
 }
 
-/// The recovery tools.
+/// The recovery tools, as [`action_of`] says.
 fn recovery(model: &mut Model, intent: Intent) -> Vec<Action> {
-    if intent != Intent::Primary {
-        return Vec::new();
-    }
-    let Some((_, tool)) = model
-        .recovery
-        .selected_item()
-        .and_then(|index| RECOVERY.get(index))
-    else {
-        return Vec::new();
-    };
-    match tool {
-        RecoveryTool::Shell => vec![Action::Shell],
-        RecoveryTool::Chroot => model
-            .selected_environment()
-            .map(|environment| vec![Action::Chroot(environment.name.clone().into())])
-            .unwrap_or_default(),
-        RecoveryTool::Log => {
-            model.screen = Screen::Log;
-            model.scroll = 0;
-            Vec::new()
-        }
-        RecoveryTool::Pools => {
-            model.screen = Screen::Pools;
-            Vec::new()
-        }
-        RecoveryTool::FirmwareSetup => vec![Action::FirmwareSetup],
-        RecoveryTool::Reboot => vec![Action::Reboot],
-        RecoveryTool::PowerOff => vec![Action::PowerOff],
+    match action_of(model, Context::Recovery, intent) {
+        Some(then) => send(model, then),
+        None => Vec::new(),
     }
 }

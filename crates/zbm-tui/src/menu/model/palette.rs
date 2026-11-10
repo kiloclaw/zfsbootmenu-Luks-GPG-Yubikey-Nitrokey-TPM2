@@ -80,6 +80,33 @@ pub struct PaletteItem {
     pub section: Section,
     /// What it does.
     pub then: Then,
+    /// The keys that do it in the view under the palette, as the help
+    /// view names them, those the toolbar leaves out too; empty when none
+    /// does. Drawn on the right, not matched.
+    pub keys: String,
+    /// What it costs ([`Costs`]); not matched.
+    pub costs: Costs,
+}
+
+/// What an entry of the command palette costs before it acts (ADR 0007,
+/// point 5; ADR 0010): each is drawn as a word on the right, the PIN as
+/// the lock's mark. Made from the entry's action, never from its plan.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is a cost of its own, drawn as its word"
+)]
+pub struct Costs {
+    /// The locked menu keeps it: the PIN is asked first.
+    pub pin: bool,
+    /// It writes a pool imported read-only, which is imported read/write
+    /// first.
+    pub writes: bool,
+    /// The environment it changes, boots or opens a shell in is locked:
+    /// its key may be asked for.
+    pub key: bool,
+    /// A review page shows what it loses and asks for its target's name.
+    pub review: bool,
 }
 
 /// A thing the command palette goes to: its tab opens, with it selected.

@@ -153,12 +153,11 @@ fn ctrl_keys_of_the_new_map_win_over_classic_ones() {
 
 /// The toolbar of `context` at `width` columns, as (key, label).
 fn toolbar(context: Context, width: usize) -> Vec<(String, String)> {
-    footer(Map::Classic, context, width, &every, &|intent| {
-        describe(context, intent)
-    })
-    .into_iter()
-    .map(|tool| (tool.key, tool.label))
-    .collect()
+    let said = |intent| describe(context, intent);
+    footer(Map::Classic, context, width, &every, &said, &|_| false)
+        .into_iter()
+        .map(|tool| (tool.key, tool.label))
+        .collect()
 }
 
 /// `pairs` as owned strings.
@@ -192,9 +191,14 @@ fn the_toolbar_shows_five_whole_actions_then_more() {
     );
     assert_eq!(toolbar(Main, 5), []);
     assert!(
-        footer(Map::Classic, Context::Choose, 80, &every, &|intent| {
-            describe(Context::Choose, intent)
-        })
+        footer(
+            Map::Classic,
+            Context::Choose,
+            80,
+            &every,
+            &|intent| { describe(Context::Choose, intent) },
+            &|_| false
+        )
         .iter()
         .all(|tool| !tool.is_more)
     );
@@ -391,12 +395,11 @@ fn every_key_has_one_meaning_and_no_letter_depends_on_case() {
 
 #[test]
 fn the_workspace_toolbar_goes_into_the_kernels_with_l() {
-    let tools: Vec<(String, String)> = footer(Map::Workspace, Main, 80, &every, &|intent| {
-        describe(Main, intent)
-    })
-    .into_iter()
-    .map(|tool| (tool.key, tool.label))
-    .collect();
+    let said = |intent| describe(Main, intent);
+    let tools: Vec<(String, String)> = footer(Map::Workspace, Main, 80, &every, &said, &|_| false)
+        .into_iter()
+        .map(|tool| (tool.key, tool.label))
+        .collect();
     assert_eq!(
         tools,
         owned(&[

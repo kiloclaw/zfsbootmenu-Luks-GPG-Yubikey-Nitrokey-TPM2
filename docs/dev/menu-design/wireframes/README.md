@@ -22,7 +22,7 @@ keep their names:
 | `unlock-pin` | a TPM2 PIN asked at start-up, two digits typed and not shown |
 | `import-problem` | a pool of another host, and what can be done |
 | `import-failed` | the error after a plain retry: what failed, why, what next |
-| `palette` | the command palette finding snapshots by date, once the snapshots view read them, under the heading of its actions |
+| `palette` | the command palette finding snapshots by date, once the snapshots view read them, under the heading of its actions, each with what it costs on the right (`read/write`: the pool is imported read-only) |
 | `recovery` | the recovery tools |
 | `log` | the log since start |
 | `help` | help for the main view, which scrolls |
@@ -63,8 +63,10 @@ keep their names:
 | `workspace-device-log` | `Enter` on `tank`'s lost disk `sdb2` in the Pools tab: the kernel's messages about it and its disk below the tree, the escape bytes in them drawn as text; the path `tank › raidz1-0 › sdb2` |
 | `workspace-filter` | `/` and `ta` on the Boot tab: the search field at the top of the column, two environments of four left |
 | `workspace-command-line` | `e` and ` systemd.unit=rescue.target` typed: the command line edited for one boot, under the tab bar |
-| `workspace-palette` | `2`, `:` and `2026-10`: the command palette over the Snapshots tab, finding the snapshots of October by date |
+| `workspace-palette` | `2`, `:` and `2026-10`: the command palette over the Snapshots tab, finding the snapshots of October by date, each with what it costs on the right |
 | `workspace-commands` | `:` and `pools` on the Boot tab: the command line's sections, actions, items and help, each under its heading |
+| `workspace-locked` | the menu locked (`--menu-locked`, ADR 0010), the countdown running: the toolbar and the next steps mark `PIN` what the lock keeps, but not the default boot |
+| `workspace-commands-locked` | the menu locked, `2` and `:`: the command line over the Snapshots tab, each entry with its keys and costs on the right, `PIN` where the lock keeps it; the default boot has none |
 | `workspace-power` | `x`: power off, reboot, firmware setup, over the Boot tab |
 | `workspace-recovery` | `!`: the recovery tools, under the tab bar |
 | `workspace-notification` | down one and `d`: the outcome of setting a default, on the notification line, `zroot/ROOT/ubuntu` the new default |

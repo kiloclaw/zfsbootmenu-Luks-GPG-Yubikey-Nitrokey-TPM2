@@ -176,6 +176,9 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
             model.scroll = 0;
         }
         Then::Focus(environment, screen) => return screens::focus(model, environment, screen),
+        Then::EditFor(environment, kernel) => {
+            return screens::edit_for(model, environment, kernel);
+        }
         Then::Intent(intent) => return super::handle(model, Input::Intent(intent)),
         Then::Go(place) => model.go(&place),
         Then::Revert(environment) => screens::revert(model, &environment),
@@ -437,14 +440,23 @@ fn named(model: &mut Model, input: Input, mut naming: Naming) -> Vec<Action> {
     Vec::new()
 }
 
+/// The name the making of `naming`, once named, asks to be typed: a
+/// promotion's, whose environment comes to depend on the clone, asks for
+/// that environment's; the others ask for none.
+pub(super) fn confirmed_name(naming: &Naming) -> Option<String> {
+    let Make::Promote(snapshot) = &naming.make else {
+        return None;
+    };
+    Some(snapshot.dataset().last_component().to_owned())
+}
+
 /// What `action`, the making of `naming`, does once named: a promotion,
 /// which leaves the environment depending on the clone, asks for the
 /// environment's name to be typed; the others go ahead.
 fn made(model: &mut Model, naming: Naming, action: Action) -> Vec<Action> {
-    let Make::Promote(snapshot) = &naming.make else {
+    let Some(name) = confirmed_name(&naming) else {
         return vec![action];
     };
-    let name = snapshot.dataset().last_component().to_owned();
     model.dialog = Some(confirm(Then::Confirm {
         action,
         title: naming.title,

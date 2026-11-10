@@ -10,6 +10,7 @@ use super::keymap::{self, Context, Input, Intent, Tab};
 use super::model::{Dialog, Model, Screen, TypedOn};
 use super::world::{Action, Event, Outcome};
 
+mod action_of;
 mod command_line;
 mod dialogs;
 mod diff;
@@ -24,6 +25,7 @@ mod snapshots;
 mod text;
 mod unlock;
 
+pub(crate) use command_line::costs::{costs_of, is_kept};
 pub use command_line::palette_items;
 pub use dialogs::follow;
 
@@ -144,16 +146,11 @@ fn handle(model: &mut Model, input: Input) -> Vec<Action> {
 fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
     match intent {
         Intent::Palette => command_line::open_palette(model),
-        Intent::Help => {
-            let context = model.context();
-            model.screen = Screen::Help(context);
-            model.scroll = 0;
+        // The views every key opens, as their entries do.
+        Intent::Help | Intent::Log | Intent::Recovery => {
+            let then = action_of::action_of(model, model.context(), intent)?;
+            return Some(screens::send(model, then));
         }
-        Intent::Log => {
-            model.screen = Screen::Log;
-            model.scroll = 0;
-        }
-        Intent::Recovery => model.screen = Screen::Recovery,
         Intent::Power => dialogs::power(model),
         Intent::Redraw => {}
         Intent::Back => back(model),
@@ -271,6 +268,8 @@ mod command_line_tests;
 #[cfg(test)]
 mod commands_tests;
 #[cfg(test)]
+mod costs_tests;
+#[cfg(test)]
 mod destroy_tests;
 #[cfg(test)]
 mod dry_run_tests;
@@ -280,6 +279,8 @@ mod health_tests;
 mod history_tests;
 #[cfg(test)]
 mod import_tests;
+#[cfg(test)]
+mod lock_marks_tests;
 #[cfg(test)]
 mod marks_tests;
 #[cfg(test)]

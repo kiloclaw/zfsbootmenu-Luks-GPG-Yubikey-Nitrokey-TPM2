@@ -16,6 +16,7 @@ use crate::menu::format::fit;
 use crate::menu::keymap::{self, Context, Intent, Map, Tab};
 use crate::menu::model::{Model, Screen, disk_name};
 use crate::menu::theme::{Glyph, Role};
+use crate::menu::update;
 use crate::menu::world::{
     Device, DeviceState, Environment, Health, Level, Log, Pool, StageState, Verdict, VolumeState,
 };
@@ -482,7 +483,8 @@ fn attention_lines(model: &Model, items: &[Item], width: usize) -> Vec<Line<'sta
 }
 
 /// The inspector's next steps in the workspace: the keys of the column
-/// with the focus after `Enter`, two to a line; none with the classic map.
+/// with the focus after `Enter`, two to a line, with the lock's mark where
+/// the locked menu keeps what they do; none with the classic map.
 pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
     if model.map != Map::Workspace {
         return Vec::new();
@@ -491,11 +493,20 @@ pub(super) fn next_steps(model: &Model, width: usize) -> Vec<Line<'static>> {
     let context = model.context();
     let offered = |intent| keymap::is_shown(context, intent, model);
     let said = |intent| keymap::label(context, intent, model);
+    let mark = model.snapshot.menu_locked.then(keymap::lock_mark);
     let steps: Vec<(String, String)> = keymap::bindings(model.map, context, &offered, &said)
         .into_iter()
         .filter(|(intent, ..)| !matches!(intent, Intent::Primary | Intent::Help))
         .take(NEXT_STEPS)
-        .map(|(_, key, what)| (key, text::get(what)))
+        .map(|(intent, key, what)| {
+            let what = text::get(what);
+            match &mark {
+                Some(mark) if update::is_kept(model, context, intent) => {
+                    (key, format!("{what} {mark}"))
+                }
+                _ => (key, what),
+            }
+        })
         .collect();
     let column = width.saturating_sub(2) / 2;
     let mut lines = vec![Line::styled(

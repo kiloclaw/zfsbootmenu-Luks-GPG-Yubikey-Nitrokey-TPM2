@@ -26,7 +26,9 @@ pub(super) fn workspace_dialog_wireframes() -> Vec<Wireframe> {
 /// The search field filtered by `ta`; the command line edited for one
 /// boot; the palette finding snapshots by date in the Snapshots tab, and
 /// finding `pools` on the Boot tab, under its actions, items and help
-/// (with the query empty, the actions alone fill the frame); the power
+/// (with the query empty, the actions alone fill the frame); a locked
+/// menu's Boot tab, whose toolbar marks what the lock keeps, and its
+/// palette over the Snapshots tab, with the keys and costs; the power
 /// dialog; the recovery tools; the outcome of setting a default on
 /// the notification line; help for the Snapshots tab; and the Log tab
 /// during start-up, `Shift-Tab` from the Boot tab.
@@ -49,6 +51,18 @@ fn boot_dialog_wireframes() -> Vec<Wireframe> {
             &[Char('2'), Char(':'), Text("2026-10")],
         ),
         frame("workspace-commands", &[Char(':'), Text("pools")]),
+        Wireframe {
+            name: "workspace-locked",
+            options: locked_menu(),
+            ticks: 50,
+            keys: &[],
+        },
+        Wireframe {
+            name: "workspace-commands-locked",
+            options: locked_menu(),
+            ticks: 50,
+            keys: &[Char('2'), Char(':')],
+        },
         frame("workspace-power", &[Char('x')]),
         frame("workspace-recovery", &[Char('!')]),
         frame("workspace-notification", &[Code(Key::Down), Char('d')]),
@@ -60,6 +74,14 @@ fn boot_dialog_wireframes() -> Vec<Wireframe> {
             keys: &[Code(Key::BackTab)],
         },
     ]
+}
+
+/// The workspace's demo with the menu locked (ADR 0010).
+fn locked_menu() -> DemoOptions {
+    DemoOptions {
+        menu_locked: true,
+        ..workspace()
+    }
 }
 
 /// The imports of `archive`, another host's pool the scan found, `i` on it

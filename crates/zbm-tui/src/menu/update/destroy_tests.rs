@@ -81,7 +81,15 @@ fn delete_is_bound_on_the_workspaces_snapshots_alone() {
     // Not in the toolbar; help lists it.
     let offered = |_| true;
     let said = |intent| keymap::describe(Context::Snapshots, intent);
-    let tools = keymap::footer(Map::Workspace, Context::Snapshots, 200, &offered, &said);
+    let none = |_| false;
+    let tools = keymap::footer(
+        Map::Workspace,
+        Context::Snapshots,
+        200,
+        &offered,
+        &said,
+        &none,
+    );
     assert!(tools.iter().all(|tool| tool.key != text!("key-delete")));
     let help = keymap::help(Map::Workspace, Context::Snapshots, &offered, &said);
     assert!(help.contains(&(text!("key-delete"), crate::text::id!("action-destroy"))));

@@ -8,18 +8,18 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ ▶ z┌ COMMANDS ─────────────────────────────────────────────── 42 of 467 ┐GiB │
 │   z│ : 2026-10                                                          │MiB │
 │   t│   ACTIONS                                                          │MiB │
-│   t│ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-10-22_daily        │MiB │
-│   t│   Boot a clone of zroot/ROOT/void@autosnap_2026-10-21_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-20_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-19_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-18_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-17_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-16_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-15_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-14_daily        │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-13_daily        │MiB │
-└────│   Boot a clone of zroot/ROOT/void@autosnap_2026-10-12_daily        │────┘
-┌ pre│   Boot a clone of zroot/ROOT/void@autosnap_2026-10-11_daily        │────┐
+│   t│ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-10-22_… read/write │MiB │
+│   t│   Boot a clone of zroot/ROOT/void@autosnap_2026-10-21_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-20_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-19_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-18_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-17_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-16_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-15_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-14_… read/write │MiB │
+│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10-13_… read/write │MiB │
+└────│   Boot a clone of zroot/ROOT/void@autosnap_2026-10-12_… read/write │────┘
+┌ pre│   Boot a clone of zroot/ROOT/void@autosnap_2026-10-11_… read/write │────┐
 │  En└────────────────────────────────────────────────────────────────────┘    │
 │        Taken  2026-10-23 07:00 UTC, 1 h ago                                  │
 │         Used  1.1 GiB                                                        │

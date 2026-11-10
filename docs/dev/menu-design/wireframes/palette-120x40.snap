@@ -16,18 +16,18 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                        ┌ COMMANDS ─────────────────────────────────────────────── 55 of 456 ┐.4 for 6.12.9_1         │
 │                        │ : 2026-09                                                          │ZFS reads every enable… │
 │                        │   ACTIONS                                                          │point / and canmount=n… │
-│                        │ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-09-30_daily        │the pool is free        │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-29_daily        │                        │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-28_daily        │                        │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-27_daily        │                  boots │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-26_daily        │                        │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-25_daily        │                        │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-24_daily        │                        │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-23_daily        │                        │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-22_daily        │               12 h ago │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-21_daily        │aily            1 d ago │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-20_daily        │aily            2 d ago │
-│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-19_daily        │aily            3 d ago │
+│                        │ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-09-30_… read/write │the pool is free        │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-29_… read/write │                        │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-28_… read/write │                        │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-27_… read/write │                  boots │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-26_… read/write │                        │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-25_… read/write │                        │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-24_… read/write │                        │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-23_… read/write │                        │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-22_… read/write │               12 h ago │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-21_… read/write │aily            1 d ago │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-20_… read/write │aily            2 d ago │
+│                        │   Boot a clone of zroot/ROOT/void@autosnap_2026-09-19_… read/write │aily            3 d ago │
 │                        └────────────────────────────────────────────────────────────────────┘aily            4 d ago │
 │                                                                    ││                                                │
 │                                                                    ││                                                │

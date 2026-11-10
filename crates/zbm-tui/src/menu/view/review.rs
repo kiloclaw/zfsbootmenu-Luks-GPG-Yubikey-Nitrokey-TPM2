@@ -24,8 +24,10 @@ use super::dialogs::{Kind, buttons, frame_block, verb, wrapped};
 use super::lists;
 use super::words::Said;
 use crate::menu::format::{age, date, fit, size};
-use crate::menu::model::{Focus, Lost, Model, Reviewing, host_text};
+use crate::menu::keymap;
+use crate::menu::model::{Focus, Lost, Model, Reviewing, Then, host_text};
 use crate::menu::theme::{Glyph, Role, Theme};
+use crate::menu::update;
 use crate::menu::world::{Action, Keep, Loss, Outcome, PoolUse, Review, Safer};
 use crate::text::{self, id, text};
 
@@ -506,8 +508,9 @@ fn render_field(
 /// **Cancel**, the safer action, and the change, disabled until it is
 /// planned and named; the one `Enter` presses shows it, and the change
 /// shows the focus even disabled. A dry run that loses nothing has **Run**
-/// for its change, not a danger. **Cancel**, which `Esc` presses, goes
-/// first when they do not fit in `width`.
+/// for its change, not a danger; the change carries the lock's mark where
+/// the locked menu keeps it. **Cancel**, which `Esc` presses, goes first
+/// when they do not fit in `width`.
 fn button_line(model: &Model, reviewing: &Reviewing, width: usize) -> Line<'static> {
     let theme = model.theme;
     if reviewing.is_refused() {
@@ -540,11 +543,17 @@ fn button_line(model: &Model, reviewing: &Reviewing, width: usize) -> Line<'stat
         (false, Focus::Verb) => Kind::Waiting,
         (false, _) => Kind::Disabled,
     };
-    let label = if danger {
+    let mut label = if danger {
         verb(&reviewing.action)
     } else {
         text::title(id!("action-run"))
     };
+    // The PIN is asked once it is pressed (ADR 0010).
+    if model.snapshot.menu_locked
+        && update::costs_of(model, &Then::Act(reviewing.action.clone())).pin
+    {
+        label = format!("{label} {}", keymap::lock_mark());
+    }
     all.push((label, kind));
     let used: usize = all.iter().map(|(label, _)| label.chars().count() + 6).sum();
     if used > width + 2 {

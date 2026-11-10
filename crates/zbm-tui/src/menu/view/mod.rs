@@ -176,7 +176,8 @@ fn notification_line<'a>(model: &Model, outcome: &'a Outcome) -> Line<'a> {
 }
 
 /// The toolbar (rule 9): the actions of the focused element, each its key
-/// and a title-case label, and `? More` on the right.
+/// and a title-case label, then the lock's mark where the locked menu
+/// keeps what it does, and `? More` on the right.
 fn footer(model: &Model, width: u16) -> Line<'static> {
     let theme = model.theme;
     let width = usize::from(width).saturating_sub(2);
@@ -186,10 +187,9 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
     let context = model.context();
     let offered = |intent| keymap::is_shown(context, intent, model);
     let said = |intent| keymap::label(context, intent, model);
-    for (index, tool) in keymap::footer(model.map, context, width, &offered, &said)
-        .into_iter()
-        .enumerate()
-    {
+    let kept = |intent| crate::menu::update::is_kept(model, context, intent);
+    let tools = keymap::footer(model.map, context, width, &offered, &said, &kept);
+    for (index, tool) in tools.into_iter().enumerate() {
         let length = tool.width();
         if tool.is_more {
             spans.push(Span::raw(
@@ -205,6 +205,9 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
             format!(" {}", tool.label),
             theme.style(Role::Muted),
         ));
+        if let Some(mark) = tool.mark {
+            spans.push(Span::styled(format!(" {mark}"), theme.style(Role::Warning)));
+        }
     }
     Line::from(spans)
 }

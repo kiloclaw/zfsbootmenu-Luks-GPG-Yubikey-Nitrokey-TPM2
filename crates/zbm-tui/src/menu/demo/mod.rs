@@ -61,6 +61,9 @@ pub struct DemoOptions {
     /// `tank/ROOT/arch` boots with a command line as long as a desktop's,
     /// which the workspace's inspector wraps.
     pub long_command_line: bool,
+    /// The menu is locked (ADR 0010): what the lock keeps is marked; the
+    /// demo asks for no PIN.
+    pub menu_locked: bool,
 }
 
 impl Default for DemoOptions {
@@ -77,6 +80,7 @@ impl Default for DemoOptions {
             exported: false,
             save_logs: true,
             long_command_line: false,
+            menu_locked: false,
         }
     }
 }

@@ -1,6 +1,7 @@
 //! The command palette: what it finds, by section, its query and its
 //! selection, and its help.
 
+pub(super) mod costs;
 mod entries;
 mod items;
 
@@ -272,9 +273,11 @@ fn delete_word(query: &mut String) {
 /// there), where to go, and help; what the machine offers. Each is found
 /// by its command's name and target too, and in a language other than
 /// English by its English name, target and label (rule 4 of decision 18);
-/// in English, they are built once.
+/// in English, they are built once. Each has its keys in the view under
+/// the palette and its costs.
 pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     let mut items = entries(model);
+    costs::annotate(model, &mut items);
     if text::language() == Language::English {
         return items;
     }

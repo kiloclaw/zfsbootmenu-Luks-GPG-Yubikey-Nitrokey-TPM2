@@ -10,9 +10,11 @@ use zbm_types::Printable;
 
 use super::{health, main_view, question, screens, unlock};
 use crate::menu::format::{age, size};
-use crate::menu::keymap;
-use crate::menu::model::{Asking, Column, Dialog, Model, Naming, RECOVERY, Row, Screen, Segment};
+use crate::menu::model::{
+    Asking, Choice, Column, Dialog, Model, Naming, RECOVERY, Row, Screen, Segment,
+};
 use crate::menu::world::{Level, Outcome, StageState};
+use crate::menu::{keymap, update};
 use crate::text::{self, text};
 
 /// A dialog in words: its title, what it says, and its choices, which the
@@ -395,12 +397,7 @@ fn said(model: &Model) -> Option<Said> {
             lines,
             choices,
             ..
-        } => Said {
-            title: title.clone(),
-            lines: lines.clone(),
-            choices: choices.iter().map(|choice| choice.label.clone()).collect(),
-            headers: Vec::new(),
-        },
+        } => sheet(model, title, lines, choices),
         Dialog::Confirm {
             title, lines, name, ..
         } => Said {
@@ -429,6 +426,25 @@ fn said(model: &Model) -> Option<Said> {
             }
         }
     })
+}
+
+/// A sheet in words: its title, what it says, and its choices, each with
+/// the lock's mark where the locked menu keeps it.
+fn sheet(model: &Model, title: &str, lines: &[String], choices: &[Choice]) -> Said {
+    let marks = super::dialogs::marks(model, choices);
+    let said = choices
+        .iter()
+        .enumerate()
+        .map(|(at, choice)| match marks.get(at) {
+            Some(Some(mark)) => format!("{} {mark}", choice.label),
+            _ => choice.label.clone(),
+        });
+    Said {
+        title: title.to_owned(),
+        lines: lines.to_vec(),
+        choices: said.collect(),
+        headers: Vec::new(),
+    }
 }
 
 /// The naming dialog in words: what it says, then the name typed so far.
@@ -462,10 +478,12 @@ fn asked(asking: &Asking) -> Said {
     }
 }
 
-/// The command palette, when it is open: what it found, each section's
-/// heading before its first entry.
+/// The command palette, when it is open: what it found, each with its keys
+/// and costs, each section's heading before its first entry.
 fn palette(model: &Model) -> Option<Said> {
     let palette = model.palette.as_ref()?;
+    let words = super::command_line::CostWords::new();
+    let dot = model.theme.dot();
     let mut choices = Vec::new();
     let mut headers = Vec::new();
     for (at, ranked) in palette.matches.iter().enumerate() {
@@ -474,7 +492,13 @@ fn palette(model: &Model) -> Option<Said> {
             choices.push(super::command_line::section_name(section));
         }
         if let Some(item) = palette.items.get(ranked.index) {
-            choices.push(item.label.clone());
+            let mut said = item.label.clone();
+            for part in [item.keys.clone(), words.of(item.costs)] {
+                if !part.is_empty() {
+                    said = format!("{said}{dot}{part}");
+                }
+            }
+            choices.push(said);
         }
     }
     Some(Said {
@@ -486,9 +510,11 @@ fn palette(model: &Model) -> Option<Said> {
 }
 
 /// What the person may type on the current screen: the keys of the key
-/// map that are characters, with what they do.
+/// map that are characters, with what they do, and the lock's mark where
+/// the locked menu keeps it.
 pub(crate) fn commands(model: &Model) -> Vec<String> {
     let context = model.context();
+    let mark = model.snapshot.menu_locked.then(keymap::lock_mark);
     keymap::bindings(
         model.map,
         context,
@@ -497,7 +523,12 @@ pub(crate) fn commands(model: &Model) -> Vec<String> {
     )
     .into_iter()
     .filter(|(_, key, _)| key.chars().count() == 1)
-    .map(|(_, key, what)| format!("{key} {}", text::get(what)))
+    .map(|(intent, key, what)| match &mark {
+        Some(mark) if update::is_kept(model, context, intent) => {
+            format!("{key} {} {mark}", text::get(what))
+        }
+        _ => format!("{key} {}", text::get(what)),
+    })
     .collect()
 }
 
