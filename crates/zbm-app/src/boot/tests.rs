@@ -4,7 +4,6 @@ use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
 use crate::Application as _;
-use crate::model::Health;
 
 /// The recovery of the tests: the shells it was asked to open.
 #[derive(Default)]
@@ -273,32 +272,22 @@ fn a_boot_without_its_key_or_kernel_says_why() {
     ));
 }
 
-/// The pool `tank`, imported read/write.
-fn pools() -> Vec<model::Pool> {
-    vec![model::Pool {
-        name: "tank".parse().unwrap(),
-        health: Health::Online,
-        writable: true,
-        imported: true,
-        id: None,
-        host: None,
-        checkpoint: Some(false),
-        devices: Vec::new(),
-        status: None,
-        action: None,
-        errors: None,
-    }]
-}
-
 #[test]
-fn resetting_exports_the_writable_pools_then_triggers_sysrq() {
+fn a_reset_exports_the_writable_pools_of_the_names_it_is_given() {
     let fake = FakeSystem::new();
     fake.files.dir("/proc");
     fake.runner
         .respond("zpool get -H -o value readonly tank", 0, "off\n");
-    let events = reset(&fake.system(), &pools(), "o");
+    fake.runner
+        .respond("zpool get -H -o value readonly rpool", 0, "on\n");
+    let pools: Vec<PoolName> = ["tank", "rpool"]
+        .iter()
+        .map(|name| name.parse().unwrap())
+        .collect();
+    let events = reset(&fake.system(), &pools, "o");
 
     assert!(lines(&fake).contains(&"zpool export tank".to_owned()));
+    assert!(!lines(&fake).contains(&"zpool export rpool".to_owned()));
     assert_eq!(fake.files.text("/proc/sysrq-trigger").as_deref(), Some("o"));
     assert!(matches!(
         events.last(),

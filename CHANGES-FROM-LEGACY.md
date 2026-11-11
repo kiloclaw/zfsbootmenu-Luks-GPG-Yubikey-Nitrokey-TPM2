@@ -4,7 +4,8 @@ The migration guide for the switch to the Rust runtime (RL1 in [ROADMAP.md](ROAD
 in images with the Rust runtime (`zfsbootmenu_runtime=rust`) than in legacy images, and why. Images with the legacy
 runtime, the default until that switch, are unchanged. The guide stays when the legacy runtime goes (RL2), for those
 who come from it. [The menu](#the-menu) begins with its keys, a table from each key of the `fzf` menu to the new ones;
-then come what each tab of the menu does differently, and what the menu as a whole does.
+then come what each tab of the menu does differently, and what the menu as a whole does, and then the tools of the
+recovery shell.
 
 The last section, [The host tools](#the-host-tools-generate-zbm-and-zbm-kcl), is different: it lists what changed in
 `generate-zbm` and `zbm-kcl`, the programs that build images and change command lines on the host, whatever runtime
@@ -822,6 +823,16 @@ The log since start-up, and the boots saved before: the log view of the classic 
   the recovery tools, of which the shell is the first. As before, leaving the shell imports the pools that became
   importable in it and opens the menu again.
 
+### Firmware setup is offered only where the firmware can open it
+
+- **Before:** the Rust menu offered Reboot into Firmware Setup on every machine: in its power sheet, its command line
+  and its recovery tools, where on a machine that boots from a BIOS it could only fail. The legacy power menu
+  (`zpowermenu`) offered it only where the firmware said it could open its setup.
+- **Now:** the menu offers it only where the firmware says so (`OsIndicationsSupported`). `zpowermenu` also wanted
+  the `OsIndications` variable to exist; where it does not, the menu still offers Firmware Setup, and choosing it says
+  that the firmware has no `OsIndications` variable.
+- **Why:** the menu offers what it can do.
+
 ### `zbm.menu`: lines, a screen, or the classic menu
 
 - **Before:** the menu was `fzf`'s, drawn on the terminal, with nothing to choose.
@@ -859,6 +870,22 @@ The log since start-up, and the boots saved before: the log view of the classic 
 
 The menu no longer uses `fzf`. Rust images still install it, for the tools of the recovery shell that are not ported
 yet (`logs`, `zsnapshots`, the help pages); it leaves the images when R5 and R6 port them.
+
+## The recovery shell's tools
+
+The tools of the recovery shell that Rust images take from `zbm` (ADR 0018), in place of the legacy runtime's
+scripts.
+
+### `reboot`, `poweroff`, `shutdown` and `firmware-setup` are `zbm`
+
+- **Before:** one Bash script, `/bin/reboot`, with the other three names as links to it, which sourced three files of
+  the legacy library and set the firmware's variable with `od` and `tr`.
+- **Now:** links to `zbm`, which exports the writable pools of `zpool list` and resets the machine as the script did;
+  `shutdown` is another name of `poweroff`. Where the machine cannot reboot into its setup, as one that boots from a
+  BIOS cannot, `firmware-setup` exits 1 as before, and says why in its own words. That message, and the one when the
+  machine does not reset, go to standard error, where the script printed its warnings on standard output. An argument
+  is a usage error (exit status 2), and `--help` prints the usage, where the script ignored its arguments.
+- **Why:** the recovery shell's tools in Rust (ADR 0018, point 11), with what the menu's power actions do.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

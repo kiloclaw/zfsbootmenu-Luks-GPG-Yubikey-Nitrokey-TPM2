@@ -31,4 +31,24 @@ pub const LINKED: &[Linked] = &[
         dir: "/libexec",
         first: &[],
     },
+    Linked {
+        name: "reboot",
+        dir: "/bin",
+        first: &[],
+    },
+    Linked {
+        name: "poweroff",
+        dir: "/bin",
+        first: &[],
+    },
+    Linked {
+        name: "shutdown",
+        dir: "/bin",
+        first: &[],
+    },
+    Linked {
+        name: "firmware-setup",
+        dir: "/bin",
+        first: &[],
+    },
 ];

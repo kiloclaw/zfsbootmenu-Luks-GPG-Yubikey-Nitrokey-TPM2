@@ -75,12 +75,8 @@ file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
 file	/usr/share/zfsbootmenu/libexec/zpowermenu	/libexec/zpowermenu	-
 link	ztrace	/bin/debug
-link	reboot	/bin/firmware-setup
 link	zlogtail	/bin/logs
 file	/usr/share/zfsbootmenu/bin/mount_esp	/bin/mount_esp	-
-link	reboot	/bin/poweroff
-file	/usr/share/zfsbootmenu/bin/reboot	/bin/reboot	-
-link	reboot	/bin/shutdown
 file	/usr/share/zfsbootmenu/bin/zfs-chroot	/bin/zfs-chroot	-
 file	/usr/share/zfsbootmenu/bin/zkexec	/bin/zkexec	-
 file	/usr/share/zfsbootmenu/bin/zlogtail	/bin/zlogtail	-
@@ -89,6 +85,10 @@ file	/usr/share/zfsbootmenu/bin/ztrace	/bin/ztrace	-
 link	/libexec/zbm	/bin/zluks
 link	/libexec/zbm	/bin/zfsbootmenu
 link	/libexec/zbm	/libexec/zfunc
+link	/libexec/zbm	/bin/reboot
+link	/libexec/zbm	/bin/poweroff
+link	/libexec/zbm	/bin/shutdown
+link	/libexec/zbm	/bin/firmware-setup
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-core.sh	/usr/share/zfsbootmenu/legacy/lib/zfsbootmenu-core.sh	-
 file	@/lib/zfsbootmenu-core.sh	/lib/zfsbootmenu-core.sh	0644
     | #!/bin/bash

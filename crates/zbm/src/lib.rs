@@ -23,6 +23,7 @@ pub mod luks;
 pub mod measure;
 pub mod menu;
 pub mod menu_demo;
+mod power;
 mod remote;
 pub mod report;
 mod run_hooks;
@@ -355,6 +356,9 @@ mod tests {
             "lock",
             "run-hooks",
             "zfunc",
+            "reboot",
+            "poweroff",
+            "firmware-setup",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

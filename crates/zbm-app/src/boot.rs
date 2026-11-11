@@ -13,10 +13,10 @@ use zbm_boot::Recovery;
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::console::Screen;
-use zbm_platform::{Context, System};
+use zbm_platform::{Context, Files, System};
 use zbm_state::State;
 use zbm_tools::console::ConsoleInteraction;
-use zbm_types::{DatasetName, FilesystemName};
+use zbm_types::{DatasetName, FilesystemName, PoolName};
 
 use crate::model::{self, Event, Outcome};
 
@@ -24,7 +24,7 @@ use crate::model::{self, Event, Outcome};
 /// boot, and the one that says whether it can.
 const OS_INDICATIONS: &str =
     "/sys/firmware/efi/efivars/OsIndications-8be4df61-93ca-11d2-aa0d-00e098032b8c";
-const OS_INDICATIONS_SUPPORTED: &str =
+pub(crate) const OS_INDICATIONS_SUPPORTED: &str =
     "/sys/firmware/efi/efivars/OsIndicationsSupported-8be4df61-93ca-11d2-aa0d-00e098032b8c";
 
 /// `EFI_OS_INDICATIONS_BOOT_TO_FW_UI`, in the first byte of the variable's
@@ -195,14 +195,34 @@ impl<'a> Boot<'_, 'a> {
     }
 }
 
-/// Exports the pools imported read/write, so that they are clean when the
-/// machine resets.
-fn export_writable(system: &System<'_>, pools: &[model::Pool]) {
-    for pool in pools.iter().filter(|pool| pool.imported) {
-        if zbm_pool::writable::is_writable(system.runner, &pool.name) {
-            let _ = zbm_boot::export_pool(system.runner, &pool.name);
+/// Exports those of `pools` that are imported read/write, so that they are
+/// clean when the machine resets.
+fn export_writable(system: &System<'_>, pools: &[PoolName]) {
+    for pool in pools {
+        if zbm_pool::writable::is_writable(system.runner, pool) {
+            let _ = zbm_boot::export_pool(system.runner, pool);
         }
     }
+}
+
+/// Whether the firmware of the machine of `files` can open its setup at the
+/// next boot, as `OsIndicationsSupported` says; why not when it cannot.
+///
+/// # Errors
+///
+/// What stands in the way: no EFI, which a machine that boots from a BIOS
+/// has not, or no support for it.
+pub(crate) fn can_open_firmware_setup(files: &dyn Files) -> Result<(), String> {
+    let supported = files
+        .read(Path::new(OS_INDICATIONS_SUPPORTED))
+        .map_err(|_| "the firmware does not say that it can open its setup".to_owned())?;
+    if supported
+        .get(4)
+        .is_none_or(|bits| bits & BOOT_TO_FIRMWARE == 0)
+    {
+        return Err("the firmware cannot open its setup at the next boot".to_owned());
+    }
+    Ok(())
 }
 
 /// Asks the firmware to open its setup at the next boot; why not when it
@@ -214,15 +234,7 @@ fn export_writable(system: &System<'_>, pools: &[model::Pool]) {
 /// cannot be written.
 fn request_firmware_setup(system: &System<'_>) -> Result<(), String> {
     let files = system.files;
-    let supported = files
-        .read(Path::new(OS_INDICATIONS_SUPPORTED))
-        .map_err(|_| "the firmware does not say that it can open its setup".to_owned())?;
-    if supported
-        .get(4)
-        .is_none_or(|bits| bits & BOOT_TO_FIRMWARE == 0)
-    {
-        return Err("the firmware cannot open its setup at the next boot".to_owned());
-    }
+    can_open_firmware_setup(files)?;
     zbm_boot::mount_efivarfs(&Context::new(*system), "rw");
     let mut current = files
         .read(Path::new(OS_INDICATIONS))
@@ -240,9 +252,9 @@ fn request_firmware_setup(system: &System<'_>) -> Result<(), String> {
 }
 
 /// Resets the machine with the kernel's `SysRq` `trigger` (`b` reboots, `o`
-/// powers off), after exporting the pools imported read/write; returns only
-/// when that failed.
-pub(crate) fn reset(system: &System<'_>, pools: &[model::Pool], trigger: &str) -> Vec<Event> {
+/// powers off), after exporting those of `pools` imported read/write;
+/// returns only when that failed.
+pub(crate) fn reset(system: &System<'_>, pools: &[PoolName], trigger: &str) -> Vec<Event> {
     export_writable(system, pools);
     let written = system
         .files
@@ -256,8 +268,9 @@ pub(crate) fn reset(system: &System<'_>, pools: &[model::Pool], trigger: &str) -
     )
 }
 
-/// Reboots into the firmware setup; returns only when that failed.
-pub(crate) fn firmware_setup(system: &System<'_>, pools: &[model::Pool]) -> Vec<Event> {
+/// Reboots into the firmware setup, after exporting those of `pools`
+/// imported read/write; returns only when that failed.
+pub(crate) fn firmware_setup(system: &System<'_>, pools: &[PoolName]) -> Vec<Event> {
     match request_firmware_setup(system) {
         Ok(()) => reset(system, pools, "b"),
         Err(why) => failed(

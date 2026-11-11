@@ -112,6 +112,31 @@ fn changes_apply_quietly_or_on_the_console() {
     assert!(!is_done(&reboot));
 }
 
+#[test]
+fn the_menus_power_off_exports_the_writable_pools_zpool_list_lists() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/proc");
+    fake.runner
+        .respond("zpool list -H -o name", 0, "tank\nrpool\n");
+    fake.runner
+        .respond("zpool get -H -o value readonly tank", 0, "off\n");
+    fake.runner
+        .respond("zpool get -H -o value readonly rpool", 0, "on\n");
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+
+    app.apply(&Action::PowerOff, Through::Console(fake.system(), &NoShell));
+
+    let ran = fake.runner.lines();
+    assert!(ran.contains(&"zpool export tank".to_owned()), "{ran:?}");
+    assert!(!ran.contains(&"zpool export rpool".to_owned()), "{ran:?}");
+    assert!(
+        !ran.iter().any(|line| line.starts_with("zpool status")),
+        "{ran:?}"
+    );
+    assert_eq!(fake.files.text("/proc/sysrq-trigger").as_deref(), Some("o"));
+}
+
 /// Whether `events` end as the locked menu refuses.
 fn is_refused(events: &[Event]) -> bool {
     events == auth::refused()
@@ -269,106 +294,6 @@ fn the_lock_keeps_all_but_the_default_boot_and_what_changes_nothing() {
             kept.is_kept_by_lock(bootfs) && kept.needs_console(),
             "{kept:?}"
         );
-    }
-}
-
-/// An action of `kind`, on the environment `tank/ROOT/be` or its snapshot
-/// `old`.
-fn of_kind(kind: model::Offer) -> Action {
-    use model::Offer;
-    let environment: DatasetName = "tank/ROOT/be".parse().unwrap();
-    let snapshot: zbm_types::SnapshotName = "tank/ROOT/be@old".parse().unwrap();
-    let target: DatasetName = "tank/ROOT/new".parse().unwrap();
-    match kind {
-        Offer::Boot => Action::Boot {
-            environment,
-            kernel: None,
-            command_line: None,
-            countdown: false,
-        },
-        Offer::BootSnapshot => Action::BootSnapshot(snapshot, target),
-        Offer::SetDefaultEnvironment => Action::SetDefaultEnvironment(environment),
-        Offer::DefaultKernel => Action::InheritDefaultKernel(environment),
-        Offer::CommandLine => Action::InheritCommandLine(environment),
-        Offer::CreateSnapshot => Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap()),
-        Offer::Rollback => Action::Rollback(snapshot),
-        Offer::Destroy => Action::Destroy(vec![snapshot]),
-        Offer::Clone => Action::Clone(snapshot, target),
-        Offer::Duplicate => Action::Duplicate(snapshot, target),
-        Offer::Diff => Action::Diff(snapshot, None),
-        Offer::RestoreFiles => Action::RestoreFiles {
-            snapshot,
-            paths: vec![zbm_types::Untrusted::new("/etc/fstab".to_owned())],
-        },
-        Offer::Chroot => Action::Chroot(environment.into()),
-        Offer::Import => Action::Import(environment.pool(), model::ImportOptions::default()),
-        Offer::Export => Action::Export(environment.pool()),
-        Offer::OpenVolume => Action::Open {
-            device: "/dev/sda2".to_owned(),
-            name: None,
-        },
-        Offer::Reseal => Action::Reseal("luks-a".to_owned()),
-        Offer::ResetBootTries => Action::ResetBootTries(environment),
-        Offer::Shell => Action::Shell,
-        Offer::FirmwareSetup => Action::FirmwareSetup,
-        Offer::Power => Action::Reboot,
-    }
-}
-
-#[test]
-fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
-    // The chroot with `zfs-chroot`; opening a volume with a LUKS session,
-    // in an image with `cryptsetup`.
-    for (has_chroot, has_luks) in [(false, false), (true, true)] {
-        let fake = FakeSystem::new();
-        fake.files.dir("/zfsbootmenu");
-        if has_chroot {
-            fake.files.file(ZFS_CHROOT, "#!/bin/bash\n");
-        }
-        fake.environment.set("PATH", "/sbin");
-        fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
-        fake.runner.respond_program("zpool", 0, "");
-        fake.runner.respond_program("zfs", 0, "");
-        let runtime = Runtime::default();
-        let settings = zbm_luks::unlocker::Settings::new("/zfsbootmenu");
-        let prompter = crate::read::tests::NoPrompts;
-        let luks = Luks {
-            context: fake.context(),
-            settings: &settings,
-            interaction: &prompter,
-        };
-        let mut app = App::new(Context::new(fake.system()), &runtime);
-        if has_luks {
-            app = app.with_luks(luks);
-        }
-        let offers = app.snapshot().unwrap().offers;
-
-        assert!(!offers.is_empty());
-        assert_eq!(offers.contains(&model::Offer::Chroot), has_chroot);
-        assert_eq!(offers.contains(&model::Offer::OpenVolume), has_luks);
-        for kind in model::Offer::ALL {
-            let action = of_kind(kind);
-            assert_eq!(action.offer(), Some(kind));
-            let events = app.apply(&action, Through::Console(fake.system(), &NoShell));
-            let is_unavailable = events == unavailable(&action);
-            assert_eq!(
-                is_unavailable,
-                !offers.contains(&kind),
-                "{kind:?}: {events:?}"
-            );
-        }
-        // What only reads has no kind, and is performed whatever is offered.
-        let device = zbm_types::Untrusted::new("/dev/sda2".to_owned());
-        for action in [Action::ScanPools, Action::LoadDeviceLog(device)] {
-            assert!(action.is_read() && action.offer().is_none());
-            for through in [
-                Through::Quietly(fake.system()),
-                Through::Console(fake.system(), &NoShell),
-            ] {
-                let events = app.apply(&action, through);
-                assert_ne!(events, unavailable(&action), "{action:?}");
-            }
-        }
     }
 }
 

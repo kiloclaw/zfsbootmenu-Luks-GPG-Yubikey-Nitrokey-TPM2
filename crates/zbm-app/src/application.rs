@@ -19,7 +19,8 @@ use zbm_types::{DatasetName, FilesystemName};
 
 use crate::auth::{self, Authority};
 use crate::keyholder::Keyholders;
-use crate::model::{Action, Encryption, Event, Keyboard, Offer, Outcome, Snapshot};
+use crate::model::{Action, Encryption, Event, Keyboard, Outcome, Snapshot};
+use crate::power::{self, Reset};
 use crate::volumes::Volumes;
 use crate::{AppError, SnapshotError, boot, read};
 
@@ -331,16 +332,17 @@ impl<'a> App<'a> {
         if !self.is_allowed(action, &system) {
             return auth::refused();
         }
-        let pools =
-            || read::pools(&zbm_zfs::ZfsCli::new(self.context.runner())).unwrap_or_default();
         match action {
             Action::Shell => {
                 recovery.emergency_shell("");
                 Vec::new()
             }
-            Action::Reboot => boot::reset(&system, &pools(), "b"),
-            Action::PowerOff => boot::reset(&system, &pools(), "o"),
-            Action::FirmwareSetup => boot::firmware_setup(&system, &pools()),
+            Action::Reboot => power::reset(&system, Reset::Reboot),
+            Action::PowerOff => power::reset(&system, Reset::PowerOff),
+            Action::FirmwareSetup if boot::can_open_firmware_setup(system.files).is_err() => {
+                unavailable(action)
+            }
+            Action::FirmwareSetup => power::reset(&system, Reset::FirmwareSetup),
             Action::BootSnapshot(_, target) => self.boot_clone(action, target, &system, recovery),
             Action::Chroot(filesystem) => self.chroot(action, filesystem, &system),
             Action::ScanPools => self.scan(),
@@ -445,45 +447,6 @@ impl<'a> App<'a> {
         vec![Event::Finished(outcome)]
     }
 
-    /// The kinds of action the application performs on the machine of
-    /// `files`: the boot, a snapshot's too, the changes of package D
-    /// ([`Action::is_change`]), the default kernel and the command line,
-    /// restoring files, the import and the export among them, the recovery
-    /// shell, the chroot when the image has `zfs-chroot`, the power
-    /// actions, and opening a volume with a LUKS session in an image with
-    /// `cryptsetup`. The others have no use case yet, and end as
-    /// [`unavailable`].
-    fn offers(&self, files: &dyn zbm_platform::Files) -> std::collections::BTreeSet<Offer> {
-        let chroot = files.exists(Path::new(ZFS_CHROOT)).then_some(Offer::Chroot);
-        let open = self
-            .luks
-            .filter(|luks| luks.context.command_exists("cryptsetup"))
-            .map(|_| Offer::OpenVolume);
-        [
-            Offer::Boot,
-            Offer::BootSnapshot,
-            Offer::SetDefaultEnvironment,
-            Offer::DefaultKernel,
-            Offer::CommandLine,
-            Offer::CreateSnapshot,
-            Offer::Rollback,
-            Offer::Destroy,
-            Offer::Clone,
-            Offer::Duplicate,
-            Offer::Diff,
-            Offer::RestoreFiles,
-            Offer::Import,
-            Offer::Export,
-            Offer::Shell,
-            Offer::FirmwareSetup,
-            Offer::Power,
-        ]
-        .into_iter()
-        .chain(chroot)
-        .chain(open)
-        .collect()
-    }
-
     /// The LUKS volumes of the session, when the application has one.
     pub(crate) fn volumes(&self) -> Vec<crate::model::Volume> {
         self.luks
@@ -579,10 +542,13 @@ impl Application for App<'_> {
     }
 }
 
+mod offers;
 mod reads;
 mod seen;
 
 pub use seen::Seen;
 
+#[cfg(test)]
+mod offers_tests;
 #[cfg(test)]
 mod tests;

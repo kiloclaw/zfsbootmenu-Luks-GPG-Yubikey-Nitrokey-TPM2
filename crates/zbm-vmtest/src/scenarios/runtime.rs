@@ -58,6 +58,9 @@
 //!   FAT disk before `kexec`; after a restart, `zbm debug saved` lists them
 //!   and `zbm report` writes a report beside them (ROADMAP.md #9); the
 //!   other reports of `zbm-debug(8)` read the restart's start-up.
+//! - `rust-recovery` (`recovery`): the recovery tools as `zbm`'s applets
+//!   (ADR 0018): on this BIOS machine the menu's Recovery Tools list no
+//!   Firmware Setup, and the shell's `firmware-setup` says why and exits 1.
 //! - `rust-gpu` (`gpu`): the image's graphics drivers load before the
 //!   countdown, for the GPUs `zbm.gpu` chooses, on QEMU's standard VGA and
 //!   a virtio GPU (ROADMAP.md #17).
@@ -101,6 +104,7 @@ mod key_file;
 mod keysource;
 mod record_fixtures;
 mod record_zfs;
+mod recovery;
 pub(crate) mod saved;
 pub(crate) mod setup;
 mod signals;
@@ -137,7 +141,7 @@ fn check_workspace(test: &Test, name: &str, menu: Option<&str>) {
 /// Runs `setup`, `record-zfs`, `rust-keyfile`, `rust-crash`, `rust-autosize`,
 /// `rust-colours`, `rust-drm`, `rust-console`, `rust-console-start`,
 /// `rust-console-comfort`, `rust-console-serial`, `rust-console-lines`,
-/// `rust-saved`, `rust-gpu`,
+/// `rust-saved`, `rust-recovery`, `rust-gpu`,
 /// `RUNTIME-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
@@ -159,6 +163,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-console-serial" => console_serial::run(test),
         "rust-console-lines" => console_lines::run(test),
         "rust-saved" => saved::run(test),
+        "rust-recovery" => recovery::run(test),
         "rust-gpu" => gpu::run(test),
         "legacy-keysource" => keysource::run(test, ZbmRuntime::Legacy),
         "rust-keysource" => keysource::run(test, ZbmRuntime::Rust),

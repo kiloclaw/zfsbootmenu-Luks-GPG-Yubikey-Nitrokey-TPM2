@@ -22,8 +22,8 @@ const BE: &str = "BE-INIT-START\r\nBE-KERNEL: 7.3.1-zbm\r\n\
 
 #[test]
 fn the_efi_command_line_names_the_volume_and_the_key_file_on_a_stick() {
-    let plain = efi_cmdline(UUID, false);
-    let usb = efi_cmdline(UUID, true);
+    let plain = efi_cmdline(UUID, false, ZbmRuntime::Legacy);
+    let usb = efi_cmdline(UUID, true, ZbmRuntime::Legacy);
 
     assert_eq!(
         plain,
@@ -33,6 +33,74 @@ fn the_efi_command_line_names_the_volume_and_the_key_file_on_a_stick() {
         usb,
         format!("{plain} zbm.luks_key=/keys/zroot.key:LABEL=ZBMKEY")
     );
+    assert_eq!(efi_cmdline(UUID, true, ZbmRuntime::Rust), usb);
+}
+
+#[test]
+fn the_rust_image_without_a_stick_counts_down_long_enough_to_escape() {
+    let plain = efi_cmdline(UUID, false, ZbmRuntime::Rust);
+
+    assert_eq!(
+        plain,
+        "console=ttyS0 loglevel=4 zbm.timeout=30 zbm.luks=UUID=5d0c3a1e-0000-4000-8000-000000000001"
+    );
+}
+
+/// What the Rust runtime shows from the passphrase prompt to its power
+/// sheet, which lists `entries`, after Escape and `x`.
+fn to_the_power_sheet(entries: &'static str) -> Vec<Step> {
+    vec![
+        Step::Say("Passphrase (leave empty to skip): "),
+        Step::Hear(PW),
+        Step::Say("\x1b[H\x1b[2JBooting zroot/ROOT/be in 30 s.\r\n"),
+        Step::Keys("\x1b"),
+        Step::Keys("x"),
+        Step::Say(entries),
+    ]
+}
+
+#[test]
+fn on_uefi_the_menu_offers_firmware_setup_then_boots_the_environment() {
+    let settings = settings("firmware-menu");
+    let test = Test::new(&settings, "firmware-boot").unwrap();
+    let mut script = to_the_power_sheet(
+        "\x1b[H\x1b[2JPOWER\r\n Power Off\r\n Reboot\r\n Reboot into Firmware Setup\r\n",
+    );
+    script.extend([
+        Step::Keys("\x1b"),
+        Step::Keys("\r"),
+        Step::Say(STATUS),
+        Step::Say(BE),
+    ]);
+    let (mut vm, guest) = scripted(&test, script);
+
+    let boot = boot_from_the_menu(&test, &mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert_eq!(boot.prompts, ["luks"]);
+    assert_eq!(
+        recorded(&test),
+        ["ok   - on UEFI, the menu's power sheet offers Reboot into Firmware Setup"]
+    );
+    cleanup(&settings);
+}
+
+#[test]
+fn a_power_sheet_without_firmware_setup_fails_the_check() {
+    let settings = settings("firmware-menu-none");
+    let test = Test::new(&settings, "firmware-boot").unwrap();
+    let script = to_the_power_sheet("\x1b[H\x1b[2JPOWER\r\n Power Off\r\n Reboot\r\n");
+    let (mut vm, guest) = scripted(&test, script);
+
+    let boot = boot_from_the_menu(&test, &mut vm);
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert!(boot.is_err());
+    assert_eq!(
+        recorded(&test),
+        ["FAIL - on UEFI, the menu's power sheet offers Reboot into Firmware Setup"]
+    );
+    cleanup(&settings);
 }
 
 #[test]

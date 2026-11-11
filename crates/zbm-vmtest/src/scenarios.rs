@@ -70,6 +70,7 @@ pub const ALL: &[&str] = &[
     "runtime-rust-console-serial",
     "runtime-rust-console-lines",
     "runtime-rust-saved",
+    "runtime-rust-recovery",
     "runtime-rust-gpu",
     "menu-setup",
     "menu-snapshots",

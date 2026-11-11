@@ -10,16 +10,20 @@ use zbm_types::LINKED;
 use super::{Entry, Fatal, Image, library};
 
 /// What the Rust runtime is instead of the legacy runtime's files: `zbm`
-/// is the start-up program, `zluks`, the menu, the hook stages' runner and
-/// the library functions' (`zfunc`); the library itself is generated
-/// ([`library`]).
-const RUST_REPLACES: [&str; 6] = [
+/// is the start-up program, `zluks`, the menu, the hook stages' runner, the
+/// library functions' (`zfunc`), and `reboot` with its other names; the
+/// library itself is generated ([`library`]).
+const RUST_REPLACES: [&str; 10] = [
     "libexec/zfsbootmenu-init",
     "libexec/zfsbootmenu-run-hooks",
     "libexec/zfunc",
     "bin/zluks",
     "bin/zfsbootmenu",
     "bin/zbm",
+    "bin/reboot",
+    "bin/poweroff",
+    "bin/shutdown",
+    "bin/firmware-setup",
 ];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug

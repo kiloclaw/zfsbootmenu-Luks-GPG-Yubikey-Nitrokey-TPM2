@@ -13,6 +13,8 @@
 //! - `setup`: partitions on the host, creates LUKS and the pool in the
 //!   recovery shell;
 //! - `boot`: firmware, ZFSBootMenu (one passphrase), boot environment;
+//!   with the Rust runtime, the boot is chosen in the menu, whose power
+//!   sheet must offer Reboot into Firmware Setup;
 //! - `usbkey`: `zbm.luks_key=` names a key file on a FAT USB stick: no
 //!   prompt;
 //! - `usblate`: the stick is inserted while ZFSBootMenu waits for it: no
@@ -25,7 +27,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-use crate::boot::{Boot, Follow, check_be, check_teardown, dialogs, follow_boot};
+use crate::boot::{Boot, Follow, check_be, check_teardown, dialogs, follow_boot, prompt};
 use crate::disks::vfat_disk;
 use crate::error::{Error, Result};
 use crate::expect::regex;
@@ -33,7 +35,7 @@ use crate::gpt::{self, Partition};
 use crate::images::{ImageSpec, zbm_image};
 use crate::qemu::Machine;
 use crate::record::Test;
-use crate::settings::{FAST_PBKDF, OVMF_VARS, PW, Settings};
+use crate::settings::{FAST_PBKDF, OVMF_VARS, PW, Settings, ZbmRuntime};
 use crate::vm::Vm;
 
 use super::payload;
@@ -52,6 +54,16 @@ const ESP_START: u64 = 256;
 
 /// The size of the NVMe disk.
 const NVME_SIZE: u64 = 2 << 30;
+
+/// The countdown of the boot environment.
+const COUNTDOWN: &str = r"Booting \S*zroot/ROOT/be\S* in";
+
+/// The countdown on the screen of the Rust runtime's menu, which redraws
+/// only the cells that change.
+const MENU_COUNTDOWN: &str = r"screen:Booting \S*zroot/ROOT/be\S* in";
+
+/// The entry of the power sheet that reboots into the firmware setup.
+const FIRMWARE_SETUP: &str = "screen:Reboot into Firmware Setup";
 
 /// The scenarios that boot with the key file on a USB stick.
 const USB_SCENARIOS: [&str; 3] = ["usbkey", "usblate", "nostick"];
@@ -239,9 +251,17 @@ fn create_pool(vm: &mut Vm<'_>) -> Result<()> {
     Ok(())
 }
 
-/// The command line of the EFI image.
-fn efi_cmdline(uuid: &str, usb: bool) -> String {
-    let mut cmdline = format!("console=ttyS0 loglevel=4 zbm.timeout=3 zbm.luks=UUID={uuid}");
+/// The command line of the EFI image of `runtime`. The countdown of the
+/// image without a stick, which only `boot` uses, is long enough for the
+/// test to press Escape in the menu of the Rust runtime.
+fn efi_cmdline(uuid: &str, usb: bool, runtime: ZbmRuntime) -> String {
+    let timeout = if !usb && runtime == ZbmRuntime::Rust {
+        30
+    } else {
+        3
+    };
+    let mut cmdline =
+        format!("console=ttyS0 loglevel=4 zbm.timeout={timeout} zbm.luks=UUID={uuid}");
     if usb {
         cmdline.push_str(" zbm.luks_key=/keys/zroot.key:LABEL=ZBMKEY");
     }
@@ -254,7 +274,7 @@ fn efi_image(settings: &Settings, uuid: &str, usb: bool) -> Result<PathBuf> {
     let variant = if usb { "firmware-usb" } else { "firmware" };
     let spec = ImageSpec {
         efi: true,
-        cmdline: Some(efi_cmdline(uuid, usb)),
+        cmdline: Some(efi_cmdline(uuid, usb, settings.runtime)),
         ..ImageSpec::new(variant)
     };
     Ok(zbm_image(settings, &spec)?.efi)
@@ -288,7 +308,11 @@ fn boot(test: &Test, files: &Files, scenario: &str, uuid: &str) -> Result<Boot> 
     let mut vm = Vm::start(test, scenario, &machine)?;
     match scenario {
         "boot" => {
-            let boot = follow_boot(&mut vm, Follow::default())?;
+            let boot = if test.settings().runtime == ZbmRuntime::Rust {
+                boot_from_the_menu(test, &mut vm)?
+            } else {
+                follow_boot(&mut vm, Follow::default())?
+            };
             test.check(
                 boot.prompts == ["luks"],
                 &format!(
@@ -312,6 +336,35 @@ fn boot(test: &Test, files: &Files, scenario: &str, uuid: &str) -> Result<Boot> 
         "usblate" => usblate(test, &mut vm, &stick),
         _ => nostick(test, &mut vm),
     }
+}
+
+/// Answers the passphrase prompt, escapes the countdown of the Rust
+/// runtime's menu, checks that its power sheet offers Reboot into Firmware
+/// Setup, which the firmware can open, then boots from the menu; returns
+/// what the boot showed, its passphrase prompt first.
+fn boot_from_the_menu(test: &Test, vm: &mut Vm<'_>) -> Result<Boot> {
+    vm.expect(&[prompt::LUKS, dialogs::LUKS], 2400)?;
+    test.step("prompt luks -> answered");
+    thread::sleep(Duration::from_millis(500));
+    vm.sendline(PW)?;
+    vm.expect(&[COUNTDOWN, MENU_COUNTDOWN], 1200)?;
+    test.step("the countdown -> Escape, then x: the power sheet");
+    thread::sleep(Duration::from_secs(2));
+    vm.send("\x1b")?;
+    thread::sleep(Duration::from_secs(1));
+    vm.send("x")?;
+    let offered = vm.expect1(FIRMWARE_SETUP, 60).is_ok();
+    test.check(
+        offered,
+        "on UEFI, the menu's power sheet offers Reboot into Firmware Setup",
+    );
+    test.step("Escape, then Enter: the boot of zroot/ROOT/be");
+    vm.send("\x1b")?;
+    thread::sleep(Duration::from_secs(1));
+    vm.send("\r")?;
+    let mut boot = follow_boot(vm, Follow::default())?;
+    boot.prompts.insert(0, "luks".to_owned());
+    Ok(boot)
 }
 
 /// Inserts the stick while ZFSBootMenu waits for it.

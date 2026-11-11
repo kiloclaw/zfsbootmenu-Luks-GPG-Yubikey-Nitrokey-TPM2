@@ -25,6 +25,7 @@ pub mod devices;
 pub mod keyholder;
 pub mod model;
 mod plan;
+pub mod power;
 pub mod prompt;
 mod read;
 pub mod remote;

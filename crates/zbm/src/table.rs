@@ -4,7 +4,7 @@
 
 use crate::{
     Applet, applets, console, console_font, debug, explain, fonts, image, layouts, lock, luks,
-    measure, menu, report, run_hooks, unlock, zfunc,
+    measure, menu, power, report, run_hooks, unlock, zfunc,
 };
 
 const INIT: Applet = Applet {
@@ -283,6 +283,50 @@ not be read or the terminal used, 2 for an argument.
     run: menu::run,
 };
 
+pub(crate) const REBOOT: Applet = Applet {
+    name: "reboot",
+    names: &[],
+    summary: "export the writable pools, then reboot",
+    usage: "\
+Usage: reboot
+
+Exports the pools imported read/write, then reboots the machine. It takes no
+arguments, and returns only when the machine did not reboot: it then says why
+and exits 1.
+",
+    run: power::reboot,
+};
+
+pub(crate) const POWEROFF: Applet = Applet {
+    name: "poweroff",
+    names: &[("shutdown", &[])],
+    summary: "export the writable pools, then power off (also shutdown)",
+    usage: "\
+Usage: poweroff
+       shutdown
+
+Exports the pools imported read/write, then powers the machine off. It takes
+no arguments, and returns only when the machine did not power off: it then
+says why and exits 1.
+",
+    run: power::poweroff,
+};
+
+pub(crate) const FIRMWARE_SETUP: Applet = Applet {
+    name: "firmware-setup",
+    names: &[],
+    summary: "export the writable pools, then reboot into the firmware's setup",
+    usage: "\
+Usage: firmware-setup
+
+Exports the pools imported read/write, then reboots into the firmware's setup,
+where the firmware says it can open it. It takes no arguments, and returns only
+when the machine did not reboot, as on a machine that boots from a BIOS: it
+then says why and exits 1.
+",
+    run: power::firmware_setup,
+};
+
 /// The commands `zbm` provides.
 pub const APPLETS: &[Applet] = &[
     INIT,
@@ -304,6 +348,9 @@ pub const APPLETS: &[Applet] = &[
     LOCK,
     RUN_HOOKS,
     ZFUNC,
+    REBOOT,
+    POWEROFF,
+    FIRMWARE_SETUP,
 ];
 
 #[cfg(test)]
@@ -346,6 +393,16 @@ mod tests {
                 applet.usage
             );
             assert!(applet.usage.ends_with('\n'), "{name}");
+        }
+    }
+
+    #[test]
+    fn every_name_of_an_applet_is_linked() {
+        for applet in APPLETS {
+            for (name, first) in applet.names {
+                let linked = LINKED.iter().find(|linked| linked.name == *name);
+                assert_eq!(linked.map(|linked| linked.first), Some(*first), "{name}");
+            }
         }
     }
 
