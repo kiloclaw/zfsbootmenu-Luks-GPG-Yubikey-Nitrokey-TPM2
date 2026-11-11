@@ -78,6 +78,11 @@ fn info_lines(fake: &FakeSystem) -> Vec<String> {
         .collect()
 }
 
+/// A system report that says only what it is.
+fn report(_: &Context<'_>, _: &State<'_>) -> String {
+    "\x1b[1;37mSystem Report\n\n\x1b[0m\x1b[0;33m\n>> Imported zpools\n\x1b[0mtank\n\n".to_owned()
+}
+
 fn strict() -> ImportSettings {
     ImportSettings {
         policy: ImportPolicy::Strict,
@@ -98,7 +103,7 @@ fn late_luks_volumes_are_unlocked_before_retrying() {
         opens: vec![1, 4],
         ..FakeOperator::default()
     };
-    stage(&fake.context(), &state, &strict(), &operator);
+    stage(&fake.context(), &state, &strict(), &operator, report);
     assert_eq!(operator.unlocks.get(), 4);
     assert_eq!(operator.prompts.get(), ["pool 5"]);
     assert_eq!(
@@ -128,7 +133,7 @@ fn escape_opens_the_recovery_shell_after_logging_unavailable_pools() {
         retry_delay: RetryDelay::or_default("2"),
         ..strict()
     };
-    stage(&fake.context(), &state, &settings, &operator);
+    stage(&fake.context(), &state, &settings, &operator, report);
     assert_eq!(operator.prompts.get(), ["tank 2"]);
     assert_eq!(
         operator.shells.get(),
@@ -164,7 +169,8 @@ fn host_id_matching_records_the_host_id() {
         policy: ImportPolicy::Hostid,
         ..ImportSettings::default()
     };
-    let imported = stage(&fake.context(), &state, &settings, &FakeOperator::default());
+    let operator = FakeOperator::default();
+    let imported = stage(&fake.context(), &state, &settings, &operator, report);
     assert_eq!(
         imported.spl_hostid.as_ref().map(HostId::as_str),
         Some("deadbeef")
@@ -195,7 +201,7 @@ fn unhealthy_and_unsupported_pools_are_restricted() {
     for build in [Build::Local, Build::Release] {
         let settings = ImportSettings { build, ..strict() };
         let operator = FakeOperator::default();
-        let imported = stage(&fake.context(), &state, &settings, &operator);
+        let imported = stage(&fake.context(), &state, &settings, &operator, report);
         assert_eq!(imported.bootfs.unwrap().as_str(), "tank/ROOT/a");
         assert_eq!(operator.warnings.borrow().len(), 1);
     }
@@ -239,4 +245,40 @@ fn the_boot_environment_is_preferred_then_taken_from_the_pools() {
     let log = stub_lines(&fake.kmsg());
     assert!(log.contains("ERROR: bootfs value 'tank/ROOT/none' not a ZFS dataset"));
     assert!(log.contains("ERROR: bootfs value 'tank@snap' not a ZFS dataset"));
+}
+
+/// ADR 0018, point 17: the import stage logs the system report at debug
+/// level, after an empty line and without its colours and trailing
+/// newlines, as the legacy stage logged `zreport`'s; below that level the
+/// report is not made.
+#[test]
+fn the_import_stage_logs_the_report_at_debug_only() {
+    for (loglevel, logged) in [("7", true), ("6", false)] {
+        let fake = FakeSystem::new();
+        fake.files.dir("/zfsbootmenu");
+        let _log = zbm_platform::KernelLog::new(
+            &fake.files,
+            loglevel,
+            std::path::Path::new("/zfsbootmenu"),
+            1,
+        )
+        .install();
+        fake.runner.respond("zpool list -H -o name", 0, "tank\n");
+        let state = State::new(&fake.files, "/zfsbootmenu");
+
+        stage(
+            &fake.context(),
+            &state,
+            &strict(),
+            &FakeOperator::default(),
+            report,
+        );
+
+        let log = stub_lines(&fake.kmsg());
+        let expected = "DEBUG: \nDEBUG: System Report\nDEBUG: \nDEBUG: \n\
+                        DEBUG: >> Imported zpools\nDEBUG: tank\n";
+        assert_eq!(log.contains(expected), logged, "{log}");
+        assert_eq!(log.contains("System Report"), logged, "{log}");
+        assert!(!fake.kmsg().contains('\x1b'), "{}", fake.kmsg());
+    }
 }

@@ -25,6 +25,9 @@
 //!   the commands, `zfs-chroot` among them; on the terminal it opens the
 //!   pager on the commands, and `q` leaves it, back at the prompt, `help`
 //!   ending with 0;
+//! - the shell's zreport, which is `zbm`'s, through a pipe: it exits 0
+//!   and lists the built-in step `teardown.d/80-luks-close.sh` among its
+//!   steps, to run, as nothing replaces or skips it on this machine;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
@@ -106,6 +109,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     shell_tools(test, &mut vm)?;
     logs(test, &mut vm)?;
     help(test, &mut vm)?;
+    zreport(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
@@ -302,6 +306,35 @@ fn pager(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     test.check(
         left,
         "q leaves the pager, back at the prompt, help ending with 0",
+    );
+    Ok(())
+}
+
+/// zreport through a pipe, which shows its own exit status.
+const ZREPORT_PIPED: &str = "{ zreport; echo ZREPORT-STATUS=$?; } | cat";
+
+/// The built-in step the report must list, by stage and name.
+const LUKS_CLOSE: &str = "teardown.d/80-luks-close.sh";
+
+/// Runs zreport through a pipe, which must exit 0 and list the LUKS
+/// close among the built-in steps, with no state after it: it runs.
+///
+/// # Errors
+///
+/// When the command does not end in time.
+fn zreport(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("zreport | cat: the system report, with the built-in steps");
+    let (_, said) = vm.sh_show(ZREPORT_PIPED)?;
+    test.check(
+        said.lines().any(|line| line.trim() == "ZREPORT-STATUS=0"),
+        "zreport exits 0 through a pipe",
+    );
+    let steps = said.split(">> Built-in steps").nth(1).unwrap_or_default();
+    test.check(
+        steps
+            .lines()
+            .any(|line| line.contains(LUKS_CLOSE) && !line.contains(" (")),
+        &format!("zreport lists the built-in step {LUKS_CLOSE}, which runs"),
     );
     Ok(())
 }

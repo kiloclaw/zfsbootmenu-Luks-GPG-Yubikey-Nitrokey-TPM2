@@ -63,7 +63,7 @@ impl Operator for Prompts<'_, '_> {
 }
 
 /// The start-up stage `init.d/50-import-pools`, with the start-up program's
-/// prompts and `recovery`.
+/// prompts and `recovery`, and its system report at debug level.
 pub fn stage(
     system: &System<'_>,
     state: &State<'_>,
@@ -71,7 +71,13 @@ pub fn stage(
     recovery: &dyn Recovery,
 ) -> Imported {
     let context = Context::new(*system);
-    zbm_pool::stage(&context, state, settings, &Prompts::new(system, recovery))
+    zbm_pool::stage(
+        &context,
+        state,
+        settings,
+        &Prompts::new(system, recovery),
+        crate::zfunc::report,
+    )
 }
 
 #[cfg(test)]

@@ -196,3 +196,22 @@ fn a_program_that_cannot_start_says_why() {
 
     assert!(failed.contains("not found"), "{failed}");
 }
+
+#[test]
+fn modinfo_names_a_module_s_file_and_version() {
+    let fake = FakeSystem::new();
+    fake.runner
+        .respond("modinfo -F filename zfs", 0, "/lib/modules/zfs.ko\n\n");
+    fake.runner
+        .respond("modinfo -F version zfs", 0, "2.2.6-1\n");
+    fake.runner.respond("modinfo -F version spl", 1, "");
+    let modules = Modules::of(&fake.system());
+
+    assert_eq!(modules.file("zfs").as_deref(), Some("/lib/modules/zfs.ko"));
+    assert_eq!(modules.version("zfs").as_deref(), Some("2.2.6-1"));
+    assert_eq!(modules.version("spl"), None);
+    fake.runner
+        .on(|_| Some(Err(io::Error::from(io::ErrorKind::NotFound))));
+    assert_eq!(modules.file("spl"), None);
+    assert_eq!(fake.runner.calls()[0].get_stdin(), &Input::Null);
+}

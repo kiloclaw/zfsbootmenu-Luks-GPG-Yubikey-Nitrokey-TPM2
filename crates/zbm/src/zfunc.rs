@@ -30,7 +30,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         .read_to_string(Path::new(conf::PATH))
         .map(|text| Conf::parse(&text))
         .unwrap_or_default();
-    match zbm_startup::zfunc::run(&system, &conf, function, args) {
+    match zbm_startup::zfunc::run(&system, &conf, function, args, io.stdout) {
         Outcome::Status(status) => status,
         Outcome::Legacy(command) => replace_with(&command, io),
     }
@@ -146,7 +146,6 @@ mod tests {
                 "cache_key",
                 "load_key",
                 "be_location",
-                "zreport",
                 "import_zbm_hooks",
                 "is_mountpoint",
                 "is_mounted",
@@ -162,7 +161,6 @@ mod tests {
                 "make_cmdline_dir",
                 "get_zbm_arg",
                 "get_zbm_bool",
-                "zbmcmdline",
             ]
         );
         for name in natives {

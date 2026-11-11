@@ -216,16 +216,36 @@ impl<'a> Modules<'a> {
         }
     }
 
+    /// The file of `module` (`modinfo -F filename`), when `modinfo` names
+    /// one.
+    pub fn file(&self, module: &str) -> Option<String> {
+        self.modinfo("filename", module)
+    }
+
+    /// The version of `module`'s file (`modinfo -F version`), when
+    /// `modinfo` names one.
+    pub fn version(&self, module: &str) -> Option<String> {
+        self.modinfo("version", module)
+    }
+
+    /// What `modinfo -F FIELD MODULE` prints, without its trailing
+    /// newlines, as a shell's command substitution takes it; its messages
+    /// go to this process's standard error. `None` when it prints nothing
+    /// or cannot start.
+    fn modinfo(&self, field: &str, module: &str) -> Option<String> {
+        let command = Command::new("modinfo")
+            .args(["-F", field, module])
+            .stdin(Input::Null);
+        let output = self.runner.run(&command).ok()?;
+        let text = output.stdout_text().trim_end_matches('\n').to_owned();
+        (!text.is_empty()).then_some(text)
+    }
+
     /// `insmod $(modinfo -F filename MODULE) PARAMETERS`.
     fn insmod(&self, module: &str, parameters: &[&str]) -> Result<(), Failure> {
-        let found = self
-            .runner
-            .run(&Command::new("modinfo").args(["-F", "filename", module]))
-            .map(|output| output.stdout_text().trim_end_matches('\n').to_owned())
-            .unwrap_or_default();
-        if found.is_empty() {
+        let Some(found) = self.file(module) else {
             return Err(format!("module {module} not found"));
-        }
+        };
         let command = Command::new("insmod")
             .arg(found)
             .timeout(LOAD_TIMEOUT)

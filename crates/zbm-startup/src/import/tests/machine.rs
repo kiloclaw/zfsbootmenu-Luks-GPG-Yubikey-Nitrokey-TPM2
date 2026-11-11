@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use zbm_platform::console::Screen;
 use zbm_platform::exec::{Command, Stream, SystemRunner};
-use zbm_platform::{KernelLog, Runner, System};
+use zbm_platform::{Context, KernelLog, Runner, System};
 use zbm_pool::{BootfsPreference, Build, ImportSettings, PoolRequirement, RetryDelay};
 use zbm_state::State;
 use zbm_testkit::TempDir;
@@ -17,7 +17,7 @@ use zbm_testkit::parity::Parity;
 use zbm_types::ImportPolicy;
 use zbm_types::PoolName;
 
-use crate::import::stage;
+use crate::import::Prompts;
 use zbm_boot::Recovery;
 use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID};
 use zbm_testkit::legacy::{LINE_LOG_STUBS, stub_lines};
@@ -295,8 +295,9 @@ impl Scenario {
             )
             .call("run", &[], b"");
         assert!(output.status.is_success(), "{}", output.stderr_text());
-        // zreport is not ported yet; it only adds debugging output. The
-        // messages name the moved files by their real paths.
+        // zreport, stubbed on both sides, only adds debugging output; its
+        // own parity test is zfunc's. The messages name the moved files by
+        // their real paths.
         let log = log_lines(&output.stderr_text())
             .replace("DEBUG: REPORT\n", "")
             .replace(&format!("{z}/etc_hostid"), "/etc/hostid");
@@ -353,8 +354,17 @@ impl Scenario {
             dir: dir.path().to_path_buf(),
             shells: std::sync::atomic::AtomicUsize::new(0),
         };
-        let imported = stage(&system, &state, &self.settings.import(), &recovery);
-        let log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
+        // The report runs programs this machine has not; the legacy
+        // stage's is stubbed the same way.
+        let imported = zbm_pool::stage(
+            &Context::new(system),
+            &state,
+            &self.settings.import(),
+            &Prompts::new(&system, &recovery),
+            |_, _| "REPORT".to_owned(),
+        );
+        let log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default())
+            .replace("DEBUG: REPORT\n", "");
         // The marker files of warnings and errors are the Rust log's own.
         let _ = std::fs::remove_file(dir.join("base/have_errors"));
         let _ = std::fs::remove_file(dir.join("base/have_warnings"));

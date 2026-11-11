@@ -9,6 +9,7 @@
 //! provides.
 
 use zbm_config::spec::properties::BOOTFS;
+use zbm_platform::color::decolorize;
 use zbm_platform::{Context, Runner};
 use zbm_state::State;
 use zbm_trace::Level;
@@ -59,12 +60,15 @@ pub struct Imported {
     pub spl_hostid: Option<HostId>,
 }
 
-/// The start-up stage `init.d/50-import-pools`.
+/// The start-up stage `init.d/50-import-pools`. At debug level it logs
+/// `report`'s system report once the pools are imported, without its
+/// colours; the start-up program passes its own.
 pub fn stage(
     context: &Context<'_>,
     state: &State<'_>,
     settings: &ImportSettings,
     operator: &dyn Operator,
+    report: fn(&Context<'_>, &State<'_>) -> String,
 ) -> Imported {
     let mut imported = Imported::default();
     let mut retry = ImportLoop::new(settings);
@@ -82,10 +86,13 @@ pub fn stage(
     }
 
     restrict_unhealthy(context.runner(), state);
-    // `zdebug && zdebug "$( zreport )"`: the first call writes an empty line.
-    // The system report itself arrives with the recovery tools (package F).
+    // `zdebug && zdebug "$( zreport )"`: the first call writes an empty line,
+    // the second the report, its trailing newlines cut.
     if zbm_trace::enabled(Level::Debug) {
         zbm_trace::debug!("");
+        let text = decolorize(&report(context, state));
+        let logged = text.trim_end_matches('\n');
+        zbm_trace::debug!("{report}"; report = logged);
     }
     check_unsupported(context.runner(), state, settings, operator);
     imported.bootfs = find_bootfs(context.runner(), state, settings);

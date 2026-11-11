@@ -8,14 +8,16 @@
 //! it skipped, and which early-setup steps ran, are recorded in the state
 //! directory ([`State::step_records`]), so that every process that runs a
 //! stage, start-up's and the menu's, builds the same table from them
-//! ([`built_in`]).
+//! ([`built_in`]), and the system report tells what became of each
+//! ([`StepState`]).
 
+use std::ffi::OsStr;
 use std::path::Path;
 
 use zbm_bootenv::BootEnvError;
-use zbm_bootenv::hooks::{BootStep, BootSteps, HookEnv};
-use zbm_platform::Context;
+use zbm_bootenv::hooks::{BootStep, BootSteps, HookEnv, executable_hooks};
 use zbm_platform::files::FileKind;
+use zbm_platform::{Context, Files};
 use zbm_state::State;
 use zbm_tools::modules::Modules;
 use zbm_tools::programs;
@@ -37,19 +39,72 @@ static TABLE: [&dyn BootStep; 6] = [
     &XhciUnbind,
 ];
 
+/// Whether `records` hold the record `prefix` of the step `name`.
+fn is_recorded(records: &[String], prefix: &str, name: &str) -> bool {
+    records
+        .iter()
+        .any(|record| record.strip_prefix(prefix) == Some(name))
+}
+
 /// The steps a boot runs: every built-in step but those `zbm.skip_hooks`
 /// left out and the early-setup steps that ran, as `state` records them.
 pub fn built_in(state: &State<'_>) -> BootSteps {
     let records = state.step_records();
-    let recorded = |prefix: &str, name: &str| {
-        records
-            .iter()
-            .any(|record| record.strip_prefix(prefix) == Some(name))
-    };
     BootSteps::from(TABLE.to_vec()).retain(|step| {
-        let ran = step.stage() == HookStage::EarlySetup && recorded(RAN, step.name());
-        !ran && !recorded(SKIPPED, step.name())
+        let ran = step.stage() == HookStage::EarlySetup && is_recorded(&records, RAN, step.name());
+        !ran && !is_recorded(&records, SKIPPED, step.name())
     })
+}
+
+/// What became of a built-in step: what the system report says of it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StepState {
+    /// `zbm.skip_hooks` left it out.
+    Skipped,
+    /// A hook of its name runs in its place, or ran once in its place and
+    /// was renamed with the suffix `.completed`.
+    Replaced,
+    /// It ran once, at start-up, as an early-setup step does.
+    Ran,
+    /// It runs when its stage does.
+    Pending,
+}
+
+impl StepState {
+    /// Each built-in step, in the order of their names, by stage and
+    /// name, with its state: as `state` records it, and as the hooks
+    /// below `root` replace it.
+    pub fn of_each(
+        files: &dyn Files,
+        root: &Path,
+        state: &State<'_>,
+    ) -> Vec<(HookStage, &'static str, StepState)> {
+        let records = state.step_records();
+        let replaced = |hooks: HookStage, name: &str| {
+            let completed = root.join(hooks.as_str()).join(format!("{name}.completed"));
+            files.exists(&completed)
+                || executable_hooks(files, root, hooks)
+                    .iter()
+                    .any(|hook| hook.file_name() == Some(OsStr::new(name)))
+        };
+        TABLE
+            .iter()
+            .map(|step| {
+                let (hooks, name) = (step.stage(), step.name());
+                let ran = hooks == HookStage::EarlySetup && is_recorded(&records, RAN, name);
+                let how = if is_recorded(&records, SKIPPED, name) {
+                    StepState::Skipped
+                } else if replaced(hooks, name) {
+                    StepState::Replaced
+                } else if ran {
+                    StepState::Ran
+                } else {
+                    StepState::Pending
+                };
+                (hooks, name, how)
+            })
+            .collect()
+    }
 }
 
 /// Whether `wanted`, an entry of `zbm.skip_hooks`, names the step `name`:

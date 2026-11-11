@@ -147,3 +147,30 @@ fn an_import_reports_its_status_and_output() {
     assert_eq!(zpool.export(&tank), 126);
     assert_eq!(zpool.status(), "");
 }
+
+#[test]
+fn the_report_s_listings_are_what_the_programs_print() {
+    let runner = FakeRunner::new();
+    runner.respond("zfs version", 0, "zfs-2.2.6-1\nzfs-kmod-2.2.6-1\n");
+    runner.respond("zpool list", 0, "NAME  SIZE\ntank  10G\n");
+    runner.respond("zfs list -o name,keystatus", 1, "NAME  KEYSTATUS\n");
+    let zfs = ZfsText::new(&runner);
+
+    assert_eq!(zfs.version_text(), "zfs-2.2.6-1\nzfs-kmod-2.2.6-1\n");
+    assert_eq!(zfs.pool_list_text(), "NAME  SIZE\ntank  10G\n");
+    assert_eq!(
+        zfs.dataset_columns(&["name", "keystatus"]),
+        (1, "NAME  KEYSTATUS\n".to_owned())
+    );
+    assert!(
+        runner
+            .calls()
+            .iter()
+            .all(|call| call.get_stderr() == Stream::Inherit)
+    );
+
+    let missing = FakeRunner::new();
+    missing.on(|_| Some(Err(io::Error::other("no zfs"))));
+    let zfs = ZfsText::new(&missing);
+    assert_eq!(zfs.dataset_columns(&["name"]), (126, String::new()));
+}

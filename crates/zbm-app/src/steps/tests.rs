@@ -114,6 +114,67 @@ fn skipped_and_early_steps_that_ran_are_left_out() {
     assert_eq!(names(&built_in(&nowhere)).len(), 6);
 }
 
+/// What the system report says of each step: a hook that ran once in a
+/// step's place, renamed `.completed` and recorded as run with the
+/// others, replaced it; a hook that has no execute bit did not.
+#[test]
+fn a_step_a_hook_ran_once_in_place_of_was_replaced() {
+    let fake = FakeSystem::new();
+    fake.files.dir(BASE);
+    let root = "/libexec/hooks";
+    fake.files.file_with_mode(
+        format!("{root}/early-setup.d/30-console-autosize.sh.completed"),
+        "",
+        0,
+    );
+    fake.files.file_with_mode(
+        format!("{root}/early-setup.d/20-dracut-console-init.sh"),
+        "",
+        0o644,
+    );
+    fake.files
+        .file_with_mode(format!("{root}/teardown.d/80-luks-close.sh"), "", 0o755);
+    let state = State::new(&fake.files, BASE);
+    let _ = skip(&state, "90-xhci-unbind", false);
+    record_ran(&state, &built_in(&state));
+
+    let states = StepState::of_each(&fake.files, Path::new(root), &state);
+
+    assert_eq!(
+        states,
+        [
+            (
+                HookStage::EarlySetup,
+                "05-screen-readers.sh",
+                StepState::Ran
+            ),
+            (
+                HookStage::EarlySetup,
+                "10-generic-efi-init.sh",
+                StepState::Ran
+            ),
+            (
+                HookStage::EarlySetup,
+                "20-dracut-console-init.sh",
+                StepState::Ran
+            ),
+            (
+                HookStage::EarlySetup,
+                "30-console-autosize.sh",
+                StepState::Replaced
+            ),
+            (HookStage::Teardown, "80-luks-close.sh", StepState::Replaced),
+            (HookStage::Teardown, "90-xhci-unbind.sh", StepState::Skipped),
+        ]
+    );
+    // Before start-up, the early steps are still to run.
+    let before = FakeSystem::new();
+    before.files.dir(BASE);
+    let state = State::new(&before.files, BASE);
+    let states = StepState::of_each(&before.files, Path::new(root), &state);
+    assert!(states.iter().all(|(_, _, how)| *how == StepState::Pending));
+}
+
 #[test]
 fn the_screen_readers_start_as_the_build_options_ask() {
     let fake = FakeSystem::new();

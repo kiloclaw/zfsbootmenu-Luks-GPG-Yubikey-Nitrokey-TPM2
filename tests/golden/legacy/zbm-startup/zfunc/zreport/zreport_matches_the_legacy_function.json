@@ -1,0 +1,40 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "[(\"/etc/zbm-release\", \"NAME=\\\"ZFSBootMenu\\\"\\nPRETTY_NAME=\\\"ZFSBootMenu\\\"\\nVERSION=\\\"3.0.1\\\"\\n\", 420), (\"/VERSION\", \"v38\\n\", 420), (\"/libexec/hooks/early-setup.d/10-early.sh\", \"\", 493), (\"/libexec/hooks/setup.d/20-off.sh\", \"\", 420), (\"/libexec/hooks/setup.d/.hidden.sh\", \"\", 493), (\"/libexec/hooks/boot-sel.d/sub/\", \"\", 493), (\"/libexec/hooks/teardown.d/30-once.sh.completed\", \"\", 0), (\"/libexec/hooks/teardown.d/90-xhci-unbind.sh\", \"\", 493), (\"/libexec/hooks/notes.txt\", \"\", 420)], zfs list exits 0",
+      "result": [
+        0,
+        "System Report\n\nZFSBootMenu 3.0.1 with mkinitcpio v38 and Linux 6.6.0-zbm x86_64\n\n>> ZFSBootMenu commandline\nquiet zbm.timeout=5 root=zfs:AUTO\n\n>> Enabled hooks\n* /libexec/hooks/boot-sel.d/sub\n* /libexec/hooks/early-setup.d/10-early.sh\n* /libexec/hooks/teardown.d/30-once.sh (run once, completed)\n* /libexec/hooks/teardown.d/90-xhci-unbind.sh\n\n>> Disabled hooks\n* /libexec/hooks/setup.d/20-off.sh\n\n>> ZFS/SPL module information\n/lib/modules/6.6.0-zbm/extra/spl.ko.zst: 2.2.6-1\n/lib/modules/6.6.0-zbm/extra/zfs.ko.zst: 2.2.6-1\n\n>> ZFS version\nzfs-2.2.6-1\nzfs-kmod-2.2.6-1\n\n>> Imported zpools\nNAME   SIZE  ALLOC   FREE  CKPOINT  EXPANDSZ   FRAG    CAP  DEDUP    HEALTH  ALTROOT\ntank  9.50G  1.20G  8.30G        -         -     0%    12%  1.00x    ONLINE  -\n\n>> ZFS datasets\nNAME          MOUNTPOINT  CANMOUNT  ENCROOT  KEYSTATUS  KEYLOCATION  ORG.ZFSBOOTMENU:KEYSOURCE\ntank          none        off       -        -          none   -\ntank/ROOT/be  /           noauto    -        -          none         -\n"
+      ]
+    },
+    {
+      "input": "[(\"/etc/zbm-release\", \"PRETTY_NAME=\\\"My Menu\\\"\\nVERSION=\\\"3.1.0-dev\\\"\\n\", 420), (\"/etc/initrd-release\", \"DRACUT_VERSION=059\\n\", 420), (\"/libexec/hooks/load-key.d/a b.sh\", \"\", 448)], zfs list exits 0",
+      "result": [
+        0,
+        "System Report\n\nZFSBootMenu 3.1.0-dev with Dracut 059 and Linux 6.6.0-zbm x86_64\n\n>> ZFSBootMenu commandline\nquiet zbm.timeout=5 root=zfs:AUTO\n\n>> Enabled hooks\n* /libexec/hooks/load-key.d/a b.sh\n\n>> Disabled hooks\n\n>> ZFS/SPL module information\n/lib/modules/6.6.0-zbm/extra/spl.ko.zst: 2.2.6-1\n/lib/modules/6.6.0-zbm/extra/zfs.ko.zst: 2.2.6-1\n\n>> ZFS version\nzfs-2.2.6-1\nzfs-kmod-2.2.6-1\n\n>> Imported zpools\nNAME   SIZE  ALLOC   FREE  CKPOINT  EXPANDSZ   FRAG    CAP  DEDUP    HEALTH  ALTROOT\ntank  9.50G  1.20G  8.30G        -         -     0%    12%  1.00x    ONLINE  -\n\n>> ZFS datasets\nNAME          MOUNTPOINT  CANMOUNT  ENCROOT  KEYSTATUS  KEYLOCATION  ORG.ZFSBOOTMENU:KEYSOURCE\ntank          none        off       -        -          none   -\ntank/ROOT/be  /           noauto    -        -          none         -\n"
+      ]
+    },
+    {
+      "input": "[(\"/usr/lib/initrd-release\", \"VERSION_ID=105\\n\", 420)], zfs list exits 0",
+      "result": [
+        0,
+        "System Report\n\nZFSBootMenu  with Dracut 105 and Linux 6.6.0-zbm x86_64\n\n>> ZFSBootMenu commandline\nquiet zbm.timeout=5 root=zfs:AUTO\n\n>> Enabled hooks\n\n>> Disabled hooks\n\n>> ZFS/SPL module information\n/lib/modules/6.6.0-zbm/extra/spl.ko.zst: 2.2.6-1\n/lib/modules/6.6.0-zbm/extra/zfs.ko.zst: 2.2.6-1\n\n>> ZFS version\nzfs-2.2.6-1\nzfs-kmod-2.2.6-1\n\n>> Imported zpools\nNAME   SIZE  ALLOC   FREE  CKPOINT  EXPANDSZ   FRAG    CAP  DEDUP    HEALTH  ALTROOT\ntank  9.50G  1.20G  8.30G        -         -     0%    12%  1.00x    ONLINE  -\n\n>> ZFS datasets\nNAME          MOUNTPOINT  CANMOUNT  ENCROOT  KEYSTATUS  KEYLOCATION  ORG.ZFSBOOTMENU:KEYSOURCE\ntank          none        off       -        -          none   -\ntank/ROOT/be  /           noauto    -        -          none         -\n"
+      ]
+    },
+    {
+      "input": "[(\"/etc/initrd-release\", \"NAME=dracut\\n\", 420), (\"/usr/lib/initrd-release\", \"VERSION_ID=105\\n\", 420)], zfs list exits 0",
+      "result": [
+        0,
+        "System Report\n\nZFSBootMenu  with unknown initramfs and Linux 6.6.0-zbm x86_64\n\n>> ZFSBootMenu commandline\nquiet zbm.timeout=5 root=zfs:AUTO\n\n>> Enabled hooks\n\n>> Disabled hooks\n\n>> ZFS/SPL module information\n/lib/modules/6.6.0-zbm/extra/spl.ko.zst: 2.2.6-1\n/lib/modules/6.6.0-zbm/extra/zfs.ko.zst: 2.2.6-1\n\n>> ZFS version\nzfs-2.2.6-1\nzfs-kmod-2.2.6-1\n\n>> Imported zpools\nNAME   SIZE  ALLOC   FREE  CKPOINT  EXPANDSZ   FRAG    CAP  DEDUP    HEALTH  ALTROOT\ntank  9.50G  1.20G  8.30G        -         -     0%    12%  1.00x    ONLINE  -\n\n>> ZFS datasets\nNAME          MOUNTPOINT  CANMOUNT  ENCROOT  KEYSTATUS  KEYLOCATION  ORG.ZFSBOOTMENU:KEYSOURCE\ntank          none        off       -        -          none   -\ntank/ROOT/be  /           noauto    -        -          none         -\n"
+      ]
+    },
+    {
+      "input": "[], zfs list exits 1",
+      "result": [
+        1,
+        "System Report\n\nZFSBootMenu  with unknown initramfs and Linux 6.6.0-zbm x86_64\n\n>> ZFSBootMenu commandline\nquiet zbm.timeout=5 root=zfs:AUTO\n\n>> Enabled hooks\n\n>> Disabled hooks\n\n>> ZFS/SPL module information\n/lib/modules/6.6.0-zbm/extra/spl.ko.zst: 2.2.6-1\n/lib/modules/6.6.0-zbm/extra/zfs.ko.zst: 2.2.6-1\n\n>> ZFS version\nzfs-2.2.6-1\nzfs-kmod-2.2.6-1\n\n>> Imported zpools\nNAME   SIZE  ALLOC   FREE  CKPOINT  EXPANDSZ   FRAG    CAP  DEDUP    HEALTH  ALTROOT\ntank  9.50G  1.20G  8.30G        -         -     0%    12%  1.00x    ONLINE  -\n\n>> ZFS datasets\n"
+      ]
+    }
+  ]
+}

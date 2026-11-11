@@ -508,7 +508,9 @@ builds its `BootSteps` from the table and the records of `steps`: start-up for `
   steps, `/etc/zfsbootmenu.conf` and the stage's variables from its environment, and exits 0 when a hook or step ran,
   1 otherwise, as the legacy script. The recovery shell's `zkexec` is `zbm`'s (SB6c-1) and boots through the menu's
   boot (`zbm_app::kexec`, `Startup::kexec_files`), not through it.
-- The recovery shell's `zreport` lists hooks by their files, so the steps are not in its lists.
+- The recovery shell's `zreport` (`zbm_startup::zfunc::report`) lists the steps after the hooks, each with its
+  state (`zbm_app::steps::StepState`), from the state directory's records and the hooks that replace them, those
+  that ran once and became `NAME.completed` too.
 
 ### The hook API version 2
 
@@ -578,11 +580,14 @@ The rules:
 - **Limits.** Each wrapped call is a process; its arguments must be valid UTF-8 (`zbm` refuses others with status 2);
   and a wrapped function does not see the functions its caller defined.
 
-`zbm zfunc FUNCTION [ARGS]` (`zbm_startup::zfunc`) runs a function. Three have Rust code so far: `emergency_shell`,
+`zbm zfunc FUNCTION [ARGS]` (`zbm_startup::zfunc`) runs a function. Five have Rust code so far: `emergency_shell`,
 the start-up program's recovery shell, through its gate (ADR 0010: a locked image asks for the PIN first);
 `zfs_chroot`, which runs `zbm`'s `zfs-chroot` on the console, the filesystem one argument, as the legacy function ran
 the script on Bash: that applet asks for the PIN in a locked image, as `zbm lock shell` does, and opens the chroot
-through the same gate (ADR 0018, point 8); and `is_degraded`. Any other runs as the legacy `zfunc` ran it: `zbm`
+through the same gate (ADR 0018, point 8); `is_degraded`; `zreport`, the system report, which the import stage
+also logs at debug level (`zbm_pool::stage` takes it as an argument, since `zbm-pool` cannot reach `zbm-startup`);
+and `zbmcmdline`, on the same code as the report's command line (ADR 0018, point 17). Natives print on the writer
+`zbm zfunc` gives them, its standard output. Any other runs as the legacy `zfunc` ran it: `zbm`
 replaces itself with Bash (`zbm_tools::programs::legacy_function`), which sources the library files the legacy `zfunc`
 sourced, those of the contract from their legacy copies below `/usr/share/zfsbootmenu/legacy/lib` (they source each
 other there, not the generated files of `/lib`, whose wrappers would come back to `zbm`), and runs the function with
@@ -591,9 +596,10 @@ Inside it, `emergency_shell` and `zfs_chroot` are `zbm`'s, so the gate holds whi
 The image links `/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool` (`docs/general/grub-migration.rst`) keeps
 working.
 
-A test in `zbm` lists the 53 functions still legacy; SB6 and SB14 give them Rust code, and SB14 needs the list
-empty. ADR 0017 (point 10) has each function run its Rust code where some exists: only three do so far, because each
-needs its legacy output, status and log lines bridged, and a parity test (`zfs_chroot`'s is the first of a native).
+A test in `zbm` lists the 51 functions still legacy; SB6 and SB14 give them Rust code, and SB14 needs the list
+empty. ADR 0017 (point 10) has each function run its Rust code where some exists: only five do so far, because each
+needs its legacy output, status and log lines bridged, and a parity test (`zfs_chroot`'s was the first of a native;
+`zreport`'s and `zbmcmdline`'s run them on the same machine as the Rust code).
 
 ## Errors and logging
 

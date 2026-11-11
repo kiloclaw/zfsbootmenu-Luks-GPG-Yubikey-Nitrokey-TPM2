@@ -4,6 +4,7 @@ use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
 mod help;
+mod report;
 
 /// The Recovery Tools as the menu shows them on a machine that boots from
 /// a BIOS.

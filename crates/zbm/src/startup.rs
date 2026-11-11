@@ -264,7 +264,13 @@ impl Front for MenuFront<'_> {
         state: &State<'_>,
         settings: &ImportSettings,
     ) -> Imported {
-        zbm_pool::stage(&Context::new(*system), state, settings, self)
+        zbm_pool::stage(
+            &Context::new(*system),
+            state,
+            settings,
+            self,
+            zbm_startup::zfunc::report,
+        )
     }
 
     fn finish(&mut self) {

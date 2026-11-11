@@ -9,7 +9,13 @@ use super::*;
 /// Runs `function` on `fake` with `args` and the configuration `conf`.
 fn outcome(fake: &FakeSystem, conf: &str, function: &str, args: &[&str]) -> Outcome {
     let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
-    run(&fake.system(), &Conf::parse(conf), function, &args)
+    run(
+        &fake.system(),
+        &Conf::parse(conf),
+        function,
+        &args,
+        &mut Vec::new(),
+    )
 }
 
 /// The status of a function that ran.
@@ -246,7 +252,7 @@ fn zfs_chroot_matches_the_legacy_function() {
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
         fake.runner
             .respond_program("/libexec/zbm", u8::try_from(status).unwrap(), "");
-        let code = zfs_chroot(&fake.system(), &state, &[fs.to_owned()]);
+        let code = zfs_chroot(&fake.system(), &state, &[fs.to_owned()], &mut Vec::new());
         let screens: Vec<String> = fake
             .console
             .screens()

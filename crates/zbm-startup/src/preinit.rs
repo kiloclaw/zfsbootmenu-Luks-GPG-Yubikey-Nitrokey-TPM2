@@ -17,7 +17,7 @@ use zbm_config::conf::{self, Conf};
 use zbm_config::options::ZbmOptions;
 use zbm_platform::console::Size;
 use zbm_platform::error::{Error, Result};
-use zbm_platform::{KernelLog, System};
+use zbm_platform::{Files, KernelLog, System};
 use zbm_types::KernelCommandLine;
 
 /// The state directory when the configuration names none.
@@ -57,10 +57,10 @@ pub fn base(conf: &Conf) -> PathBuf {
 /// The texts the kernel command line is built from, below `root`:
 /// `etc/cmdline`, the `etc/cmdline.d/*.conf` files in name order and
 /// `proc/cmdline`, skipping those that cannot be read.
-pub fn zbm_sources(system: &System<'_>, root: &Path) -> Vec<String> {
+pub fn zbm_sources(files: &dyn Files, root: &Path) -> Vec<String> {
     let mut paths = vec![root.join("etc/cmdline")];
     let dir = root.join("etc/cmdline.d");
-    for name in system.files.read_dir(&dir).unwrap_or_default() {
+    for name in files.read_dir(&dir).unwrap_or_default() {
         let bytes = name.as_encoded_bytes();
         if bytes.ends_with(b".conf") && !bytes.starts_with(b".") {
             paths.push(dir.join(name));
@@ -69,7 +69,7 @@ pub fn zbm_sources(system: &System<'_>, root: &Path) -> Vec<String> {
     paths.push(root.join("proc/cmdline"));
     paths
         .iter()
-        .filter_map(|path| system.files.read(path).ok())
+        .filter_map(|path| files.read(path).ok())
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
         .collect()
 }
@@ -111,7 +111,7 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
     let base_in_root = root.join(base.strip_prefix("/").unwrap_or(&base));
     let _ = files.create_dir_all(&base_in_root);
 
-    let (cmdline, refused) = zbm_cmdline(&zbm_sources(system, root));
+    let (cmdline, refused) = zbm_cmdline(&zbm_sources(files, root));
     let (options, messages) = ZbmOptions::parse(&ZbmArgs::new(&cmdline));
     let _log = KernelLog::new(
         files,

@@ -244,6 +244,27 @@ impl<'a> ZfsText<'a> {
     pub fn status(&self) -> String {
         stdout(self.zpool.text(&["status", "-P"], Stderr::Hidden))
     }
+
+    /// What `zfs version` prints: the versions of the programs and of the
+    /// kernel module; its messages on the console.
+    pub fn version_text(&self) -> String {
+        stdout(self.zfs.text(&["version"], Stderr::Console))
+    }
+
+    /// What `zpool list` prints of the imported pools, headed and aligned;
+    /// its messages on the console.
+    pub fn pool_list_text(&self) -> String {
+        stdout(self.zpool.text(&["list"], Stderr::Console))
+    }
+
+    /// The `columns` of every dataset as `zfs list -o` prints them, headed
+    /// and aligned, its messages on the console: its exit status as the
+    /// shell reports it, and what it printed.
+    pub fn dataset_columns(&self, columns: &[&str]) -> (i32, String) {
+        let columns = columns.join(",");
+        let run = self.zfs.text(&["list", "-o", &columns], Stderr::Console);
+        (shell_code(&run), stdout(run))
+    }
 }
 
 impl CommandLineSource for ZfsText<'_> {

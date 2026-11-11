@@ -186,12 +186,21 @@ runtime's variables](#hooks-get-the-legacy-runtimes-variables). `zfsbootmenu(7)`
   sourced the file. `/libexec/zfunc import_pool`, which the GRUB migration guide names, keeps working.
 - **Why:** one way to call a function of the library, with the recovery shell behind its gate.
 
-### `zreport` does not list the built-in steps
+### `zreport` lists the built-in steps and escapes names
 
-- **Before:** the hook lists of `zreport` in the recovery shell named the built-in hooks with the user's.
-- **Now:** `zreport` still lists the hooks by their files, so in Rust images the built-in steps are not in its lists.
-  The log says which steps ran.
-- **Why:** `zreport` is still the legacy function, and a step has no file.
+- **Before:** `zreport` listed the hooks by their files, so its lists named the built-in hooks with the user's. It
+  printed the hooks' paths through `echo -e`, which acted on backslashes in them, and the command line and what
+  `zfs`, `zpool` and `modinfo` printed as they were; `zbmcmdline` printed the command line as it was. At debug level
+  start-up logged the report with its colours.
+- **Now:** `zreport` and `zbmcmdline` are `zbm`'s. `zreport` lists the built-in steps after the hooks, each with its
+  state: to run, run once, replaced by a hook of its name (one that ran once and became `NAME.completed` too), or
+  skipped by `zbm.skip_hooks`. Both write the control characters of names, paths, the command line and the programs'
+  output as escapes (`\x1b`), backslashes as they are, and bytes that are not UTF-8 as U+FFFD. The architecture
+  `uname -m` printed comes from `/proc/sys/kernel/arch`. Start-up logs the report without its colours. `zbmcmdline`
+  saves a command line it had to build in the state directory of `/etc/zfsbootmenu.conf` when `BASE` is not set,
+  where the legacy function saved none.
+- **Why:** a step has no file, so only Rust code lists it; and a pool's, a dataset's or a hook's name must not act on
+  the terminal (P13 of the threat model).
 
 ### Screen readers are started from the configuration
 

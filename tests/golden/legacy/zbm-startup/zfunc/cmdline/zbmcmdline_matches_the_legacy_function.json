@@ -1,0 +1,40 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "saved Some(\"quiet\\nzbm.timeout=5\\nroot=zfs:AUTO\\n\"), sources true",
+      "result": [
+        "quiet zbm.timeout=5 root=zfs:AUTO\n",
+        "quiet\nzbm.timeout=5\nroot=zfs:AUTO\n"
+      ]
+    },
+    {
+      "input": "saved Some(\"a\\n\\nb c\"), sources false",
+      "result": [
+        "a  b c\n",
+        "a\n\nb c"
+      ]
+    },
+    {
+      "input": "saved Some(\"\"), sources false",
+      "result": [
+        "\n",
+        ""
+      ]
+    },
+    {
+      "input": "saved None, sources true",
+      "result": [
+        "zbm.timeout=3 loglevel=7 dyndbg=\"file a.c +p\" quiet BOOT_IMAGE=/vmlinuz root=zfs:AUTO ro\n",
+        "zbm.timeout=3\nloglevel=7\ndyndbg=\"file a.c +p\"\nquiet\nBOOT_IMAGE=/vmlinuz\nroot=zfs:AUTO\nro\n"
+      ]
+    },
+    {
+      "input": "saved None, sources false",
+      "result": [
+        "\n",
+        "\n"
+      ]
+    }
+  ]
+}
