@@ -174,15 +174,14 @@ pub fn stamp(seconds: u64) -> String {
     format!("{year:04}-{month:02}-{day:02}T{hour:02}-{minute:02}-{second:02}Z")
 }
 
-/// The partition of `destination`, as a device path.
+/// The partition of `destination`, as a device path: with
+/// [`Destination::Esp`], the ESP the boot loader names or the machine's
+/// only one.
 ///
 /// # Errors
 ///
 /// When it does not exist, or there is no single ESP to take.
-pub(crate) fn device(
-    context: &Context<'_>,
-    destination: &Destination,
-) -> Result<String, SaveError> {
+pub fn device(context: &Context<'_>, destination: &Destination) -> Result<String, SaveError> {
     let devices = Devices::new(context.runner(), context.files());
     match destination {
         Destination::Device(path) if path.starts_with('/') => Ok(path.clone()),

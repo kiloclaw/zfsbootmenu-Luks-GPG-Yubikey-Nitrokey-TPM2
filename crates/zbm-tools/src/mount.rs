@@ -163,6 +163,26 @@ impl<'a> Mount<'a> {
         self.mounted(&run, dir)
     }
 
+    /// Mounts `device` read/write on `dir` with `mount DEVICE DIR`, the
+    /// file system's type found by `mount`, as the legacy runtime mounted a
+    /// block device for the recovery shell; the read/write sibling of
+    /// [`Mount::read_only`]. Its error messages go to standard error.
+    ///
+    /// # Errors
+    ///
+    /// The exit status of `mount` when it failed, 126 when it could not
+    /// start.
+    pub fn block(self, device: &str, dir: &Path) -> Result<Mounted<'a>, i32> {
+        let command = Command::new("mount")
+            .arg(device)
+            .arg(dir)
+            .stdin(Input::Null)
+            .stdout(Stream::Null)
+            .timeout(DEVICE_TIMEOUT);
+        let run = self.runner.run(&command);
+        self.mounted(&run, dir)
+    }
+
     /// Mounts `source` read-only on `dir` with `mount -r SOURCE DIR`, its
     /// output on the console.
     ///

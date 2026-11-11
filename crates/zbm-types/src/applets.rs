@@ -61,4 +61,9 @@ pub const LINKED: &[Linked] = &[
         dir: "/bin",
         first: &[],
     },
+    Linked {
+        name: "mount_esp",
+        dir: "/bin",
+        first: &[],
+    },
 ];

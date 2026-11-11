@@ -278,6 +278,66 @@ fn a_shell_s_zfs_chroot_that_ends_with_1_fails() {
     );
 }
 
+/// The shell's answers to [`mount_esp`]: the first `mount_esp` prints
+/// `first`, and the second `again`.
+fn mount_esp_script(first: &'static str, again: &'static str) -> Vec<Step> {
+    vec![
+        Step::Hear("mount_esp /dev/disk/by-id/virtio-esp; echo RC=$?"),
+        Step::Say(first),
+        Step::Hear("grep ' /mnt/virtio-esp vfat rw,' /proc/self/mounts; echo RC=$?"),
+        Step::Say("/dev/vdb /mnt/virtio-esp vfat rw,relatime 0 0\r\nRC=0\r\n"),
+        Step::Hear("mount_esp /dev/disk/by-id/virtio-esp; echo RC=$?"),
+        Step::Say(again),
+    ]
+}
+
+/// Plays `script` against [`mount_esp`]; the checks it recorded.
+fn mount_esp_checks(name: &str, script: Vec<Step>) -> Vec<String> {
+    let settings = settings(name);
+    let test = Test::new(&settings, "runtime-rust-recovery").unwrap();
+    let (mut vm, guest) = scripted(&test, script);
+
+    mount_esp(&test, &mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let found = checks(&test);
+    cleanup(&settings);
+    found
+}
+
+#[test]
+fn the_shell_s_mount_esp_prints_the_mount_point_and_leaves_it_mounted() {
+    let found = mount_esp_checks(
+        "runtime-recovery-mount-esp",
+        mount_esp_script("/mnt/virtio-esp\r\nRC=0\r\n", "/mnt/virtio-esp\r\nRC=0\r\n"),
+    );
+
+    assert_eq!(
+        found,
+        [
+            "ok   - mount_esp mounts the disk and prints /mnt/virtio-esp (0)",
+            "ok   - the disk stays mounted read/write at /mnt/virtio-esp (0)",
+            "ok   - mount_esp again prints where the disk is mounted already (0)",
+        ]
+    );
+}
+
+#[test]
+fn a_mount_esp_that_refuses_a_disk_mounted_already_fails() {
+    let found = mount_esp_checks(
+        "runtime-recovery-mount-esp-busy",
+        mount_esp_script(
+            "/mnt/virtio-esp\r\nRC=0\r\n",
+            "mount_esp: mount point /mnt/virtio-esp already in use\r\nRC=1\r\n",
+        ),
+    );
+
+    assert_eq!(
+        found[2],
+        "FAIL - mount_esp again prints where the disk is mounted already (1)"
+    );
+}
+
 /// The boot environment's report after the shell's `zkexec`.
 const BOOTED_TPLAIN: &str = "BE-INIT-START\r\nBE-KERNEL: 7.3.1-zbm\r\n\
     BE-ZFS-VERSION: zfs-2.4.4-1 zfs-kmod-2.4.4-1\r\nBE-ROOT: tplain/ROOT/be / zfs rw\r\n\

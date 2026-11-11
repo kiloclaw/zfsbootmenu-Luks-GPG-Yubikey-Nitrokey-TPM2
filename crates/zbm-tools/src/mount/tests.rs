@@ -180,3 +180,27 @@ fn a_read_only_fat_mount_is_unmounted_by_the_runner_it_is_given() {
     assert_eq!(unmounting.lines(), ["umount /run/esp"]);
     assert_eq!(unmounting.calls()[0].get_stdout(), Stream::Null);
 }
+
+#[test]
+fn a_block_device_is_mounted_with_the_type_mount_finds() {
+    let runner = FakeRunner::new();
+    let files = FakeFiles::new();
+    let mount = Mount::new(&runner, &files);
+    let dir = Path::new("/mnt/vdb");
+
+    assert_eq!(mount.block("/dev/vdb", dir).unwrap().leave(), dir);
+
+    assert_eq!(runner.lines(), ["mount /dev/vdb /mnt/vdb"]);
+    let call = &runner.calls()[0];
+    assert_eq!(*call.get_stdin(), Input::Null);
+    assert_eq!(call.get_stdout(), Stream::Null);
+    // Why it failed is the person's to read.
+    assert_eq!(call.get_stderr(), Stream::Inherit);
+
+    let failing = FakeRunner::new();
+    failing.respond("mount /dev/vdb /mnt/vdb", 32, "");
+    assert_eq!(
+        Mount::new(&failing, &files).block("/dev/vdb", dir).err(),
+        Some(32)
+    );
+}

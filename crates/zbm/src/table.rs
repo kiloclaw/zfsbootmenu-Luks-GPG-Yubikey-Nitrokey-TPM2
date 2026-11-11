@@ -3,8 +3,8 @@
 //! for `--help`, and the function that runs it.
 
 use crate::{
-    Applet, applets, chroot, console, console_font, debug, explain, fonts, image, kexec, layouts,
-    lock, luks, measure, menu, power, report, run_hooks, unlock, zfunc,
+    Applet, applets, chroot, console, console_font, debug, esp, explain, fonts, image, kexec,
+    layouts, lock, luks, measure, menu, power, report, run_hooks, unlock, zfunc,
 };
 
 const INIT: Applet = Applet {
@@ -359,6 +359,23 @@ status 1.
     run: kexec::run,
 };
 
+pub(crate) const MOUNT_ESP: Applet = Applet {
+    name: "mount_esp",
+    names: &[],
+    summary: "mount a partition, or the EFI system partition, read/write at /mnt",
+    usage: "\
+Usage: mount_esp [DEVICE]
+
+Mounts the block device DEVICE read/write at /mnt/NAME, NAME being the last
+part of its path, with the type of file system that mount finds, prints the
+mount point and leaves it mounted. A device mounted already is printed where
+it is. Without DEVICE, it mounts the EFI system partition ZFSBootMenu was
+loaded from, or the machine's only one. The exit status is 1 when it cannot,
+saying why.
+",
+    run: esp::run,
+};
+
 /// The commands `zbm` provides.
 pub const APPLETS: &[Applet] = &[
     INIT,
@@ -385,6 +402,7 @@ pub const APPLETS: &[Applet] = &[
     FIRMWARE_SETUP,
     ZFS_CHROOT,
     ZKEXEC,
+    MOUNT_ESP,
 ];
 
 #[cfg(test)]

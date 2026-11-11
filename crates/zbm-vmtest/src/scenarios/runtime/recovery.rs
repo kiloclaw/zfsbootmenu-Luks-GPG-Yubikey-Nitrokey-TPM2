@@ -17,6 +17,10 @@
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
 //!   shell, `zfs-chroot` ending with 0;
+//! - the shell's `mount_esp /dev/disk/by-id/virtio-esp`, which is `zbm`'s:
+//!   it mounts the machine's FAT disk `esp` read/write at
+//!   `/mnt/virtio-esp`, prints that, and leaves it mounted; asked again, it
+//!   prints where the disk is mounted already;
 //! - last, the shell's `zkexec tplain/ROOT/be vmlinuz-KVER
 //!   initramfs-KVER.img`, which is `zbm`'s: it boots the environment's
 //!   kernel by its files through the menu's boot, which the boot
@@ -26,9 +30,10 @@ use std::thread;
 use std::time::Duration;
 
 use crate::boot::{Follow, check_be, follow_boot, prompt};
-use crate::error::Result;
+use crate::disks::vfat_disk;
+use crate::error::{Error, Result};
 use crate::images::be_kver;
-use crate::qemu::Machine;
+use crate::qemu::{Disk, Machine};
 use crate::record::Test;
 use crate::settings::ZbmRuntime;
 use crate::vm::Vm;
@@ -63,8 +68,11 @@ pub(super) fn run(test: &Test) -> Result<()> {
     let settings = test.settings();
     let kver = be_kver(settings)?;
     let image = super::image(settings, "auto", ZbmRuntime::Rust, None)?;
-    let machine =
-        Machine::boot(&image, super::ESCAPE_APPEND).with_disks(vec![super::disk(settings, 0)?]);
+    let dir = settings.disks("runtime");
+    std::fs::create_dir_all(&dir).map_err(Error::io(format!("creating {}", dir.display())))?;
+    let esp = vfat_disk(&dir.join("esp.img"), "ESP", &[], "64M", 512)?;
+    let machine = Machine::boot(&image, super::ESCAPE_APPEND)
+        .with_disks(vec![super::disk(settings, 0)?, Disk::new(esp, "esp")]);
     let mut vm = Vm::start(test, "recovery", &machine)?;
     super::escape_countdown(&mut vm)?;
     menu_chroot(test, &mut vm, Duration::from_secs(2))?;
@@ -72,6 +80,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     shell_tools(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
+    mount_esp(test, &mut vm)?;
     boot_by_files(test, &mut vm, &kver)?;
     vm.kill();
     Ok(())
@@ -220,6 +229,40 @@ pub(crate) fn in_the_shell_s_chroot(test: &Test, vm: &mut Vm<'_>) -> Result<()> 
     test.check(
         ended,
         "zfs-chroot ends with 0 in the recovery shell once its shell ended",
+    );
+    Ok(())
+}
+
+/// The recovery shell's `mount_esp` of the machine's FAT disk `esp`.
+const MOUNT_ESP: &str = "mount_esp /dev/disk/by-id/virtio-esp";
+
+/// Where `mount_esp` mounts that disk: `/mnt/` and the last part of the
+/// path, as the legacy script named it.
+const ESP_MOUNTED: &str = "/mnt/virtio-esp";
+
+/// Runs `mount_esp` on the FAT disk `esp`, which must print where it
+/// mounted it and leave it mounted read/write there, then runs it again,
+/// which must print where it is mounted already.
+///
+/// # Errors
+///
+/// When a command does not end in time.
+fn mount_esp(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("mount_esp: the FAT disk esp, by its link");
+    let (code, said) = vm.sh_show(MOUNT_ESP)?;
+    test.check(
+        code == 0 && said.lines().any(|line| line.trim() == ESP_MOUNTED),
+        &format!("mount_esp mounts the disk and prints {ESP_MOUNTED} ({code})"),
+    );
+    let (code, _) = vm.sh_show(&format!("grep ' {ESP_MOUNTED} vfat rw,' /proc/self/mounts"))?;
+    test.check(
+        code == 0,
+        &format!("the disk stays mounted read/write at {ESP_MOUNTED} ({code})"),
+    );
+    let (code, said) = vm.sh_show(MOUNT_ESP)?;
+    test.check(
+        code == 0 && said.lines().any(|line| line.trim() == ESP_MOUNTED),
+        &format!("mount_esp again prints where the disk is mounted already ({code})"),
     );
     Ok(())
 }

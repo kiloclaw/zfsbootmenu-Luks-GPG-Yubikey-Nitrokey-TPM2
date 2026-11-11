@@ -15,6 +15,7 @@ mod chroot;
 pub mod console;
 pub mod console_font;
 pub mod debug;
+mod esp;
 pub mod explain;
 pub mod fonts;
 pub mod image;
@@ -363,6 +364,7 @@ mod tests {
             "firmware-setup",
             "zfs-chroot",
             "zkexec",
+            "mount_esp",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

@@ -948,6 +948,26 @@ scripts.
   menu boots a snapshot only through a clone. As before, it exits 1 when it cannot read `/etc/zfsbootmenu.conf`.
 - **Why:** the recovery shell's tools in Rust (ADR 0018, point 9); the shell it runs in is the recovery shell already.
 
+### `mount_esp` is `zbm`, and finds the ESP itself
+
+- **Before:** `/bin/mount_esp DEVICE`, a Bash script, ran the library's `mount_block`: it mounted the block device at
+  `/mnt/NAME` with `mount DEVICE /mnt/NAME`, printed the mount point and left it mounted, or printed where the device
+  was mounted already, the first line of `/proc/self/mounts` whose source was DEVICE as typed. Without DEVICE it only
+  logged "device is undefined" and exited 1; the shell's completion offered the EFI system partitions not mounted yet.
+  Its refusals (no block device, `/mnt/NAME` already in use, a failed mount with `mount`'s output) went only to the
+  kernel log (`zerror`), with the exit status 1, and nothing to standard error. A second argument was ignored.
+- **Now:** a link to `zbm`, which mounts as the script did, and without DEVICE finds the EFI system partition itself:
+  the one the boot loader loaded ZFSBootMenu from (`LoaderDevicePartUUID`), or else the machine's only one, as
+  `zbm.save_logs` takes it. Its refusals go to standard error as well as to the kernel log, the names in them escaped;
+  a failed mount leaves `mount`'s own message on standard error and logs the device, the mount point and `mount`'s
+  exit status. A device named by a link, such as `/dev/disk/by-id/...`, is found mounted by the device the link names,
+  where the script compared the name as typed with the kernel's table, which names the device itself, so a second
+  `mount_esp` of the same link found its own mount point in use. Two arguments or more are a usage error (exit status
+  2), and `--help` prints the usage. A partition it left mounted read/write cannot be mounted read-only elsewhere, so
+  the Log tab's boot history cannot read the boots saved on it until it is unmounted (`umount /mnt/NAME`); saving the
+  logs on it still works.
+- **Why:** the recovery shell's tools in Rust (ADR 0018, point 10).
+
 ## The host tools: `generate-zbm` and `zbm-kcl`
 
 `generate-zbm` and `zbm-kcl` were ported from Perl and Bash step by step, quirks included. Since DM10 ([ADR
