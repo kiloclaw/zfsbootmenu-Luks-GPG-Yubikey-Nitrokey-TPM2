@@ -1449,6 +1449,14 @@ The command line finds a command by its name, in the menu's language or in Engli
 
   Go back to an environment's own command line.
 
+**commandline**
+
+  Set the command line an environment boots with, for every boot.
+
+**inherit commandline**
+
+  Let an environment inherit its command line again.
+
 **default**
 
   Make an environment, or a kernel of it, the default.

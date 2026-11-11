@@ -447,11 +447,12 @@ impl<'a> App<'a> {
 
     /// The kinds of action the application performs on the machine of
     /// `files`: the boot, a snapshot's too, the changes of package D
-    /// ([`Action::is_change`]), the default kernel, restoring files, the
-    /// import and the export among them, the recovery shell, the chroot
-    /// when the image has `zfs-chroot`, the power actions, and opening a
-    /// volume with a LUKS session in an image with `cryptsetup`. The others
-    /// have no use case yet, and end as [`unavailable`].
+    /// ([`Action::is_change`]), the default kernel and the command line,
+    /// restoring files, the import and the export among them, the recovery
+    /// shell, the chroot when the image has `zfs-chroot`, the power
+    /// actions, and opening a volume with a LUKS session in an image with
+    /// `cryptsetup`. The others have no use case yet, and end as
+    /// [`unavailable`].
     fn offers(&self, files: &dyn zbm_platform::Files) -> std::collections::BTreeSet<Offer> {
         let chroot = files.exists(Path::new(ZFS_CHROOT)).then_some(Offer::Chroot);
         let open = self
@@ -463,6 +464,7 @@ impl<'a> App<'a> {
             Offer::BootSnapshot,
             Offer::SetDefaultEnvironment,
             Offer::DefaultKernel,
+            Offer::CommandLine,
             Offer::CreateSnapshot,
             Offer::Rollback,
             Offer::Destroy,

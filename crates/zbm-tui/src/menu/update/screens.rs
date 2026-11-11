@@ -8,7 +8,7 @@ use crate::menu::keymap::{Context, Intent, Map, Tab};
 use crate::menu::model::{
     Choice, Column, Editor, ListState, Model, Screen, Then, own_command_line,
 };
-use crate::menu::world::{Access, Action, Environment, Outcome, Pool, Verdict, Volume};
+use crate::menu::world::{Access, Action, Environment, Origin, Outcome, Pool, Verdict, Volume};
 use crate::text::text;
 
 /// What `intent` does on the current screen.
@@ -127,6 +127,7 @@ pub(super) fn focus(
             text: model.command_line(&environment).into_inner(),
             environment: environment.name,
             kernel: None,
+            save: false,
         });
     }
     model.screen = screen;
@@ -240,6 +241,81 @@ pub(super) fn revert(model: &mut Model, environment: &zbm_types::DatasetName) {
         "command-line-reverted",
         environment = environment.to_string()
     )));
+}
+
+/// Opens the command line of `environment` to save it for every boot: the
+/// editor, from the line it boots with now, edited for this boot or not,
+/// whose `Enter` shows the dry run of the save (the workspace's alone).
+pub(super) fn save_command_line(
+    model: &mut Model,
+    environment: zbm_types::DatasetName,
+) -> Vec<Action> {
+    let actions = focus(model, environment, Screen::CommandLine);
+    if let Some(editor) = &mut model.editor {
+        editor.save = true;
+    }
+    actions
+}
+
+/// The machine is asked for `action`: a command line saved or inherited
+/// is kept until the machine shows it done ([`saved`]).
+pub(super) fn sent(model: &mut Model, action: &Action) {
+    if save_of(action).is_some() {
+        model.saving = Some(action.clone());
+    }
+}
+
+/// A change is done. When the machine's snapshot shows the command line
+/// the menu asked it to save, the line edited for this boot of its
+/// environment goes, and the save editor of that line, open under its
+/// dry run while the machine saved it, closes. Another change done before
+/// it leaves both, and so does a save that failed: its editor keeps the
+/// line typed, and the edit for this boot stays.
+pub(super) fn saved(model: &mut Model) {
+    let environments = &model.snapshot.environments;
+    let Some(save) = model.saving.take_if(|save| is_shown(environments, save)) else {
+        return;
+    };
+    let Some((environment, line)) = save_of(&save) else {
+        return;
+    };
+    model.edited.retain(|(edited, _)| edited != environment);
+    let is_its_editor = model.editor.as_ref().is_some_and(|editor| {
+        editor.save && editor.environment == *environment && editor.text == line
+    });
+    if is_its_editor && model.dialog.is_none() && model.screen == Screen::CommandLine {
+        model.editor = None;
+        model.screen = Screen::Main;
+    }
+}
+
+/// The environment of a command line saved or inherited, and the line:
+/// empty for an inherit.
+fn save_of(action: &Action) -> Option<(&zbm_types::DatasetName, &str)> {
+    match action {
+        Action::SetCommandLine(environment, line) => Some((environment, line.get().as_str())),
+        Action::InheritCommandLine(environment) => Some((environment, "")),
+        _ => None,
+    }
+}
+
+/// Whether `environments` show `save` done: its line set on its
+/// environment, or, for an empty line or an inherit, none set there.
+fn is_shown(environments: &[Environment], save: &Action) -> bool {
+    let Some((environment, line)) = save_of(save) else {
+        return false;
+    };
+    let is_done = |known: &Environment| {
+        let is_local = known.command_line.origin == Origin::Local;
+        if line.is_empty() {
+            !is_local
+        } else {
+            is_local && known.command_line.value.get() == line
+        }
+    };
+    (environments.iter())
+        .filter(|known| known.name == *environment)
+        .any(is_done)
 }
 
 /// The kernels of the focused environment, as [`action_of`] says.

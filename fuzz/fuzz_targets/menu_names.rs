@@ -213,6 +213,7 @@ fn editor(environment: &DatasetName, next: &mut impl FnMut() -> Untrusted<String
         environment: environment.clone(),
         kernel: Some(next()),
         text: next().into_inner(),
+        save: false,
     }
 }
 

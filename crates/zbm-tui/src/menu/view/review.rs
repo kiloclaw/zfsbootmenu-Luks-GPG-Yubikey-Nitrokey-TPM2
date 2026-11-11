@@ -153,6 +153,7 @@ pub(crate) fn after(model: &Model, reviewing: &Reviewing) -> Vec<Part> {
         parts.push(part(text!("review-steps"), Role::Header));
         parts.extend(steps(&plan.steps));
     }
+    parts.extend(dry_run::command_line(model, reviewing));
     parts.push(dry_run::undo(reviewing, review));
     match reviewing.safer(&model.snapshot.offers) {
         Some(Safer::Clone(snapshot)) => parts.push(part(

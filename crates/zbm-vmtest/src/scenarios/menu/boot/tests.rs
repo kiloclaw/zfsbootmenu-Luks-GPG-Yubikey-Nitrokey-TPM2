@@ -19,17 +19,19 @@ fn booted(cmdline: &str, root: &str) -> Play {
 }
 
 #[test]
-fn the_first_boot_tours_the_palette_then_boots_the_kernel_edited() {
+fn the_first_boot_tours_the_palette_saves_the_line_then_boots_the_kernel_edited() {
     let mut script = started(true);
     script.extend(played(steps::BOOT_TOUR));
+    script.extend(played(steps::BOOT_SAVED));
     script.extend(played(steps::BOOT_KERNEL));
     script.push(booted(
-        "root=zfs:tmenu/ROOT/be console=ttyS0 loglevel=4 zbmtest.edited=1",
+        "root=zfs:tmenu/ROOT/be console=ttyS0 loglevel=4 zbmtest.saved=1 zbmtest.edited=1",
         "tmenu/ROOT/be",
     ));
 
     let found = checked("boot-first", script, |test, vm| {
         let boot = first(test, vm, &mut serial())?;
+        check_saved(test, &boot);
         check_edited(test, &boot);
         Ok(())
     });
@@ -73,9 +75,13 @@ fn the_record_names_the_kernel_and_the_command_line_edited() {
         check_record(test, other);
         check_record(test, "");
         check_edited(test, &Boot::default());
+        check_saved(test, &Boot::default());
         Ok(())
     });
 
     let passed: Vec<bool> = found.iter().map(|line| line.starts_with("ok")).collect();
-    assert_eq!(passed, [true, true, false, false, false, false, false]);
+    assert_eq!(
+        passed,
+        [true, true, false, false, false, false, false, false]
+    );
 }

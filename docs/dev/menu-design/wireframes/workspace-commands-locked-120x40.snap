@@ -13,16 +13,16 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                      ││   Tuesday 20 October                 1 snapshot · 43 MiB ││   Esc cancel     Up/Down select  │
 │                      ││     autosnap_2026-10-20_daily         3 d ago     43 MiB ││                                  │
 │                      ││   Monday 19 October                  1 snapshot · 56 MiB ││                                  │
-│                      ││┌ COMMANDS ────────────────────────────────────────────── 467 of 467 ┐                        │
+│                      ││┌ COMMANDS ────────────────────────────────────────────── 472 of 472 ┐                        │
 │                      │││ :                                                                  │                        │
 │                      │││   ACTIONS                                                          │                        │
 │                      │││ ▶ Boot zroot/ROOT/void                                             │                        │
 │                      │││   Edit the command line of zroot/ROOT/void                     PIN │                        │
+│                      │││   Set the Command Line of zroot/ROOT/void           read/write PIN │                        │
 │                      │││   Make zroot/ROOT/void the Default                  read/write PIN │                        │
 │                      │││   Take a Snapshot of zroot/ROOT/void              n read/write PIN │                        │
 │                      │││   Chroot into zroot/ROOT/void                                  PIN │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@pre-upgrade     b read/write PIN │                        │
-│                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │                        │
 │                      │││   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │                        │

@@ -5,7 +5,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
  zroot › zroot/ROOT/void › pre-upgrade
 ┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────── 400 ┐
 │   zroot · ONLINE     ││   Today                         1 snapshot · 1.1 GiB │
-│ ▶ z┌ COMMANDS ─────────────────────────────────────────────── 42 of 467 ┐GiB │
+│ ▶ z┌ COMMANDS ─────────────────────────────────────────────── 42 of 472 ┐GiB │
 │   z│ : 2026-10                                                          │MiB │
 │   t│   ACTIONS                                                          │MiB │
 │   t│ ▶ Boot a clone of zroot/ROOT/void@autosnap_2026-10-22_… read/write │MiB │

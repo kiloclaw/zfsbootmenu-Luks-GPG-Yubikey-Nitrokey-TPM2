@@ -211,15 +211,21 @@ pub(super) fn kernel_row(
     lists::row(theme, &version, positions, width, facts)
 }
 
-/// The command line editor.
+/// The command line editor: for this boot, or, saving it, for every boot.
 pub(super) fn command_line(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let Some(editor) = &model.editor else {
         return;
     };
     let header = match &editor.kernel {
+        _ if editor.save => text!("command-line-save-title"),
         Some(kernel) => text!("command-line-with", kernel = kernel.printable().to_string()),
         None => text!("command-line-title"),
+    };
+    let hint = if editor.save {
+        text!("command-line-save-hint")
+    } else {
+        text!("command-line-hint")
     };
     let block = lists::block(theme, &header);
     let inner = block.inner(area);
@@ -231,7 +237,7 @@ pub(super) fn command_line(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let mut lines = wrapped(&shown, width);
     lines.extend([
         Line::default(),
-        Line::styled(text!("command-line-hint"), theme.style(Role::Muted)),
+        Line::styled(hint, theme.style(Role::Muted)),
     ]);
     frame.render_widget(
         Paragraph::new(lines)

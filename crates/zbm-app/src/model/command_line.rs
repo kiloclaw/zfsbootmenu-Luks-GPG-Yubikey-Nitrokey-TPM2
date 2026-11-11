@@ -21,6 +21,23 @@ pub struct CommandLine {
     pub expanded: Untrusted<String>,
 }
 
+impl CommandLine {
+    /// The most bytes of a line ZFS keeps as a user property's value: 8192
+    /// with the NUL that ends it. The machine saves no longer line.
+    pub const LONGEST: usize = 8191;
+
+    /// Whether `line` holds a control character, which no kernel argument
+    /// holds and a terminal would act on: the machine saves no such line.
+    pub fn has_control(line: &str) -> bool {
+        line.chars().any(char::is_control)
+    }
+
+    /// Whether `line` has more bytes than [`CommandLine::LONGEST`].
+    pub fn is_too_long(line: &str) -> bool {
+        line.len() > Self::LONGEST
+    }
+}
+
 /// A [`CommandLine`] as a peer sends it: one older than the expansion
 /// sends none, and the value stands for it.
 #[derive(serde::Deserialize)]

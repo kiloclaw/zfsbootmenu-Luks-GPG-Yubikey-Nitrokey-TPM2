@@ -117,6 +117,7 @@ fn primary(model: &mut Model, reviewing: Box<Reviewing>, has_safer: bool) -> Vec
         return safer(model, &reviewing);
     }
     if reviewing.is_ready() {
+        super::screens::sent(model, &reviewing.action);
         return vec![reviewing.action];
     }
     let missing = if reviewing.plan.is_none() {

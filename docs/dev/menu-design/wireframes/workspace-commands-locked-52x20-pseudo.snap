@@ -3,16 +3,16 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
   1 BBóótt [2 SSñáppshóóts] 3 PPóólls  4 LLóg   ! 6
  zroot › zroot/ROOT/void › pre-upgrade
-┌ ┌ ÇÇÓMMMÁÑDDS ──────────────────── 467 óóf 467 ┐ ┐
+┌ ┌ ÇÇÓMMMÁÑDDS ──────────────────── 472 óóf 472 ┐ ┐
 │ │ :                                            │ │
 │ │   ÁÁÇTÍÍÓÑSS                                 │ │
 │ │ ▶ BBóótt zroot/ROOT/void                     │ │
 │ │   ÉÉdítt théé çómmmáññd lííñé óóf zroo… PPÍÑ │ │
+│ │   SSét tthé ÇÇómmmáñdd L… rréádd/wrííté PPÍÑ │ │
 │ │   MMákéé zroot/ROOT/void… rréádd/wrííté PPÍÑ │ │
 │ │   TTákéé á Sññápsshótt… n rréádd/wrííté PPÍÑ │ │
 │ │   ÇÇhróóót ííñtóó zroot/ROOT/void       PPÍÑ │ │
 │ │   BBóótt á çllóñéé óf … b rréádd/wrííté PPÍÑ │ │
-│ │   BBóótt á çllóñéé óf zr… rréádd/wrííté PPÍÑ │ │
 │ │   BBóótt á çllóñéé óf zr… rréádd/wrííté PPÍÑ │ │
 └─│   BBóótt á çllóñéé óf zr… rréádd/wrííté PPÍÑ │─┘
 ┌ │   BBóótt á çllóñéé óf zr… rréádd/wrííté PPÍÑ │─┐

@@ -201,3 +201,34 @@ fn a_clone_a_copy_an_export_or_an_inherited_kernel_has_no_undo() {
         assert_eq!(review(&zfs, &action), Review::default(), "{action:?}");
     }
 }
+
+#[test]
+fn the_undo_of_a_saved_line_sets_the_old_one_or_inherits_it() {
+    let line = "org.zfsbootmenu:commandline";
+    let zfs = FakeZfs::new()
+        .pool("zroot")
+        .filesystem("zroot/ROOT", &[(line, "quiet %{parent}")])
+        .filesystem("zroot/ROOT/void", &[(line, "loglevel=4 %{parent}")])
+        .filesystem("zroot/ROOT/arch", &[]);
+    let typed = Untrusted::new("quiet".to_owned());
+    let saved = |name: &str| Action::SetCommandLine(dataset(name), typed.clone());
+
+    // Set on the environment: its line as it is, `%{parent}` unexpanded.
+    let old = Untrusted::new("loglevel=4 %{parent}".to_owned());
+    let set_back = Action::SetCommandLine(dataset("zroot/ROOT/void"), old);
+    assert_eq!(
+        undo(&zfs, &saved("zroot/ROOT/void")),
+        Some(set_back.clone())
+    );
+    let inherit = Action::InheritCommandLine(dataset("zroot/ROOT/void"));
+    assert_eq!(undo(&zfs, &inherit), Some(set_back));
+    // Inherited, or none: inherited again.
+    let inherits = Some(Action::InheritCommandLine(dataset("zroot/ROOT/arch")));
+    assert_eq!(undo(&zfs, &saved("zroot/ROOT/arch")), inherits);
+    let bare = FakeZfs::new().pool("tank").filesystem("tank/be", &[]);
+    let saved_bare = Action::SetCommandLine(dataset("tank/be"), typed.clone());
+    let inherits_bare = Some(Action::InheritCommandLine(dataset("tank/be")));
+    assert_eq!(undo(&bare, &saved_bare), inherits_bare);
+    // A line that cannot be read leaves the undo unknown.
+    assert_eq!(review(&zfs, &saved("zroot/ROOT/gone")), Review::default());
+}

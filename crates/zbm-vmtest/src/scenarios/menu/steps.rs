@@ -18,7 +18,7 @@ use super::super::drive::{Driver, Key, has_word, select, select_row};
 mod tables;
 
 pub(super) use tables::{
-    BOOT_CLONE, BOOT_KERNEL, BOOT_TAB, BOOT_TOUR, POOLS, POWER_OFF, REBOOT, SHELL,
+    BOOT_CLONE, BOOT_KERNEL, BOOT_SAVED, BOOT_TAB, BOOT_TOUR, POOLS, POWER_OFF, REBOOT, SHELL,
     SNAPSHOTS_CHANGES, SNAPSHOTS_DESTROY, SNAPSHOTS_REFUSED,
 };
 

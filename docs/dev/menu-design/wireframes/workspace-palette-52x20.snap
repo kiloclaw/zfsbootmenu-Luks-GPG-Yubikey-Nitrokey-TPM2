@@ -3,7 +3,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
   1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
  zroot › zroot/ROOT/void › pre-upgrade
-┌ ┌ COMMANDS ───────────────────────── 42 of 467 ┐ ┐
+┌ ┌ COMMANDS ───────────────────────── 42 of 472 ┐ ┐
 │ │ : 2026-10                                    │ │
 │ │   ACTIONS                                    │ │
 │ │ ▶ Boot a clone of zroot/ROOT/voi… read/write │ │

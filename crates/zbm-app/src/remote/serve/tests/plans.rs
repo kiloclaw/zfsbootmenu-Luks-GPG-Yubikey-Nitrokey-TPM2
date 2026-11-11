@@ -180,3 +180,55 @@ fn a_remote_menu_destroys_and_plans_to_destroy_snapshots_of_boot_environments_al
         );
     }
 }
+
+#[test]
+fn a_remote_menu_saves_no_line_with_a_control_character_nor_plans_one() {
+    let fake = shown();
+    let line = zbm_types::Untrusted::new("quiet\nsingle".to_owned());
+    let saved = Action::SetCommandLine("tank/ROOT/be".parse().unwrap(), line);
+    // Its plan is of a boot environment the menu shows: the service takes
+    // it, and the plan itself refuses the line, with no step.
+    assert_eq!(refusal_of(&fake, &plan(saved.clone())), None);
+    let messages = answered(&fake, plan(saved.clone()));
+    let [ToMenu::Event(event), ToMenu::Done] = messages.as_slice() else {
+        panic!("{messages:?}");
+    };
+    let Event::Planned { plan: planned, .. } = &**event else {
+        panic!("{event:?}");
+    };
+    assert!(planned.steps.is_empty(), "{planned:?}");
+    let Outcome::Failed { why, .. } = &planned.outcome else {
+        panic!("{planned:?}");
+    };
+    assert_eq!(why, &["the command line holds a control character"]);
+
+    let (ended, messages) = served(&fake, &no_console, &never, |menu| {
+        ToSession::Send { action: saved }.send(menu, &[]).unwrap();
+        let messages = until_done(menu);
+        ToSession::Detach.send(menu, &[]).unwrap();
+        messages
+    });
+    ended.unwrap();
+
+    let failed = messages.iter().find_map(|message| match message {
+        ToMenu::Event(event) => match &**event {
+            Event::Finished(Outcome::Failed { why, .. }) => Some(why.clone()),
+            _ => None,
+        },
+        _ => None,
+    });
+    assert_eq!(
+        failed,
+        Some(vec![
+            "the command line holds a control character".to_owned()
+        ]),
+        "{messages:?}"
+    );
+    let lines = fake.runner.lines();
+    assert!(
+        !lines.iter().any(|line| line.starts_with("zfs set")
+            || line.starts_with("zfs inherit")
+            || line.contains("readonly tank")),
+        "{lines:#?}"
+    );
+}

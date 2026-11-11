@@ -8,6 +8,7 @@
 //! what it offers was not chosen there. Only the workspace opens review
 //! pages: the classic map has no dry run (ADR 0016, point 10).
 
+use super::offers;
 use crate::menu::keymap::Map;
 use crate::menu::model::{Dialog, DryRun, Model, Reviewing};
 use crate::menu::world::{Action, Event};
@@ -18,6 +19,20 @@ pub(super) fn start(model: &mut Model) {
     if model.map == Map::Workspace {
         model.dry_run = DryRun::Pending;
     }
+}
+
+/// Opens the dry run of `action`, which the menu chose otherwise than
+/// with the command line's `Enter`, as the save of a command line does:
+/// its page without the field, which asks the machine for its plan. A
+/// change the machine does not offer opens nothing, and the status line
+/// says so.
+pub(super) fn open(model: &mut Model, action: Action) -> Vec<Action> {
+    if !model.snapshot.is_offered(&action) {
+        return offers::not_offered(model);
+    }
+    let reviewing = Reviewing::dry_run(action.clone());
+    model.dialog = Some(Dialog::Review(Box::new(reviewing)));
+    vec![Action::Plan(Box::new(action))]
 }
 
 /// The machine's `event`: a dialog of its own, a question, an unlock

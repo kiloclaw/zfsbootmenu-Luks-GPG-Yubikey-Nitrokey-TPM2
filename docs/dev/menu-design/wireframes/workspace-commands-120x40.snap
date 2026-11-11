@@ -13,7 +13,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 └────────────────────────┘│                               ││                          ││    Snapshots  400 · newest    │
 ┌ ATTENTION ────────── 6 ┐│                               ││                          ││               pre-upgrade, 1  │
 │ ! tank DEGRADED        ││                               ││                          ││               h ago           │
-│   3 Pools              ┌ COMMANDS ───────────────────────────────────────────────── 3 of 55 ┐yption  key loaded      │
+│   3 Pools              ┌ COMMANDS ───────────────────────────────────────────────── 3 of 60 ┐yption  key loaded      │
 │ ! tank: sdb2 UNAVAIL   │ : pools                                                            │d Line  quiet           │
 │   3 Pools              │   ACTIONS                                                          │        loglevel=4 ·    │
 │ ! tank: checkpoint     │ ▶ Rescan the Pools                                                 │        from zroot/ROOT │

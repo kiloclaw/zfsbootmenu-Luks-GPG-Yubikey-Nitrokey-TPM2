@@ -287,6 +287,10 @@ command-line-with = Command Line with { $kernel }
 command-line-hint = For this boot only: Enter boots with it, Esc keeps the saved one.
 command-line-reverted = command line of { $environment } reverted
 command-line-unclosed-quote = the command line has an unclosed " quote
+command-line-save-title = Command Line for Every Boot
+command-line-save-hint = For every boot: Enter shows what changes, Esc keeps the saved one.
+command-line-control = the command line holds a control character, which cannot be saved
+command-line-too-long = the command line is longer than the { $longest } bytes ZFS keeps
 
 ## Pools and LUKS volumes.
 
@@ -611,6 +615,8 @@ palette-snapshot = Take a Snapshot of { $environment }
 palette-chroot = Chroot into { $target }
 palette-default-kernel = Make { $kernel } the Default Kernel of { $environment }
 palette-inherit = Inherit the Default Kernel of { $environment }
+palette-set-command-line = Set the Command Line of { $environment }
+palette-inherit-command-line = Let { $environment } Inherit Its Command Line
 palette-roll-back = Roll Back to { $snapshot }
 palette-clone = Clone { $snapshot }
 palette-duplicate = Duplicate { $snapshot }
@@ -658,6 +664,10 @@ command-default = default
     .what = make an environment, or a kernel of it, the default
 command-inherit = inherit
     .what = inherit the default kernel of an environment
+command-commandline = commandline
+    .what = set the command line an environment boots with, for every boot
+command-inherit-commandline = inherit commandline
+    .what = let an environment inherit its command line again
 command-snapshot = snapshot
     .what = take a snapshot of an environment
 command-chroot = chroot
@@ -941,6 +951,8 @@ review-undo-destroy = Undo: destroy { $snapshot }.
 review-undo-import = Undo: import { $pool } { $access } again.
 review-undo-default = Undo: make { $environment } the default again.
 review-undo-inherit-kernel = Undo: let { $environment } inherit its default kernel again.
+review-undo-command-line = Undo: set the command line of { $environment } back to { $line }.
+review-undo-inherit-command-line = Undo: let { $environment } inherit its command line again.
 review-host-id-stays = No undo: the host ID it adopts stays adopted, even once the pool is exported.
 review-safer-clone = Safer: clone { $snapshot } as a new boot environment, and keep everything.
 review-safer-import = Safer: import it read-only, without the rewind, and lose nothing.
@@ -992,6 +1004,11 @@ dry-run-boot-clone = Boot a Clone of { $snapshot } as { $environment }
 dry-run-default = Make { $environment } the Default
 dry-run-kernel = Make { $kernel } the Default Kernel of { $environment }
 dry-run-inherit-kernel = Let { $environment } Inherit Its Default Kernel
+dry-run-command-line = Save the Command Line of { $environment } for Every Boot
+dry-run-inherit-command-line = Let { $environment } Inherit Its Command Line
+dry-run-command-line-was = Until now: { $line } ({ $origin })
+dry-run-command-line-kernels = A kernel's own .kcl file, and zbm.kcl_override, still come before it.
+dry-run-command-line-measured = With measured boot, PCR 8 changes for every later boot.
 dry-run-restore = { $count ->
     [one] Restore One Path from { $snapshot }
    *[other] Restore { $count } Paths from { $snapshot }

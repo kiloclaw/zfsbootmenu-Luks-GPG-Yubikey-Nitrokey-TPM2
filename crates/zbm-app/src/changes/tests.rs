@@ -589,6 +589,7 @@ fn removed_and_created_paths_are_named_as_such() {
     );
 }
 
+mod command_line;
 mod console;
 mod destroy;
 mod export;

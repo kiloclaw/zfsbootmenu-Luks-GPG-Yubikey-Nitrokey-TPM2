@@ -79,6 +79,16 @@ fn a_change_takes_the_console_on_a_read_only_pool_or_a_locked_environment() {
     assert!(!copy("zroot/ROOT/copy").needs_console_on(&machine));
     assert!(copy("zroot/ROOT/sealed/copy").needs_console_on(&machine));
     assert!(copy("zroot/secure/copy").needs_console_on(&machine));
+
+    // A command line is set without the key: a locked environment's is
+    // saved quietly, on a pool imported read/write.
+    let sealed = dataset("zroot/ROOT/sealed");
+    let saved = Action::SetCommandLine(sealed.clone(), Untrusted::new("quiet".to_owned()));
+    assert!(!saved.needs_console_on(&machine));
+    assert!(!Action::InheritCommandLine(sealed).needs_console_on(&machine));
+    // On one imported read-only, the import may ask about hibernation.
+    let arch = Action::InheritCommandLine(dataset("tank/ROOT/arch"));
+    assert!(arch.needs_console_on(&machine));
 }
 
 #[test]

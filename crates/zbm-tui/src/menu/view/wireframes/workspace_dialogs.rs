@@ -24,14 +24,15 @@ pub(super) fn workspace_dialog_wireframes() -> Vec<Wireframe> {
 }
 
 /// The search field filtered by `ta`; the command line edited for one
-/// boot; the palette finding snapshots by date in the Snapshots tab, and
-/// finding `pools` on the Boot tab, under its actions, items and help
-/// (with the query empty, the actions alone fill the frame); a locked
-/// menu's Boot tab, whose toolbar marks what the lock keeps, and its
-/// palette over the Snapshots tab, with the keys and costs; the power
-/// dialog; the recovery tools; the outcome of setting a default on
-/// the notification line; help for the Snapshots tab; and the Log tab
-/// during start-up, `Shift-Tab` from the Boot tab.
+/// boot, and saved for every boot from the palette, whose dry run shows
+/// once the line is edited; the palette finding snapshots by date in the
+/// Snapshots tab, and finding `pools` on the Boot tab, under its actions,
+/// items and help (with the query empty, the actions alone fill the
+/// frame); a locked menu's Boot tab, whose toolbar marks what the lock
+/// keeps, and its palette over the Snapshots tab, with the keys and
+/// costs; the power dialog; the recovery tools; the outcome of setting a
+/// default on the notification line; help for the Snapshots tab; and the
+/// Log tab during start-up, `Shift-Tab` from the Boot tab.
 fn boot_dialog_wireframes() -> Vec<Wireframe> {
     use Step::{Char, Code, Text};
     let frame = |name, keys| Wireframe {
@@ -45,6 +46,16 @@ fn boot_dialog_wireframes() -> Vec<Wireframe> {
         frame(
             "workspace-command-line",
             &[Char('e'), Text(" systemd.unit=rescue.target")],
+        ),
+        frame(
+            "workspace-command-line-save",
+            &[
+                Char(':'),
+                Text("commandline void"),
+                Code(Key::Enter),
+                Text(" splash"),
+                Code(Key::Enter),
+            ],
         ),
         frame(
             "workspace-palette",

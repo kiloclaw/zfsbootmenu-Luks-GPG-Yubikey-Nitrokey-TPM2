@@ -8,15 +8,18 @@
 //! - the import of a pool that is, with the other access, by importing it
 //!   again with the access it has;
 //! - a new default environment, by the old one, when the pool had one;
-//! - a default kernel, by inheriting it again, when it was inherited.
+//! - a default kernel, by inheriting it again, when it was inherited;
+//! - a command line saved or inherited, by the line set on the
+//!   environment before, or by inheriting it again, when it was
+//!   inherited.
 //!
 //! A clone, a copy, a promote, an export, a restore and the boot of a
 //! snapshot have no undo: no action destroys an environment, and a scan
 //! finds an exported pool. A read that fails leaves the undo unknown,
 //! `None`, and is logged.
 
-use zbm_config::spec::properties::KERNEL;
-use zbm_types::{DatasetName, ImportPolicy, PoolName};
+use zbm_config::spec::properties::{COMMANDLINE, KERNEL};
+use zbm_types::{DatasetName, ImportPolicy, PoolName, Untrusted};
 use zbm_zfs::{Source, Zfs};
 
 use crate::model::{Access, Action, ImportOptions, Review};
@@ -28,6 +31,9 @@ pub(super) fn review(zfs: &dyn Zfs, action: &Action) -> Review {
         Action::Import(pool, options) => import(zfs, pool, *options),
         Action::SetDefaultEnvironment(environment) => default(zfs, environment),
         Action::SetDefaultKernel(environment, _) => kernel(zfs, environment),
+        Action::SetCommandLine(environment, _) | Action::InheritCommandLine(environment) => {
+            command_line(zfs, environment)
+        }
         _ => Review::default(),
     }
 }
@@ -133,6 +139,30 @@ fn kernel(zfs: &dyn Zfs, environment: &DatasetName) -> Review {
         undone_by(Action::InheritDefaultKernel(environment.clone()))
     } else {
         Review::default()
+    }
+}
+
+/// The review of saving or inheriting the command line of `environment`:
+/// undone by the line set on it before, as it was set, or by inheriting
+/// it again, when it inherits it or has none.
+fn command_line(zfs: &dyn Zfs, environment: &DatasetName) -> Review {
+    let line = match zfs.property(environment, COMMANDLINE.name) {
+        Ok(line) => line,
+        Err(error) => {
+            tracing::warn!(%error, %environment, "the command line is unknown");
+            return Review::default();
+        }
+    };
+    let set = matches!(
+        line.source,
+        Source::Local | Source::Received | Source::Temporary
+    );
+    match line.value().filter(|_| set) {
+        Some(old) => undone_by(Action::SetCommandLine(
+            environment.clone(),
+            Untrusted::new(old.to_owned()),
+        )),
+        None => undone_by(Action::InheritCommandLine(environment.clone())),
     }
 }
 

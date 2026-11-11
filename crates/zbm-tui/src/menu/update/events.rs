@@ -83,9 +83,12 @@ fn reseal_offered(model: &mut Model, volume: &str) {
 }
 
 /// An action ended with `outcome`, which the notification line says, and
-/// a dialog when it failed.
+/// a dialog when it failed; a command line saved closes its editor.
 fn finished(model: &mut Model, outcome: Outcome) {
     super::show_failure(model, &outcome);
+    if matches!(outcome, Outcome::Done(_)) {
+        super::screens::saved(model);
+    }
     model.notification = Some(outcome);
 }
 

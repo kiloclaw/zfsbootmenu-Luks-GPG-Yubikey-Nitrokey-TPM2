@@ -5,7 +5,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
  ! tank DEGRADED   ! tank: sdb2 UNAVAIL   ! tank: checkpoint         3 Pools
  zroot > zroot/ROOT/void
 + BOOT ENVIRONMENTS ---------------------------- 4 ++ KERNELS -------------- 3 +
-|   z+ COMMANDS ------------------------------------------------- 3 of 55 +    |
+|   z+ COMMANDS ------------------------------------------------- 3 of 60 +    |
 | > z| : pools                                                            |    |
 |   z|   ACTIONS                                                          |    |
 |   t| > Rescan the Pools                                                 |    |

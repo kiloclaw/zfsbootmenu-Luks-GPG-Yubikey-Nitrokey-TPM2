@@ -1,11 +1,13 @@
 //! `menu-boot`: the palette's entries, and the boots the menu starts.
 //!
 //! - The first boot, with `zbm.save_logs` naming a FAT disk, goes through
-//!   the palette's entries, checks those it does not offer here, then boots
-//!   the second kernel, `0.0.1-zbmtest`, with a command line edited for
-//!   this boot. The boot environment prints its command line, and the
-//!   boot's record on the FAT disk names the kernel: both copies of the
-//!   kernel are the same build, so it prints the same release.
+//!   the palette's entries, checks those it does not offer here, saves the
+//!   command line of `tmenu/ROOT/be` for every boot, then boots the second
+//!   kernel, `0.0.1-zbmtest`, with that line edited for this boot. The
+//!   boot environment prints its command line, the saved line and the
+//!   edit, and the boot's record on the FAT disk names the kernel: both
+//!   copies of the kernel are the same build, so it prints the same
+//!   release.
 //! - The second, on fresh disks, boots a clone of `five` from the palette:
 //!   the boot environment's root is the clone.
 //! - The third powers the machine off from the palette.
@@ -26,6 +28,9 @@ pub(super) const LABEL: &str = "ZBMMENU";
 
 /// What the first boot edits on the command line.
 const EDITED: &str = "zbmtest.edited=1";
+
+/// What the first boot saves on the command line, before it edits it.
+const SAVED: &str = "zbmtest.saved=1";
 
 /// The kernel the first boot boots, in its boot environment.
 const KERNEL: &str = "/boot/vmlinuz-0.0.1-zbmtest";
@@ -53,6 +58,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     let mut vm = super::boot_on_fresh(test, "kernel", &saving, &fat)?;
     let boot = first(test, &mut vm, &mut serial)?;
     drop(vm);
+    check_saved(test, &boot);
     check_edited(test, &boot);
     check_record(test, &saved_record(&logs)?);
 
@@ -75,11 +81,12 @@ fn follow(vm: &mut Vm<'_>) -> Result<Boot> {
     follow_boot(vm, follow)
 }
 
-/// The first boot: the palette's entries, then the second kernel with the
-/// command line edited.
+/// The first boot: the palette's entries, the command line saved, then the
+/// second kernel with the command line edited.
 fn first(test: &Test, vm: &mut Vm<'_>, serial: &mut Serial) -> Result<Boot> {
     super::start(test, serial, vm)?;
     steps::run(test, serial, vm, steps::BOOT_TOUR)?;
+    steps::run(test, serial, vm, steps::BOOT_SAVED)?;
     steps::run(test, serial, vm, steps::BOOT_KERNEL)?;
     follow(vm)
 }
@@ -89,6 +96,17 @@ fn second(test: &Test, vm: &mut Vm<'_>, serial: &mut Serial) -> Result<Boot> {
     super::start(test, serial, vm)?;
     steps::run(test, serial, vm, steps::BOOT_CLONE)?;
     follow(vm)
+}
+
+/// Checks that the boot environment got the command line the first boot
+/// saved, from which the edit for this boot started: `menu-boot`'s first
+/// boot alone, as `menu-display` saves none.
+fn check_saved(test: &Test, boot: &Boot) {
+    let line = boot.be_line("BE-CMDLINE");
+    test.check(
+        line.split_whitespace().any(|word| word == SAVED),
+        "the boot environment's command line holds the line saved",
+    );
 }
 
 /// Checks that the boot environment got the command line edited.

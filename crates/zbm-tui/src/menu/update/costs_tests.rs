@@ -190,9 +190,14 @@ fn check_costs(model: &Model, action: &Action, encryption: Encryption) -> [usize
     let at = format!("{encryption:?} {action:?}");
     assert_eq!(costs.pin, snapshot.menu_locked && kept, "{at}");
     assert_eq!(costs.writes, writes_read_only(snapshot, action), "{at}");
-    // A boot and a shell in an environment load its key too.
+    // A boot and a shell in an environment load its key too; a command
+    // line saved, a user property, needs none.
+    let is_line = matches!(
+        action,
+        Action::SetCommandLine(..) | Action::InheritCommandLine(_)
+    );
     let has_key = matches!(action, Action::Boot { .. } | Action::Chroot(_))
-        || action.changed_environment().is_some();
+        || (action.changed_environment().is_some() && !is_line);
     let changes_locked = has_key && encryption == Encryption::Locked;
     assert_eq!(costs.key, changes_locked, "{at}");
     assert!(!costs.review, "{at}");

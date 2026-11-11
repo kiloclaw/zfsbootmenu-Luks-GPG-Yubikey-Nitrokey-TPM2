@@ -126,6 +126,8 @@ pub enum Then {
     Go(Place),
     /// Drop the command line edited for the boots of this environment.
     Revert(DatasetName),
+    /// Open the command line of an environment to save it for every boot.
+    SaveCommandLine(DatasetName),
 }
 
 /// A dialog over a view; not `Clone`: an unlock dialog holds a secret.
@@ -184,6 +186,8 @@ pub struct Editor {
     pub kernel: Option<Untrusted<String>>,
     /// The text, as the user edits it.
     pub text: String,
+    /// Whether `Enter` saves the line for every boot, not boots with it.
+    pub save: bool,
 }
 
 /// The menu.
@@ -250,6 +254,10 @@ pub struct Model {
     pub sort: Sort,
     /// Command lines edited for this boot, by environment.
     pub edited: Vec<(DatasetName, Untrusted<String>)>,
+    /// The command line saved or inherited that the machine was asked for,
+    /// until its snapshot shows it done: the line edited for this boot of
+    /// its environment goes then, not before, as the save may fail.
+    pub saving: Option<Action>,
     /// The countdown, in milliseconds, while it runs.
     pub countdown: Option<u64>,
     /// Whether start-up finished and the main view opened.
@@ -332,6 +340,7 @@ impl Model {
             focus: None,
             sort: Sort::Name,
             edited: Vec::new(),
+            saving: None,
             countdown: None,
             started: false,
             away: None,

@@ -28,6 +28,7 @@ pub(super) const TABLES: &[(&str, &[Step])] = &[
     ("snapshots-refused", steps::SNAPSHOTS_REFUSED),
     ("pools", steps::POOLS),
     ("boot-tour", steps::BOOT_TOUR),
+    ("boot-saved", steps::BOOT_SAVED),
     ("boot-kernel", steps::BOOT_KERNEL),
     ("boot-clone", steps::BOOT_CLONE),
     ("boot-tab", steps::BOOT_TAB),

@@ -5,16 +5,16 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
  zroot › zroot/ROOT/void › pre-upgrade
 ┌ ENVIRONMENTS ───── 4 ┐┌ SNAPSHOTS BY NAME ────────────────────────────── 400 ┐
 │   zroot · ONLINE     ││   Today                         1 snapshot · 1.1 GiB │
-│ ▶ z┌ COMMANDS ────────────────────────────────────────────── 467 of 467 ┐GiB │
+│ ▶ z┌ COMMANDS ────────────────────────────────────────────── 472 of 472 ┐GiB │
 │   z│ :                                                                  │MiB │
 │   t│   ACTIONS                                                          │MiB │
 │   t│ ▶ Boot zroot/ROOT/void                                             │MiB │
 │   t│   Edit the command line of zroot/ROOT/void                     PIN │MiB │
+│    │   Set the Command Line of zroot/ROOT/void           read/write PIN │MiB │
 │    │   Make zroot/ROOT/void the Default                  read/write PIN │MiB │
 │    │   Take a Snapshot of zroot/ROOT/void              n read/write PIN │MiB │
 │    │   Chroot into zroot/ROOT/void                                  PIN │MiB │
 │    │   Boot a clone of zroot/ROOT/void@pre-upgrade     b read/write PIN │MiB │
-│    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │MiB │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │MiB │
 │    │   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │MiB │
 └────│   Boot a clone of zroot/ROOT/void@autosnap_2026-10… read/write PIN │────┘

@@ -6,6 +6,8 @@
 //!
 //! - a new default: `zpool set bootfs=`;
 //! - a default kernel: `zfs set org.zfsbootmenu:kernel=`, or `zfs inherit`;
+//! - a command line: `zfs set org.zfsbootmenu:commandline=`, or `zfs
+//!   inherit` ([`command_line`]);
 //! - a snapshot: `zfs snapshot`;
 //! - a rollback, to a snapshot that has kernels, when no newer snapshot
 //!   has a clone or a hold ([`stops`]): `zfs rollback -r`;
@@ -31,6 +33,7 @@
 //! the change may ask for something ([`Action::needs_console_on`]), and
 //! without it in the menu otherwise.
 
+mod command_line;
 mod destroy;
 mod import;
 mod needs;
@@ -104,6 +107,8 @@ impl Changes<'_, '_> {
                 self.default_kernel(environment, Some(version))
             }
             Action::InheritDefaultKernel(environment) => self.default_kernel(environment, None),
+            Action::SetCommandLine(environment, line) => self.command_line(environment, Some(line)),
+            Action::InheritCommandLine(environment) => self.command_line(environment, None),
             Action::CreateSnapshot(snapshot) => self.create_snapshot(snapshot),
             Action::Rollback(snapshot) => self.rollback(snapshot),
             Action::Destroy(snapshots) => self.destroy(snapshots),

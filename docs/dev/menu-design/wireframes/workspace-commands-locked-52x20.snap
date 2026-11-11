@@ -3,16 +3,16 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
   1 Boot [2 Snapshots] 3 Pools  4 Log           ! 6
  zroot › zroot/ROOT/void › pre-upgrade
-┌ ┌ COMMANDS ──────────────────────── 467 of 467 ┐ ┐
+┌ ┌ COMMANDS ──────────────────────── 472 of 472 ┐ ┐
 │ │ :                                            │ │
 │ │   ACTIONS                                    │ │
 │ │ ▶ Boot zroot/ROOT/void                       │ │
 │ │   Edit the command line of zroot/ROOT/v… PIN │ │
+│ │   Set the Command Line of zr… read/write PIN │ │
 │ │   Make zroot/ROOT/void the D… read/write PIN │ │
 │ │   Take a Snapshot of zroot… n read/write PIN │ │
 │ │   Chroot into zroot/ROOT/void            PIN │ │
 │ │   Boot a clone of zroot/RO… b read/write PIN │ │
-│ │   Boot a clone of zroot/ROOT… read/write PIN │ │
 │ │   Boot a clone of zroot/ROOT… read/write PIN │ │
 └─│   Boot a clone of zroot/ROOT… read/write PIN │─┘
 ┌ │   Boot a clone of zroot/ROOT… read/write PIN │─┐

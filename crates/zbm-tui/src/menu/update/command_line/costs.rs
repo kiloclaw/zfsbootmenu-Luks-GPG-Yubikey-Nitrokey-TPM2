@@ -4,7 +4,7 @@
 //! the keys do ([`action_of`]) and the entry's action, never from its plan,
 //! which the machine would have to make for each entry (B5).
 
-use zbm_types::{DatasetName, SnapshotName};
+use zbm_types::{DatasetName, SnapshotName, Untrusted};
 
 use super::super::action_of::action_of;
 use super::super::dialogs;
@@ -73,9 +73,9 @@ fn keyed<T>(model: &Model, context: Context, listed: &[(Intent, T)]) -> Vec<(The
 
 /// What `then` costs: its action's costs, and a review page's, a
 /// promotion's typed name among them; the boot of a command line edited,
-/// which the lock keeps; and a key's, what the key does in the view under
-/// the palette. A sheet, a view or a place costs nothing: the sheet's
-/// entries have their own.
+/// which the lock keeps, and its save's; and a key's, what the key does
+/// in the view under the palette. A sheet, a view or a place costs
+/// nothing: the sheet's entries have their own.
 pub(crate) fn costs_of(model: &Model, then: &Then) -> Costs {
     match then {
         Then::Act(action) => of_action(model, action),
@@ -88,6 +88,10 @@ pub(crate) fn costs_of(model: &Model, then: &Then) -> Costs {
             ..of_action(model, &action)
         }),
         Then::BootClone(snapshot) => of_action(model, &boot_clone(snapshot)),
+        Then::SaveCommandLine(environment) => {
+            let line = Untrusted::default();
+            of_action(model, &Action::SetCommandLine(environment.clone(), line))
+        }
         Then::Focus(_, Screen::CommandLine) | Then::EditFor(..) => Costs {
             pin: model.snapshot.menu_locked,
             ..Costs::default()
@@ -133,11 +137,13 @@ fn of_action(model: &Model, action: &Action) -> Costs {
 }
 
 /// The environment whose key `action` loads: the one it boots or opens a
-/// shell in, or the one it changes.
+/// shell in, or the one it changes; none for a command line saved, a user
+/// property, which ZFS sets without the key.
 fn keyed_environment(action: &Action) -> Option<&DatasetName> {
     match action {
         Action::Boot { environment, .. } => Some(environment),
         Action::Chroot(target) => Some(target.dataset()),
+        Action::SetCommandLine(..) | Action::InheritCommandLine(_) => None,
         other => other.changed_environment(),
     }
 }

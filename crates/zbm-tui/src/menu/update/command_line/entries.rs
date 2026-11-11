@@ -10,7 +10,7 @@ use super::super::{dialogs, offers, screens, snapshots, unlock};
 use super::items;
 use crate::menu::keymap::{self, Map};
 use crate::menu::model::{Costs, Model, PaletteItem, Screen, Section, Then};
-use crate::menu::world::{Access, Action, VolumeState};
+use crate::menu::world::{Access, Action, Environment, Origin, VolumeState};
 use crate::text::{self, Id, id, text};
 
 /// An entry of `section`, labelled in the menu's language, which a query
@@ -64,13 +64,18 @@ pub(super) fn entries(model: &Model) -> Vec<PaletteItem> {
 }
 
 /// What each environment does: its boot, the edit of its command line and
-/// its revert, its default, a snapshot of it, a chroot into it, its boot
-/// tries given back, and the boot of a clone of each snapshot read
-/// ([`clone_boots`]).
+/// its revert, its save and inherit in the workspace ([`saves`]), its
+/// default, a snapshot of it, a chroot into it, its boot tries given back,
+/// and the boot of a clone of each snapshot read ([`clone_boots`]).
 fn environment_actions(model: &Model) -> Vec<PaletteItem> {
     let boot = command(id!("command-boot"));
     let edit = command(id!("command-edit"));
     let revert = command(id!("command-revert"));
+    let saved = [
+        id!("command-commandline"),
+        id!("command-inherit-commandline"),
+    ]
+    .map(command);
     let default = command(id!("command-default"));
     let snapshot = command(id!("command-snapshot"));
     let chroot = command(id!("command-chroot"));
@@ -82,23 +87,16 @@ fn environment_actions(model: &Model) -> Vec<PaletteItem> {
         let target = name.to_string();
         let at = target.as_str();
         let then = Then::Act(screens::boot(model, environment, None));
-        items.push(action(
-            text!("palette-boot", environment = at),
-            &boot,
-            at,
-            then,
-        ));
+        let label = text!("palette-boot", environment = at);
+        items.push(action(label, &boot, at, then));
         let then = Then::Focus(name.clone(), Screen::CommandLine);
-        items.push(action(
-            text!("palette-edit", environment = at),
-            &edit,
-            at,
-            then,
-        ));
+        let label = text!("palette-edit", environment = at);
+        items.push(action(label, &edit, at, then));
         if model.edited.iter().any(|(edited, _)| edited == name) {
             let label = text!("palette-revert", environment = at);
             items.push(action(label, &revert, at, Then::Revert(name.clone())));
         }
+        items.extend(saves(model, environment, &saved, at));
         let then = Then::Act(Action::SetDefaultEnvironment(name.clone()));
         let label = text!("palette-default", environment = at);
         items.push(action(label, &default, at, then));
@@ -121,6 +119,29 @@ fn environment_actions(model: &Model) -> Vec<PaletteItem> {
             items.push(action(label, &tries, at, then));
         }
         items.extend(clone_boots(model, name, clone));
+    }
+    items
+}
+
+/// The command line of `environment`, `at`, saved for every boot, and
+/// inherited when it is set on the environment itself: found by the names
+/// `save` and `inherit`. The workspace's alone (ADR 0016, point 10).
+fn saves(
+    model: &Model,
+    environment: &Environment,
+    [save, inherit]: &[String; 2],
+    at: &str,
+) -> Vec<PaletteItem> {
+    if model.map != Map::Workspace {
+        return Vec::new();
+    }
+    let name = &environment.name;
+    let label = text!("palette-set-command-line", environment = at);
+    let mut items = vec![action(label, save, at, Then::SaveCommandLine(name.clone()))];
+    if environment.command_line.origin == Origin::Local {
+        let then = Then::Act(Action::InheritCommandLine(name.clone()));
+        let label = text!("palette-inherit-command-line", environment = at);
+        items.push(action(label, inherit, at, then));
     }
     items
 }

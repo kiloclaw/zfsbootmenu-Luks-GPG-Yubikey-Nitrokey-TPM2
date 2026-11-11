@@ -4,8 +4,8 @@
 use zbm_types::Untrusted;
 
 use crate::menu::keymap::{self, Input, Intent};
-use crate::menu::model::{Model, Screen};
-use crate::menu::world::{Action, Outcome};
+use crate::menu::model::{Editor, Model, Screen};
+use crate::menu::world::{Action, CommandLine, Outcome};
 use crate::text::text;
 
 /// Applies a typing input to `text`; returns the intent when the input is
@@ -57,7 +57,8 @@ pub(super) fn filter(model: &mut Model, input: Input) -> Vec<Action> {
 }
 
 /// The command line editor: `Enter` boots with the edited line, for this
-/// boot only.
+/// boot only; in the save editor, it opens the dry run of the line saved
+/// for every boot ([`save`]).
 pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
     let Some(mut editor) = model.editor.take() else {
         model.screen = Screen::Main;
@@ -78,6 +79,9 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
                 model.editor = Some(editor);
                 return Vec::new();
             }
+            if editor.save {
+                return save(model, editor);
+            }
             // The editor gives its line to the boot and closes: when the boot
             // fails, or the environment has gone, the main view says so.
             model.screen = Screen::Main;
@@ -91,6 +95,11 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
                 return Vec::new();
             };
             model.edited.retain(|(name, _)| *name != editor.environment);
+            // This edit is newer than a save sent before: it stays.
+            let saving = model.saving.as_ref().and_then(Action::changed_environment);
+            if saving == Some(&editor.environment) {
+                model.saving = None;
+            }
             model.edited.push((
                 editor.environment.clone(),
                 Untrusted::new(editor.text.clone()),
@@ -103,6 +112,37 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
             Vec::new()
         }
     }
+}
+
+/// The save editor's `Enter`: a line the machine would refuse to save is
+/// refused here first ([`unsaved`]); else its dry run opens over the
+/// editor, which stays open under it, so that `Esc` goes back to the
+/// line. An empty line lets the environment inherit its command line.
+fn save(model: &mut Model, editor: Editor) -> Vec<Action> {
+    if let Some(problem) = unsaved(&editor.text) {
+        model.notification = Some(Outcome::Warning(problem));
+        model.editor = Some(editor);
+        return Vec::new();
+    }
+    let environment = editor.environment.clone();
+    let action = if editor.text.is_empty() {
+        Action::InheritCommandLine(environment)
+    } else {
+        Action::SetCommandLine(environment, Untrusted::new(editor.text.clone()))
+    };
+    model.editor = Some(editor);
+    super::dry_run::open(model, action)
+}
+
+/// Why the machine would refuse to save `line`, if it would, by its own
+/// checks: a control character, or more bytes than ZFS keeps of a
+/// property's value.
+fn unsaved(line: &str) -> Option<String> {
+    if CommandLine::has_control(line) {
+        return Some(text!("command-line-control"));
+    }
+    CommandLine::is_too_long(line)
+        .then(|| text!("command-line-too-long", longest = CommandLine::LONGEST))
 }
 
 /// What is wrong with a command line, if anything: an unclosed quote.

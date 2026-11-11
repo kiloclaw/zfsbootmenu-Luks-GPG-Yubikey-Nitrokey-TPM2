@@ -15,6 +15,8 @@ fn is_planned(action: &Action) -> bool {
         | Action::SetDefaultEnvironment(_)
         | Action::SetDefaultKernel(..)
         | Action::InheritDefaultKernel(_)
+        | Action::SetCommandLine(..)
+        | Action::InheritCommandLine(_)
         | Action::CreateSnapshot(_)
         | Action::Rollback(_)
         | Action::Destroy(_)
@@ -66,6 +68,8 @@ fn every_action() -> Vec<Action> {
         Action::SetDefaultEnvironment(environment.clone()),
         Action::SetDefaultKernel(environment.clone(), text("6.8")),
         Action::InheritDefaultKernel(environment.clone()),
+        Action::SetCommandLine(environment.clone(), text("quiet")),
+        Action::InheritCommandLine(environment.clone()),
         Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap()),
         Action::Rollback(snapshot.clone()),
         Action::Destroy(vec![snapshot.clone()]),

@@ -479,6 +479,7 @@ fn what_the_machine_says_is_printed_escaped() {
         environment,
         kernel: None,
         text: "quiet\tsplash\u{2066}".to_owned(),
+        save: false,
     });
     let editor = page(&model);
     model.dialog = Some(Dialog::Error {

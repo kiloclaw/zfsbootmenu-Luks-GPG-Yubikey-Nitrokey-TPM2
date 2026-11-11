@@ -182,6 +182,9 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
         Then::Intent(intent) => return super::handle(model, Input::Intent(intent)),
         Then::Go(place) => model.go(&place),
         Then::Revert(environment) => screens::revert(model, &environment),
+        Then::SaveCommandLine(environment) => {
+            return screens::save_command_line(model, environment);
+        }
     }
     Vec::new()
 }

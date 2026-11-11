@@ -186,6 +186,7 @@ fn the_command_line_wraps_where_the_cursor_goes() {
         text: text.clone(),
         environment,
         kernel: None,
+        save: false,
     });
     model.screen = Screen::CommandLine;
 
@@ -236,6 +237,7 @@ fn hostile_names_are_shown_escaped() {
         environment: name,
         kernel: Some(kernel),
         text: line,
+        save: false,
     });
     model.screen = Screen::CommandLine;
     let editor = screen(&model, 80, 25);

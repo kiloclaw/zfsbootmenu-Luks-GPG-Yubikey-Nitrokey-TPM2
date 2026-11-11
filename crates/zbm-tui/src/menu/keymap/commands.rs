@@ -47,6 +47,11 @@ pub(crate) const COMMAND_NAMES: &[(Id, Id)] = &[
     (id!("command-boot"), id!("command-boot.what")),
     (id!("command-edit"), id!("command-edit.what")),
     (id!("command-revert"), id!("command-revert.what")),
+    (id!("command-commandline"), id!("command-commandline.what")),
+    (
+        id!("command-inherit-commandline"),
+        id!("command-inherit-commandline.what"),
+    ),
     (id!("command-default"), id!("command-default.what")),
     (id!("command-inherit"), id!("command-inherit.what")),
     (id!("command-snapshot"), id!("command-snapshot.what")),

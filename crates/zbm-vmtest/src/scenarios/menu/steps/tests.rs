@@ -52,12 +52,42 @@ fn the_palette_tour_and_the_boots_play_on_the_menu() {
     plays(6);
     plays(7);
     plays(8);
+    plays(9);
 }
 
 #[test]
 fn the_display_s_way_back_to_the_boot_tab_and_its_reboot_play_on_the_menu() {
-    plays(9);
     plays(10);
+    plays(11);
+}
+
+#[test]
+fn a_save_waits_for_its_dry_run_and_its_notification() {
+    let awaits: Vec<Await> = BOOT_SAVED.iter().map(|step| step.awaits).collect();
+    assert_eq!(
+        awaits,
+        [
+            Await::Text("COMMAND LINE FOR EVERY BOOT"),
+            Await::Text("loglevel=4 zbmtest.saved=1"),
+            Await::Text("org.zfsbootmenu:commandline="),
+            Await::Done,
+        ]
+    );
+    // The editor's Enter shows the dry run; only its own Enter saves.
+    let enters: Vec<usize> = (BOOT_SAVED.iter().enumerate())
+        .filter(|(_, step)| step.acts == [Act::Press(Key::Enter)])
+        .map(|(at, _)| at)
+        .collect();
+    assert_eq!(enters, [2, 3]);
+    // The line read back, set on the environment.
+    let saved = BOOT_SAVED.last().unwrap();
+    assert!(saved.shows.contains(&"zbmtest.saved=1") && saved.shows.contains(&"set here"));
+    // The kernel's edit starts from the saved line: it waits for the edit
+    // alone, as the display test plays it without the save.
+    assert_eq!(
+        BOOT_KERNEL.get(1).map(|step| step.awaits),
+        Some(Await::Text("zbmtest.edited=1"))
+    );
 }
 
 #[test]

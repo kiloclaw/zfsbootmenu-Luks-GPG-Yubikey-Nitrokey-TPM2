@@ -169,6 +169,8 @@ fn has_plan(action: &Action) -> bool {
         | Action::SetDefaultEnvironment(_)
         | Action::SetDefaultKernel(..)
         | Action::InheritDefaultKernel(_)
+        | Action::SetCommandLine(..)
+        | Action::InheritCommandLine(_)
         | Action::CreateSnapshot(_)
         | Action::Rollback(_)
         | Action::Destroy(_)
@@ -222,6 +224,8 @@ fn every_action_with_a_plan_has_a_dry_run_title() {
         Action::SetDefaultEnvironment(environment.clone()),
         Action::SetDefaultKernel(environment.clone(), Untrusted::new("6.12".to_owned())),
         Action::InheritDefaultKernel(environment.clone()),
+        Action::SetCommandLine(environment.clone(), Untrusted::new("quiet".to_owned())),
+        Action::InheritCommandLine(environment.clone()),
         Action::CreateSnapshot(snapshot.clone()),
         Action::Rollback(snapshot.clone()),
         Action::Destroy(vec![snapshot.clone()]),
@@ -287,4 +291,63 @@ fn the_line_view_says_the_steps_and_asks_for_no_name() {
             .iter()
             .any(|line| line.contains(&text!("confirm-type", name = "")))
     );
+}
+
+#[test]
+fn a_saved_line_s_dry_run_says_the_line_it_replaces_and_what_still_comes_first() {
+    let name = |text: &str| -> zbm_types::DatasetName { text.parse().unwrap() };
+    let line = |text: &str| Untrusted::new(text.to_owned());
+    let undone_by = |undo: Action| Review {
+        undo: Some(Box::new(undo)),
+        ..Review::default()
+    };
+    // `tank/ROOT/arch` sets its own line; `tank/ROOT/debian` none; and
+    // `zroot/ROOT/void` inherits one, shown expanded.
+    let set_back = Action::SetCommandLine(name("tank/ROOT/arch"), line("rw quiet splash"));
+    let pages = [
+        (
+            Action::SetCommandLine(name("tank/ROOT/arch"), line("rw")),
+            undone_by(set_back),
+            ("rw quiet splash", text!("origin-local")),
+            text!(
+                "review-undo-command-line",
+                environment = "tank/ROOT/arch",
+                line = "rw quiet splash"
+            ),
+        ),
+        (
+            Action::SetCommandLine(name("tank/ROOT/debian"), line("quiet")),
+            undone_by(Action::InheritCommandLine(name("tank/ROOT/debian"))),
+            ("(empty)", text!("label-default")),
+            text!(
+                "review-undo-inherit-command-line",
+                environment = "tank/ROOT/debian"
+            ),
+        ),
+        (
+            Action::InheritCommandLine(name("zroot/ROOT/void")),
+            undone_by(Action::InheritCommandLine(name("zroot/ROOT/void"))),
+            (
+                "quiet loglevel=4",
+                text!("origin-inherited", from = "zroot/ROOT"),
+            ),
+            text!(
+                "review-undo-inherit-command-line",
+                environment = "zroot/ROOT/void"
+            ),
+        ),
+    ];
+    for (action, review, (old, origin), undo) in pages {
+        let drawn = prose(&dry_run(action, plan(review)), 160, 40);
+
+        let was = text!("dry-run-command-line-was", line = old, origin = origin);
+        assert!(drawn.contains(&was), "{was}: {drawn}");
+        assert!(drawn.contains(&undo), "{undo}: {drawn}");
+        assert!(drawn.contains(&text!("dry-run-command-line-kernels")));
+        assert!(drawn.contains(&text!("dry-run-command-line-measured")));
+    }
+    // Another change says none of it.
+    let take = Action::CreateSnapshot(new_snapshot());
+    let drawn = prose(&dry_run(take, plan(Review::default())), 160, 40);
+    assert!(!drawn.contains(&text!("dry-run-command-line-measured")));
 }

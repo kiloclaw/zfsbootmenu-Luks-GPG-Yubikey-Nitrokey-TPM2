@@ -1,17 +1,18 @@
 //! What the dry run of a change says that its review page does not (ADR
 //! 0007, point 5; ADR 0016, point 12): a title that names the change and
-//! its target, and its undo, or that it loses nothing. A page that loses
-//! nothing and asks for no name is not drawn as a danger. The undo line
-//! of every page is said here: a review page names the undos a dry run
-//! does, and says that it has none as it did.
+//! its target, and its undo, or that it loses nothing; of a command line
+//! saved, the line it replaces and what still comes before it. A page
+//! that loses nothing and asks for no name is not drawn as a danger. The
+//! undo line of every page is said here: a review page names the undos a
+//! dry run does, and says that it has none as it did.
 
 use zbm_types::ImportPolicy;
 
 use super::steps::access;
 use super::{Part, part};
-use crate::menu::model::Reviewing;
+use crate::menu::model::{Model, Reviewing, own_command_line};
 use crate::menu::theme::Role;
-use crate::menu::world::{Action, Review};
+use crate::menu::world::{Action, Origin, Review};
 use crate::text::text;
 
 /// The title of the dry run of `action`, which names the change and its
@@ -29,6 +30,8 @@ pub(super) fn title(action: &Action) -> Option<String> {
         Action::SetDefaultEnvironment(_)
         | Action::SetDefaultKernel(..)
         | Action::InheritDefaultKernel(_)
+        | Action::SetCommandLine(..)
+        | Action::InheritCommandLine(_)
         | Action::Import(..)
         | Action::Export(_) => set(action),
         // Their review pages have titles of their own; the others have no
@@ -113,6 +116,16 @@ fn set(action: &Action) -> Option<String> {
                 environment = environment.to_string()
             )
         }
+        Action::SetCommandLine(environment, _) => {
+            text!(
+                "dry-run-command-line",
+                environment = environment.to_string()
+            )
+        }
+        Action::InheritCommandLine(environment) => text!(
+            "dry-run-inherit-command-line",
+            environment = environment.to_string()
+        ),
         Action::Import(pool, options) if options.policy == ImportPolicy::Hostid => text!(
             "dry-run-import-last-host",
             pool = pool.to_string(),
@@ -165,6 +178,15 @@ pub(super) fn undo(reviewing: &Reviewing, review: &Review) -> Part {
             "review-undo-inherit-kernel",
             environment = environment.to_string()
         ),
+        Some(Action::SetCommandLine(environment, line)) => text!(
+            "review-undo-command-line",
+            environment = environment.to_string(),
+            line = line.printable().to_string()
+        ),
+        Some(Action::InheritCommandLine(environment)) => text!(
+            "review-undo-inherit-command-line",
+            environment = environment.to_string()
+        ),
         Some(_) => text!("review-undo"),
         None if review.host_id_stays => {
             return part(text!("review-host-id-stays"), Role::Warning);
@@ -175,6 +197,40 @@ pub(super) fn undo(reviewing: &Reviewing, review: &Review) -> Part {
         None => return part(text!("review-no-undo"), Role::Warning),
     };
     part(named, Role::Text)
+}
+
+/// What the dry run of a command line saved or inherited says after its
+/// steps, before its undo: the line its environment boots with until then,
+/// and where it comes from; then that a kernel's own `.kcl` file and
+/// `zbm.kcl_override` still come before the saved line, and that with
+/// measured boot PCR 8 changes for every later boot. Those two are said
+/// always: the menu knows neither a kernel's files nor whether the image
+/// measures.
+pub(super) fn command_line(model: &Model, reviewing: &Reviewing) -> Vec<Part> {
+    let (Action::SetCommandLine(name, _) | Action::InheritCommandLine(name)) = &reviewing.action
+    else {
+        return Vec::new();
+    };
+    let mut parts = Vec::new();
+    let environments = &model.snapshot.environments;
+    if let Some(environment) = environments.iter().find(|known| known.name == *name) {
+        let line = own_command_line(environment);
+        let line = if line.get().is_empty() {
+            text!("value-empty")
+        } else {
+            line.printable().to_string()
+        };
+        let origin = match &environment.command_line.origin {
+            Origin::Local => text!("origin-local"),
+            Origin::Inherited(from) => text!("origin-inherited", from = from.to_string()),
+            Origin::Default => text!("label-default"),
+        };
+        let was = text!("dry-run-command-line-was", line = line, origin = origin);
+        parts.push(part(was, Role::Text));
+    }
+    parts.push(part(text!("dry-run-command-line-kernels"), Role::Muted));
+    parts.push(part(text!("dry-run-command-line-measured"), Role::Muted));
+    parts
 }
 
 #[cfg(test)]

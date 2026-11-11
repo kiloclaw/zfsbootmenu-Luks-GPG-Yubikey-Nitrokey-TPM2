@@ -19,6 +19,8 @@ pub enum Offer {
     SetDefaultEnvironment,
     /// Setting or inheriting the default kernel of an environment.
     DefaultKernel,
+    /// Saving or inheriting the command line of an environment.
+    CommandLine,
     /// Taking a snapshot.
     CreateSnapshot,
     /// Rolling an environment back to a snapshot.
@@ -55,11 +57,12 @@ pub enum Offer {
 
 impl Offer {
     /// Every kind, in order.
-    pub const ALL: [Offer; 20] = [
+    pub const ALL: [Offer; 21] = [
         Offer::Boot,
         Offer::BootSnapshot,
         Offer::SetDefaultEnvironment,
         Offer::DefaultKernel,
+        Offer::CommandLine,
         Offer::CreateSnapshot,
         Offer::Rollback,
         Offer::Destroy,
@@ -90,6 +93,7 @@ impl Action {
             Action::BootSnapshot(..) => Offer::BootSnapshot,
             Action::SetDefaultEnvironment(_) => Offer::SetDefaultEnvironment,
             Action::SetDefaultKernel(..) | Action::InheritDefaultKernel(_) => Offer::DefaultKernel,
+            Action::SetCommandLine(..) | Action::InheritCommandLine(_) => Offer::CommandLine,
             Action::CreateSnapshot(_) => Offer::CreateSnapshot,
             Action::Rollback(_) => Offer::Rollback,
             Action::Destroy(_) => Offer::Destroy,
@@ -141,6 +145,14 @@ mod tests {
         sorted.sort();
         sorted.dedup();
         assert_eq!(sorted, Offer::ALL);
+        // The command line saved follows the default kernel.
+        let kernel = Offer::ALL
+            .iter()
+            .position(|kind| *kind == Offer::DefaultKernel);
+        let saved = Offer::ALL
+            .iter()
+            .position(|kind| *kind == Offer::CommandLine);
+        assert_eq!(saved, kernel.map(|kernel| kernel + 1));
     }
 
     #[test]

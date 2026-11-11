@@ -3,7 +3,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
  [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 6
  zroot › zroot/ROOT/void
-┌ ┌ COMMANDS ─────────────────────────── 3 of 55 ┐ ┐
+┌ ┌ COMMANDS ─────────────────────────── 3 of 60 ┐ ┐
 │ │ : pools                                      │ │
 │ │   ACTIONS                                    │ │
 │ │ ▶ Rescan the Pools                           │ │

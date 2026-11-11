@@ -413,6 +413,7 @@ fn a_snapshot_boot_plans_its_clone_then_the_boot_and_does_neither() {
     assert!(plan.steps.is_empty(), "{plan:?}");
 }
 
+mod command_line;
 mod has_plan;
 mod reviews;
 

@@ -41,6 +41,8 @@ pub(super) fn apply(snapshot: &mut Snapshot, lists: &mut Lists, action: Action) 
         Action::SetDefaultEnvironment(name) => set_default(snapshot, &name),
         Action::SetDefaultKernel(name, version) => set_kernel(snapshot, &name, Some(&version)),
         Action::InheritDefaultKernel(name) => set_kernel(snapshot, &name, None),
+        Action::SetCommandLine(name, line) => set_command_line(snapshot, &name, Some(line)),
+        Action::InheritCommandLine(name) => set_command_line(snapshot, &name, None),
         Action::CreateSnapshot(name) => create(snapshot, lists, &name),
         Action::Rollback(target) => rollback(snapshot, lists, &target),
         Action::Destroy(names) => destroy(snapshot, lists, &names),
@@ -127,6 +129,44 @@ fn set_kernel(
         |version| format!("{name} boots {} by default", version.printable()),
     );
     Outcome::Done(format!("{what}{note}"))
+}
+
+/// Saves `line` as the command line of `name`, or, without one or with an
+/// empty one, lets it inherit the line of its parent: in `zroot`,
+/// `zroot/ROOT` sets `%{parent} loglevel=4` and `zroot` sets `quiet`; in
+/// `tank`, none is set.
+fn set_command_line(
+    snapshot: &mut Snapshot,
+    name: &DatasetName,
+    line: Option<Untrusted<String>>,
+) -> Outcome {
+    let note = make_writable(snapshot, &name.pool());
+    let Some(environment) = environment(snapshot, name) else {
+        return Outcome::Warning(format!("{name} is gone"));
+    };
+    if let Some(line) = line.filter(|line| !line.get().is_empty()) {
+        environment.command_line = CommandLine {
+            value: line.clone(),
+            origin: Origin::Local,
+            expanded: line,
+        };
+        return Outcome::Done(format!("the command line of {name} is saved{note}"));
+    }
+    environment.command_line = if name.pool().as_str() == "zroot" {
+        let from = "zroot/ROOT".parse().ok();
+        CommandLine {
+            value: untrusted("%{parent} loglevel=4"),
+            origin: from.map_or(Origin::Default, Origin::Inherited),
+            expanded: untrusted("quiet loglevel=4"),
+        }
+    } else {
+        CommandLine {
+            value: Untrusted::default(),
+            origin: Origin::Default,
+            expanded: Untrusted::default(),
+        }
+    };
+    Outcome::Done(format!("{name} inherits its command line{note}"))
 }
 
 /// Takes `snapshot_name`; one that exists fails as `zfs snapshot` does,

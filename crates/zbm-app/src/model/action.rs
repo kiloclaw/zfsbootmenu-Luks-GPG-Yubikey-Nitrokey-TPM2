@@ -48,6 +48,12 @@ pub enum Action {
     SetDefaultKernel(DatasetName, Untrusted<String>),
     /// Let an environment inherit its default kernel again.
     InheritDefaultKernel(DatasetName),
+    /// Save the command line an environment boots with, for every boot:
+    /// `org.zfsbootmenu:commandline`, the line as it is; an empty one is
+    /// [`Action::InheritCommandLine`].
+    SetCommandLine(DatasetName, Untrusted<String>),
+    /// Let an environment inherit its command line again.
+    InheritCommandLine(DatasetName),
     /// Take the snapshot named.
     CreateSnapshot(SnapshotName),
     /// Roll an environment back to a snapshot, destroying the newer ones:
@@ -227,6 +233,8 @@ impl Action {
                 | Action::SetDefaultEnvironment(_)
                 | Action::SetDefaultKernel(..)
                 | Action::InheritDefaultKernel(_)
+                | Action::SetCommandLine(..)
+                | Action::InheritCommandLine(_)
                 | Action::CreateSnapshot(_)
                 | Action::Rollback(_)
                 | Action::Destroy(_)
@@ -299,6 +307,8 @@ impl Action {
             | Action::SetDefaultEnvironment(_)
             | Action::SetDefaultKernel(..)
             | Action::InheritDefaultKernel(_)
+            | Action::SetCommandLine(..)
+            | Action::InheritCommandLine(_)
             | Action::CreateSnapshot(_)
             | Action::Rollback(_)
             | Action::Destroy(_)
@@ -323,7 +333,9 @@ impl Action {
             Action::Destroy(snapshots) => snapshots.first().map(SnapshotName::dataset),
             Action::SetDefaultEnvironment(environment)
             | Action::SetDefaultKernel(environment, _)
-            | Action::InheritDefaultKernel(environment) => Some(environment),
+            | Action::InheritDefaultKernel(environment)
+            | Action::SetCommandLine(environment, _)
+            | Action::InheritCommandLine(environment) => Some(environment),
             Action::BootSnapshot(snapshot, _)
             | Action::CreateSnapshot(snapshot)
             | Action::Rollback(snapshot)
@@ -340,8 +352,9 @@ impl Action {
     /// describes: those of [`Action::needs_console`], a change that writes
     /// a pool imported read-only ([`Action::needs_writable_pool`]), as the
     /// read/write import may ask about hibernation, and one whose
-    /// environment is locked, as the key may be asked for; and a duplicate
-    /// whose target may go under a locked encryption root.
+    /// environment is locked, as the key may be asked for, but for a
+    /// command line, which is set without it; and a duplicate whose target
+    /// may go under a locked encryption root.
     pub fn needs_console_on(&self, snapshot: &super::Snapshot) -> bool {
         // The PIN is asked on the console.
         if self.needs_console()
@@ -358,10 +371,15 @@ impl Action {
                 .pools
                 .iter()
                 .any(|known| known.imported && known.name == pool && !known.writable);
-        let locked = snapshot.environments.iter().any(|known| {
-            known.name.as_str() == environment.as_str()
-                && known.encryption == super::Encryption::Locked
-        });
+        let keyless = matches!(
+            self,
+            Action::SetCommandLine(..) | Action::InheritCommandLine(_)
+        );
+        let locked = !keyless
+            && snapshot.environments.iter().any(|known| {
+                known.name.as_str() == environment.as_str()
+                    && known.encryption == super::Encryption::Locked
+            });
         read_only || locked || self.target_may_be_locked(snapshot)
     }
 

@@ -23,6 +23,7 @@ pub(super) const APP: &[Offer] = &[
     Offer::BootSnapshot,
     Offer::SetDefaultEnvironment,
     Offer::DefaultKernel,
+    Offer::CommandLine,
     Offer::CreateSnapshot,
     Offer::Rollback,
     Offer::Destroy,
@@ -146,6 +147,15 @@ fn then_action(model: &Model, then: &Then) -> Option<Action> {
                 .find(|e| &e.name == name)?;
             Some(screens::boot(model, environment, Some(kernel.clone())))
         }
+        Then::SaveCommandLine(name) => {
+            let environment = model
+                .snapshot
+                .environments
+                .iter()
+                .find(|e| &e.name == name)?;
+            let line = model.command_line(environment);
+            Some(Action::SetCommandLine(name.clone(), line))
+        }
         // A key's, which the keys of the view reach too.
         Then::Open(_) | Then::Focus(..) | Then::Intent(_) | Then::Go(_) | Then::Revert(_) => None,
     }
@@ -173,7 +183,11 @@ fn reached(model: &Model, mut sent: Vec<Action>) -> Vec<Action> {
         );
     }
     if let Some(editor) = &model.editor {
-        let then = Then::Focus(editor.environment.clone(), Screen::CommandLine);
+        let then = if editor.save {
+            Then::SaveCommandLine(editor.environment.clone())
+        } else {
+            Then::Focus(editor.environment.clone(), Screen::CommandLine)
+        };
         sent.extend(then_action(model, &then));
     }
     sent
@@ -278,9 +292,12 @@ fn every_key_menu_entry_and_palette_item_leads_only_to_what_is_offered() {
 #[test]
 fn each_map_alone_reaches_every_kind_offered() {
     for map in [Map::Classic, Map::Workspace] {
-        // The classic map gains no destroy (ADR 0016, point 10).
+        // The classic map gains no destroy and no command line saved (ADR
+        // 0016, point 10).
         let kinds = |offers: &[Offer]| -> BTreeSet<Offer> {
-            let is_kept = |kind: &Offer| map == Map::Workspace || *kind != Offer::Destroy;
+            let is_kept = |kind: &Offer| {
+                map == Map::Workspace || !matches!(kind, Offer::Destroy | Offer::CommandLine)
+            };
             offers.iter().copied().filter(is_kept).collect()
         };
         let every = kinds(&Offer::ALL);

@@ -507,8 +507,46 @@ pub(in crate::scenarios::menu) const BOOT_TOUR: &[Step] = &[
     .hiding(&["Re-seal the TPM2 Key"]),
 ];
 
+/// `menu-boot`, first boot, before [`BOOT_KERNEL`]: the command line of
+/// tmenu/ROOT/be saved for every boot, from the palette, through its dry
+/// run. The machine imports tmenu read/write, writes the line and reads it
+/// back: the inspector says it is set here. Each boot of `menu-boot`
+/// starts on fresh disks, so the next does not see it.
+pub(in crate::scenarios::menu) const BOOT_SAVED: &[Step] = &[
+    Step::new(
+        "the palette's Set the Command Line of tmenu/ROOT/be",
+        &[
+            ESCAPE,
+            key('1'),
+            key(':'),
+            Type("set the command"),
+            Select("Set the Command Line of tmenu/ROOT/be"),
+            ENTER,
+        ],
+        Await::Text("COMMAND LINE FOR EVERY BOOT"),
+    )
+    .showing(&["For every boot"]),
+    Step::new(
+        "the command line to save, edited",
+        &[Type(" zbmtest.saved=1")],
+        Await::Text("loglevel=4 zbmtest.saved=1"),
+    ),
+    Step::new(
+        "the save's dry run",
+        &[ENTER],
+        Await::Text("org.zfsbootmenu:commandline="),
+    )
+    .showing(&["Nothing has changed yet", "PCR 8"]),
+    Step::new("save it", &[ENTER], Await::Done).showing(&[
+        "is saved",
+        "zbmtest.saved=1",
+        "set here",
+    ]),
+];
+
 /// `menu-boot`, first boot: the second kernel, with an edited command
-/// line; Enter boots it.
+/// line, which starts from the line [`BOOT_SAVED`] saved, and ends with the
+/// edit; Enter boots it.
 pub(in crate::scenarios::menu) const BOOT_KERNEL: &[Step] = &[
     Step::new(
         "the command line with the kernel 0.0.1-zbmtest",
@@ -525,7 +563,7 @@ pub(in crate::scenarios::menu) const BOOT_KERNEL: &[Step] = &[
     Step::new(
         "the command line edited",
         &[Type(" zbmtest.edited=1")],
-        Await::Text("loglevel=4 zbmtest.edited=1"),
+        Await::Text("zbmtest.edited=1"),
     ),
     Step::new("boot it", &[ENTER], Await::Nothing),
 ];

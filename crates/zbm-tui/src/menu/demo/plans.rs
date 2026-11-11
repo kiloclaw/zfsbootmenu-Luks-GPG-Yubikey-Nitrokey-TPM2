@@ -2,8 +2,9 @@
 //! plans them: their steps, with the commands they would run, and what
 //! undoes them. A change of a pool imported read-only imports it
 //! read/write first, and one of an environment whose key is not loaded
-//! loads it. The rollback, the destroy, the rewind and the forced import
-//! have their reviews ([`super::review`]).
+//! loads it; a command line saved, a user property, needs no key. The
+//! rollback, the destroy, the rewind and the forced import have their
+//! reviews ([`super::review`]).
 
 use std::fmt::Display;
 
@@ -12,12 +13,15 @@ use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
 use super::review::{import, plan};
 use crate::menu::world::{
-    Access, Action, Encryption, ImportOptions, Plan, Review, Snapshot, Step, StepKind,
+    Access, Action, Encryption, ImportOptions, Origin, Plan, Review, Snapshot, Step, StepKind,
     restore_snapshot,
 };
 
 /// The property that names an environment's default kernel.
 const KERNEL: &str = "org.zfsbootmenu:kernel";
+
+/// The property that holds an environment's command line.
+const COMMAND_LINE: &str = "org.zfsbootmenu:commandline";
 
 /// The properties a clone and a copy are given.
 const GIVEN: &str = "-o mountpoint=/ -o canmount=noauto";
@@ -72,6 +76,10 @@ pub(super) fn plan_of(snapshot: &Snapshot, action: &Action) -> Plan {
                 needs.into_iter().chain([inherit]).collect(),
                 Review::default(),
             )
+        }
+        Action::SetCommandLine(environment, line) => command_line(snapshot, environment, line),
+        Action::InheritCommandLine(environment) => {
+            command_line(snapshot, environment, &Untrusted::default())
         }
         Action::Import(pool, options) => import_plan(snapshot, pool, *options),
         Action::Export(pool) => (vec![export(pool)], Review::default()),
@@ -155,6 +163,54 @@ fn property(environment: &DatasetName, inherits: bool) -> StepKind {
         StepKind::InheritProperty { dataset, property }
     } else {
         StepKind::SetProperty { dataset, property }
+    }
+}
+
+/// The command line `line` saved for `environment`, after the read/write
+/// import of its pool; inherited when it is empty. It needs no key.
+fn command_line(
+    snapshot: &Snapshot,
+    environment: &DatasetName,
+    line: &Untrusted<String>,
+) -> (Vec<Step>, Review) {
+    let inherits = line.get().is_empty();
+    let command = if inherits {
+        format!("zfs inherit {COMMAND_LINE} {}", shell(environment))
+    } else {
+        let set = format!("{COMMAND_LINE}={}", line.get());
+        format!("zfs set {} {}", word(&set), shell(environment))
+    };
+    let change = step(line_property(environment, inherits), command);
+    let steps = writable(snapshot, &environment.pool()).into_iter();
+    (
+        steps.chain([change]).collect(),
+        line_undo(snapshot, environment),
+    )
+}
+
+/// The change of the command line of `environment`: inherited, or set.
+fn line_property(environment: &DatasetName, inherits: bool) -> StepKind {
+    let (dataset, property) = (environment.clone(), COMMAND_LINE.to_owned());
+    if inherits {
+        StepKind::InheritProperty { dataset, property }
+    } else {
+        StepKind::SetProperty { dataset, property }
+    }
+}
+
+/// What undoes a change of the command line of `environment`: the line
+/// set on it, set again, or inheriting it again.
+fn line_undo(snapshot: &Snapshot, environment: &DatasetName) -> Review {
+    let found = snapshot
+        .environments
+        .iter()
+        .find(|found| &found.name == environment);
+    match found.map(|found| &found.command_line) {
+        Some(line) if line.origin == Origin::Local => undone_by(Action::SetCommandLine(
+            environment.clone(),
+            line.value.clone(),
+        )),
+        _ => undone_by(Action::InheritCommandLine(environment.clone())),
     }
 }
 
