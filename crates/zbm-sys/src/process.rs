@@ -4,7 +4,7 @@
 //! taking the terminal back from a child that left it to its own process
 //! group.
 
-use std::ffi::c_int;
+use std::ffi::{CStr, CString, c_int};
 use std::io;
 use std::os::fd::{AsFd, AsRawFd as _, OwnedFd};
 
@@ -43,6 +43,10 @@ pub struct ChildSetup {
     pub default_signals: Vec<Signal>,
     /// The session it runs in.
     pub session: Session,
+    /// The directory it runs with as its root (`chroot`), its working
+    /// directory that root's `/`; made before `fork`, so that the child
+    /// allocates nothing for it.
+    pub root: Option<CString>,
 }
 
 /// Has the program that `process` starts set up as `setup` says, with no
@@ -62,6 +66,7 @@ pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
         .map(|signal| signal.number())
         .collect();
     let session = setup.session;
+    let root = setup.root.clone();
     let prepare = move || {
         if unblock && super::signals::unblock_all() != 0 {
             return Err(io::Error::last_os_error());
@@ -88,15 +93,24 @@ pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
                 )
             }?;
         }
+        root.as_deref().map(enter).transpose()?;
         Ok(())
     };
     // SAFETY: the closure runs between `fork` and `exec`, where only
     // async-signal-safe functions may be called: it calls
-    // `pthread_sigmask`, `signal`, and the `setsid` and `ioctl` system
-    // calls, reads `errno`, and allocates nothing.
+    // `pthread_sigmask`, `signal`, and the `setsid`, `ioctl`, `chroot` and
+    // `chdir` system calls, reads `errno`, and allocates nothing: the
+    // root's path was made before `fork`.
     unsafe {
         process.pre_exec(prepare);
     }
+}
+
+/// Makes `root` the root directory of this process (`chroot`), and its
+/// top its working directory: a working directory outside the root would
+/// leave a way out of it. Allocates nothing.
+fn enter(root: &CStr) -> io::Result<()> {
+    Ok(rustix::process::chroot(root).and_then(|()| rustix::process::chdir(c"/"))?)
 }
 
 /// Has the program that `process` starts keep `fd`, a copy of a
@@ -375,6 +389,43 @@ mod tests {
         prepare_child(&mut command, &on_terminal);
         let error = command.status().unwrap_err();
         assert_eq!(error.raw_os_error(), Some(25), "{error}"); // ENOTTY
+    }
+
+    #[test]
+    fn a_child_with_a_root_that_does_not_exist_fails_to_start() {
+        let _guard = PROCESSES.lock().unwrap();
+        let setup = ChildSetup {
+            root: Some(c"/nonexistent/zbm-root".to_owned()),
+            ..ChildSetup::default()
+        };
+        let mut command = Command::new("true");
+        prepare_child(&mut command, &setup);
+        let error = command.status().unwrap_err();
+        // ENOENT for a user too: the path is looked up before the right
+        // to change roots is checked.
+        assert_eq!(error.raw_os_error(), Some(2), "{error}");
+        // Here, in the test's own process, it changes nothing.
+        let before = std::env::current_dir().unwrap();
+        let error = enter(c"/nonexistent/zbm-root").unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(2), "{error}");
+        assert_eq!(std::env::current_dir().unwrap(), before);
+    }
+
+    #[test]
+    fn a_child_with_a_root_starts_in_that_root_s_top_directory() {
+        let _guard = PROCESSES.lock().unwrap();
+        let setup = ChildSetup {
+            root: Some(c"/".to_owned()),
+            ..ChildSetup::default()
+        };
+        let mut command = Command::new("pwd");
+        command.current_dir(env!("CARGO_MANIFEST_DIR"));
+        prepare_child(&mut command, &setup);
+        match command.output() {
+            Ok(output) => assert_eq!(output.stdout, b"/\n"),
+            // A user may not change roots.
+            Err(error) => assert_eq!(error.raw_os_error(), Some(1), "{error}"),
+        }
     }
 
     #[test]

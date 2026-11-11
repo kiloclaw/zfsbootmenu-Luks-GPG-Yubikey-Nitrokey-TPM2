@@ -238,6 +238,63 @@ fn display_joins_program_and_arguments() {
 }
 
 #[test]
+fn a_command_keeps_its_root_and_shows_as_before() {
+    let plain = Command::new("sh").args(["-c", "exit 0"]);
+    assert_eq!(plain.get_root(), None);
+    let rooted = plain.clone().root("/zfsbootmenu/mnt");
+    assert_eq!(rooted.get_root(), Some(Path::new("/zfsbootmenu/mnt")));
+    assert_eq!(rooted.display(), plain.display());
+    assert_ne!(rooted, plain);
+
+    let error = SystemRunner
+        .run(&Command::new("true").root("/a\0b"))
+        .unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{error}");
+}
+
+#[test]
+fn a_command_with_a_root_runs_in_that_root_s_top_directory() {
+    match SystemRunner.run(&Command::new("pwd").root("/")) {
+        Ok(output) => assert_eq!(output.stdout_text(), "/\n"),
+        // A user may not change roots.
+        Err(error) => assert_eq!(error.raw_os_error(), Some(1), "{error}"),
+    }
+    // A program missing in a root that exists is not found there.
+    let missing = Command::new("zbm-no-such-program")
+        .root("/")
+        .stderr(Stream::Capture);
+    match SystemRunner.run(&missing) {
+        Ok(output) => {
+            assert_eq!(output.status.code(), Some(127));
+            let message = "zbm-no-such-program: command not found\n";
+            assert_eq!(output.stderr_text(), message);
+        }
+        Err(error) => assert_eq!(error.raw_os_error(), Some(1), "{error}"),
+    }
+}
+
+#[test]
+fn a_root_that_cannot_be_entered_is_named_and_not_the_program() {
+    // The same for a user: the root is looked up before the right to
+    // change roots is checked.
+    let file = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+    for (root, kind, reason) in [
+        (
+            "/nonexistent/zbm-root",
+            io::ErrorKind::NotFound,
+            "No such file or directory (os error 2)",
+        ),
+        (file, io::ErrorKind::NotADirectory, "not a directory"),
+    ] {
+        let command = Command::new("true").root(root).stderr(Stream::Capture);
+        let error = SystemRunner.run(&command).unwrap_err();
+        assert_eq!(error.kind(), kind, "{error}");
+        let message = format!("cannot change root directory to {root}: {reason}");
+        assert_eq!(error.to_string(), message);
+    }
+}
+
+#[test]
 #[allow(
     clippy::disallowed_methods,
     reason = "the test measures that the program was stopped in real time"

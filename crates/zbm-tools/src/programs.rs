@@ -13,6 +13,10 @@ use zbm_platform::shell::{self, Interpreter};
 use zbm_platform::{Command, Input, Output, Runner, Signal, Stream};
 use zbm_types::FilesystemName;
 
+mod chroot;
+
+pub use self::chroot::Chroot;
+
 /// `command` with the console as its standard input, output and error.
 fn on_console(command: Command) -> Command {
     command

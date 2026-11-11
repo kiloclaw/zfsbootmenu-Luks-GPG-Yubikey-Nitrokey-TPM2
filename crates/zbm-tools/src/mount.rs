@@ -1,4 +1,6 @@
 //! Mounting and unmounting: [`Mount`], and [`Mounted`], which unmounts
+//! when dropped; the kernel's file systems a chroot takes, and
+//! [`HostEfivars`], which sets this system's `efivarfs` back to read-only
 //! when dropped.
 
 #![allow(
@@ -13,6 +15,10 @@ use std::time::Duration;
 use zbm_platform::{Command, Files, Input, Output, Runner, Stream};
 
 use crate::Shown;
+
+mod special;
+
+pub use self::special::HostEfivars;
 
 /// The longest mounting a block device may take, for a disk or a USB stick
 /// that stopped answering. ZFS mounts have none: their time grows with the
@@ -213,9 +219,17 @@ impl<'a> Mount<'a> {
     /// `location` (`mount -t efivarfs efivarfs LOCATION -o OPTIONS`); whether
     /// it succeeded. It stays mounted.
     pub fn efivarfs(self, location: &str, options: &str) -> bool {
-        let command =
-            Command::new("mount").args(["-t", "efivarfs", "efivarfs", location, "-o", options]);
-        shell_code(&self.runner.run(&shown(command, Shown::Console))) == 0
+        self.efivarfs_status(Path::new(location), options) == 0
+    }
+
+    /// The exit status of `mount -t efivarfs efivarfs LOCATION -o OPTIONS`,
+    /// its output on the console; 126 when it could not start.
+    fn efivarfs_status(self, location: &Path, options: &str) -> i32 {
+        let command = Command::new("mount")
+            .args(["-t", "efivarfs", "efivarfs"])
+            .arg(location)
+            .args(["-o", options]);
+        shell_code(&self.runner.run(&shown(command, Shown::Console)))
     }
 
     /// Mounts `securityfs` read-only on `location`, where the kernel says
@@ -265,6 +279,8 @@ pub struct Mounted<'a> {
     mount: Mount<'a>,
     path: PathBuf,
     output: Shown,
+    /// Whether unmounting it unmounts everything below it too.
+    recursive: bool,
     /// Whether dropping it unmounts it.
     armed: bool,
 }
@@ -276,6 +292,7 @@ impl<'a> Mounted<'a> {
             mount,
             path: path.to_path_buf(),
             output: Shown::Console,
+            recursive: false,
             armed: true,
         }
     }
@@ -299,10 +316,22 @@ impl<'a> Mounted<'a> {
         self
     }
 
+    /// The same mount, which unmounting unmounts with everything mounted
+    /// below it, quietly ([`Mount::unmount_recursive`]), as the root of a
+    /// chroot, where the user may have mounted more.
+    pub fn recursive(mut self) -> Mounted<'a> {
+        self.recursive = true;
+        self
+    }
+
     /// Unmounts it now; whether that succeeded.
     pub fn unmount(mut self) -> bool {
         self.armed = false;
-        self.mount.unmount(&self.path, self.output)
+        if self.recursive {
+            self.mount.unmount_recursive(&self.path)
+        } else {
+            self.mount.unmount(&self.path, self.output)
+        }
     }
 
     /// Leaves it mounted, for code that unmounts it later, such as the
@@ -315,7 +344,9 @@ impl<'a> Mounted<'a> {
 
 impl Drop for Mounted<'_> {
     fn drop(&mut self) {
-        if self.armed {
+        if self.armed && self.recursive {
+            let _ = self.mount.unmount_recursive(&self.path);
+        } else if self.armed {
             let _ = self.mount.unmount(&self.path, self.output);
         }
     }

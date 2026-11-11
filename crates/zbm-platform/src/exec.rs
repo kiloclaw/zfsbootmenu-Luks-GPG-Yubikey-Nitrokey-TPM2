@@ -15,9 +15,11 @@
     reason = "SystemRunner is where programs are started"
 )]
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::{CString, OsStr, OsString};
 use std::io;
-use std::os::unix::process::ExitStatusExt;
+use std::os::unix::ffi::OsStrExt as _;
+use std::os::unix::process::ExitStatusExt as _;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,9 +31,12 @@ use self::streams::{Stdout, communicate};
 use self::supervise::Supervisor;
 use crate::event::CancelToken;
 
+mod output;
 mod streams;
 mod supervise;
 mod terminal;
+
+pub use self::output::{Output, Status};
 
 use self::terminal::Inherited;
 pub use self::terminal::TerminalRunner;
@@ -86,6 +91,7 @@ pub struct Command {
     timeout: Option<Duration>,
     cancel: Option<CancelToken>,
     output_limit: Option<usize>,
+    root: Option<PathBuf>,
 }
 
 /// How many bytes of a command's standard output, and of its standard
@@ -114,6 +120,7 @@ impl Command {
             timeout: None,
             cancel: None,
             output_limit: None,
+            root: None,
         }
     }
 
@@ -236,6 +243,20 @@ impl Command {
         self.output_limit.unwrap_or(default)
     }
 
+    /// Runs the program in `root`, as `chroot ROOT PROGRAM` does: `root`
+    /// is its root directory, whose top is its working directory, and the
+    /// program and its libraries are found there.
+    #[must_use]
+    pub fn root(mut self, root: impl Into<PathBuf>) -> Command {
+        self.root = Some(root.into());
+        self
+    }
+
+    /// The root directory the program runs in, if not this process's.
+    pub fn get_root(&self) -> Option<&Path> {
+        self.root.as_deref()
+    }
+
     /// The signals the program starts with the default action of.
     pub fn get_default_signals(&self) -> &[Signal] {
         &self.default_signals
@@ -287,106 +308,6 @@ impl Command {
     }
 }
 
-/// How a command ended, as the raw status `waitpid` reports.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Status(i32);
-
-impl Status {
-    /// A status from the raw value `waitpid` reports.
-    pub fn from_raw(raw: i32) -> Status {
-        Status(raw)
-    }
-
-    /// The status of a command that exited with `code`.
-    pub fn exited(code: u8) -> Status {
-        Status(i32::from(code) << 8)
-    }
-
-    /// The raw value `waitpid` reports.
-    pub fn raw(self) -> i32 {
-        self.0
-    }
-
-    /// Whether the command exited with status 0.
-    pub fn is_success(self) -> bool {
-        self.0 == 0
-    }
-
-    /// The exit code, if the command exited.
-    pub fn code(self) -> Option<i32> {
-        std::process::ExitStatus::from_raw(self.0).code()
-    }
-
-    /// The signal that ended the command, if one did.
-    pub fn signal(self) -> Option<i32> {
-        std::process::ExitStatus::from_raw(self.0).signal()
-    }
-
-    /// Perl's `$? >> 8`: the exit code, or 0 when a signal ended the command.
-    pub fn perl_code(self) -> i32 {
-        self.0 >> 8
-    }
-
-    /// The status a shell reports in `$?`: the exit code, or 128 plus the signal
-    /// number.
-    pub fn shell_code(self) -> i32 {
-        self.code()
-            .or_else(|| self.signal().map(|signal| 128 + signal))
-            .unwrap_or(1)
-    }
-}
-
-/// What a command produced.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Output {
-    /// How the command ended.
-    pub status: Status,
-    /// Standard output, if it was captured (with standard error when merged).
-    pub stdout: Vec<u8>,
-    /// Standard error, if it was captured.
-    pub stderr: Vec<u8>,
-    /// Standard output, if it was captured as a secret; a clone of the
-    /// output shares it.
-    pub secret: Option<Arc<Secret>>,
-}
-
-impl Output {
-    /// The secret it captured, taken out of the output. Where a clone of the
-    /// output still shares it, which only tests do, it is copied.
-    pub fn into_secret(self) -> Option<Secret> {
-        self.secret.map(crate::secret::unshare)
-    }
-
-    /// An output with the given status and captured standard output.
-    pub fn new(status: Status, stdout: impl Into<Vec<u8>>) -> Output {
-        Output {
-            status,
-            stdout: stdout.into(),
-            stderr: Vec::new(),
-            secret: None,
-        }
-    }
-
-    /// An output with the given status and standard output captured as a
-    /// secret.
-    pub fn with_secret(status: Status, secret: Secret) -> Output {
-        Output {
-            secret: Some(Arc::new(secret)),
-            ..Output::new(status, Vec::new())
-        }
-    }
-
-    /// Standard output as text, with invalid UTF-8 replaced.
-    pub fn stdout_text(&self) -> String {
-        String::from_utf8_lossy(&self.stdout).into_owned()
-    }
-
-    /// Standard error as text, with invalid UTF-8 replaced.
-    pub fn stderr_text(&self) -> String {
-        String::from_utf8_lossy(&self.stderr).into_owned()
-    }
-}
-
 /// Runs commands.
 pub trait Runner: Send + Sync {
     /// Runs `command` and waits for it to end.
@@ -431,6 +352,43 @@ fn not_found(command: &Command, inherited: Inherited<'_>) -> io::Result<Output> 
         Stream::Null => {}
     }
     Ok(output)
+}
+
+/// What a command that did not start gives: a program not found exits
+/// 127, as in a shell, and any other `error` is returned. A root that
+/// cannot be entered is named as the cause, as `chroot` names it: the
+/// error of a missing root is the error of a missing program.
+fn not_started(
+    command: &Command,
+    inherited: Inherited<'_>,
+    error: io::Error,
+) -> io::Result<Output> {
+    if let Some(root) = &command.root {
+        check_root(root)?;
+    }
+    if error.kind() == io::ErrorKind::NotFound {
+        return not_found(command, inherited);
+    }
+    Err(error)
+}
+
+/// An error naming `root` if it is not a directory a process could
+/// change its root to.
+fn check_root(root: &Path) -> io::Result<()> {
+    let cannot = |error: io::Error| {
+        io::Error::new(
+            error.kind(),
+            format!(
+                "cannot change root directory to {}: {error}",
+                root.display()
+            ),
+        )
+    };
+    match std::fs::metadata(root) {
+        Ok(metadata) if metadata.is_dir() => Ok(()),
+        Ok(_) => Err(cannot(io::Error::from(io::ErrorKind::NotADirectory))),
+        Err(error) => Err(cannot(error)),
+    }
 }
 
 /// `ETXTBSY`: the program is open for writing somewhere.
@@ -496,6 +454,7 @@ fn process(
         } else {
             zbm_sys::Session::Inherit
         },
+        root: command.root.as_deref().map(root_path).transpose()?,
     };
     zbm_sys::prepare_child(&mut process, &setup);
     process.stdin(match command.stdin {
@@ -510,6 +469,16 @@ fn process(
         };
     }
     Ok((process, merged))
+}
+
+/// `root` as the child's `chroot` takes it, made here, before `fork`.
+fn root_path(root: &Path) -> io::Result<CString> {
+    CString::new(root.as_os_str().as_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("a root with a NUL byte: {}", root.display()),
+        )
+    })
 }
 
 impl Runner for SystemRunner {
@@ -527,10 +496,7 @@ fn run_on(command: &Command, inherited: Inherited<'_>) -> io::Result<Output> {
     drop(process);
     let mut child = match spawned {
         Ok(child) => child,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return not_found(command, inherited);
-        }
-        Err(error) => return Err(error),
+        Err(error) => return not_started(command, inherited, error),
     };
     let supervisor = Supervisor::new(command, &child);
     let (stdout, stderr) = communicate(command, &mut child, merged, supervisor.as_ref());

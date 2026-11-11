@@ -211,6 +211,7 @@ impl Supervisor {
             } else {
                 zbm_sys::Session::Inherit
             },
+            root: None,
         };
         let mut command = match on_console {
             Some(Ok(mut command)) => {
