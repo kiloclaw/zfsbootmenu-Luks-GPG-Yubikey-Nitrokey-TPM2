@@ -16,11 +16,11 @@ use crate::menu::theme::{Glyph, Role, Theme};
 use crate::text::{self, id, text};
 
 /// What a list says when it is empty: a title and a sentence.
-pub(super) type Empty<'a> = (&'a str, &'a str);
+pub(crate) type Empty<'a> = (&'a str, &'a str);
 
 /// A group: a box with `header` in upper case in its top border, and one
 /// column of margin inside.
-pub(super) fn block(theme: Theme, header: &str) -> Block<'static> {
+pub(crate) fn block(theme: Theme, header: &str) -> Block<'static> {
     Block::bordered()
         .border_set(theme.border())
         .border_style(theme.style(Role::Border))
@@ -32,7 +32,7 @@ pub(super) fn block(theme: Theme, header: &str) -> Block<'static> {
 }
 
 /// A group with `count` on the right of its top border.
-pub(super) fn counted(theme: Theme, header: &str, count: &str) -> Block<'static> {
+pub(crate) fn counted(theme: Theme, header: &str, count: &str) -> Block<'static> {
     block(theme, header).title_top(
         Line::from(Span::styled(
             format!(" {count} "),
@@ -206,7 +206,7 @@ fn search_field(model: &Model, frame: &mut Frame<'_>, area: Rect, state: &ListSt
 }
 
 /// An empty state: the title and the sentence, centred.
-pub(super) fn empty_state(
+pub(crate) fn empty_state(
     theme: Theme,
     frame: &mut Frame<'_>,
     area: Rect,

@@ -8,7 +8,7 @@
 use zbm_display::keys::{Key, KeyPress};
 use zbm_display::layout::{MAIN_BLOCK, Positions};
 
-use super::{CLASSIC, Context, Input, Map, Modifiers, folded, input, is_text};
+use super::{CLASSIC, Context, Input, Map, Modifiers, Scope, folded, input, is_text};
 
 /// The layout a key's character is of and the US layout, by key position.
 #[derive(Clone, Copy, Debug)]
@@ -75,15 +75,18 @@ fn key_at(layout: &Positions, c: char, shift: bool) -> Option<u16> {
         .or_else(|| layout.key_of(c).map(|(code, _)| code))
 }
 
-/// Whether `map` binds the character `c` with `modifiers` in some view:
-/// a binding of its table, or, with `Ctrl` or `Alt`, a classic letter.
-/// Such a character means itself, wherever it is typed.
+/// Whether `map` binds the character `c` with `modifiers` in some view of
+/// the menu: a binding of its table, or, with `Ctrl` or `Alt`, a classic
+/// letter. Such a character means itself, wherever it is typed. The
+/// recovery shell's pager is no view of the menu: it reads a terminal's
+/// characters, which have no place, so its `q` leaves the menu's keys as
+/// they were.
 fn is_bound_anywhere(map: Map, c: char, modifiers: Modifiers) -> bool {
     let classic = modifiers.has_any(Modifiers::CTRL | Modifiers::ALT)
         && CLASSIC.iter().any(|(letter, _)| *letter == c);
+    let pager = Scope::Only(&[Context::Pager]);
     classic
-        || map
-            .table()
-            .into_iter()
-            .any(|binding| binding.key == Key::Char(c) && binding.modifiers == modifiers)
+        || map.table().into_iter().any(|binding| {
+            binding.key == Key::Char(c) && binding.modifiers == modifiers && binding.scope != pager
+        })
 }

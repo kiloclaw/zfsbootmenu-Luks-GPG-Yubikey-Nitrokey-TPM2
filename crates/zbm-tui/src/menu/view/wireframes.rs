@@ -1,9 +1,9 @@
 //! The wireframes of `docs/dev/menu-design/wireframes/`: every view of the
 //! prototype at 120×40, 80×25 and 52×20, every view but the prototypes of
-//! ADR 0016 point 18 at 80×24 in colour and ASCII, and the main dialogs at
-//! 80×25 in ASCII, as snapshot tests. Change a view,
-//! then review and accept the new wireframes with `cargo insta review` or
-//! `cargo xtask bless`.
+//! ADR 0016 point 18 at 80×24 in colour and ASCII, the main dialogs at
+//! 80×25 in ASCII, and the recovery shell's pager, as snapshot tests.
+//! Change a view, then review and accept the new wireframes with
+//! `cargo insta review` or `cargo xtask bless`.
 
 use ratatui::style::Color;
 use zbm_display::keys::{Key, KeyPress};
@@ -201,6 +201,31 @@ fn every_view_in_the_pseudo_language() {
         }
     });
     crate::text::set_language(old);
+}
+
+/// The pager of the recovery shell, outside the menu, at the sizes of the
+/// menu's views: the three sizes, 80×24 in colour and in ASCII, and 52×20 in
+/// the pseudo-language.
+#[test]
+fn the_pager_at_the_sizes_of_the_views() {
+    let wireframe = crate::menu::pager::tests::wireframe;
+    settings().bind(|| {
+        for (width, height) in SIZES {
+            let text = wireframe(Capabilities::FULL, (width, height));
+            insta::assert_snapshot!(format!("pager-{width}x{height}"), text);
+        }
+        for (capabilities, suffix) in [(Capabilities::FULL, ""), (Capabilities::ASCII, "-ascii")] {
+            let text = wireframe(capabilities, (80, 24));
+            if suffix == "-ascii" {
+                assert!(text.is_ascii(), "{text}");
+            }
+            insta::assert_snapshot!(format!("pager-80x24{suffix}"), text);
+        }
+        let old = crate::text::set_language(crate::text::Language::Pseudo);
+        let text = wireframe(Capabilities::FULL, (52, 20));
+        crate::text::set_language(old);
+        insta::assert_snapshot!("pager-52x20-pseudo", text);
+    });
 }
 
 /// The characters every console font, Terminus and Spleen, can draw as the

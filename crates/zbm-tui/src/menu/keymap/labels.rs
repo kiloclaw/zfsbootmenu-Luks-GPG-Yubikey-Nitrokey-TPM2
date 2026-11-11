@@ -26,9 +26,16 @@ pub(crate) fn view_name(context: Context) -> Id {
 /// What a key does for an intent in a context, as the toolbar and the
 /// help view say it: a message of the catalogue with a `.title`.
 pub fn describe(context: Context, intent: Intent) -> Id {
-    if context == Context::Review {
-        return on_review_page(intent);
+    match context {
+        Context::Review => on_review_page(intent),
+        Context::Pager => in_pager(intent),
+        _ => in_view(context, intent),
     }
+}
+
+/// What a key does for an intent in a view, a dialog or a field of the
+/// menu but a review page.
+fn in_view(context: Context, intent: Intent) -> Id {
     match (context, intent) {
         (Main | Kernels, Intent::Primary) | (_, Intent::Boot) => id!("action-boot"),
         (Snapshots | Context::Choose, Intent::Primary) => id!("action-choose"),
@@ -96,6 +103,15 @@ fn to_tab(tab: Tab) -> Id {
     }
 }
 
+/// What a key does for an intent in the recovery shell's pager: it leaves,
+/// or clears the filter first, and the moves scroll, as in the log.
+fn in_pager(intent: Intent) -> Id {
+    match intent {
+        Intent::Back => id!("pager-leave"),
+        other => in_view(Context::Log, other),
+    }
+}
+
 /// What a key does for an intent on a review page: it confirms the
 /// change, cancels it, scrolls what it loses, or moves among its buttons.
 fn on_review_page(intent: Intent) -> Id {
@@ -119,7 +135,10 @@ pub fn bindings(
     offered: &dyn Fn(Intent) -> bool,
     said: &dyn Fn(Intent) -> Id,
 ) -> Vec<(Intent, String, Id)> {
-    let idle = matches!(context, Context::Startup | Context::Help | Context::Log);
+    let idle = matches!(
+        context,
+        Context::Startup | Context::Help | Context::Log | Context::Pager
+    );
     let still = map == Map::Workspace && context == Startup;
     map.table()
         .into_iter()

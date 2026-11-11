@@ -12,6 +12,7 @@
 use zbm_display::keys::Key;
 
 use super::command_line::COMMAND_LINE;
+use super::pager::PAGER;
 use super::{Binding, Context, Footer, Intent, KEYMAP, NONE, Scope, bind, key};
 use Context::{
     Diff, Help, Kernels, Log, Main, Packages, Pools, Recovery, Review, Snapshots, Startup,
@@ -218,8 +219,8 @@ impl Map {
             && (self == Map::Classic || context != Startup || is_bound_at_startup(binding))
     }
 
-    /// Its bindings, in the order of the toolbar; the command line's last,
-    /// in both maps.
+    /// Its bindings, in the order of the toolbar; the command line's, then
+    /// the pager's last, in both maps.
     pub fn table(self) -> Vec<&'static Binding> {
         let own: Vec<&'static Binding> = match self {
             Map::Classic => KEYMAP.iter().collect(),
@@ -229,7 +230,7 @@ impl Map {
                 .chain(WORKSPACE_LAST)
                 .collect(),
         };
-        own.into_iter().chain(COMMAND_LINE).collect()
+        own.into_iter().chain(COMMAND_LINE).chain(PAGER).collect()
     }
 
     /// The first of its bindings that asks for `intent`, if one does: the

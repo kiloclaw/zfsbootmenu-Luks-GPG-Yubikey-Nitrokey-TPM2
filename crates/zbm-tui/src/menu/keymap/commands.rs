@@ -279,9 +279,10 @@ pub(crate) fn reach(context: Context, intent: Intent) -> Option<Reach> {
 
 /// The actions of `context` with the key map `map` that only a character
 /// or a chord reaches, in the order of the help view, each with its keys
-/// as the help view names them (`d, MOD+D`).
+/// as the help view names them (`d, MOD+D`). The pager, outside the menu,
+/// has no command line, so none.
 pub(crate) fn commands(map: Map, context: Context) -> Vec<(Intent, String)> {
-    if is_text(context) {
+    if is_text(context) || context == Context::Pager {
         return Vec::new();
     }
     let mut keys: Vec<(Intent, Vec<String>)> = Vec::new();

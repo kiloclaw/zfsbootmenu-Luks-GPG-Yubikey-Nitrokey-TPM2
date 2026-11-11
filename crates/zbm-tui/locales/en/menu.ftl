@@ -380,6 +380,23 @@ help-aliases = FZF ALIASES (MOD IS ALT OR CTRL)
 # The help of the command line: the names it finds its commands by.
 help-command-names = COMMAND NAMES, THEN WHAT THEY ACT ON
 
+## The pager of the recovery shell, outside the menu: a topic of `zbm help`
+## or the kernel log, named in its border.
+
+view-pager = The Pager
+pager-title-commands = Commands
+pager-title-keys = Keys
+pager-title-options = Options
+pager-title-logs = Kernel Log
+pager-title-trace = Trace
+# The lines shown, of those the filter keeps: "1-20 of 120".
+pager-position = { $from }-{ $to } of { $count }
+pager-no-match = No line holds { $filter }. Esc clears the filter.
+pager-filter = clear the filter
+    .title = Clear
+pager-leave = leave the pager, or clear its filter first
+    .title = Leave
+
 ## The key section of zfsbootmenu(7), which `cargo xtask gen-docs` writes:
 ## the places that have no view of their own.
 

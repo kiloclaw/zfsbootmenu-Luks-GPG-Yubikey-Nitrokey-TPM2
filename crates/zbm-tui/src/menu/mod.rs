@@ -8,6 +8,7 @@
 //! - [`Model`], [`update`](fn@update) and [`view`](fn@view): the Elm
 //!   architecture of the prototype;
 //! - [`machine`]: what the menu runs on, and [`session`]: the menu on it;
+//! - [`pager`]: a text in the recovery shell, with the menu's keys;
 //! - [`demo`]: a fake machine that answers the actions, for
 //!   `zbm-tui --demo`;
 //! - [`terminal`] and [`display`]: the menu on a terminal, or on the
@@ -27,6 +28,7 @@ pub mod keymap;
 pub mod lines;
 pub mod machine;
 pub mod model;
+pub mod pager;
 pub mod screen;
 pub mod secret;
 pub mod session;

@@ -22,7 +22,8 @@ use crate::menu::world::{Action, Method};
 
 /// The views whose bindings the check types: every one but start-up,
 /// which binds no character but `?` (a key there is the first of a
-/// passphrase), and those that take text.
+/// passphrase), and those that take text. The recovery shell's pager is no
+/// view of the menu that keys reach; its own tests type its keys.
 const VIEWS: [Context; 10] = [
     Main,
     Snapshots,

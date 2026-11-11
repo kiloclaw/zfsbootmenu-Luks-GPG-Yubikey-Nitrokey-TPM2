@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+┌ KKÉRÑÑÉL LLÓG ─────────────────────── 1-9 óóf 48 ┐
+│ [    2.104317] ZFSBootMenu: zroot was last impor │
+│ ted by another host                              │
+│ [    2.231055] ZFSBootMenu: unable to load the k │
+│ ey of zroot/ROOT/void                            │
+│ [    3.900112] usb 1-2: device descriptor read/6 │
+│ 4, error -71                                     │
+│ [    4.017741] sd 2:0:0:0: [sdb] label \x1b]0;ow │
+│ ned\x07 has no partitions                        │
+│ [    5.000000] ZFSBootMenu: warning 5 of a long  │
+│ log, wrapped where it is too long for the screen │
+│ [    6.000000] ZFSBootMenu: warning 6 of a long  │
+│ log, wrapped where it is too long for the screen │
+│ [    7.000000] ZFSBootMenu: warning 7 of a long  │
+│ log, wrapped where it is too long for the screen │
+│ [    8.000000] ZFSBootMenu: warning 8 of a long  │
+│ log, wrapped where it is too long for the screen │
+│ [    9.000000] ZFSBootMenu: warning 9 of a long  │
+└──────────────────────────────────────────────────┘
+ ÉÉsç LLéávvé   ÚÚp/Dóówñ SSçróóll   / FFílttér

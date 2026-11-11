@@ -15,7 +15,8 @@ use super::{
 };
 use crate::text::{self, Id, Language, id, text};
 use Context::{
-    Choose, Diff, Help, Kernels, Log, Main, Packages, Pools, Recovery, Review, Snapshots, Startup,
+    Choose, Diff, Help, Kernels, Log, Main, Packages, Pager, Pools, Recovery, Review, Snapshots,
+    Startup,
 };
 
 /// The views of the tabs. The keys they have in common, with one meaning,
@@ -25,7 +26,7 @@ const VIEWS: &[Context] = &[
 ];
 
 /// The places listed whole after the views: help, start-up, dialogs,
-/// fields and the command line.
+/// fields, the command line, and the recovery shell's pager.
 const OTHERS: &[Context] = &[
     Help,
     Startup,
@@ -33,6 +34,7 @@ const OTHERS: &[Context] = &[
     Context::Text,
     Context::Command,
     Review,
+    Pager,
 ];
 
 /// The keys of a field outside the table, which `input` reads: Backspace
@@ -192,12 +194,14 @@ fn keys(context: Context) -> Vec<Bound> {
 /// the primary action of a view with nothing to choose, the moves of
 /// start-up, which has nothing to select, `Right` in the kernels column,
 /// already open, help outside the views and the command line, the first
-/// and last row of a dialog, and a page of the command line.
+/// and last row of a dialog, a page of the command line, and the primary
+/// action and help in the pager.
 fn said(context: Context, intent: Intent) -> Option<(Id, Option<Id>)> {
     use Intent::{Down, First, Last, PageDown, PageUp, Primary, Reveal, Up};
     let ignored = match context {
         Startup => matches!(intent, Primary | Up | Down),
         Help | Log => intent == Primary,
+        Pager => matches!(intent, Primary | Intent::Help),
         Kernels => intent == Intent::Kernels,
         Choose => matches!(intent, Intent::Help | First | Last),
         Context::Text | Review => intent == Intent::Help,
@@ -309,6 +313,7 @@ fn name(context: Context) -> String {
         Context::Text => text!("manual-fields"),
         Context::Command => text!("manual-command-line"),
         Review => text!("review-title"),
+        Pager => text!("view-pager"),
     }
 }
 

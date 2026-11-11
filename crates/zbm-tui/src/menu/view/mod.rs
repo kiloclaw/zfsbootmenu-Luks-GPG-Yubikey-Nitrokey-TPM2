@@ -11,7 +11,7 @@ use ratatui::widgets::Paragraph;
 
 use super::keymap;
 use super::model::{Dialog, Model, Screen};
-use super::theme::{Glyph, Role};
+use super::theme::{Glyph, Role, Theme};
 use super::world::Outcome;
 use crate::text::text;
 
@@ -21,7 +21,7 @@ mod dialogs;
 mod diff;
 mod health;
 mod history;
-mod lists;
+pub(crate) mod lists;
 mod main_view;
 mod packages;
 mod question;
@@ -179,16 +179,21 @@ fn notification_line<'a>(model: &Model, outcome: &'a Outcome) -> Line<'a> {
 /// and a title-case label, then the lock's mark where the locked menu
 /// keeps what it does, and `? More` on the right.
 fn footer(model: &Model, width: u16) -> Line<'static> {
-    let theme = model.theme;
     let width = usize::from(width).saturating_sub(2);
-    let gap = " ".repeat(keymap::TOOLBAR_GAP);
-    let mut spans = vec![Span::raw(" ")];
-    let mut used = 0;
     let context = model.context();
     let offered = |intent| keymap::is_shown(context, intent, model);
     let said = |intent| keymap::label(context, intent, model);
     let kept = |intent| crate::menu::update::is_kept(model, context, intent);
     let tools = keymap::footer(model.map, context, width, &offered, &said, &kept);
+    toolbar(model.theme, tools, width)
+}
+
+/// `tools` as the toolbar's line, `width` columns wide but its margin:
+/// `? More` on the right.
+pub(crate) fn toolbar(theme: Theme, tools: Vec<keymap::Tool>, width: usize) -> Line<'static> {
+    let gap = " ".repeat(keymap::TOOLBAR_GAP);
+    let mut spans = vec![Span::raw(" ")];
+    let mut used = 0;
     for (index, tool) in tools.into_iter().enumerate() {
         let length = tool.width();
         if tool.is_more {

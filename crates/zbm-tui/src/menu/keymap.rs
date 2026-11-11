@@ -12,42 +12,6 @@ use zbm_display::keys::{Key, KeyPress};
 
 use crate::text::{Id, id};
 
-/// Where the focus is: which bindings apply.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Context {
-    /// The start-up view.
-    Startup,
-    /// The main view.
-    Main,
-    /// The snapshots of an environment.
-    Snapshots,
-    /// The kernels of an environment.
-    Kernels,
-    /// Pools and LUKS volumes.
-    Pools,
-    /// Recovery tools.
-    Recovery,
-    /// The log.
-    Log,
-    /// Help.
-    Help,
-    /// The files changed since a snapshot.
-    Diff,
-    /// The packages changed since a snapshot.
-    Packages,
-    /// A choice among actions (the snapshot actions, power).
-    Choose,
-    /// A field that takes text: a list's filter, the editor of a boot's
-    /// command line, a secret, a name, a typed confirmation.
-    Text,
-    /// The command line (`:`): its query takes text, and it completes,
-    /// deletes words and shows the entries chosen before.
-    Command,
-    /// The review page of a change: its field takes the target's name, and
-    /// `Tab` and `Shift-Tab` move among the field and the buttons.
-    Review,
-}
-
 /// What a bound key asks for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Intent {
@@ -326,9 +290,11 @@ const fn key(c: char, contexts: &'static [Context], intent: Intent) -> Binding {
 mod classic;
 mod command_line;
 mod commands;
+mod context;
 mod labels;
 pub mod manual;
 mod offers;
+mod pager;
 mod position;
 mod workspace;
 
@@ -337,6 +303,7 @@ pub use self::classic::{CLASSIC, classic_bindings};
 pub(crate) use self::commands::{COMMAND_NAMES, command_name, commands};
 #[cfg(test)]
 pub(crate) use self::commands::{Reach, reach};
+pub use self::context::Context;
 pub use self::labels::{TOOLBAR, TOOLBAR_GAP, Tool, bindings, describe, footer, help, key_name};
 pub(crate) use self::labels::{keys_by, lock_mark, view_name};
 pub(crate) use self::offers::{is_offered, is_shown, label, needs_snapshot};

@@ -82,7 +82,9 @@ character as a terminal's bytes; the charts; and 14 wireframes replayed on five 
 on the display ([testing](../../luks/testing.rst)). UI14 built the command names and their completion
 (`keymap/commands_tests.rs`, `update/palette_language_tests.rs`), and the `Enter` menus' entries of rule 1, in the
 workspace (`update/enter_menus_tests.rs`: every action bound to a character has an entry in the `Enter` menu of what
-it applies to, or on the command line where `Enter` boots, or is a command of the view).
+it applies to, or on the command line where `Enter` boots, or is a command of the view). The recovery shell's pager
+(below) is the one context these tests leave out: it is no screen of the menu and has no command line, so rule 1 does
+not apply to its `/`; its own tests check its keys (`menu/pager/tests.rs`).
 
 ## The workspace's map
 
@@ -236,6 +238,22 @@ back, `Ctrl-L` redraw, `Ctrl-N` and `Ctrl-P` down and up): there the new meaning
 with `Alt` only. `Ctrl-S` may not reach the menu on serial lines (flow control), and a terminal (a serial line, SSH)
 sends `Ctrl-J` as a newline, which the menu reads as `Enter`: their `Alt` forms work, and `zfsbootmenu(7)` says so.
 The sessions confirm or reject this before R5.
+
+## The recovery shell's pager
+
+`zbm help` and the kernel log of the recovery shell show in a pager of `zbm-tui` (`menu/pager.rs`, ADR 0018 point 15),
+outside the menu, whose keys are the key map's, in its own context, `Context::Pager`. `keymap/pager.rs` binds two keys
+there, in both maps: `q` leaves, as `Esc` and `Ctrl-C` do, and `/` filters the lines, as in a list; the filter is a
+text field (`Context::Text`) while it is typed, `Enter` keeps it and `Esc` clears it. The rest reaches the pager from
+the table: the arrows, `Ctrl-P` `Ctrl-N`, `PgUp` `PgDn`, `Home` `End` scroll, and in the workspace `j` `k` move and `h`
+leaves, as in every view. The classic map's `j`, `k` and `h` mean Chroot, Kernels and Rewind, so the pager binds none
+of them: in that map a key has one meaning everywhere. `F1` and the tab keys do nothing there, and the toolbar offers
+neither. The pager is the one context outside the rule-1 tests, as said above: no screen of the model opens it, it
+has no help page and no command line (`keymap::commands` lists nothing for it), and its `/` is the one way to its
+filter. Its keys count for no view of the menu under rule 3 (`keymap/position.rs`): the pager reads a terminal's
+characters, which have no place, so a `q` typed on the console on the display still counts by its place in the menu
+(on a French keyboard, as `a`). `zfsbootmenu(7)` lists its keys, which `cargo xtask gen-docs` writes from the same
+table. Without a terminal on standard input and output, or with `TERM=dumb`, the pager prints its lines as they are.
 
 ## The toolbar and the help view
 

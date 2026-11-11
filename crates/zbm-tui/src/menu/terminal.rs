@@ -28,7 +28,7 @@ use crate::quiet::QuietBackend;
 /// The front end on standard output and its keys, of `size` (columns and
 /// rows) until the terminal says otherwise, the rest of a key's sequence
 /// taking up to `escape_wait`.
-fn on_terminal(
+pub(crate) fn on_terminal(
     size: (u16, u16),
     escape_wait: Duration,
 ) -> io::Result<Frontend<QuietBackend<CrosstermBackend<io::Stdout>>, TerminalKeys>> {

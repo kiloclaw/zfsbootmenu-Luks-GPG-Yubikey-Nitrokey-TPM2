@@ -25,7 +25,8 @@ const VIEWS: [Screen; 9] = [
     Screen::Diff,
 ];
 
-/// Every context that has a help page.
+/// Every context that has a help page: not the recovery shell's pager,
+/// which is no screen of the menu; its tests draw its lines escaped.
 const CONTEXTS: [Context; 14] = [
     Context::Startup,
     Context::Main,

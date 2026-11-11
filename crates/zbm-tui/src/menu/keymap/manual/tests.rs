@@ -316,6 +316,36 @@ fn the_manual_page_is_up_to_date() {
     );
 }
 
+/// The keys the pager reads are those the page lists (P7): its own, `q`
+/// and `/`, and those of the table that reach it, which it says it scrolls
+/// with; not `F1`, which does nothing there, nor the tab keys.
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the test reads the manual page from the repository"
+)]
+fn the_pager_s_keys_are_in_the_key_map_and_the_man_page() {
+    let text = workspace();
+    let pager = place_of(&text, &name(Pager));
+    for (key, what) in [
+        ("q", "Leave the pager, or clear its filter first."),
+        ("/", "Filter."),
+        ("Down", "Scroll down."),
+        ("PgDn", "Move a page down."),
+    ] {
+        let entry = pager
+            .split("\n\n**")
+            .find(|entry| entry.contains(&format!("**{key}**")) || entry.starts_with(key));
+        let entry = entry.unwrap_or_else(|| panic!("{key} in {pager}"));
+        assert!(entry.contains(what), "{key}: {entry}");
+    }
+    for key in ["F1", "Tab", "1", "?"] {
+        assert!(!pager.contains(&format!("**{key}**")), "{key} in {pager}");
+    }
+    let page = std::fs::read_to_string(zbm_testkit::repo_root().join(PAGE)).unwrap();
+    assert!(page.contains(&pager), "{PAGE} lacks the pager's keys");
+}
+
 #[test]
 fn the_page_lists_every_command_name_with_what_it_does() {
     let text = workspace();

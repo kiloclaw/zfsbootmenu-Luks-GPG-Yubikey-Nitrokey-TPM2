@@ -4,7 +4,9 @@ use zbm_display::keys::{Key, KeyPress};
 use super::*;
 use crate::text::id;
 
-/// Every context of the menu.
+/// Every context of the menu. The recovery shell's pager is none: it is
+/// no screen of the model and has no help page, and its own tests check
+/// its keys (`menu/pager/tests.rs`), and that it has no command line.
 pub(super) const CONTEXTS: [Context; 14] = [
     Startup,
     Main,

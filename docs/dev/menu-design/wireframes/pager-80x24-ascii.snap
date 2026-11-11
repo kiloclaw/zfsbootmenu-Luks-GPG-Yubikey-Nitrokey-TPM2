@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
++ KERNEL LOG ------------------------------------------------------ 1-13 of 48 +
+| [    2.104317] ZFSBootMenu: zroot was last imported by another host          |
+| [    2.231055] ZFSBootMenu: unable to load the key of zroot/ROOT/void        |
+| [    3.900112] usb 1-2: device descriptor read/64, error -71                 |
+| [    4.017741] sd 2:0:0:0: [sdb] label \x1b]0;owned\x07 has no partitions    |
+| [    5.000000] ZFSBootMenu: warning 5 of a long log, wrapped where it is too |
+|  long for the screen                                                         |
+| [    6.000000] ZFSBootMenu: warning 6 of a long log, wrapped where it is too |
+|  long for the screen                                                         |
+| [    7.000000] ZFSBootMenu: warning 7 of a long log, wrapped where it is too |
+|  long for the screen                                                         |
+| [    8.000000] ZFSBootMenu: warning 8 of a long log, wrapped where it is too |
+|  long for the screen                                                         |
+| [    9.000000] ZFSBootMenu: warning 9 of a long log, wrapped where it is too |
+|  long for the screen                                                         |
+| [   10.000000] ZFSBootMenu: warning 10 of a long log, wrapped where it is to |
+| o long for the screen                                                        |
+| [   11.000000] ZFSBootMenu: warning 11 of a long log, wrapped where it is to |
+| o long for the screen                                                        |
+| [   12.000000] ZFSBootMenu: warning 12 of a long log, wrapped where it is to |
+| o long for the screen                                                        |
+| [   13.000000] ZFSBootMenu: warning 13 of a long log, wrapped where it is to |
++------------------------------------------------------------------------------+
+ Esc Leave   Up/Down Scroll   / Filter

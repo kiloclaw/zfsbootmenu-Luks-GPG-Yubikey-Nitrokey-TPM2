@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use ratatui::backend::{Backend, TestBackend};
 use ratatui::layout::{Position, Rect, Size};
-use ratatui::{Terminal, TerminalOptions, Viewport};
+use ratatui::{Frame, Terminal, TerminalOptions, Viewport};
 use zbm_display::keys::KeyPress;
 use zbm_platform::clock::{Clock, SystemClock};
 
@@ -250,6 +250,18 @@ where
             surface.announce(line);
         }
         surface.present()
+    }
+
+    /// Draws what `render` draws, which is no menu, such as the pager of
+    /// the recovery shell, and shows it.
+    ///
+    /// # Errors
+    ///
+    /// When the surface cannot be drawn on.
+    pub(crate) fn draw_with(&mut self, render: impl FnOnce(&mut Frame<'_>)) -> io::Result<()> {
+        self.fit()?;
+        drawn(self.terminal.draw(render))?;
+        self.terminal.backend_mut().present()
     }
 
     /// The next key within `timeout`, or until `wake` is readable, and

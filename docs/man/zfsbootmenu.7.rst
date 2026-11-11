@@ -1642,6 +1642,45 @@ Review the Change
 
   Clear the field.
 
+The Pager
+~~~~~~~~~
+
+**j**, **Down**, **Ctrl-N**
+
+  Scroll down.
+
+**k**, **Up**, **Ctrl-P**
+
+  Scroll up.
+
+**h**, **Esc**, **Ctrl-C**, **q**
+
+  Leave the pager, or clear its filter first.
+
+**PgUp**
+
+  Move a page up.
+
+**PgDn**
+
+  Move a page down.
+
+**Home**
+
+  Move to the top.
+
+**End**
+
+  Move to the bottom.
+
+**Ctrl-L**
+
+  Redraw.
+
+**/**
+
+  Filter.
+
 .. END generated: keys
 
 Aliases of the fzf Menu

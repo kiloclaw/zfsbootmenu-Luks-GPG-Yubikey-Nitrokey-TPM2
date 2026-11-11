@@ -20,7 +20,7 @@ use zbm_display::keys::{Decoder, Key, KeyPress};
 use zbm_display::layout::compile::{self, COMPOSE, XKB};
 use zbm_display::layout::{Layout, Positions};
 
-use super::{CLASSIC, Context, Map, Modifiers};
+use super::{CLASSIC, Context, Map, Modifiers, Scope};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, FakeMachine};
 use crate::menu::machine::Machine;
@@ -240,18 +240,19 @@ fn decoded(decoder: &mut Decoder, stroke: Stroke) -> Vec<KeyPress> {
     presses
 }
 
-/// Whether `map` binds `c`, in lower case, in some view with the modifiers
-/// `held`: then `c` means itself wherever it is typed, and only there (rule
-/// 3, maintainer decision 2).
+/// Whether `map` binds `c`, in lower case, in some view of the menu with
+/// the modifiers `held`: then `c` means itself wherever it is typed, and
+/// only there (rule 3, maintainer decision 2). The recovery shell's pager,
+/// which reads a terminal, is no view of the menu.
 fn is_bound_anywhere(map: Map, c: char, held: Modifiers) -> bool {
     let c = lower(c);
     let classic = held.has_any(Modifiers::CTRL | Modifiers::ALT)
         && CLASSIC.iter().any(|(letter, _)| *letter == c);
+    let pager = Scope::Only(&[Context::Pager]);
     classic
-        || map
-            .table()
-            .into_iter()
-            .any(|binding| binding.key == Key::Char(c) && binding.modifiers == held)
+        || map.table().into_iter().any(|binding| {
+            binding.key == Key::Char(c) && binding.modifiers == held && binding.scope != pager
+        })
 }
 
 /// `c` in lower case, when that is one character.
