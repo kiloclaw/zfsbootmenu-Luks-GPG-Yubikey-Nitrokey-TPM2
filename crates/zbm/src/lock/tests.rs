@@ -9,8 +9,8 @@ use zbm_testkit::fakes::FakeSystem;
 use super::*;
 
 /// Keyholders that check each PIN against `pin`, in a thread of their own.
-struct Checking {
-    pin: &'static [u8],
+pub(crate) struct Checking {
+    pub(crate) pin: &'static [u8],
 }
 
 /// A keyholder that answers one PIN, through `connection`.
@@ -58,7 +58,7 @@ impl Keyholders for Checking {
 }
 
 /// The locked image's authority.
-fn locked() -> Authority {
+pub(crate) fn locked() -> Authority {
     Authority::new(Lock::On("hash".to_owned()))
 }
 
@@ -73,7 +73,13 @@ fn the_right_pin_opens_the_shell_and_the_lock_closes_after_it() {
         pin: b"correct horse",
     };
 
-    let status = ask_then_shell(&fake.system(), &state, (&authority, &keyholders));
+    let status = ask_then(
+        &fake.system(),
+        &state,
+        (&authority, &keyholders),
+        Open::Shell,
+    )
+    .unwrap();
 
     assert_eq!(status, 0);
     let shown = fake.console.output_text();
@@ -99,7 +105,13 @@ fn a_blank_line_or_three_wrong_pins_go_back_without_a_shell() {
             fake.console.secret(line.as_bytes());
         }
 
-        let status = ask_then_shell(&fake.system(), &state, (&locked(), &keyholders));
+        let status = ask_then(
+            &fake.system(),
+            &state,
+            (&locked(), &keyholders),
+            Open::Shell,
+        )
+        .unwrap();
 
         assert_eq!(status, 1);
         assert_eq!(fake.runner.lines(), Vec::<String>::new());
@@ -124,7 +136,14 @@ fn a_person_who_opened_a_volume_or_an_open_image_get_the_shell_at_once() {
                 .unwrap();
         }
 
-        let status = ask_then_shell(&fake.system(), &state, (&Authority::new(lock), &keyholders));
+        let authority = Authority::new(lock);
+        let status = ask_then(
+            &fake.system(),
+            &state,
+            (&authority, &keyholders),
+            Open::Shell,
+        )
+        .unwrap();
 
         assert_eq!(status, 0);
         assert_eq!(fake.console.output_text(), "");

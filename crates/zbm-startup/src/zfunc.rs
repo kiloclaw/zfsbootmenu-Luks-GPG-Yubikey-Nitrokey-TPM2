@@ -5,13 +5,16 @@
 //! keep below [`LEGACY_LIBRARY`], on Bash, with the caller's streams; the
 //! exit status is the function's.
 //!
-//! The emergency shell goes through the gate of the recovery shell (ADR
-//! 0010): in a locked image it asks for the PIN first.
+//! The emergency shell and the chroot go through the gate of the recovery
+//! shell (ADR 0010): in a locked image they ask for the PIN first. The
+//! chroot runs `zfs-chroot` as a child, as the legacy function ran it on
+//! Bash, and that asks for the PIN (ADR 0018, point 8).
 
 use std::path::{Path, PathBuf};
 
 use zbm_boot::Recovery as _;
 use zbm_config::conf::Conf;
+use zbm_platform::console::Screen;
 use zbm_platform::{Command, Context, System};
 use zbm_state::State;
 use zbm_tools::programs::{self, LEGACY_LIBRARY};
@@ -24,9 +27,10 @@ type Native = fn(&System<'_>, &State<'_>, &[String]) -> i32;
 
 /// The functions with Rust code; the others run as the legacy runtime ran
 /// them.
-const NATIVE: [(&str, Native); 2] = [
+const NATIVE: [(&str, Native); 3] = [
     ("emergency_shell", emergency_shell),
     ("is_degraded", is_degraded),
+    ("zfs_chroot", zfs_chroot),
 ];
 
 /// What running a function comes to.
@@ -125,6 +129,32 @@ fn is_degraded(system: &System<'_>, state: &State<'_>, args: &[String]) -> i32 {
     }
     i32::from(!state.is_degraded(pool))
 }
+
+/// A shell in a chroot of the filesystem of `args`, as the legacy
+/// function opened one: on a clear screen with the cursor shown,
+/// `zfs-chroot` with the name as one argument, on the console; its exit
+/// status. Without a filesystem nothing runs, and the status is 1.
+fn zfs_chroot(system: &System<'_>, _state: &State<'_>, args: &[String]) -> i32 {
+    let fs = args.first().map_or("", String::as_str);
+    if fs.is_empty() {
+        zbm_trace::error!("fs is undefined");
+        return 1;
+    }
+    zbm_trace::debug!("fs set to {fs}"; fs);
+    system.console.screen(Screen::Clear);
+    system.console.screen(Screen::ShowCursor);
+    zbm_trace::debug!("chroot environment: {fs}"; fs);
+    match programs::applet(system.runner, programs::ZBM, &["zfs-chroot", fs], &[]) {
+        Ok(output) => output.status.shell_code(),
+        Err(error) => {
+            zbm_trace::error!("unable to run zfs-chroot: {error}"; %error);
+            NOT_STARTED
+        }
+    }
+}
+
+/// The status of a program that could not start, as a shell reports it.
+const NOT_STARTED: i32 = 127;
 
 #[cfg(test)]
 mod tests;

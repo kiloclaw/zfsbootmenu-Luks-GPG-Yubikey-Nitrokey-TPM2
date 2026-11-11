@@ -104,7 +104,7 @@ mod key_file;
 mod keysource;
 mod record_fixtures;
 mod record_zfs;
-mod recovery;
+pub(crate) mod recovery;
 pub(crate) mod saved;
 pub(crate) mod setup;
 mod signals;

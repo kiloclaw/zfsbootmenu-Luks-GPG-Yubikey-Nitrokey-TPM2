@@ -51,4 +51,9 @@ pub const LINKED: &[Linked] = &[
         dir: "/bin",
         first: &[],
     },
+    Linked {
+        name: "zfs-chroot",
+        dir: "/bin",
+        first: &[],
+    },
 ];

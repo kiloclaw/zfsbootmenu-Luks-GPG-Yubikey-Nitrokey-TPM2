@@ -207,9 +207,10 @@ for src in /lib/profiling-lib.sh /lib/kmsg-log-lib.sh \
   fi
 done
 unset src legacy
-# The recovery shell goes through the gate of zbm, whichever function
-# opens it (ADR 0010).
+# The recovery shell and the chroot go through the gate of zbm, whichever
+# function opens them (ADR 0010).
 emergency_shell() { /libexec/zbm zfunc emergency_shell "$@"; }
+zfs_chroot() { /libexec/zbm zfunc zfs_chroot "$@"; }
 func="${1}"
 shift
 zdebug "Calling ${func} with $*"
@@ -396,7 +397,10 @@ mod tests {
             &[("loglevel", "7")],
         );
         assert_eq!(call.program(), "bash");
-        assert!(LEGACY_FUNCTION.contains("emergency_shell() { /libexec/zbm zfunc"));
+        for gated in ["emergency_shell", "zfs_chroot"] {
+            let line = format!("\n{gated}() {{ /libexec/zbm zfunc {gated} \"$@\"; }}\n");
+            assert!(LEGACY_FUNCTION.contains(&line), "{gated}");
+        }
         let args: Vec<String> = call
             .get_args()
             .iter()

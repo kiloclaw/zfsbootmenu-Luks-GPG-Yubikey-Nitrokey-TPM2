@@ -444,3 +444,28 @@ fn late_luks_volumes_are_unlocked_as_retries() {
     assert_eq!(shell.unlock_late(), Err(BootError::NoCryptsetup));
     assert!(fake.runner.calls().is_empty());
 }
+
+#[test]
+fn a_chroot_outside_the_menu_gets_the_menu_s_settings() {
+    let fake = machine();
+    let conf = Conf::parse(
+        "export BASE=\"/zfsbootmenu\"\nexport zbm_set_hostid=\"1\"\n\
+         export import_policy=\"force\"\n",
+    );
+
+    let settings = Startup::new(fake.system(), &conf).menu_settings();
+
+    assert!(settings.set_hostid);
+    assert_eq!(settings.hooks, Path::new(hooks::HOOKS));
+    assert_eq!(
+        settings.import_policy,
+        zbm_types::ImportPolicy::Force,
+        "the options of the configuration"
+    );
+    let env: Vec<(&str, &str)> = settings.env.iter().collect();
+    assert!(env.contains(&("zbm_set_hostid", "1")), "{env:?}");
+    assert!(
+        !env.iter().any(|(name, _)| *name == "BOOTFS"),
+        "the key's load sets BOOTFS as it is then"
+    );
+}

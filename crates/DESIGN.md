@@ -577,19 +577,22 @@ The rules:
 - **Limits.** Each wrapped call is a process; its arguments must be valid UTF-8 (`zbm` refuses others with status 2);
   and a wrapped function does not see the functions its caller defined.
 
-`zbm zfunc FUNCTION [ARGS]` (`zbm_startup::zfunc`) runs a function. Two have Rust code so far: `emergency_shell`, the
-start-up program's recovery shell, through its gate (ADR 0010: a locked image asks for the PIN first), and
-`is_degraded`. Any other runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash
-(`zbm_tools::programs::legacy_function`), which sources the library files the legacy `zfunc` sourced, those of the
-contract from their legacy copies below `/usr/share/zfsbootmenu/legacy/lib` (they source each other there, not the
-generated files of `/lib`, whose wrappers would come back to `zbm`), and runs the function with the caller's streams
-and signals; the configuration's variables are added where the environment does not set them. Inside it,
-`emergency_shell` is `zbm`'s, so the gate holds whichever legacy function opens the shell. The image links
-`/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool` (`docs/general/grub-migration.rst`) keeps working.
+`zbm zfunc FUNCTION [ARGS]` (`zbm_startup::zfunc`) runs a function. Three have Rust code so far: `emergency_shell`,
+the start-up program's recovery shell, through its gate (ADR 0010: a locked image asks for the PIN first);
+`zfs_chroot`, which runs `zbm`'s `zfs-chroot` on the console, the filesystem one argument, as the legacy function ran
+the script on Bash: that applet asks for the PIN in a locked image, as `zbm lock shell` does, and opens the chroot
+through the same gate (ADR 0018, point 8); and `is_degraded`. Any other runs as the legacy `zfunc` ran it: `zbm`
+replaces itself with Bash (`zbm_tools::programs::legacy_function`), which sources the library files the legacy `zfunc`
+sourced, those of the contract from their legacy copies below `/usr/share/zfsbootmenu/legacy/lib` (they source each
+other there, not the generated files of `/lib`, whose wrappers would come back to `zbm`), and runs the function with
+the caller's streams and signals; the configuration's variables are added where the environment does not set them.
+Inside it, `emergency_shell` and `zfs_chroot` are `zbm`'s, so the gate holds whichever legacy function opens a shell.
+The image links `/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool` (`docs/general/grub-migration.rst`) keeps
+working.
 
-A test in `zbm` lists the 54 functions still legacy; SB6 and SB7 give them Rust code, and SB7 needs the list empty.
-ADR 0017 (point 10) has each function run its Rust code where some exists: only two do so far, because each needs its
-legacy output, status and log lines bridged, and a parity test.
+A test in `zbm` lists the 53 functions still legacy; SB6 and SB14 give them Rust code, and SB14 needs the list
+empty. ADR 0017 (point 10) has each function run its Rust code where some exists: only three do so far, because each
+needs its legacy output, status and log lines bridged, and a parity test (`zfs_chroot`'s is the first of a native).
 
 ## Errors and logging
 

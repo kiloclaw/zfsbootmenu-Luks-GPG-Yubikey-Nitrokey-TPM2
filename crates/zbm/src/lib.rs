@@ -11,6 +11,7 @@
 use std::io::Write;
 
 pub mod applets;
+mod chroot;
 pub mod console;
 pub mod console_font;
 pub mod debug;
@@ -359,6 +360,7 @@ mod tests {
             "reboot",
             "poweroff",
             "firmware-setup",
+            "zfs-chroot",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

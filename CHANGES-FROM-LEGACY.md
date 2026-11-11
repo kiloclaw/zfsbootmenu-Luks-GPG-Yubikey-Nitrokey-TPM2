@@ -164,13 +164,13 @@ runtime's variables](#hooks-get-the-legacy-runtimes-variables). `zfsbootmenu(7)`
   legacy shell code. The wrappers leave in the caller's shell what callers read of the legacy functions: `BOOTFS`
   after a `set_default_env` that succeeded; `ret` after `import_pool`, and `spl_hostid` after a failed import; `ret`
   after `export_pool`; `HEIGHT` and `WIDTH` after `timed_prompt`; `mount_dev` after `is_mounted`. The other variables
-  the legacy functions left set, such as their loop variables, are not. `emergency_shell` and `is_degraded` are Rust
-  code; any other function runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash, which sources the
-  legacy files, kept below `/usr/share/zfsbootmenu/legacy/lib`, and runs the function with the caller's streams and
-  signals. `emergency_shell` opens the recovery shell through its gate, whichever function calls it: a locked image
-  asks for the PIN first. Each wrapped call is a process, so a hook that calls `import_pool` in a loop is slower; its
-  arguments must be valid UTF-8 (`zbm` refuses others, with status 2); and the function does not see the functions
-  the hook defined.
+  the legacy functions left set, such as their loop variables, are not. `emergency_shell`, `zfs_chroot` and
+  `is_degraded` are Rust code; any other function runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash,
+  which sources the legacy files, kept below `/usr/share/zfsbootmenu/legacy/lib`, and runs the function with the
+  caller's streams and signals. `emergency_shell` opens the recovery shell, and `zfs_chroot` its chroot, through the
+  shell's gate, whichever function calls them: a locked image asks for the PIN first. Each wrapped call is a process, so
+  a hook that calls `import_pool` in a loop is slower; its arguments must be valid UTF-8 (`zbm` refuses others, with
+  status 2); and the function does not see the functions the hook defined.
 - **Why:** the hook contract no longer needs the legacy files, and each function can move to Rust on its own; a test
   lists those still legacy.
 
@@ -562,8 +562,38 @@ same commands. The menu also restores files from a snapshot, which the legacy me
   read/write; a read-only chroot of a locked environment failed to mount it.
 - **Now:** a chroot loads the environment's key first, read-only or read/write, as a boot chosen in the menu loads
   it: the `load-key.d` hooks, then the prompt. A key refused, or none given, ends the chroot with nothing mounted.
+  This holds for the menu's chroot, the recovery shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
 - **Why:** the menu's command line already marks a chroot of a locked environment with the key it costs; now the
   chroot does what it says.
+
+### A hook's `zfs_chroot` asks for the PIN in a locked image
+
+- **Before:** the library's `zfs_chroot` ran the `/bin/zfs-chroot` script on Bash, which opened the chroot's shell
+  at once.
+- **Now:** it runs `zbm`'s `zfs-chroot` on the console, after the same log lines, clear screen and cursor, and
+  returns its status: in a locked image that asks for the PIN first, and a blank line or three wrong PINs open
+  nothing. A hook that calls it waits there for the PIN. Without a filesystem it still logs "fs is undefined" and
+  returns 1.
+- **Why:** a hook is no way past the lock: every shell opens through its gate.
+
+### The shell's `zfs-chroot` asks for the PIN again
+
+- **Before:** `/bin/zfs-chroot`, a Bash script, opened the chroot from the recovery shell at once.
+- **Now:** `/bin/zfs-chroot` is a link to `zbm`, and prepares the chroot as the menu's does. In a locked image it asks
+  for the PIN as `zbm lock shell` does, even in a recovery shell that was opened with the PIN; a blank line or three
+  wrong PINs open nothing. It exits 0 once a shell ran, 1 when none could be opened, saying why on standard error, and
+  0 without a filesystem, as before. A second argument is a usage error (status 2), and `--help` prints its usage.
+  `SIGHUP`, `SIGINT`, `SIGQUIT` and `SIGTERM` wait until it has unmounted the chroot, as the script's trap undid the
+  mounts: the chroot's shell gets them, and a dropped SSH session leaves nothing mounted. So Ctrl-C no longer ends it
+  at the PIN or at the question, where the script ended at once; a blank line at the PIN goes back.
+- **Why:** each process keeps its own proof: the recovery shell's ended with it, and a chroot is a shell of its own.
+
+### A filesystem name with a space is one argument
+
+- **Before:** `zfs_chroot` ran `bash -c "zfs-chroot ${fs}"`, which split a name with a space into words: the chroot
+  was of the name's first word.
+- **Now:** the name reaches `zfs-chroot` as one argument.
+- **Why:** ZFS names may hold spaces, and the chroot is of the filesystem named.
 
 ### Rollback has no safety snapshot
 

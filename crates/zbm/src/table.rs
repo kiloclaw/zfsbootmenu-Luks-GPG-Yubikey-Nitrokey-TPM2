@@ -3,8 +3,8 @@
 //! for `--help`, and the function that runs it.
 
 use crate::{
-    Applet, applets, console, console_font, debug, explain, fonts, image, layouts, lock, luks,
-    measure, menu, power, report, run_hooks, unlock, zfunc,
+    Applet, applets, chroot, console, console_font, debug, explain, fonts, image, layouts, lock,
+    luks, measure, menu, power, report, run_hooks, unlock, zfunc,
 };
 
 const INIT: Applet = Applet {
@@ -327,6 +327,22 @@ then says why and exits 1.
     run: power::firmware_setup,
 };
 
+pub(crate) const ZFS_CHROOT: Applet = Applet {
+    name: "zfs-chroot",
+    names: &[],
+    summary: "open a shell in a chroot of a filesystem, behind the PIN of a locked image",
+    usage: "\
+Usage: zfs-chroot FILESYSTEM
+
+Opens a shell in a chroot of FILESYSTEM, with /tmp, /proc, /sys and /dev
+mounted in it. On a pool imported read-only it asks first whether to import
+the pool read/write. It loads the key of a locked encryption root, and in a
+locked image it asks for the PIN first. The exit status is 0 once a shell
+ran, or without FILESYSTEM, and 1 when no shell could be opened.
+",
+    run: chroot::run,
+};
+
 /// The commands `zbm` provides.
 pub const APPLETS: &[Applet] = &[
     INIT,
@@ -351,6 +367,7 @@ pub const APPLETS: &[Applet] = &[
     REBOOT,
     POWEROFF,
     FIRMWARE_SETUP,
+    ZFS_CHROOT,
 ];
 
 #[cfg(test)]

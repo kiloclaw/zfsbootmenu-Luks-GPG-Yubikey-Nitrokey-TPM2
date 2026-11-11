@@ -12,7 +12,11 @@
 //! - in the recovery shell, `firmware-setup` says why and exits 1;
 //!   `reboot --help` and `shutdown --help` print the usages of `zbm`'s
 //!   `reboot` and `poweroff`, through the image's links. Neither is run,
-//!   since either would end the machine.
+//!   since either would end the machine;
+//! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
+//!   the menu's chroot does, Enter keeps it read-only, its shell reads the
+//!   environment's `/etc/os-release`, and `exit` is back in the recovery
+//!   shell, `zfs-chroot` ending with 0.
 
 use std::thread;
 use std::time::Duration;
@@ -60,6 +64,8 @@ pub(super) fn run(test: &Test) -> Result<()> {
     menu_chroot(test, &mut vm, Duration::from_secs(2))?;
     tools_to_shell(test, &mut vm, Duration::from_secs(2))?;
     shell_tools(test, &mut vm)?;
+    vm.sendline(SHELL_CHROOT)?;
+    in_the_shell_s_chroot(test, &mut vm)?;
     vm.kill();
     Ok(())
 }
@@ -164,6 +170,50 @@ fn shell_tools(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
             &format!("{name} is zbm's: --help prints {usage:?} ({code})"),
         );
     }
+    Ok(())
+}
+
+/// The recovery shell's chroot of `tplain`'s environment, followed by its
+/// exit status once its shell ended.
+pub(crate) const SHELL_CHROOT: &str = "zfs-chroot tplain/ROOT/be; echo ZFS-CHROOT-RC=$?";
+
+/// The recovery shell's chroot, once [`SHELL_CHROOT`] started and, in a
+/// locked image, the PIN was typed: the question, Enter for a read-only
+/// chroot, the environment's `/etc/os-release` read in its shell, and
+/// `exit`, after which `zfs-chroot` ends with 0 in the recovery shell.
+///
+/// # Errors
+///
+/// When a step cannot be done.
+pub(crate) fn in_the_shell_s_chroot(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    let asked = vm.expect1(CHROOT_QUESTION, 120).is_ok();
+    test.check(
+        asked && vm.console().screen().contains("Enter r/o chroot"),
+        "the shell's zfs-chroot asks first on a pool imported read-only",
+    );
+    test.step("Enter: the shell's chroot, read-only");
+    vm.send("\r")?;
+    let noticed = vm.expect1(CHROOT_NOTICES, 120).is_ok();
+    test.check(
+        noticed
+            && vm
+                .console()
+                .screen()
+                .contains("tplain/ROOT/be is mounted read-only"),
+        "the shell's zfs-chroot mounts the environment read-only after Enter",
+    );
+    let (code, said) = vm.sh_show("cat /etc/os-release")?;
+    test.check(
+        code == 0 && said.contains(TEST_ENVIRONMENT),
+        &format!("the shell's chroot reads the environment's os-release ({code})"),
+    );
+    test.step("exit: back to the recovery shell");
+    vm.sendline("exit")?;
+    let ended = vm.expect1("ZFS-CHROOT-RC=0", 120).is_ok();
+    test.check(
+        ended,
+        "zfs-chroot ends with 0 in the recovery shell once its shell ended",
+    );
     Ok(())
 }
 

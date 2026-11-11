@@ -25,6 +25,23 @@ fn the_shell_and_another_boot_ask_for_the_pin_of_the_locked_menu() {
         Step::Say("RC=0\r\nzbm# "),
         Step::Hear("echo ZBMTEST-LOCKED-$((6*7)); echo RC=$?"),
         Step::Say("ZBMTEST-LOCKED-42\r\nRC=0\r\nzbm# "),
+        Step::Hear(SHELL_CHROOT),
+        Step::Say("This ZFSBootMenu is locked. Type its PIN, or a blank line\r\n"),
+        Step::Say("PIN: "),
+        Step::Hear(PIN),
+        Step::Say(
+            "\x1b[H\x1b[2J[ESCAPE] Enter r/w chroot\r\n[RETURN] Enter r/o chroot\r\n\
+             \r\nEntering chroot in 10 seconds",
+        ),
+        Step::Keys("\r"),
+        Step::Say(
+            "\x1b[H\x1b[2J* tplain/ROOT/be is mounted read-only\r\n\
+             * /tmp is mounted read/write\r\n\r\ntplain/ROOT/be / > ",
+        ),
+        Step::Hear("cat /etc/os-release; echo RC=$?"),
+        Step::Say("NAME=\"ZBM test boot environment\"\r\nRC=0\r\n"),
+        Step::Hear("exit"),
+        Step::Say("ZFS-CHROOT-RC=0\r\nzbm# "),
         Step::Hear("exit"),
         Step::Say("\x1b[2J\x1b[1;1H BOOT ENVIRONMENTS \r\n"),
         Step::Keys("\x1b[A"),
@@ -45,7 +62,7 @@ fn the_shell_and_another_boot_ask_for_the_pin_of_the_locked_menu() {
     assert_eq!(guest.finish(), Vec::<String>::new());
     let found = checks(&test);
     cleanup(&settings);
-    assert_eq!(found.len(), 7, "{found:#?}");
+    assert_eq!(found.len(), 12, "{found:#?}");
     assert!(
         found.iter().all(|line| line.starts_with("ok")),
         "{found:#?}"

@@ -97,7 +97,7 @@ mod tests {
     }
 
     /// ADR 0017, point 10: the functions of the library that still run the
-    /// legacy code, which SB6 and SB7 make Rust; every function is copied
+    /// legacy code, which SB6 and SB14 make Rust; every function is copied
     /// shell code, Rust or legacy.
     #[test]
     fn the_functions_still_legacy() {
@@ -146,7 +146,6 @@ mod tests {
                 "cache_key",
                 "load_key",
                 "be_location",
-                "zfs_chroot",
                 "zreport",
                 "import_zbm_hooks",
                 "is_mountpoint",

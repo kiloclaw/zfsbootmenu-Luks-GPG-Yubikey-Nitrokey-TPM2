@@ -7,7 +7,10 @@
 //! - with `zbm.prefer=tplain`, which waits in the menu: the toolbar marks
 //!   what the lock keeps with the PIN (ADR 0010); the recovery shell
 //!   asks for the PIN, refuses a wrong one, opens with the right one after
-//!   the delay a wrong one adds; once it ended, the menu is locked again:
+//!   the delay a wrong one adds; in it, `zfs-chroot` asks for the PIN
+//!   again before its chroot (ADR 0018, point 8), whose shell reads the
+//!   environment's `/etc/os-release`; once the recovery shell ended, the
+//!   menu is locked again:
 //!   booting `tauto`'s environment, which is not the default, asks for the
 //!   PIN on the console, and boots once it is typed.
 
@@ -17,6 +20,7 @@ use super::{BASE, image_with, start_with};
 use crate::boot::{Boot, Follow, check_be, follow_boot, prompt};
 use crate::error::Result;
 use crate::record::Test;
+use crate::scenarios::runtime::recovery::{SHELL_CHROOT, in_the_shell_s_chroot};
 use crate::vm::Vm;
 
 /// The PIN of the image.
@@ -95,7 +99,9 @@ pub(super) fn marked(test: &Test, vm: &mut Vm<'_>) {
 
 /// The recovery shell, opened from the menu, asks for the PIN: a wrong one
 /// is refused, the right one opens it after the delay, and the shell takes
-/// commands; it ends, and the menu shows again.
+/// commands. Its `zfs-chroot` asks for the PIN again, then opens the
+/// chroot ([`in_the_shell_s_chroot`]). The shell ends, and the menu shows
+/// again.
 pub(super) fn shell_behind_the_pin(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     crate::boot::ask_menu_for_shell(vm)?;
     let asked = vm.expect1(LOCKED_SHELL, 120).is_ok();
@@ -120,6 +126,13 @@ pub(super) fn shell_behind_the_pin(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
         output.contains("ZBMTEST-LOCKED-42"),
         "the right PIN opens the recovery shell",
     );
+    test.step("zfs-chroot tplain/ROOT/be: the PIN again, then the chroot");
+    vm.sendline(SHELL_CHROOT)?;
+    let asked = vm.expect1(LOCKED_SHELL, 120).is_ok();
+    test.check(asked, "the shell's zfs-chroot asks for the PIN again");
+    vm.expect1(PIN_PROMPT, 30)?;
+    vm.sendline(PIN)?;
+    in_the_shell_s_chroot(test, vm)?;
     vm.sendline("exit")?;
     vm.expect1(prompt::NEW_MENU, 600)?;
     Ok(())

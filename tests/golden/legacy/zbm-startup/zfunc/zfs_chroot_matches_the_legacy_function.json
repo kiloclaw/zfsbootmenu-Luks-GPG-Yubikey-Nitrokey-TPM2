@@ -1,0 +1,46 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "fs \"\", zfs-chroot exits 0",
+      "result": [
+        1,
+        "ERROR: fs is undefined\n",
+        []
+      ]
+    },
+    {
+      "input": "fs \"tank/ROOT/be\", zfs-chroot exits 0",
+      "result": [
+        0,
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: chroot environment: tank/ROOT/be\n",
+        [
+          "clear",
+          "cnorm"
+        ]
+      ]
+    },
+    {
+      "input": "fs \"tank/ROOT/be@old\", zfs-chroot exits 1",
+      "result": [
+        1,
+        "DEBUG: fs set to tank/ROOT/be@old\nDEBUG: chroot environment: tank/ROOT/be@old\n",
+        [
+          "clear",
+          "cnorm"
+        ]
+      ]
+    },
+    {
+      "input": "fs \"rpool/ROOT/my be\", zfs-chroot exits 3",
+      "result": [
+        3,
+        "DEBUG: fs set to rpool/ROOT/my be\nDEBUG: chroot environment: rpool/ROOT/my be\n",
+        [
+          "clear",
+          "cnorm"
+        ]
+      ]
+    }
+  ]
+}

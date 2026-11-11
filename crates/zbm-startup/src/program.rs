@@ -159,6 +159,14 @@ impl<'a> Startup<'a> {
         settings
     }
 
+    /// How a boot chosen in the menu boots, from the options, with the
+    /// variables of the configuration for the hooks, as the menu gets them
+    /// ([`Startup::menu`]): the settings a chroot outside the menu
+    /// (`zfs-chroot`) loads its key with.
+    pub fn menu_settings(&self) -> BootSettings {
+        self.boot_settings(self.conf_vars.clone())
+    }
+
     /// Runs the program. Without the console mode it returns after the stages;
     /// otherwise it returns only after `rounds` rounds of the recovery loop
     /// (never, with `None`).

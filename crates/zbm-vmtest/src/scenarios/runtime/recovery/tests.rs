@@ -213,3 +213,67 @@ fn a_chroot_mounted_read_write_after_enter_fails() {
         "FAIL - Enter at the question mounts the environment read-only"
     );
 }
+
+/// The shell's answers to [`SHELL_CHROOT`] and [`in_the_shell_s_chroot`]:
+/// `zfs-chroot` ends with `status`.
+fn shell_chroot_script(status: &'static str) -> Vec<Step> {
+    vec![
+        Step::Hear(SHELL_CHROOT),
+        Step::Say(QUESTION),
+        Step::Keys("\r"),
+        Step::Say(
+            "\x1b[H\x1b[2J* tplain/ROOT/be is mounted read-only\r\n\
+             * /tmp is mounted read/write\r\n\r\ntplain/ROOT/be / > ",
+        ),
+        Step::Hear("cat /etc/os-release; echo RC=$?"),
+        Step::Say("NAME=\"ZBM test boot environment\"\r\nRC=0\r\n"),
+        Step::Hear("exit"),
+        Step::Say(status),
+    ]
+}
+
+/// Plays `script` against the shell's chroot; the checks it recorded.
+fn shell_chroot_checks(name: &str, script: Vec<Step>) -> Vec<String> {
+    let settings = settings(name);
+    let test = Test::new(&settings, "runtime-rust-recovery").unwrap();
+    let (mut vm, guest) = scripted(&test, script);
+
+    vm.sendline(SHELL_CHROOT).unwrap();
+    in_the_shell_s_chroot(&test, &mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let found = checks(&test);
+    cleanup(&settings);
+    found
+}
+
+#[test]
+fn the_shell_s_zfs_chroot_reads_the_environment_read_only_and_ends_with_0() {
+    let found = shell_chroot_checks(
+        "runtime-recovery-shell-chroot",
+        shell_chroot_script("ZFS-CHROOT-RC=0\r\nzbm# "),
+    );
+
+    assert_eq!(
+        found,
+        [
+            "ok   - the shell's zfs-chroot asks first on a pool imported read-only",
+            "ok   - the shell's zfs-chroot mounts the environment read-only after Enter",
+            "ok   - the shell's chroot reads the environment's os-release (0)",
+            "ok   - zfs-chroot ends with 0 in the recovery shell once its shell ended",
+        ]
+    );
+}
+
+#[test]
+fn a_shell_s_zfs_chroot_that_ends_with_1_fails() {
+    let found = shell_chroot_checks(
+        "runtime-recovery-shell-chroot-1",
+        shell_chroot_script("ZFS-CHROOT-RC=1\r\nzbm# "),
+    );
+
+    assert_eq!(
+        found[3],
+        "FAIL - zfs-chroot ends with 0 in the recovery shell once its shell ended"
+    );
+}
