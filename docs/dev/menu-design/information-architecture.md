@@ -2,9 +2,9 @@
 
 The menu is one workspace ([ADR 0007](../adr/0007-menu-workspace.md)): four tabs instead of separate screens, and in
 each, drill-down columns from the general to the particular, so a selection keeps its context. An inspector says what
-the selection is and what booting it would do, a sidebar names what needs attention, the command line does anything
-with a dry run first, and what cannot be undone opens a review page. Nothing is more than a tab and two steps away, and
-`Esc` always goes back one step.
+the selection is and what booting it would do, a sidebar names what needs attention, the command line does anything, a
+change with a dry run first, and what cannot be undone opens a review page. Nothing is more than a tab and two steps
+away, and `Esc` always goes back one step.
 
 ## The frame
 
@@ -159,12 +159,32 @@ indented lines, numbers its stops as the arrows go, and says a device's messages
 
 ## The command line and review pages
 
-The review pages are built under the workspace map (UI10d); the command line comes with UI14.
+The review pages are built under the workspace map (UI10d), the command line and its dry run by UI14
+([ADR 0007](../adr/0007-menu-workspace.md), its UI14 note).
 
-- **`:` opens the command line** with fuzzy completion, grouped as actions, items and help, each with its key and what
-  it costs, and a history (`Ctrl-R`). Before anything runs it shows the dry run: the steps of the action's plan, the
-  command each runs (`zfs snapshot …`, `zfs rollback …`), the effect, the undo, and what the plan needs (a pool
-  writable, a key). The prototype's `:` opens the command palette, which finds environments, snapshots and actions.
+- **`:` opens the command line**, in both maps, over the view under it, titled *Commands* with the count of its
+  entries. Its entries come under four headings, which are drawn and said but never chosen: *Recent*, those chosen
+  before, newest first (at most 20, in memory for the menu's life, no query or line kept); *Actions*, those of each
+  environment, pool and volume and of the view under the line, with one `Boot a clone of …` for each snapshot read;
+  *Items*, an environment, a pool or a volume selected on its tab, the views, and each environment's kernels and
+  snapshots; and *Help*, each view's keys and the command line's own. The query finds an entry by its label or its
+  command's name and target (`rollback zroot/ROOT/void@pre-upgrade`), in the menu's language or English, and ignores
+  case; the entries are ranked together, then grouped by heading. On the right of each row, muted, the keys that do
+  it in the view under the line and what it costs: `PIN` (the lock keeps it), `read/write` (a pool imported read-only
+  that it writes), `key` (an environment whose key is not loaded) and `review` (a page that asks for a typed name); a
+  narrow row cuts the keys and the other costs before `PIN`. `Tab` completes the query to the selected command,
+  `Ctrl-W` deletes a word, `Ctrl-R` shows only the history, `F1` its help, whose `Esc` comes back with the query.
+- **The dry run**, in the workspace: a change chosen on the command line shows its plan first, on the review page
+  without its field, in the normal frame unless something is lost: the title, "Nothing has changed yet: Enter runs it,
+  Esc leaves it", what is lost or that nothing is, the steps with the command each runs as a shell reads it (`zfs
+  snapshot …`, `zpool export …`), and the undo (`workspace-dry-run`). A step that imports a pool read/write first says
+  what the plan needs; a key is a cost. `Enter` runs it once; `Esc` leaves it, and nothing has changed. A boot, a
+  chroot, a re-seal, the reset of boot tries and what a view's key does run without one; the classic map has none.
+- **The command line saved for every boot**, in the workspace: `Set the Command Line of …` opens the editor for every
+  boot (`workspace-command-line-save`), from the edit for this boot or the line the environment has, and its `Enter`
+  shows the dry run: a read/write import of a read-only pool, the `zfs set`, the line it replaces and where it came
+  from, the undo, and that a kernel's `.kcl` file, `zbm.kcl_override` and measured boot's PCR 8 are still in play.
+  `Let … Inherit Its Command Line` drops a line set on the environment. `e` still edits for one boot.
 - **A review page** for a rollback, a destroy of snapshots, a forced import or a rewind: the whole view in the danger
   colour, which opens and asks the machine for the change's plan (`Plan`), and says so until it comes. Then, from the
   top: the title; what stops the change (a clone or a hold of a snapshot it destroys, a host that has the pool
@@ -226,11 +246,11 @@ The views the tabs show, which the classic map opens as screens of their own:
 | --- | --- | --- | --- |
 | Start-up | the boot | the stages of start-up with their state; unlock and import dialogs | answer the dialog |
 | Main | start-up done | boot environments and a detail pane | boot the selection |
-| Command palette | `:` anywhere | one filter over environments, snapshots, kernels and actions | run the match |
+| Command line (`:`) | `:` anywhere | the commands, under Recent, Actions, Items and Help, each with its keys and costs | run the match, after its dry run for a change (the workspace) |
 | Snapshots | `s` | the snapshots of the selected environment, newest first, with size and age | choose an action for the snapshot |
 | Changes | `f` on a snapshot | what changed since the snapshot in two segments, files and packages, each with a preview of the selection | files: restore the marked files, or the selection; packages: show its files |
 | Kernels | `k` | the kernels of the selected environment, default marked | boot that kernel |
-| Command line | `e` | the command line of the selection, editable, with its origin | boot with it |
+| Command line | `e`; `Set the Command Line of …` on `:` (the workspace) | the command line of the selection, editable, with its origin, for one boot or, from `:`, for every boot | boot with it; or show the dry run of saving it |
 | Pools and volumes | `p` | each pool with health, mode and host ID; each LUKS volume with its state and methods | details of the selection |
 | Recovery | `r` | shell, chroot, logs, report, firmware setup, reboot, power off | run the tool |
 | Help | `?` | the key map of the view it was opened from, then every other | — |
@@ -248,7 +268,7 @@ Dialogs open over a view and return to it:
   target, with their sizes), and a field that wants the short name of the target typed. Only the restore of files
   takes a safety snapshot first, and says so; a rollback takes none. Under the workspace a rollback, a rewind and a
   forced import open their review page instead.
-- **Choose** (an action sheet, with **Cancel** set apart): the actions for a snapshot (boot a clone, roll back, clone, duplicate, clone and promote, diff, chroot, and under the workspace, last, destroy it).
+- **Choose** (an action sheet, with **Cancel** set apart): the actions for a snapshot (boot a clone, roll back, clone, duplicate, clone and promote, diff, chroot, and under the workspace, with two marked, their differences, and last, destroy it); under the workspace, a pool's details list all that its keys do (the imports of `i`, `w`'s read/write import, the export, and the rewind wherever `i` offers it).
 - **May not boot** (an action sheet): booting an environment whose checks found a failure says what failed and
   what to do, with **Boot Anyway** and **Cancel** ([boot health](boot-health.md)).
 - **Error**: what failed, why (the cause chain of the error, in words), and the next steps offered.

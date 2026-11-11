@@ -498,27 +498,32 @@ Following a boot
   * ``menu-snapshots``: on the serial console, a rollback to ``four``; one to ``one`` refused, its review page naming
     the clone and the hold; a new snapshot; a clone; a duplicate; the differences since ``one`` and the restore of the
     changed and the removed file; the destroy of ``one`` and ``three``, marked; the destroy of ``held`` and of ``two``
-    refused; one destroyed from the palette; and last the clone and promote of ``four``. The recovery shell, opened
-    three times, checks that the space the snapshots hold fell by what ``zfs destroy -n -v -p`` said destroying them
-    frees (ROADMAP.md #15), the datasets, snapshots and bookmark left, the restored files' contents, owner and mode, and
-    the restore's safety snapshot ``be@before-restore-*`` (ROADMAP.md #21).
+    refused; one destroyed from the command line (``:``); and last the clone and promote of ``four``. The recovery
+    shell, opened three times, checks that the space the snapshots hold fell by what ``zfs destroy -n -v -p`` said
+    destroying them frees (ROADMAP.md #15), the datasets, snapshots and bookmark left, the restored files' contents,
+    owner and mode, and the restore's safety snapshot ``be@before-restore-*`` (ROADMAP.md #21).
   * ``menu-pools``: on the serial console, ``tother`` imported read-only, read/write and read-only again, then rewound
     to its checkpoint after its review page; ``tforeign`` imported by force after its review page, which names the host
-    ``deadbeef``, then exported; the volume unlocked with ``pw`` and ``tlocked`` imported; last ``tforeign`` imported as
+    ``deadbeef``, then exported from the command line, whose dry run must show ``zpool export tforeign`` before
+    ``Enter`` runs it; the volume unlocked with ``pw`` and ``tlocked`` imported; last ``tforeign`` imported as
     its last host. The shell checks which pools are read-only, ``tother/after`` and the checkpoint gone, the host ID
     ``deadbeef`` and the volume's mapping.
-  * ``menu-boot``, in three boots: with a FAT disk for ``zbm.save_logs``, the palette's entries, with none to give boot
-    tries back or to re-seal; the second kernel booted with ``zbmtest.edited=1`` added to the command line, which the
-    boot environment's ``BE-CMDLINE`` must show and the boot's ``boot.json`` record, with the kernel; then a clone of
-    ``five`` booted from the palette, whose ``BE-ROOT`` must be ``tmenu/ROOT/booted``; then the palette's Power Off.
+  * ``menu-boot``, in three boots: with a FAT disk for ``zbm.save_logs``, the command line's entries, with none to give
+    boot tries back or to re-seal; the command line of ``tmenu/ROOT/be`` saved for every boot with ``zbmtest.saved=1``
+    added (``BOOT_SAVED``): ``Set the Command Line of tmenu/ROOT/be`` on ``:`` opens the editor for every boot, its
+    dry run must show ``org.zfsbootmenu:commandline=`` and the note on PCR 8, and once it runs the inspector must say
+    the line is set here; the second kernel booted with ``zbmtest.edited=1`` added to that line for this boot, both of
+    which the boot environment's ``BE-CMDLINE`` must show, and the boot's ``boot.json`` record the kernel; then a clone
+    of ``five`` booted from the command line, whose dry run must show ``zfs clone`` before ``Enter`` runs it and whose
+    ``BE-ROOT`` must be ``tmenu/ROOT/booted``; then the command line's Power Off.
   * ``menu-display``, in five boots: the tasks of the three on the console on the display, with the image of
     ``runtime-rust-console`` (``zbm.console=drm zbm.console_serial=off``), the keys typed with ``sendkey`` and the
     screens read from the console's mirror on the second serial port (``zbm.console_mirror=/dev/ttyS1``). Each boot
     answers the start-up view's LUKS dialog empty when it shows, which leaves the volume to the menu, then does one
-    part: the snapshots and the pools, each ending with Power Off; the kernel and the edited command line, with a FAT
-    disk; the clone; and the palette's Reboot, which resets the machine (``sysrq: Resetting``). It opens no recovery
-    shell, which runs on the console's pseudo-terminal: it checks what the menu shows after each step, and leaves the
-    disks to the serial tests.
+    part: the snapshots and the pools, the export after its dry run, each ending with Power Off; the kernel and the
+    edited command line, with a FAT disk; the clone, after its dry run; and the command line's Reboot, which resets the
+    machine (``sysrq: Resetting``). It opens no recovery shell, which runs on the console's pseudo-terminal: it checks
+    what the menu shows after each step, and leaves the disks to the serial tests.
   * ``menu-keys``, in one boot: the menu's keys on the six layouts of ADR 0007's check (UI15), ``us``, ``de``, ``fr``,
     ``gb``, ``ru`` and ``us(dvorak)``, on the console on the display, with the image and the command line of
     ``menu-display`` and the console's status line (``zbm.console_status=on``). With the countdown stopped, it plays
@@ -687,7 +692,9 @@ it. With KVM, and without building its images (the Rust ``auto`` image, the lega
 ``runtime-rust-console``'s for ``menu-display`` and ``menu-keys``, which the ``runtime`` group builds too),
 ``menu-setup``, ``menu-pools`` and ``menu-boot`` are expected to take about 3 minutes each, ``menu-snapshots`` about
 4.5, ``menu-display`` 9 to 11 and ``menu-keys`` about 4 (a boot of about 2 minutes and eight rounds of about 15 s;
-about 12 with one boot for each layout), about 27 in all.
+about 12 with one boot for each layout), about 27 in all. UI14's steps add about a minute: ``menu-pools``' dry run
+about 10 s, ``menu-boot``'s saved command line about 40 s and its clone's dry run about 10 s, and ``menu-display``'s
+two dry runs about 20 s.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to

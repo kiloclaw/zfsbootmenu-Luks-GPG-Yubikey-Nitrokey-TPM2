@@ -122,7 +122,8 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
 12. **A review page is a view of the plan.** `Action::Plan` returns a `Plan` with, besides its steps and their
     commands, what the action loses (snapshots and bookmarks with their sizes, the bytes written since), what it keeps,
     its undo if it has one, and a safer action if there is one, all computed by `zbm-app` from the machine. The page
-    shows them, then asks for the target's name. UI14's dry run is the same view without the confirmation.
+    shows them, then asks for the target's name. UI14's dry run is the same view without the confirmation. (Built by
+    UI14 on 9 November 2026, in the workspace: see the record of UI14 below.)
 13. **Rollback.** `zfs rollback -r` destroys the newer snapshots and bookmarks, and nothing taken first could undo it,
     so the page lists them with their sizes, says it has no undo, and offers cloning the snapshot as the safer action.
     When a newer snapshot has a clone or a hold, `zfs rollback -r` refuses, and the page says so and names it instead
@@ -152,7 +153,8 @@ machine cannot do is not offered; the classic menu stays one release behind `zbm
 18. **Out of UI10:** the package changes of a diff (#21 needs a reader for each distribution's package database), the
     checks of #6 and the boot tries of #7, the comparison of kernels (#22), the space by month (#23 beyond the
     timeline's headings), destroying an environment, and a persistent command-line edit (writing
-    `org.zfsbootmenu:commandline`), which becomes a command of UI14; `e` stays "edit once".
+    `org.zfsbootmenu:commandline`), which becomes a command of UI14; `e` stays "edit once". (The command built by
+    UI14 on 11 November 2026, in the workspace: see the record of UI14 below.)
 
 ### Steps
 
@@ -432,10 +434,9 @@ that no recording shows yet is checked in the maintainer's VM run and by `xtask 
   destroy entries within B5 at 10,000 snapshots. No VM scenario rolls back, imports, rewinds or destroys through the
   menu: that is UI10e's. The VM run of UI10d, on rebuilt images, is the maintainer's, and the recordings of the new
   outputs wait for `xtask record-zfs`.
-- **Not built:** UI14's dry run, the same view without the field; destroying an environment (point 18); under
-  `zbm.import_policy=force`, the menu's change between read-only and read/write forces the import without a page, as
-  point 3 says; and an `Escape` or `Enter` typed ahead on start-up's Boot tab reaches the next dialog, as in the
-  classic map.
+- **Not built:** destroying an environment (point 18); under `zbm.import_policy=force`, the menu's change between
+  read-only and read/write forces the import without a page, as point 3 says; and an `Escape` or `Enter` typed ahead on
+  start-up's Boot tab reaches the next dialog, as in the classic map.
 
 Points 16 and 17 built on 8 November 2026 (UI10e-1 to UI10e-9), as decided but for what follows. On 7 November the
 maintainer decided the details the record left open: monochrome gets no wireframes of its own, as it draws the colour
@@ -544,7 +545,7 @@ for UI10.
     `Offer::FirmwareSetup` always (`zbm-app/src/application.rs`): against point 2, in no item yet;
   - `F1` and `?` do nothing in dialogs, fields, the palette and the review pages, which take keys before the global
     ones and none of which handles `Intent::Help` (`update/dialogs.rs`, `update/text.rs`, `update/review.rs`), so the
-    help cannot open over a dialog: in no item yet;
+    help cannot open over a dialog: in no item yet. Since UI14-4, `F1` in the command line opens its help;
   - Ctrl-J arrives as Enter on a serial line and over SSH (`zbm-display/src/term_keys.rs`), so `MOD+J` typed with Ctrl
     boots rather than opening the chroot, while the help view shows `MOD+J`; the man page and the migration guide say
     Alt; the label is in no item yet;
@@ -561,14 +562,41 @@ for UI10.
   imports or the PIN under the lock (`integrity-locked`, a later SE9 check) or of a task through the menu over SSH,
   neither of which point 16 names; and a journal warning when `zbm.menu=classic` is chosen, RL1's if wanted.
 
-UI10 is done but for its VM run, which with `xtask record-zfs` is the maintainer's. What it leaves goes as follows.
-UI14 takes the dry run, the review page without its field (point 12), the persistent command-line edit (point 18) and
-SE9's lock marks in the footer and the palette (ADR 0010); VE6 the pool of 10,000 snapshots built by a VM test and
-`cargo xtask bench` (B5). Point 18's items stay with their features: the package changes of a diff with #21, the
-checks and boot tries with #6 and #7, the comparison of kernels with #22 and the space by month with #23. Of what
-point 1's record leaves, a FIDO2 PIN asked from the menu is CD7's; the re-seal (#11), a crypttab key script that asks
-on the terminal, and destroying an environment are in no item yet. The classic menu, with `docs/online/`, goes with
-RL2 (point 10), and decision 8, the key map, with the sessions of UI11, which run on this build.
+UI14's parts of points 12 and 18 built from 9 to 11 November 2026 (UI14-1, UI14-2, UI14-6a and UI14-6), in the
+workspace alone, as the classic map gains no view (point 10). How the command line is built, and the maintainer's
+answers of 9 November, are in [ADR 0007](0007-menu-workspace.md), its UI14 note.
+
+- **Point 12, the dry run:** a change chosen on the command line shows its plan first, on the review page without its
+  field: a title for each kind of change, the steps with their commands as a shell reads them, what is lost or that
+  nothing is, and the undo `zbm-app` gives each change (`plan/review/undo.rs`): destroy a snapshot, export a pool
+  imported, import again with the other access, set the old default back, inherit a kernel again, set a command line
+  back or inherit it again.
+  An import as another system's last host has no undo, and the page says that the host ID stays adopted; its step
+  reads "if the import fails, take the host ID", as the machine takes it only then. `Action::has_plan` says which
+  actions have a plan: a change other than a diff, or the boot of a snapshot. The keys of the views act as before,
+  and a boot, a chroot, a re-seal and the reset of boot tries run without a plan (ADR 0007, point 5 as narrowed;
+  ROADMAP.md's UI16).
+- **Point 18, the command line saved for every boot:** two commands on `:` for each environment. `Set the Command Line
+  of …` opens the editor for every boot, from the edit for this boot, else the environment's line, set there or
+  inherited, an inherited one with `%{parent}` expanded once (UI14-6a); its `Enter` shows the dry run: a read/write
+  import of a read-only pool, the `zfs set` with the line quoted as one argument, the line it replaces and where that
+  came from, the undo, and that a kernel's `.kcl` file and `zbm.kcl_override` still come first and that PCR 8 changes
+  with measured boot. `Let … Inherit Its Command Line` is listed only for a line set on the environment itself. The
+  line's rule, no control character and at most 8191 bytes, lives once on `CommandLine`, and the plan, the machine
+  before any import or `zfs set` (so over SSH too) and the editor apply it. The edit for this boot goes, and the editor
+  closes, only once the machine's snapshot shows the save done; a save that fails, or is cancelled at the PIN, keeps
+  both. Saving needs no key, so the save of an environment whose key is not loaded does not take the console. `e` still
+  edits for one boot. Not done: setting or inheriting a default kernel still takes the console for such an environment,
+  though it needs no key either, in no item.
+
+UI10 is done but for its VM run, which with `xtask record-zfs` is the maintainer's. What it leaves goes as follows. UI14
+took the dry run, the review page without its field (point 12), the persistent command-line edit (point 18) and SE9's
+lock marks in the footer and the palette (ADR 0010), and built them (above); VE6 the pool of 10,000 snapshots built by a
+VM test and `cargo xtask bench` (B5). Point 18's items stay with their features: the package changes of a diff with #21,
+the checks and boot tries with #6 and #7, the comparison of kernels with #22 and the space by month with #23. Of what
+point 1's record leaves, a FIDO2 PIN asked from the menu is CD7's; the re-seal (#11), a crypttab key script that asks on
+the terminal, and destroying an environment are in no item yet. The classic menu, with `docs/online/`, goes with RL2
+(point 10), and decision 8, the key map, with the sessions of UI11, which run on this build.
 
 ## Questions for the maintainer
 

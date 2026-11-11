@@ -53,7 +53,7 @@ When the default has none left, it failed to start that many times in a row, and
   its own, and the banner only says what failed, as with the countdown off. The countdown never boots a snapshot: a
   snapshot boots only when someone chooses it and names its clone (`BootSnapshot`);
 - with the countdown off, the banner only says what failed, and nothing boots on its own;
-- the inspector shows `Boot Tries  0 of 3 left`, and the command palette offers *“Give zroot/ROOT/void Its Boot Tries
+- the inspector shows `Boot Tries  0 of 3 left`, and the command line offers *“Give zroot/ROOT/void Its Boot Tries
   Back”* (`ResetBootTries`) once the cause is fixed.
 
 ## Boot once

@@ -265,17 +265,16 @@ takes over from a menu already running.
 The tables give each key of the `fzf` menu, screen by screen, what it did, and the keys that do it now: in the
 workspace, the menu, and in the classic menu, which `zbm.menu=classic` keeps for this release. `MOD` is Alt, Ctrl or
 Ctrl-Alt, as in the `fzf` menu, whose `MOD+key` bindings both menus keep as aliases in the view where they had a
-meaning, but for those under **Gone**. `Alt+C`, `Alt+L`, `Alt+N` and `Alt+P` mark the aliases that do not work with
-Ctrl alone, as the menu binds those letters with Ctrl itself. On a serial line or over SSH, Ctrl-J arrives as `Enter`,
-so `MOD+J` takes Alt there; and on a serial line, flow control may keep Ctrl-S from the menu, so `MOD+S` takes Alt.
-The new letters take either case: Shift and Caps Lock change no action. On the console on the display
-(`zbm.console=drm`), other keyboard layouts reach the keys too: a key whose character means nothing to the menu counts
-as the key in its place on a US keyboard (on a Russian layout, `й` is `q`); on a serial line and over SSH, and on the
-kernel console until `Ctrl-K` chose a layout, characters count as typed, and the arrows, `Enter` and the palette (`:`),
-which lists what only a character reaches, reach every action. [zfsbootmenu(7)](docs/man/zfsbootmenu.7.rst), The Menu's
-Keys, lists every key of the workspace and every alias, and `?` the keys of the view it is pressed in. The recovery
-shell's `help` still opens the legacy menu's help pages, which give the `fzf` keys, until the help viewer is ported
-(ROADMAP.md SB6).
+meaning, but for those under **Gone**. `Alt+C`, `Alt+L`, `Alt+N` and `Alt+P` mark the aliases that do not work with Ctrl
+alone, as the menu binds those letters with Ctrl itself. On a serial line or over SSH, Ctrl-J arrives as `Enter`, so
+`MOD+J` takes Alt there; and on a serial line, flow control may keep Ctrl-S from the menu, so `MOD+S` takes Alt. The new
+letters take either case: Shift and Caps Lock change no action. On the console on the display (`zbm.console=drm`), other
+keyboard layouts reach the keys too: a key whose character means nothing to the menu counts as the key in its place on a
+US keyboard (on a Russian layout, `й` is `q`); on a serial line and over SSH, and on the kernel console until `Ctrl-K`
+chose a layout, characters count as typed, and the arrows, `Enter` and the command line (`:`), which lists what only a
+character reaches, reach every action. [zfsbootmenu(7)](docs/man/zfsbootmenu.7.rst), The Menu's Keys, lists every key of
+the workspace and every alias, and `?` the keys of the view it is pressed in. The recovery shell's `help` still opens
+the legacy menu's help pages, which give the `fzf` keys, until the help viewer is ported (ROADMAP.md SB6).
 
 Every list:
 
@@ -302,8 +301,8 @@ The boot environments:
 | `MOD+K` | the kernels | `l`, `Right`; `MOD+K` | `k`; `MOD+K` |
 | `MOD+S` | the snapshots | `s`, `2`; `MOD+S` | `s`; `MOD+S` |
 | `MOD+D` | made it its pool's default (`bootfs`) | `d`; `MOD+D` | the same |
-| `MOD+E` | edited the command line, kept for every later boot | `e`, whose `Enter` boots with the line, kept for the environment's later boots until `MOD+T`; `MOD+E` | the same |
-| `MOD+T`, after an edit | dropped the edited line | `MOD+T` drops the environment's edit | the same |
+| `MOD+E` | edited the command line, kept for every later boot | `e`, whose `Enter` boots with the line, kept for the environment's later boots until `MOD+T`; `MOD+E`; saved for every boot by `Set the Command Line of …` on `:`, after its dry run | `e`, whose `Enter` boots with the line, kept for the environment's later boots until `MOD+T`; `MOD+E`; no save |
+| `MOD+T`, after an edit | dropped the edited line | `MOD+T` drops the environment's edit; with none, it does nothing and says nothing | the same, and `t` |
 | `MOD+P` | the pools' status | `3`, the Pools tab; `Alt+P` | `p`; `Alt+P` |
 | `MOD+R` | the recovery shell | `!`, the recovery tools, the shell first; `MOD+R` | the same |
 | `MOD+J` | a chroot into the environment | `!`, then Chroot; `MOD+J` | `j`; `MOD+J` |
@@ -348,7 +347,7 @@ The pools' status:
 | `Enter` | back to the boot environments | the pool's details; on a device, its kernel messages; on a volume, its unlock | the pool's details; on a volume, its unlock |
 | `Left` | the kernels | nothing; `1`, then `l` | nothing; `Esc`, then `k` |
 | `Esc` | back to the boot environments | `Esc`, `h` | `Esc` |
-| none | only the imported pools were listed | `i` imports, `u` unlocks a volume, `w` imports read/write | the same |
+| none | only the imported pools were listed | `i` imports, `u` unlocks a volume, `w` imports read/write, and on a pool imported read/write says so and does nothing | the same |
 
 The other screens:
 
@@ -454,11 +453,18 @@ The boot environments and their kernels: the main view and the kernels of the cl
 
 - **Before:** the edited line was saved in `/zfsbootmenu/cmdline` and used for every later boot of any environment
   until Ctrl-T cleared it.
-- **Now:** the edited line boots in place of the environment's `org.zfsbootmenu:commandline`: `%{parent}` in it
-  stands for the parent's line, `root=` is ZFSBootMenu's, and `noresume` and the host ID are added when they apply,
-  as for the environment's own line. Nothing is saved: the menu keeps the line for that environment alone, so a boot
-  that failed can be tried again with it, until `MOD+T` drops it.
-- **Why:** the edit was made for one environment, and should not decide how the others boot.
+- **Now:** the edited line boots in place of the environment's `org.zfsbootmenu:commandline`: `%{parent}` in it stands
+  for the parent's line, `root=` is ZFSBootMenu's, and `noresume` and the host ID are added when they apply, as for the
+  environment's own line. A line the environment inherits opens with its parent's arguments in place of `%{parent}`,
+  once, so they do not repeat. Nothing is saved by `e`: the menu keeps the line for that environment alone, so a boot
+  that failed can be tried again with it, until `MOD+T` drops it. In the workspace a line is saved for every boot only
+  by a command: `Set the Command Line of …` on `:` opens the editor for every boot, and its `Enter` shows the dry run
+  (the pool imported read/write, the `zfs set org.zfsbootmenu:commandline=…`, the line it replaces, and the undo) before
+  anything is written; `Let … Inherit Its Command Line` drops a line set on the environment. A kernel's `.kcl` file and
+  `zbm.kcl_override` still come before the property. The locked menu asks for the PIN first; the classic menu does not
+  save.
+- **Why:** the edit was made for one environment, and should not decide how the others boot; a line kept for every boot
+  belongs on the environment, where `zfs get` shows it, and is written only once what it changes was read.
 
 ### A new default needs no key
 
@@ -505,14 +511,14 @@ same commands. The menu also restores files from a snapshot, which the legacy me
   opened.
 - **Now:** at start, and after each change, the menu reads only each environment's count of snapshots and its newest,
   which the details show, from one `zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation` of the
-  environment (its descendants' snapshots left out). The snapshots view asks for every snapshot of its environment
-  as it opens, and says "Reading the Snapshots..." until they come; after Esc stops the read, it says the snapshots
-  are not read, and opening the view again, or the next change, reads them. A read that fails says why once: only
-  opening the view again reads them then. While the countdown runs nothing is read for it. Once read, they are read again with each change, so that the rollback's count of the snapshots it destroys
-  is never from an older read. The palette finds the snapshots read so far, and a new name is known to be taken only
-  among them: a snapshot of a view never opened is refused by `zfs`, whose message the error shows. An environment
-  with more snapshots than a menu over SSH can be sent (some 70,000) ends in an error that says so, on the console
-  too, so that both menus show the same.
+  environment (its descendants' snapshots left out). The snapshots view asks for every snapshot of its environment as it
+  opens, and says "Reading the Snapshots..." until they come; after Esc stops the read, it says the snapshots are not
+  read, and opening the view again, or the next change, reads them. A read that fails says why once: only opening the
+  view again reads them then. While the countdown runs nothing is read for it. Once read, they are read again with each
+  change, so that the rollback's count of the snapshots it destroys is never from an older read. The command line finds
+  the snapshots read so far, and a new name is known to be taken only among them: a snapshot of a view never opened is
+  refused by `zfs`, whose message the error shows. An environment with more snapshots than a menu over SSH can be sent
+  (some 70,000) ends in an error that says so, on the console too, so that both menus show the same.
 - **Why:** with thousands of snapshots, reading them all for every environment at start and after every change
   slowed the menu down; ten thousand now open, filter and scroll within a frame.
 
@@ -529,10 +535,11 @@ same commands. The menu also restores files from a snapshot, which the legacy me
 
 - **Before:** `Enter` on a snapshot asked for the name of a new environment, filled with `<environment>_NEW`, and
   copied the snapshot into it; nothing booted a snapshot, and the new environment was booted by hand.
-- **Now:** booting a snapshot (`b`, the snapshot's `Enter` menu or the palette) asks for the name the same way, clones
-  the snapshot into it with `zfs clone`, as a clone without promotion does, and boots it, with its own kernel and
-  command line, through the menu's boot: the hooks, the key and `kexec`. It takes the console, as a boot does, and the
-  locked menu keeps it. A clone that fails boots nothing; a boot that fails leaves the clone, and says so.
+- **Now:** booting a snapshot (`b`, the snapshot's `Enter` menu or the command line) asks for the name the same way,
+  clones the snapshot into it with `zfs clone`, as a clone without promotion does, and boots it, with its own kernel and
+  command line, through the menu's boot: the hooks, the key and `kexec`. From the workspace's command line, its plan,
+  the clone and its command, shows first, as for any change. It takes the console, as a boot does, and the locked menu
+  keeps it. A clone that fails boots nothing; a boot that fails leaves the clone, and says so.
 - **Why:** booting a snapshot is one step, and what boots is an environment with a name that stays, not a temporary
   clone that has to be found and destroyed later.
 
@@ -628,11 +635,11 @@ same commands. The menu also restores files from a snapshot, which the legacy me
 
 - **Before:** the legacy menu destroyed no snapshot: that took `zfs destroy` in the recovery shell.
 - **Now:** in the workspace, `Delete` on the Snapshots tab destroys the marked snapshots, or the selected one, after
-  their review page; `Destroy It…` in a snapshot's `Enter` menu destroys that snapshot, and the palette has an entry for
-  the selected snapshot and one for the marked ones. Only snapshots of one boot environment are destroyed, in one
-  `zfs destroy <environment>@a,b,c` that destroys all or none, and their bookmarks stay; a clone or a hold of one stops
-  it before the pool is imported read/write. The locked menu asks for the PIN first. Over SSH only the snapshots of the
-  machine's boot environments are destroyed. The classic menu does not destroy.
+  their review page; `Destroy It…` in a snapshot's `Enter` menu destroys that snapshot, and the command line has an
+  entry for the selected snapshot and one for the marked ones. Only snapshots of one boot environment are destroyed, in
+  one `zfs destroy <environment>@a,b,c` that destroys all or none, and their bookmarks stay; a clone or a hold of one
+  stops it before the pool is imported read/write. The locked menu asks for the PIN first. Over SSH only the snapshots
+  of the machine's boot environments are destroyed. The classic menu does not destroy.
 - **Why:** reclaiming the space of old snapshots, or removing a bad one, needs no shell, and the review page says
   what it frees before anything is destroyed.
 
@@ -673,10 +680,10 @@ are reviewed as the rollback is, under the Snapshots tab:
   was not imported was not shown, nor the host that used it last, and two pools of one name could not be told apart.
 - **Now:** once its first frame is drawn, the menu scans for the pools that could be imported (`zpool import`, which
   looks at every device) and lists them after the imported ones, each with its identifier; for one that another system
-  used last, `zdb -e -C` reads that host's ID and name, and only for it. The scan waits for the countdown to be
-  stopped, so that the boot the countdown ends with never waits for it; it runs again after an import, opening a
-  volume or a chroot, and from the palette (Rescan the Pools), and the snapshots read in between list what it found.
-  Each imported pool carries its devices from one `zpool status`, their states kept apart (UNAVAIL, REMOVED, FAULTED,
+  used last, `zdb -e -C` reads that host's ID and name, and only for it. The scan waits for the countdown to be stopped,
+  so that the boot the countdown ends with never waits for it; it runs again after an import, opening a volume or a
+  chroot, and from the command line (Rescan the Pools), and the snapshots read in between list what it found. Each
+  imported pool carries its devices from one `zpool status`, their states kept apart (UNAVAIL, REMOVED, FAULTED,
   OFFLINE), with their error counts. A pool that shares its name with another is imported by its identifier, which its
   row shows, and, as the host that last imported it, with the host ID its configuration records; one named like an
   imported pool is shown but not offered for import. `zbm debug pools` scans too, and lists the pools that could be
@@ -689,13 +696,13 @@ are reviewed as the rollback is, under the Snapshots tab:
 - **Before:** the menu exported a pool only on its way to something else: before `kexec`, around `set_rw_pool` and
   `set_ro_pool`, before a reboot and when LUKS volumes were closed (`export_pool`); a user could not export one. The
   kernel log was the recovery shell's (`dmesg`).
-- **Now:** the dialog of an imported pool (`Enter` on it) and the palette offer Export: `zpool export` through the
+- **Now:** the dialog of an imported pool (`Enter` on it) and the command line offer Export: `zpool export` through the
   ZFS port, with nothing written on the console; a busy pool fails with the reason `zpool` gives. The pool of the
-  default environment may be exported too, after which the menu has no default. The locked menu asks for the PIN
-  first. The pools are scanned again after it, so the pool is listed to import. In the workspace, `Enter` on a disk
-  in the Pools tab's tree shows below the pools the kernel's messages that name it, the disk of a
-  partition or the devices below a mapping, or that the kernel tagged with one of them, without a PIN under the lock.
-  Messages that name only a port, as `ata3.00:` does, are not among them, and the panel says so.
+  default environment may be exported too, after which the menu has no default. The locked menu asks for the PIN first.
+  The pools are scanned again after it, so the pool is listed to import. In the workspace, `Enter` on a disk in the
+  Pools tab's tree shows below the pools the kernel's messages that name it, the disk of a partition or the devices
+  below a mapping, or that the kernel tagged with one of them, without a PIN under the lock. Messages that name only a
+  port, as `ata3.00:` does, are not among them, and the panel says so.
 - **Why:** a pool imported by mistake, or one to hand to another machine, can be let go without a shell; and why a
   disk went missing is in the kernel's messages about it.
 
@@ -780,6 +787,33 @@ The log since start-up, and the boots saved before: the log view of the classic 
   the shell first, and the `MOD+key` aliases stay.
 - **Why:** what needs attention, and the parts of the machine that hold it, show on one screen, and the keys move
   as other terminal programs' do (ADR 0007).
+
+### The command line shows a change before it runs
+
+- **Before:** the `fzf` menu had no command line: each screen's keys were the only way to its actions.
+- **Now:** `:` opens the command line, in both menus. Its entries come under Recent (the last 20 chosen, kept until the
+  menu ends and never written to disk), Actions, Items and Help, each with the keys that do it and, on the right, what
+  it costs: `PIN` (the locked menu asks for it), `read/write` (a pool imported read-only is imported read/write first),
+  `key` (the environment's key must be loaded) or `review` (a page asks for the target's name). It finds an entry by
+  its label or by its command's name and target, such as `rollback zroot/ROOT/void@pre-upgrade`, in the menu's
+  language or in English, and ignores case, so Caps Lock changes nothing it finds. `Tab` completes the name, `Ctrl-W`
+  deletes a word, `Ctrl-R` shows the entries chosen before, and `F1` lists the keys and the names, which
+  [zfsbootmenu(7)](docs/man/zfsbootmenu.7.rst) lists too. In the workspace, a change chosen there first shows its
+  plan, on a page like a review page without the name to type: the steps, the command each runs, what is lost, and
+  how to undo it. `Enter` runs it, `Esc` leaves it, and nothing has changed. A boot and a chroot run at once, as do
+  the keys of the views; the classic menu shows no plan.
+- **Why:** a change made from a list of names should say what it will run before it runs, and a command's English
+  name finds it whatever language the menu speaks.
+
+### The locked menu marks what it keeps
+
+- **Before:** the legacy runtime had no lock. In the Rust runtime, the locked menu (ADR 0010) asked for the PIN when a
+  kept action was chosen, with nothing to say so beforehand.
+- **Now:** what the lock keeps carries the word `PIN` after its name: on the toolbar, in the next steps, in the
+  command line, in a sheet's entries and on a review page's button, in both menus and in the lines. The countdown and
+  the default boot never carry it. Once the PIN was typed the marks go, and they come back when its proof lapses,
+  after 5 idle minutes, when the machine would ask again.
+- **Why:** nobody should wonder where an action went, or be asked for a PIN they did not expect.
 
 ### The recovery shell
 

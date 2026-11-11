@@ -35,7 +35,7 @@ to, and the TPM keeps the key. Today the user then just sees a passphrase prompt
   is now, so it is for changes the user made; if they did not, the firmware may have been tampered with. It wants the
   volume's name typed, like the other alerts that cannot be undone from the menu, and its button is **Re-seal**.
   `Esc` keeps the old seal and start-up goes on.
-- **Later.** The pools view labels the volume `TPM2 changed` (wireframe `pools-tpm-changed`), and the command palette
+- **Later.** The pools view labels the volume `TPM2 changed` (wireframe `pools-tpm-changed`), and the command line
   offers *“Re-seal the TPM2 Key of luks-zroot-a”* until it is done.
 - `Reseal(volume)` seals the key again with the same PCRs and PIN, and records the new values. The next boot unlocks
   with the TPM.
@@ -58,7 +58,7 @@ or French keyboard then cannot be typed: `z` and `y`, `a` and `q`, and most symb
   console's layout, and the line names the new one from the first key typed on it, as the console sends nothing for the
   switch, only the layout of each key.
 - The chosen layout applies until the menu ends, in the unlock dialog and to the keys of actions: the key labelled
-  `/` on a German keyboard (`Shift-7`) still opens the filter. The filter, the palette, a name and a typed
+  `/` on a German keyboard (`Shift-7`) still opens the filter. The filter, the command line, a name and a typed
   confirmation take characters as typed (ADR 0007, rule 3). Keys with `Ctrl` or `Alt` are not translated; the
   console gives `Ctrl` with a key of another script as the US letter of its key, and rule 3 of
   [the key map](keymap.md) looks the other keys of actions up in the chosen layout.

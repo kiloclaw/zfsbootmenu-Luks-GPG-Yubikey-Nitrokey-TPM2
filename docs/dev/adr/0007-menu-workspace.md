@@ -47,9 +47,11 @@ On the display console the menu knows the layout typing uses, and UI1 gave it ea
 4. **What needs attention, in view.** A sidebar lists degraded pools, missing devices, foreign pools and failing
    checks, each with the key that leads to it; the boot history (#9) shows which kernel last reached a login.
 5. **A command line with a dry run (UI14).** `:` opens a line with fuzzy completion, grouped as actions, items and help,
-   each with its key and what it costs, and a history. Before anything runs it shows the plan: the steps, the command
+   each with its key and what it costs, and a history. Before any change runs it shows the plan: the steps, the command
    each runs, the effect, the undo, and what the plan needs (a pool writable, a key). The plan is PM8's plan of steps,
-   whose adapters describe their commands (SB2, SB3), so the dry run is what will run.
+   whose adapters describe their commands (SB2, SB3), so the dry run is what will run. (Narrowed on 9 November 2026,
+   UI14: "before anything runs" became "before any change runs"; a boot, a chroot, a re-seal and the reset of boot
+   tries run without a dry run, and their plan is ROADMAP.md's UI16.)
 6. **Review pages for what cannot be undone.** A rollback, a forced import, a destroy or a rewind opens a whole page:
    what is lost, what is kept, the steps with their commands, the undo, a safer alternative, and a confirmation by
    typing the target's name.
@@ -64,6 +66,10 @@ On the display console the menu knows the layout typing uses, and UI1 gave it ea
 1. **No action needs one character only.** The arrows, `Enter`, `Esc`, `Tab` and the command line reach every action:
    each action bound to a character is also a command of the command line and an entry of the `Enter` menu of what it
    applies to. `j` `k` `h` `l` move as the arrows do; the digits only shorten the way to a tab or a start-up choice.
+   (Amended by the maintainer on 9 November 2026, UI14: where `Enter` boots, on an environment or a kernel, the other
+   actions are reached through `:` and the inspector's next steps, not an `Enter` menu; what applies to the view
+   rather than an item, such as the order, the folds, the marks and the filter, is a command of the command line
+   only. The classic map keeps the palette's reach until RL2.)
 2. **No action depends on case.** A letter and its capital are one key: Shift and Caps Lock change no action. Risky
    actions open their review page instead of hiding behind Shift.
 3. **Keys by position on the display console.** When a key types a character the map does not bind, the menu looks it
@@ -127,7 +133,9 @@ unlocks; the forced import and the rewind are choices of the import page, and co
 ## How it is checked
 
 - A test over `KEYMAP`: no binding on a capital; every action bound to a character has a command name and an `Enter`
-  menu entry; no key has two meanings in two tabs.
+  menu entry; no key has two meanings in two tabs. (Met for the workspace by UI14, with rule 1 as amended: an
+  `Enter`-menu entry where `Enter` opens a menu, the command line where it boots, a command for the view. The classic
+  map keeps the palette's reach until RL2.)
 - UI15's tests type every binding on `us`, `de`, `fr`, `gb`, `ru` and Dvorak: by position through the console's cell
   surface and its layout, and by character on the terminal backend, and compare the intents with the US layout's.
 - The command line's matcher test finds every command by its name in each language of the catalogue and in English.
@@ -176,6 +184,65 @@ unlocks; the forced import and the rewind are choices of the import page, and co
   `AddrInUse`; `zbm`'s test of a console that ends and starts again failed once, and ten supervisor tests with it
   through a poisoned lock; and `zbm-app`'s `keyholder.rs:84`, the empty default `Keyholder::kill`, is covered only when
   a cancellation wins a race.
+- **UI14** (11 November 2026, UI14-1 to UI14-9): point 5, and what decision 18 left to it. The command line's keys
+  are in [keymap.md](../menu-design/keymap.md), its views in
+  [information-architecture.md](../menu-design/information-architecture.md); the edit saved for every boot is
+  [ADR 0016](0016-menu-workspace-built.md)'s point 18, and the lock marks are [ADR 0010](0010-locked-menu.md)'s.
+  - **Point 5** is built as ADR 0016's point 12 says, in the workspace: a change chosen on the command line is first
+    sent as `Action::Plan`, and its plan shows on the review page without the field. `Model::dry_run` marks the
+    command's choice and lasts while the dialogs it opened, a name or a choice, are open; `update/dry_run.rs` then
+    sends the plan in place of the change. The mark ends there, when no dialog is left, when a review page opens, or
+    when the machine opens a dialog of its own, so no later key is caught. The page has a title for each kind of
+    change, the steps with the command each runs, quoted as a shell reads it (`zbm_platform::shell::word`), what is
+    lost or that nothing is, the undo `zbm-app` gives each change (`plan/review/undo.rs`), and "Nothing has changed
+    yet: Enter runs it, Esc leaves it". `Enter` runs it once. What a plan needs shows in its steps (a pool imported
+    read/write first) and its costs (a key). Over SSH a plan is asked for as on the console; under the lock it is
+    free, and the PIN is asked when the change runs. A view's key acts as before, the review pages keep their typed
+    name, and the classic map shows no dry run (ADR 0016, point 10). A boot, a chroot, a re-seal and the reset of
+    boot tries have no plan, so point 5 says "before any change runs".
+  - **The sections:** Recent, the history; Actions, those of each environment, pool and volume and of the view under
+    the line, with one entry for each action of the Snapshots tab and one `Boot a clone of …` for each snapshot read;
+    Items, an environment, a pool or a volume selected on its tab, the views, and each environment's kernels and
+    snapshots; Help, each view's keys and the command line's own, which `F1` opens there too, `Esc` going back to the
+    query. The entries are ranked together, then grouped by section in that order; the headings are drawn and said
+    but never chosen.
+  - **Names in two languages:** an entry is found by its label and by its command's name and target
+    (`rollback zroot/ROOT/void@pre-upgrade`), the `command-*` messages of the catalogue, in the menu's language and in
+    English, through `filter::rank_named`. The row shows the label, `Tab` completes to the name, and the command
+    line's help and the section "Command Names" of `zfsbootmenu(7)` list the names.
+  - **Costs:** on the right of each row, muted, the keys that do its action in the view under the line, from
+    `update/action_of.rs`, the one source of what a key does, which the views' handlers follow; then what it costs:
+    `PIN` (an action the locked menu keeps, or the shell), `read/write` (a pool imported read-only that the action
+    writes), `key` (an environment whose key is not loaded, its boot and chroot among them) and `review` (a page that
+    asks for a typed name). A narrow row cuts the keys and the other costs before the `PIN`. Time is no cost, and
+    neither is leaving the menu.
+  - **The history** keeps at most 20 entries chosen, newest first, and no query or line typed. It lives in memory for
+    the menu's life: nothing is written to disk.
+  - **The case:** the command line's query ignores case, so Caps Lock changes nothing it finds. `Tab`, `Ctrl-W` and
+    `Ctrl-R` are keys of its own context, `Context::Command`, in both maps. A list's filter keeps its smart case. The
+    line view takes whole lines, so these three keys have no form there.
+  - **The `Enter` menus:** a snapshot's sheet, a pool's details and a volume's unlock reach what their keys do
+    (`keymap/commands.rs`, `Reach` and `ENTER_REACHES`). Where `Enter` boots, the inspector's next steps list an
+    environment's `l`, `s`, `e` and `d`, and a kernel's `e`, `d`, `/` and `:`; the command line has the rest. The
+    entry that drops the line edited for this boot is listed only when one was edited, so `MOD+T` (and the classic
+    map's `t`) with none does nothing and says nothing, where it said the line was reverted before
+    (`the_revert_key_says_nothing_when_no_command_line_was_edited`).
+  - **The answers:** the maintainer answered the plan's eight questions on 9 November 2026, each as recommended. A
+    snapshot keeps one entry, `Boot a clone of …`, and no item. Rule 1 is amended as above. The lock mark is the
+    translatable word `PIN` after the label. An inherited command line opens in the editor with `%{parent}` expanded
+    once. The snapshot of the machine carries the seconds the PIN's proof has left, and the menu counts them down and
+    marks again at 0. UI14 stays whole, at L. There is no dry run of a boot: point 5 is narrowed as above, and the
+    boot's plan is a row of its own, UI16. The history lives in memory.
+  - **The checks:** of "How it is checked", the first is met for the workspace
+    (`every_action_bound_to_a_character_has_an_entry_in_the_enter_menu_of_what_it_applies_to`), and the third covers
+    the command names. B5 holds with the command line: no key near a frame, the worst 7.50 ms, a dry run's two keys
+    9.09 ms ([testing](../../luks/testing.rst), *Benchmarks*). The VM runs, the group `menu` with the saved command
+    line and the dry runs and `integrity-locked` with its mark, are the maintainer's.
+  - **Found on the way:** an import as the last host lists the step that takes that host's ID, which the machine
+    takes only when the plain import fails, so the step reads "if the import fails"; 18 wireframes changed in UI14-6
+    from its five new entries alone (`workspace-commands-*`, `workspace-palette-*`, `workspace-commands-locked-*`),
+    and the classic ones but `palette-*`, which gained the headings and the costs, are unchanged; the `menu_names`
+    fuzz target's runs take about 2 s each, against 1.2 s before, under its time-out of 10 s.
 
 ## Questions for the maintainer
 

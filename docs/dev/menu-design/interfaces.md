@@ -20,6 +20,7 @@ loads them and an event delivers them.
 | `fallback` | when the default used up its boot tries: which, after how many, and the last environment that marked a boot good, which boots instead; without one, nothing boots on its own | `zbm-boot`, an EFI variable |
 | `next_boot` | the environment the running system asked to boot once | an EFI variable |
 | `volumes` | LUKS volumes: name, device, state (locked, open, failed, skipped), the key methods that apply, the pool it holds, the PCRs its TPM2 key is sealed to and those that changed since, with what the event log says | `zbm-luks`, `zbm-crypt` |
+| `menu_locked`, `proof_left` | whether the menu is locked (SE9), and the seconds the PIN's proof has left, none when the lock is off, a person opened a volume this boot, or there is no proof; the menu counts them down and marks what the lock keeps again at 0 (UI14) | `zbm-app` (`auth`) |
 | `keyboard` | the layouts typing can be translated into, the console's own first, and whether keys come from the machine's keyboard or a serial terminal | `zbm-config` |
 | `log` | the warnings and errors since start, counted apart | `zbm-trace` |
 | `offers` | the kinds of action the machine performs now (`Offer`): the menu shows and sends only these, and a key of another kind says so in the status line (ADR 0016, point 2); none when not given | `zbm-app` |
@@ -35,24 +36,25 @@ stays right when the snapshot changes under it.
 
 | Action | Parameters | Used by |
 | --- | --- | --- |
-| `Boot` | environment, kernel (or its default), command line (or its own) | main, kernels, command line, palette |
-| `BootSnapshot` | snapshot, the new environment's name | snapshots, palette: the snapshot cloned under that name, as `Clone` does, then booted |
+| `Boot` | environment, kernel (or its default), command line (or its own) | main, kernels, command line (the editor), the command line (`:`) |
+| `BootSnapshot` | snapshot, the new environment's name | snapshots, the command line (`:`): the snapshot cloned under that name, as `Clone` does, then booted |
 | `SetDefaultEnvironment` | environment | main |
 | `SetDefaultKernel`, `InheritDefaultKernel` | environment, kernel | kernels |
+| `SetCommandLine`, `InheritCommandLine` | environment, and the line to save (untrusted text: no control character, at most 8191 bytes, which the plan, the machine and the editor check); an empty line inherits | the workspace's command line, after the dry run (UI14): `zfs set org.zfsbootmenu:commandline` or `zfs inherit` on the environment, its pool imported read/write first; no key, so an environment whose key is not loaded takes no console for it; kept by the lock |
 | `LoadSnapshots` | environment | snapshots, as its column opens or its tab's key is pressed on it, and again when a snapshot of the machine came without them after a cancel, not after a failure: every snapshot of the environment, which `SnapshotsLoaded` brings; a read, quiet and free under the lock, never sent while the countdown runs or once the environment is gone; over SSH, refused for a dataset that is no boot environment of the machine |
 | `CreateSnapshot` | environment, name | main, snapshots |
 | `Rollback` | snapshot: `zfs rollback -r`, which destroys the newer snapshots and bookmarks; no safety snapshot is taken, and the review page offers a clone instead | snapshots: the classic map's confirmation, the workspace's review page |
-| `Destroy` | snapshots of one boot environment: one `zfs destroy <environment>@a,b,c`, all or none, a name given twice destroyed once; refused before the pool is imported read/write when none is given, when they are of several filesystems or of one that is no boot environment, or when a clone or a hold keeps one; the bookmarks stay; no undo, nothing safer; kept by the lock; over SSH, refused, and so is its plan, unless every snapshot is of a boot environment of the machine | the workspace alone: `Delete` on the Snapshots tab (the marked snapshots, the oldest first, in the order of their names while their list is not read, or the selected one), `Destroy It…` in its `Enter` sheet, the palette over the Snapshots tab; always through its review page, which asks for the snapshot's short name, or for several the environment's last component |
-| `Plan` | the change: its plan, which `Planned` brings; a read, after which the snapshot is not read again, free under the lock; the plan of an action that is no change and boots no snapshot fails, and so does the diff's, which only reads, and nothing is performed; over SSH, refused for what the menu does not show: an action that is no change and boots no snapshot, a change of a filesystem that is no boot environment of the machine, of a pool it does not list | the workspace's review page of a rollback, a destroy, a rewind or a forced import, as it opens and again after `Changed`; closing the page while it is planned cancels it, unless the machine performs another action meanwhile, as a cancel reaches every action |
+| `Destroy` | snapshots of one boot environment: one `zfs destroy <environment>@a,b,c`, all or none, a name given twice destroyed once; refused before the pool is imported read/write when none is given, when they are of several filesystems or of one that is no boot environment, or when a clone or a hold keeps one; the bookmarks stay; no undo, nothing safer; kept by the lock; over SSH, refused, and so is its plan, unless every snapshot is of a boot environment of the machine | the workspace alone: `Delete` on the Snapshots tab (the marked snapshots, the oldest first, in the order of their names while their list is not read, or the selected one), `Destroy It…` in its `Enter` sheet, the command line over the Snapshots tab; always through its review page, which asks for the snapshot's short name, or for several the environment's last component |
+| `Plan` | the change: its plan, which `Planned` brings; a read, after which the snapshot is not read again, free under the lock; the plan of an action that is no change and boots no snapshot fails, and so does the diff's, which only reads, and nothing is performed; over SSH, refused for what the menu does not show: an action that is no change and boots no snapshot, a change of a filesystem that is no boot environment of the machine, of a pool it does not list | the workspace's review page of a rollback, a destroy, a rewind or a forced import, as it opens and again after `Changed`; closing the page while it is planned cancels it, unless the machine performs another action meanwhile, as a cancel reaches every action; and the workspace's dry run (UI14): a change chosen on the command line (`Action::has_plan`: a change other than a diff, or the boot of a snapshot) is sent as its `Plan` first, and only `Enter` on the page sends it |
 | `Clone`, `CloneAndPromote`, `Duplicate` | snapshot, new name | snapshots |
 | `Diff` | snapshot, and a second snapshot or the live filesystem | snapshots |
 | `RestoreFiles` | snapshot, the paths | changes, from a diff against the live filesystem |
-| `ResetBootTries` | environment | palette |
-| `Reseal` | volume | re-seal alert, palette |
+| `ResetBootTries` | environment | the command line (`:`) |
+| `Reseal` | volume | re-seal alert, the command line (`:`) |
 | `Chroot` | environment or snapshot | main, snapshots |
 | `Import` | pool, `ImportOptions`: read-only or read/write, the policy (this host, its last host, forced), whether to rewind to the checkpoint, and the pool's identifier when another pool has its name; an imported pool is exported first; a forced import is refused when another system has the pool imported now | main, pools, import problem; under the workspace a forced import and a rewind through their review page, which asks for the pool's name, under the classic map through its confirmation |
-| `Export` | pool | pools (`Enter` on an imported pool), palette: `zpool export` through the ZFS port, quietly; a busy pool fails with the cause `zpool` gives; the pool of the default environment too, after which the snapshot has no default; kept by the lock; the pools are scanned again after it, so the pool is listed to import |
-| `ScanPools` | — | the menu, once its first frame is drawn, and the palette: the pools that could be imported, which `PoolsScanned` brings; a read (`Action::is_read`), after which the snapshot is not read again, free under the lock |
+| `Export` | pool | pools (`Enter` on an imported pool), the command line (`:`): `zpool export` through the ZFS port, quietly; a busy pool fails with the cause `zpool` gives; the pool of the default environment too, after which the snapshot has no default; kept by the lock; the pools are scanned again after it, so the pool is listed to import |
+| `ScanPools` | — | the menu, once its first frame is drawn, and the command line (`:`): the pools that could be imported, which `PoolsScanned` brings; a read (`Action::is_read`), after which the snapshot is not read again, free under the lock |
 | `LoadHistory` | — | the workspace, once its main view is drawn and no countdown runs, and its Log tab when the history did not come: the boots `zbm.save_logs` kept, which `HistoryLoaded` brings; a read, quiet and free under the lock, never sent while the countdown runs; without `zbm.save_logs` the ESP is not read |
 | `LoadDeviceLog` | a disk of a pool, as the pool names it | the workspace's pool dialog: the kernel's messages about it and what it stands on, which `DeviceLogLoaded` brings; a read, quiet and free under the lock; over SSH, refused for a device that is no disk of a pool the machine shows |
 | `Open` | the volume's device, and the name it was opened as before, if it has one | pools: a keyholder opens it, and asks in the unlock dialog (ADR 0016, point 1) |
@@ -75,7 +77,7 @@ stays right when the snapshot changes under it.
 | `SnapshotChanged` | the new `Snapshot` | every view redraws |
 | `PoolsScanned` | every pool, imported and not, which replace the snapshot's | the pools view, the workspace; the countdown goes on, as it does not after `Changed` |
 | `DeviceLogLoaded` | the device, the kernel's names of it and of what it stands on (`sda2`, `sda`; none for a device that is no block device the kernel lists or would name, as a link gone with its device), the newest 500 messages about them, untrusted | the workspace's Pools tab, below the pools, until Back; what the classic menu shows does not change |
-| `SnapshotsLoaded` | environment, its snapshots (name, creation, used), newest first; a list longer than half a remote message (`MAX_LENGTH`), on the console too, ends as a failed load that says why | the snapshots view ("reading" until it comes, or until the machine is done with all it was sent; "not read" after a cancel or a failure), the rollback's newer snapshots, the name check of a new snapshot or clone, the palette, the inspector's newest snapshots |
+| `SnapshotsLoaded` | environment, its snapshots (name, creation, used), newest first; a list longer than half a remote message (`MAX_LENGTH`), on the console too, ends as a failed load that says why | the snapshots view ("reading" until it comes, or until the machine is done with all it was sent; "not read" after a cancel or a failure), the rollback's newer snapshots, the name check of a new snapshot or clone, the command line, the inspector's newest snapshots |
 | `HistoryLoaded` | the history: off (no `zbm.save_logs`), unavailable (why, and the error's code: no ESP, several, no such partition, not mountable), or the saved boots, newest first, each with its name, its files and their sizes, and its record (`boot.json`), none, or why it is not read; every name and text untrusted | the workspace's Log tab, above the log since start, and its inspector's "Last Boot", from the newest record of the environment; what the classic menu shows does not change |
 | `SnapshotsUnread` | environment, whose snapshots a load could not read, before the `Finished` that says why | the snapshots view ("not read", asked again only when its column opens again) |
 | `Planned` | the change, its plan: the steps with their commands, how it would end, and its review: what it loses (snapshots and bookmarks with their sizes, what was written since, what a rewind discards), the space freed, what it keeps, its undo, a safer action (a clone, a read-only import), what stops it (a clone, a hold, a host that has the pool imported) and who else may use the pool (host ID, host name, last written, or this host); names untrusted | the review page of that change, which fills it only for its own change; one that refuses the change has no field |
@@ -94,21 +96,19 @@ hosts and identifiers. What needs attention (the devices a pool lost, worst firs
 and warnings apart) is drawn in the workspace only until UI10c; a device taken offline is shown in its pool, not
 listed there.
 
-The snapshots of an environment are read when its column opens (ADR 0016, point 6): `LoadSnapshots` records the
-column in the front end's `Seen`, in place of the last one, and each snapshot of the machine read after it carries
-its list again in `loaded`, so that what the menu shows of it, the rollback's newer snapshots among them, never comes
-from an older read. At start, and in every snapshot, each environment has only its count of snapshots and its newest,
-from one listing of its own snapshots (`zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation`), which
-replaces the two listings of it and its descendants. The menu sorts a list once, as it comes or when the order
-changes, ranks it again only when it, the focus or the filter changed, builds the rows of the lines shown alone, and
-makes the palette's entries as it opens and when the machine sends snapshots, not on each key. The palette finds the
-snapshots read, and a name is known to be taken only among those: a snapshot of a column never opened is refused by
-`zfs`, whose message the error says. Each snapshot of the machine lists the column's environment once: its count and
-newest come from its list. Over SSH, `LoadSnapshots`, `SnapshotsLoaded` and `SnapshotsUnread` cross as any action and
-event, at version 2: no release has shipped version 2 yet, and both ends ship in one image, whose versions must be
-equal.
-The measures of `cargo run --release -p zbm-tui --example snapshots` (B5, in process) are in ROADMAP.md's
-decision 7.
+The snapshots of an environment are read when its column opens (ADR 0016, point 6): `LoadSnapshots` records the column
+in the front end's `Seen`, in place of the last one, and each snapshot of the machine read after it carries its list
+again in `loaded`, so that what the menu shows of it, the rollback's newer snapshots among them, never comes from an
+older read. At start, and in every snapshot, each environment has only its count of snapshots and its newest, from one
+listing of its own snapshots (`zfs list -H -p -t snapshot -o name,creation,used -d 1 -s creation`), which replaces the
+two listings of it and its descendants. The menu sorts a list once, as it comes or when the order changes, ranks it
+again only when it, the focus or the filter changed, builds the rows of the lines shown alone, and makes the command
+line's entries as it opens and when the machine sends snapshots, not on each key. The command line finds the snapshots
+read, and a name is known to be taken only among those: a snapshot of a column never opened is refused by `zfs`, whose
+message the error says. Each snapshot of the machine lists the column's environment once: its count and newest come from
+its list. Over SSH, `LoadSnapshots`, `SnapshotsLoaded` and `SnapshotsUnread` cross as any action and event, at version
+2: no release has shipped version 2 yet, and both ends ship in one image, whose versions must be equal. The measures of
+`cargo run --release -p zbm-tui --example snapshots` (B5, in process) are in ROADMAP.md's decision 7.
 
 A device's messages are read from `/dev/kmsg` (`dmesg` where it cannot be read): those the kernel tagged with the
 numbers of the device or of what it stands on (`DEVICE=b8:18`), and those whose text names one of them as a word, so

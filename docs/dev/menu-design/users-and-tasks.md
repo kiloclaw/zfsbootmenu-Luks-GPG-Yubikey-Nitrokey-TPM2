@@ -42,9 +42,10 @@ measure (see [Measures](#measures)).
 | T7. Recover a failed boot | Read the problem, choose a next step (retry, import another way, shell, logs) | 2 keys from the problem view |
 | T8. Restore a file from a snapshot | Open the snapshots, choose one, see its changes, restore the selected file, confirm | 6 keys, plus the typed confirmation |
 
-Secondary tasks, reachable from the main view or the command palette in at most two steps: set the default
+Secondary tasks, reachable from the main view or the command line (`:`) in at most two steps: set the default
 environment or kernel, create a snapshot, clone or duplicate a snapshot, diff two snapshots, pool and volume status,
-import read/write, rewind to a checkpoint, chroot, logs, power off, reboot, firmware setup.
+import read/write, rewind to a checkpoint, chroot, save the command line for every boot (the command line alone, after
+its dry run), logs, power off, reboot, firmware setup.
 
 ## Scenarios
 
@@ -69,7 +70,7 @@ Each scenario is a script for the [usability sessions](usability.md) and a VM te
 6. **The rescue target.** The administrator boots once with `systemd.unit=rescue.target` added. *Watch for:* whether
    the edit is clearly temporary; whether a typo in the command line is caught before the boot.
 7. **Many snapshots.** The tinkerer looks for the snapshot taken before a particular package upgrade among 400. *Watch
-   for:* whether the command palette or the filter finds it by part of its name; whether sorting by date is found.
+   for:* whether the command line or the filter finds it by part of its name; whether sorting by date is found.
 8. **The failed boot.** The ZFS key of the root is typed wrong three times. *Watch for:* whether the error view says
    what failed and offers retry, another environment and the shell, and whether the user picks the right one.
 

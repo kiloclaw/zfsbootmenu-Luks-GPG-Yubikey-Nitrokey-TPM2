@@ -89,7 +89,8 @@ gate once it is right. The supervisor itself still parses nothing and holds no s
   minutes, or the recovery shell ends; then the menu is locked again. The same holds for the menu over SSH, which is a
   client of the same session (R8).
 - **The menu.** Locked actions stay visible, marked with a lock in the footer and the palette, so that nobody wonders
-  where they went; choosing one asks for the PIN. The countdown and the default boot never ask.
+  where they went; choosing one asks for the PIN. The countdown and the default boot never ask. (Built by UI14: the
+  lock is the word `PIN` after the label; see "Where the work stands".)
 
 ## Consequences
 
@@ -142,6 +143,20 @@ Refinements of the proposal:
 - The PIN is asked on the console, as a passphrase is before a boot, rather than in a dialog of the menu; the footer's
   and palette's lock marks were left for UI10, and on 7 November 2026 moved to UI14, whose completion shows what each
   command costs, a PIN among them (ADR 0016, the record of points 16 and 17).
+- The lock marks, built by UI14 on 10 November 2026 (UI14-5 and UI14-5b; [ADR 0007](0007-menu-workspace.md), its UI14
+  note). The lock is the word `PIN`, from the catalogue (`cost-pin`), after the label, as no padlock is in the console
+  fonts: it reads in ASCII, in the line view and to a screen reader, and translates. With the snapshot's `menu_locked`,
+  it marks what the lock keeps on the toolbar (the footer), the inspector's next steps, the command line (the palette),
+  whose right column gives it among the costs, the entries of sheets, and the verb of review pages and dry runs; in the
+  line view too, and in both maps. A key that only opens a sheet is not marked, but the sheet's entries are; the
+  countdown and the default boot never are. A narrow row cuts its keys and other costs before the mark. The marks come
+  back when the proof lapses: the snapshot carries the seconds the PIN's proof has left (`proof_left`, none when the
+  lock is off, a person opened a volume this boot, or no proof is held), the menu counts them down from when the
+  snapshot came and marks again at 0, rebuilding an open command line, and the front end's copy of the snapshot locks
+  again (`Machine::relock`), so a kept action takes the console, where the PIN is asked. A mark never says "free" where
+  the machine will ask. The VM test `integrity-locked` waits for `Edit PIN` on the toolbar before any PIN is typed. Not
+  tested in a VM: the marks over SSH, and on the display, where the demo (`zbm-tui --drm`) draws them as the menu does,
+  nothing more.
 
 ## Answers of the maintainer
 

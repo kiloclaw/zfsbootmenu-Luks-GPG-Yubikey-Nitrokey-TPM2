@@ -11,8 +11,8 @@ In essence, ZFSBootMenu is a small, self-contained Linux system that knows how t
 The Rust runtime, which will replace the shell one, has a new menu: a workspace of four tabs (Boot, Snapshots, Pools
 and Log), with columns that drill down from a pool to its environments and their kernels or snapshots, an inspector,
 and a list of what needs attention. Anything that cannot be undone opens a review page first. The same menu runs on a
-serial console at 80×24, in ASCII, over SSH, and as lines for screen readers; the `:` key opens a palette of
-commands. Build an image with `zfsbootmenu_runtime=rust` to use it
+serial console at 80×24, in ASCII, over SSH, and as lines for screen readers; the `:` key opens the command line,
+which shows a change's plan before it runs. Build an image with `zfsbootmenu_runtime=rust` to use it
 ([step by step](#building-an-image-with-the-rust-runtime-and-the-new-menu)); the shell runtime, with its `fzf` menu,
 stays the default until then.
 
