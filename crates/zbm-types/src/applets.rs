@@ -56,4 +56,9 @@ pub const LINKED: &[Linked] = &[
         dir: "/bin",
         first: &[],
     },
+    Linked {
+        name: "zkexec",
+        dir: "/bin",
+        first: &[],
+    },
 ];

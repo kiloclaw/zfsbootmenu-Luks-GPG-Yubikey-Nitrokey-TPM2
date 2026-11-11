@@ -182,50 +182,78 @@ fn a_typed_command_line_boots_once_without_root_and_with_noresume() {
     ));
 }
 
-/// The hooks of a boot chosen in the menu get the default boot environment
-/// as the state directory has it now, as the legacy menu's `set_default_env`
-/// changed `BOOTFS`, not as the menu started with it.
-#[test]
-fn the_hooks_get_the_default_as_it_is_now() {
-    let fake = machine();
-    fake.files
-        .file_with_mode("/libexec/hooks/boot-sel.d/10-sel", "#!/bin/sh\n", 0o755);
-    State::new(&fake.files, "/zfsbootmenu")
-        .set_bootfs("tank/ROOT/new")
-        .unwrap();
-    let system = fake.system();
-    let state = State::new(&fake.files, "/zfsbootmenu");
-    let mut settings = settings();
-    settings.env = vec![("BOOTFS".to_owned(), "tank/ROOT/old".to_owned())].into();
-    // With cryptsetup, the LUKS close has something to do.
-    fake.environment.set("PATH", "/usr/bin");
-    fake.files.file_with_mode("/usr/bin/cryptsetup", "", 0o755);
-    let boot = Boot {
-        system: &system,
-        state: &state,
-        settings: &settings,
-    };
-    let _ = boot.boot(&be(), Some("6.1.10"), None, false, &Shells::default());
-
-    let call = fake
-        .runner
-        .calls()
-        .into_iter()
-        .find(|call| call.program() == "/libexec/hooks/boot-sel.d/10-sel")
-        .expect("the hook ran");
-    let bootfs: Vec<_> = call
-        .get_env()
-        .iter()
-        .filter(|(name, _)| name == "BOOTFS")
-        .cloned()
-        .collect();
-    assert_eq!(bootfs, [("BOOTFS".into(), Some("tank/ROOT/new".into()))]);
-    // The built-in steps of the teardown run: the boot carries the table.
-    assert!(lines(&fake).iter().any(|line| line == "/bin/zluks close"));
+/// A kernel of [`BE`] named by its files, as `zkexec` names one.
+fn by_files() -> Kernel {
+    Kernel::new(BE, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img")
 }
 
+/// A caller of the boot: it boots on what it is given.
+type Caller = fn(&Boot<'_, '_>) -> Vec<Event>;
+
+/// The hooks of a boot chosen in the menu get the default boot environment
+/// as the state directory has it now, as the legacy menu's `set_default_env`
+/// changed `BOOTFS`, not as the menu started with it; so do those of a
+/// kernel booted by its files (`zkexec`), the third caller of the boot
+/// beside the menu's and the countdown's.
 #[test]
-fn a_boot_without_its_key_or_kernel_says_why() {
+fn the_hooks_get_the_default_as_it_is_now() {
+    let callers: [(&str, Caller); 2] = [
+        ("the menu", |boot| {
+            boot.boot(&be(), Some("6.1.10"), None, false, &Shells::default())
+        }),
+        ("by its files", |boot| {
+            boot.boot_files(&by_files(), &Shells::default())
+        }),
+    ];
+    for (caller, run) in callers {
+        let fake = machine();
+        fake.files
+            .file_with_mode("/libexec/hooks/boot-sel.d/10-sel", "#!/bin/sh\n", 0o755);
+        State::new(&fake.files, "/zfsbootmenu")
+            .set_bootfs("tank/ROOT/new")
+            .unwrap();
+        let system = fake.system();
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        let mut settings = settings();
+        settings.env = vec![("BOOTFS".to_owned(), "tank/ROOT/old".to_owned())].into();
+        // With cryptsetup, the LUKS close has something to do.
+        fake.environment.set("PATH", "/usr/bin");
+        fake.files.file_with_mode("/usr/bin/cryptsetup", "", 0o755);
+        let boot = Boot {
+            system: &system,
+            state: &state,
+            settings: &settings,
+        };
+        let _ = run(&boot);
+
+        let call = fake
+            .runner
+            .calls()
+            .into_iter()
+            .find(|call| call.program() == "/libexec/hooks/boot-sel.d/10-sel")
+            .unwrap_or_else(|| panic!("{caller}: the hook ran"));
+        let bootfs: Vec<_> = call
+            .get_env()
+            .iter()
+            .filter(|(name, _)| name == "BOOTFS")
+            .cloned()
+            .collect();
+        assert_eq!(
+            bootfs,
+            [("BOOTFS".into(), Some("tank/ROOT/new".into()))],
+            "{caller}"
+        );
+        // The built-in steps of the teardown run: the boot carries the table.
+        assert!(
+            lines(&fake).iter().any(|line| line == "/bin/zluks close"),
+            "{caller}"
+        );
+    }
+}
+
+/// A machine whose boot environment `tank/ROOT/be` is in the encryption
+/// root `tank/ROOT`, locked, whose key `zfs load-key` refuses.
+fn locked() -> FakeSystem {
     let locked = FakeSystem::new();
     let runner = &locked.runner;
     runner.respond("zpool list -H -o feature@encryption tank", 0, "active\n");
@@ -241,6 +269,12 @@ fn a_boot_without_its_key_or_kernel_says_why() {
     );
     runner.respond("zfs get -H -o value keylocation tank/ROOT", 0, "prompt\n");
     runner.respond("zfs load-key -L prompt tank/ROOT", 1, "");
+    locked
+}
+
+#[test]
+fn a_boot_without_its_key_or_kernel_says_why() {
+    let locked = locked();
     let shells = Shells::default();
     let events = with_boot(&locked, |boot| {
         boot.boot(&BE.parse().unwrap(), None, None, true, &shells)
@@ -436,3 +470,5 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
         Some(Event::Finished(Outcome::Failed { .. }))
     ));
 }
+
+mod files;

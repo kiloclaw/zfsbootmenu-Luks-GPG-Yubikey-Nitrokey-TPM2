@@ -168,20 +168,71 @@ impl<'a> Boot<'_, 'a> {
         };
         // The typed line is for this boot only: nothing is written down.
         settings.command_line = command_line.map(str::to_owned);
+        let ports = (&context, &interaction as &dyn Interaction);
+        self.kexec(ports, &settings, environment, &selected, recovery)
+    }
+
+    /// Boots `kernel`, a kernel named by its files rather than found in its
+    /// boot environment's kernel list, as a boot chosen in the menu boots
+    /// one: the key loaded first ([`load_menu_key`]), the boot environment
+    /// searched for kernels again, which takes its command line files, then
+    /// the settings of now and the built-in steps. A kernel of what is no
+    /// boot environment, such as a snapshot, does not boot. Returns only
+    /// when the boot did not happen, with the reason as the last event.
+    pub fn boot_files(&self, kernel: &Kernel, recovery: &dyn Recovery) -> Vec<Event> {
+        let Ok(environment) = kernel.dataset.parse::<DatasetName>() else {
+            return failed(
+                format!("unable to boot {}", kernel.dataset),
+                vec!["it is not a boot environment".to_owned()],
+            );
+        };
+        let context = self.context();
+        let interaction = ConsoleInteraction::new(*self.system);
+        let state = self.state;
+        if let Err(error) =
+            load_menu_key(&context, &interaction, state, self.settings, &environment)
+        {
+            return failed(
+                format!("unable to load key for {environment}"),
+                vec![error.to_string()],
+            );
+        }
+        // As before a boot from the menu: the command line cache starts
+        // afresh from the kernels' files. A kernel named by its files boots
+        // even when the search selects none.
+        let filesystem = FilesystemName::from(environment.clone());
+        let _ = zbm_bootenv::find_kernels(&context, state, &filesystem);
+        let settings = self.settings_now();
+        let ports = (&context, &interaction as &dyn Interaction);
+        self.kexec(ports, &settings, &environment, kernel, recovery)
+    }
+
+    /// Boots `selected`, a kernel of `environment` whose key is loaded,
+    /// with the ports and the interaction of `ports` and `settings`.
+    /// Returns only when the boot did not happen, with the reason as the
+    /// last event.
+    fn kexec(
+        &self,
+        (context, interaction): (&Context<'_>, &dyn Interaction),
+        settings: &BootSettings,
+        environment: &DatasetName,
+        selected: &Kernel,
+        recovery: &dyn Recovery,
+    ) -> Vec<Event> {
         // The plain console boots on a clear screen, as the legacy menu's
         // boot does once the key is loaded.
         self.system.console.screen(Screen::ShowCursor);
         self.system.console.screen(Screen::Clear);
         zbm_boot::kexec_kernel(
-            &context,
-            &interaction,
+            context,
+            interaction,
             self.state,
-            &settings,
-            &selected,
+            settings,
+            selected,
             recovery,
         );
         failed(
-            format!("unable to boot {fs}"),
+            format!("unable to boot {environment}"),
             vec!["the kernel could not be executed".to_owned()],
         )
     }

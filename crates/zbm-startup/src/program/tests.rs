@@ -469,3 +469,91 @@ fn a_chroot_outside_the_menu_gets_the_menu_s_settings() {
         "the key's load sets BOOTFS as it is then"
     );
 }
+
+/// The recovery of a boot by files: what it was told.
+#[derive(Default)]
+struct Recovered(std::sync::Mutex<Vec<String>>);
+
+impl Recovery for Recovered {
+    fn unlock_late(&self) -> Result<(), BootError> {
+        Err(BootError::NoCryptsetup)
+    }
+
+    fn emergency_shell(&self, message: &str) {
+        self.0.lock().unwrap().push(message.to_owned());
+    }
+}
+
+/// The kernel `zkexec tank/ROOT/void vmlinuz-6.1 initramfs-6.1.img` names.
+fn by_files() -> Kernel {
+    Kernel::new(
+        "tank/ROOT/void",
+        "/boot/vmlinuz-6.1",
+        "/boot/initramfs-6.1.img",
+    )
+}
+
+#[test]
+fn a_kernel_by_its_files_boots_with_the_menu_s_settings_and_says_why_it_did_not() {
+    let fake = machine();
+    fake.runner
+        .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+    fake.files
+        .file_with_mode("/hooks/boot-sel.d/10-sel", "#!/bin/sh\n", 0o755);
+    let told = Recovered::default();
+
+    let status = startup(&fake, "loglevel=7")
+        .with_hooks(Path::new("/hooks"))
+        .kexec_files(&by_files(), &told);
+
+    assert_eq!(status, menu::FAILED);
+    let ran = fake.runner.lines();
+    assert!(
+        ran.iter().any(|line| line == "/hooks/boot-sel.d/10-sel"),
+        "{ran:#?}"
+    );
+    let load = ran
+        .iter()
+        .find(|line| line.starts_with("kexec -a -l"))
+        .unwrap_or_else(|| panic!("{ran:#?}"));
+    assert!(
+        load.contains("/zfsbootmenu/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1"),
+        "{load}"
+    );
+    // The fake's kexec -e returns: the recovery is told why.
+    assert_eq!(
+        *told.0.lock().unwrap(),
+        ["unable to boot tank/ROOT/void: the kernel could not be executed"]
+    );
+}
+
+/// A boot that told the recovery why it failed, such as a boot
+/// environment that cannot be mounted, is not said to have failed a
+/// second time, for a kernel that was never loaded.
+#[test]
+fn a_kernel_by_its_files_is_said_to_have_failed_once() {
+    let fake = machine();
+    fake.runner
+        .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+    fake.runner.respond_program("mount", 32, "");
+    let told = Recovered::default();
+
+    let status = startup(&fake, "loglevel=7").kexec_files(&by_files(), &told);
+
+    assert_eq!(status, menu::FAILED);
+    let said = told.0.lock().unwrap().clone();
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].starts_with("unable to mount "), "{said:?}");
+
+    // What it does not tell itself goes to the recovery as it is.
+    let told = Recovered::default();
+    let telling = Told {
+        recovery: &told,
+        told: std::sync::atomic::AtomicBool::new(false),
+    };
+    assert!(matches!(
+        telling.unlock_late(),
+        Err(BootError::NoCryptsetup)
+    ));
+    assert!(!telling.is_told());
+}

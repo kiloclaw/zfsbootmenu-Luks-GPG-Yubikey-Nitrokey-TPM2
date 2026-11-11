@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 
 use crate::import::{self, Import, ImportSettings};
 use crate::support::{self, Facts};
+use zbm_app::model::{Event, Outcome};
 use zbm_boot::BootSettings;
 use zbm_boot::Recovery;
 use zbm_boot::saved_logs::Destination;
@@ -165,6 +166,31 @@ impl<'a> Startup<'a> {
     /// (`zfs-chroot`) loads its key with.
     pub fn menu_settings(&self) -> BootSettings {
         self.boot_settings(self.conf_vars.clone())
+    }
+
+    /// Boots `kernel`, a kernel named by its files in its boot environment,
+    /// as a boot chosen in the menu boots one, with the menu's settings
+    /// ([`Startup::menu_settings`]): what `zkexec` does. Returns only when
+    /// it did not boot: [`menu::FAILED`], once `recovery` was told why, and
+    /// only once, as the countdown's boot tells the recovery shell of a key
+    /// it could not load.
+    pub fn kexec_files(&self, kernel: &Kernel, recovery: &dyn Recovery) -> i32 {
+        let settings = self.menu_settings();
+        let told = Told {
+            recovery,
+            told: std::sync::atomic::AtomicBool::new(false),
+        };
+        let events =
+            zbm_app::kexec::boot_files(&self.system, &self.state, &settings, kernel, &told);
+        for event in events {
+            if let Event::Finished(Outcome::Failed { what, why, .. }) = event
+                && !told.is_told()
+            {
+                let message: Vec<String> = std::iter::once(what).chain(why).collect();
+                recovery.emergency_shell(&message.join(": "));
+            }
+        }
+        menu::FAILED
     }
 
     /// Runs the program. Without the console mode it returns after the stages;
@@ -426,6 +452,33 @@ impl<'a> Startup<'a> {
 fn log_unsupported(list: &[support::Unsupported]) {
     for item in list {
         zbm_trace::error!("{support}: {item}"; support = %support::MESSAGE, %item);
+    }
+}
+
+/// A recovery that remembers whether it was told of a failure, so that a
+/// boot that told it why it failed is not said to have failed again.
+struct Told<'r> {
+    /// The recovery it hands everything to.
+    recovery: &'r dyn Recovery,
+    /// Whether it was told of a failure.
+    told: std::sync::atomic::AtomicBool,
+}
+
+impl Told<'_> {
+    /// Whether it was told of a failure.
+    fn is_told(&self) -> bool {
+        self.told.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+impl Recovery for Told<'_> {
+    fn unlock_late(&self) -> Result<(), zbm_boot::BootError> {
+        self.recovery.unlock_late()
+    }
+
+    fn emergency_shell(&self, message: &str) {
+        self.told.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.recovery.emergency_shell(message);
     }
 }
 

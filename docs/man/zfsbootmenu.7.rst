@@ -1814,7 +1814,7 @@ The LUKS close is kept in a locked image (**zfsbootmenu_lock_hash**) and under l
 
 When a hook of **zbm.hookroot** fails to copy, the file of its name in the image is disabled, whether it holds part of the copy or the image's own hook that the copy overwrote: it was not measured, so it does not run.
 
-The boot from the menu and the boot at the end of the countdown run the same steps. So does **zkexec** in the recovery shell: in these images, */libexec/zfsbootmenu-run-hooks* runs **zbm run-hooks**, which runs the hooks and steps of a stage with the variables of */etc/zfsbootmenu.conf* and those of the stage from its environment, and exits with status 0 when a hook or step ran and 1 otherwise, as the legacy script does. **zreport** lists hooks by their files, so its lists of hooks leave out the built-in steps.
+The boot from the menu and the boot at the end of the countdown run the same steps. So does **zkexec** in the recovery shell, which in these images is **zbm**'s and boots through the boot of the menu. In these images, */libexec/zfsbootmenu-run-hooks* runs **zbm run-hooks**, which runs the hooks and steps of a stage with the variables of */etc/zfsbootmenu.conf* and those of the stage from its environment, and exits with status 0 when a hook or step ran and 1 otherwise, as the legacy script does. **zreport** lists hooks by their files, so its lists of hooks leave out the built-in steps.
 
 Images with the legacy runtime install the system hooks as scripts and run them as they run user hooks; they write *05-screen-readers.sh* only into images that ask for a screen reader. Their **zbm.skip_hooks** matches the whole file name only.
 
@@ -1903,7 +1903,7 @@ From **setup.d** on (in **setup.d**, **load-key.d**, **boot-sel.d** and **teardo
 
   What loaded the kernel: *"kexec_file_load"*, the kernel's call, or *"kexec"*, the program.
 
-These three are *null* when the process that runs the stage did not load the kernel, as when **zkexec** in the recovery shell runs the stage through **zbm run-hooks**.
+These three are *null* when the process that runs the stage did not load the kernel, as when **zbm run-hooks** runs it for the library's **kexec_kernel**, which is still the legacy function. **zkexec** loads the kernel itself, so its hooks get them.
 
 The Shell Library
 -----------------

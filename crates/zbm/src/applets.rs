@@ -205,6 +205,18 @@ pub(crate) fn on_console(
     io: &mut Io,
     program: impl FnOnce(System<'_>, &Conf, &mut Io) -> i32,
 ) -> i32 {
+    on_terminal(io, |system, io| {
+        let Ok(conf) = preinit::read_conf(&system, Path::new("/")) else {
+            return give_up(io, zbm_config::conf::PATH);
+        };
+        program(system, &conf, io)
+    })
+}
+
+/// Runs `program` on the real system with the control terminal as its
+/// console; every program it runs goes to the journal. It gets `io` back,
+/// for its messages, and reads the configuration itself.
+pub(crate) fn on_terminal(io: &mut Io, program: impl FnOnce(System<'_>, &mut Io) -> i32) -> i32 {
     let real = RealSystem::new();
     let terminal = match real.terminal() {
         Ok(terminal) => terminal,
@@ -214,11 +226,8 @@ pub(crate) fn on_console(
         }
     };
     let system = real.with_console(&terminal);
-    let Ok(conf) = preinit::read_conf(&system, Path::new("/")) else {
-        return give_up(io, zbm_config::conf::PATH);
-    };
     let traced = TracedRunner::new(system.runner, system.clock);
-    program(system.with_runner(&traced), &conf, io)
+    program(system.with_runner(&traced), io)
 }
 
 /// `console-autosize`: the early-setup hook `30-console-autosize` of the Rust

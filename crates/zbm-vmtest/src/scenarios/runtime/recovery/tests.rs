@@ -277,3 +277,70 @@ fn a_shell_s_zfs_chroot_that_ends_with_1_fails() {
         "FAIL - zfs-chroot ends with 0 in the recovery shell once its shell ended"
     );
 }
+
+/// The boot environment's report after the shell's `zkexec`.
+const BOOTED_TPLAIN: &str = "BE-INIT-START\r\nBE-KERNEL: 7.3.1-zbm\r\n\
+    BE-ZFS-VERSION: zfs-2.4.4-1 zfs-kmod-2.4.4-1\r\nBE-ROOT: tplain/ROOT/be / zfs rw\r\n\
+    BE|   pool: tplain\r\nBE|  state: ONLINE\r\nBE-WRITE: ok\r\n\
+    BE-SCRUB: tplain pool 'tplain' is healthy\r\nBE-INIT-DONE\r\n";
+
+/// The same report of a boot environment whose root is another pool's.
+const BOOTED_TANK: &str = "BE-INIT-START\r\nBE-KERNEL: 7.3.1-zbm\r\n\
+    BE-ZFS-VERSION: zfs-2.4.4-1 zfs-kmod-2.4.4-1\r\nBE-ROOT: tank/ROOT/be / zfs rw\r\n\
+    BE|   pool: tplain\r\nBE|  state: ONLINE\r\nBE-WRITE: ok\r\n\
+    BE-SCRUB: tplain pool 'tplain' is healthy\r\nBE-INIT-DONE\r\n";
+
+/// What the shell's `zkexec` boots into: the teardown's report, then the
+/// boot environment's, `booted`.
+fn booted_by_files(booted: &'static str) -> Vec<Step> {
+    vec![
+        Step::Hear("zkexec tplain/ROOT/be vmlinuz-7.3.1-zbm initramfs-7.3.1-zbm.img"),
+        Step::Say(
+            "ZBMTEST-STATUS-BEGIN\r\nZS|   pool: tplain\r\nZS|  state: ONLINE\r\n\
+             ZBMTEST-STATUS-END\r\nZBMTEST-TEARDOWN dm=[] pools=[] state=[]\r\n",
+        ),
+        Step::Say(booted),
+    ]
+}
+
+/// Plays `script` against [`boot_by_files`]; the checks it recorded.
+fn by_files_checks(name: &str, script: Vec<Step>) -> Vec<String> {
+    let settings = settings(name);
+    let test = Test::new(&settings, "runtime-rust-recovery").unwrap();
+    let (mut vm, guest) = scripted(&test, script);
+
+    boot_by_files(&test, &mut vm, "7.3.1-zbm").unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let found = checks(&test);
+    cleanup(&settings);
+    found
+}
+
+#[test]
+fn the_shell_s_zkexec_boots_the_environment_by_its_files() {
+    let found = by_files_checks("runtime-recovery-zkexec", booted_by_files(BOOTED_TPLAIN));
+
+    assert_eq!(
+        found,
+        [
+            "ok   - kexec into the ZFS 2.4.4 boot environment",
+            "ok   - boot environment kernel 7.3.1-zbm",
+            "ok   - boot environment runs ZFS 2.4.4 (zfs-2.4.4-1 zfs-kmod-2.4.4-1)",
+            "ok   - root file system tplain/ROOT/be / zfs rw",
+            "ok   - boot environment imported tplain: ONLINE (expected ONLINE)",
+            "ok   - root dataset is writable in the boot environment",
+            "ok   - scrub of tplain in the boot environment: pool 'tplain' is healthy",
+        ]
+    );
+}
+
+#[test]
+fn a_zkexec_into_another_root_fails() {
+    let found = by_files_checks(
+        "runtime-recovery-zkexec-other",
+        booted_by_files(BOOTED_TANK),
+    );
+
+    assert_eq!(found[3], "FAIL - root file system tank/ROOT/be / zfs rw");
+}

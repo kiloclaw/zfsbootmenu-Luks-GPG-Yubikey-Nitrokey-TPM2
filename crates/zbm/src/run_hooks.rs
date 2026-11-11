@@ -1,8 +1,8 @@
 //! `zbm run-hooks [-once] STAGE`: a hook stage, its hooks and its built-in
 //! steps, for the legacy shell code of Rust images (ADR 0017, point 2).
-//! Their `/libexec/zfsbootmenu-run-hooks` runs it, so that the legacy
-//! `zkexec` of the recovery shell closes the LUKS mappings as a boot from
-//! the menu does.
+//! Their `/libexec/zfsbootmenu-run-hooks` runs it, so that a boot by the
+//! library's legacy kernel loader closes the LUKS mappings as a boot from
+//! the menu does; `zkexec` boots as the menu does and does not need it.
 //!
 //! As the legacy script, it reads `/etc/zfsbootmenu.conf`, takes the
 //! stage's variables from its environment (`ZBM_SELECTED_BE` and the

@@ -133,9 +133,11 @@ runtime's variables](#hooks-get-the-legacy-runtimes-variables). `zfsbootmenu(7)`
   `zkexec` of the recovery shell runs the `teardown.d` hooks with it.
 - **Now:** in Rust images it is a script that execs `zbm run-hooks [-once] STAGE`, which runs the stage's hooks and
   its built-in steps (but those start-up left out), with `/etc/zfsbootmenu.conf` and the stage's variables from its
-  environment, and exits 0 when a hook or step ran and 1 otherwise, as the script did. A boot with `zkexec` closes the
-  LUKS mappings and unbinds the USB controllers, as a boot from the menu does.
-- **Why:** with the scripts gone, `zkexec` would otherwise boot with the mappings open.
+  environment, and exits 0 when a hook or step ran and 1 otherwise, as the script did. A boot by the library's
+  `kexec_kernel`, still the legacy function, closes the LUKS mappings and unbinds the USB controllers, as a boot from
+  the menu does. The recovery shell's `zkexec` no longer runs the stage this way: it is `zbm`'s and boots as the menu
+  does ([`zkexec` boots](#zkexec-is-zbm-and-boots)).
+- **Why:** with the scripts gone, `kexec_kernel` would otherwise boot with the mappings open.
 
 ### Hooks get `ZBM_HOOK_API` and `ZBM_HOOK_CONTEXT`
 
@@ -148,8 +150,9 @@ runtime's variables](#hooks-get-the-legacy-runtimes-variables). `zfsbootmenu(7)`
   knows: the locked dataset and its encryption root in `load-key.d`, the selected environment, kernel, initramfs and
   mount point in `boot-sel.d`, and in `teardown.d` the selection, the command line, the device tree and how the
   kernel was loaded. A value that is not known is `null`, as are the last three when `zbm run-hooks` runs the stage
-  for the legacy `zkexec`. It holds no secret and no key location's contents. Later versions may add fields, never
-  change or remove one. When the file cannot be written, `ZBM_HOOK_CONTEXT` is empty and the log says why.
+  for the library's legacy `kexec_kernel`; `zkexec` loads the kernel itself and sets them. It holds no secret and no key
+  location's contents. Later versions may add fields, never change or remove one. When the file cannot be written,
+  `ZBM_HOOK_CONTEXT` is empty and the log says why.
 - **Why:** hooks written in Python or compiled get one file to read, and shell hooks get nothing new to learn.
 
 ### The hook library runs in `zbm`
@@ -927,6 +930,23 @@ scripts.
   machine does not reset, go to standard error, where the script printed its warnings on standard output. An argument
   is a usage error (exit status 2), and `--help` prints the usage, where the script ignored its arguments.
 - **Why:** the recovery shell's tools in Rust (ADR 0018, point 11), with what the menu's power actions do.
+
+### `zkexec` is `zbm`, and boots
+
+- **Before:** `/bin/zkexec FILESYSTEM KERNEL INITRAMFS`, a Bash script, joined its three arguments with spaces into the
+  one argument of the library's `kexec_kernel`, which splits it on tabs: the filesystem's name got all three words,
+  its mount failed, and the script opened another recovery shell ("unable to mount"), then exited 1. It never booted.
+  A wrong number of arguments printed the usage on standard output and exited 0.
+- **Now:** a link to `zbm`, which keeps the three arguments apart and boots `/boot/KERNEL` and `/boot/INITRAMFS` of
+  the filesystem as a boot chosen in the menu boots: the key of a locked encryption root is loaded first, with the
+  `load-key.d` hooks, then the menu's settings, the hooks and the built-in steps, so the LUKS mappings are closed and
+  the `teardown.d` context says what loaded the kernel. When the boot fails, it opens no other recovery shell: it says
+  why on standard error and exits 1. A wrong number of arguments prints the usage on standard error and exits 2, and
+  `--help` prints it on standard output. It searches the boot environment for kernels first, as the menu does before
+  a boot, so the kernel's `.kcl` file and the `org.zfsbootmenu:commandline` of now make its command line, not one
+  cached by an earlier boot. FILESYSTEM is a boot environment: a snapshot's name is refused (exit status 1), as the
+  menu boots a snapshot only through a clone. As before, it exits 1 when it cannot read `/etc/zfsbootmenu.conf`.
+- **Why:** the recovery shell's tools in Rust (ADR 0018, point 9); the shell it runs in is the recovery shell already.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

@@ -18,6 +18,7 @@ pub mod debug;
 pub mod explain;
 pub mod fonts;
 pub mod image;
+mod kexec;
 pub mod layouts;
 pub mod lock;
 pub mod luks;
@@ -361,6 +362,7 @@ mod tests {
             "poweroff",
             "firmware-setup",
             "zfs-chroot",
+            "zkexec",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

@@ -11,9 +11,10 @@ use super::{Entry, Fatal, Image, library};
 
 /// What the Rust runtime is instead of the legacy runtime's files: `zbm`
 /// is the start-up program, `zluks`, the menu, the hook stages' runner, the
-/// library functions' (`zfunc`), `reboot` with its other names and
-/// `zfs-chroot`; the library itself is generated ([`library`]).
-const RUST_REPLACES: [&str; 11] = [
+/// library functions' (`zfunc`), `reboot` with its other names,
+/// `zfs-chroot` and `zkexec`; the library itself is generated
+/// ([`library`]).
+const RUST_REPLACES: [&str; 12] = [
     "libexec/zfsbootmenu-init",
     "libexec/zfsbootmenu-run-hooks",
     "libexec/zfunc",
@@ -25,6 +26,7 @@ const RUST_REPLACES: [&str; 11] = [
     "bin/shutdown",
     "bin/firmware-setup",
     "bin/zfs-chroot",
+    "bin/zkexec",
 ];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug
@@ -38,7 +40,8 @@ esac
 
 /// `/libexec/zfsbootmenu-run-hooks` of the Rust runtime, which the legacy
 /// shell code runs: the hooks of a stage with its built-in steps, so that
-/// the legacy `zkexec` closes the LUKS mappings (ADR 0017).
+/// a boot by the library's legacy kernel loader closes the LUKS mappings
+/// (ADR 0017).
 const RUN_HOOKS: &str = r#"#!/bin/sh
 exec /libexec/zbm run-hooks "$@"
 "#;

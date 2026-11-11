@@ -23,6 +23,7 @@ mod changes;
 pub mod chroot;
 pub mod console;
 pub mod devices;
+pub mod kexec;
 pub mod keyholder;
 pub mod model;
 mod plan;

@@ -504,9 +504,10 @@ builds its `BootSteps` from the table and the records of `steps`: start-up for `
 - **The LUKS close runs `zluks close`,** not `zbm-luks`'s `close_all` in the boot process as ADR 0017 (point 3) has
   it: closing a LUKS session needs the crypttab configuration that `zluks` reads.
 - **`zbm run-hooks [-once] STAGE`.** In Rust images `/libexec/zfsbootmenu-run-hooks` is a script that execs it, so the
-  legacy `zkexec` of the recovery shell runs the same steps as both boots, until SB6 replaces it. It runs the stage
-  below `/libexec/hooks` with its steps, `/etc/zfsbootmenu.conf` and the stage's variables from its environment, and
-  exits 0 when a hook or step ran, 1 otherwise, as the legacy script.
+  library's legacy `kexec_kernel` runs the same steps as the boots. It runs the stage below `/libexec/hooks` with its
+  steps, `/etc/zfsbootmenu.conf` and the stage's variables from its environment, and exits 0 when a hook or step ran,
+  1 otherwise, as the legacy script. The recovery shell's `zkexec` is `zbm`'s (SB6c-1) and boots through the menu's
+  boot (`zbm_app::kexec`, `Startup::kexec_files`), not through it.
 - The recovery shell's `zreport` lists hooks by their files, so the steps are not in its lists.
 
 ### The hook API version 2
@@ -524,8 +525,8 @@ later versions may add to, never change or remove:
 - `load-key.d`: `locked_fs` and `encryption_root`;
 - `boot-sel.d`: `selected` (`boot_environment`, `kernel`, `initramfs`) and `mountpoint`;
 - `teardown.d`: `selected`, `command_line`, `devicetree` and `loaded_by` (`"kexec_file_load"` or `"kexec"`); the last
-  three are `null` when the process that runs the stage did not load the kernel, as for the legacy `zkexec` through
-  `zbm run-hooks`.
+  three are `null` when the process that runs the stage did not load the kernel, as for the library's legacy
+  `kexec_kernel` through `zbm run-hooks`; `zbm`'s `zkexec` loads the kernel itself and sets them.
 
 A value that is not known is `null`. The file holds no secret and no key location's contents, and is not measured:
 the runtime writes it, and the hooks that read it are measured (ADR 0009) or the image's.

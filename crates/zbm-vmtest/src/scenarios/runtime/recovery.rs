@@ -16,13 +16,18 @@
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
-//!   shell, `zfs-chroot` ending with 0.
+//!   shell, `zfs-chroot` ending with 0;
+//! - last, the shell's `zkexec tplain/ROOT/be vmlinuz-KVER
+//!   initramfs-KVER.img`, which is `zbm`'s: it boots the environment's
+//!   kernel by its files through the menu's boot, which the boot
+//!   environment's report shows.
 
 use std::thread;
 use std::time::Duration;
 
-use crate::boot::prompt;
+use crate::boot::{Follow, check_be, follow_boot, prompt};
 use crate::error::Result;
+use crate::images::be_kver;
 use crate::qemu::Machine;
 use crate::record::Test;
 use crate::settings::ZbmRuntime;
@@ -56,6 +61,7 @@ const TEST_ENVIRONMENT: &str = "ZBM test boot environment";
 /// When a step of the test cannot be done.
 pub(super) fn run(test: &Test) -> Result<()> {
     let settings = test.settings();
+    let kver = be_kver(settings)?;
     let image = super::image(settings, "auto", ZbmRuntime::Rust, None)?;
     let machine =
         Machine::boot(&image, super::ESCAPE_APPEND).with_disks(vec![super::disk(settings, 0)?]);
@@ -66,6 +72,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     shell_tools(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
+    boot_by_files(test, &mut vm, &kver)?;
     vm.kill();
     Ok(())
 }
@@ -214,6 +221,27 @@ pub(crate) fn in_the_shell_s_chroot(test: &Test, vm: &mut Vm<'_>) -> Result<()> 
         ended,
         "zfs-chroot ends with 0 in the recovery shell once its shell ended",
     );
+    Ok(())
+}
+
+/// The recovery shell's `zkexec` of `tplain`'s environment, whose kernel
+/// is of version `kver`: the boot is followed to the boot environment,
+/// whose report must show `tplain`'s root and pool.
+///
+/// # Errors
+///
+/// When an awaited message does not come.
+fn boot_by_files(test: &Test, vm: &mut Vm<'_>, kver: &str) -> Result<()> {
+    test.step("zkexec: tplain's environment, by its kernel's files");
+    vm.sendline(&format!(
+        "zkexec tplain/ROOT/be vmlinuz-{kver} initramfs-{kver}.img"
+    ))?;
+    let follow = Follow {
+        timeout: Some(PATIENCE),
+        ..Follow::default()
+    };
+    let boot = follow_boot(vm, follow)?;
+    check_be(test, &boot, "tplain", &["tplain"], &[]);
     Ok(())
 }
 
