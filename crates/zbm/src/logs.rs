@@ -6,26 +6,30 @@
 //!
 //! - `logs` prints the errors and warnings since the boot, or the levels
 //!   `--level` names, as `dmesg -l` takes them; then, as the legacy
-//!   `zlogtail` did, it removes `have_errors` when it printed the errors,
+//!   `zlogtail` did, it removes `have_errors` when it showed the errors,
 //!   and writes the number of the last record it read (`errors_since`),
-//!   and `have_warnings` when it printed the warnings.
+//!   and `have_warnings` when it showed the warnings. Where it cannot show
+//!   them, it removes neither and exits 1.
 //! - `logs --prompt`, the shell's `PROMPT_COMMAND`, reads nothing without
 //!   `have_errors`. With it, it prints the errors after that number,
 //!   between blank lines, as the legacy `recovery-error-printer` did,
 //!   removes `have_errors` alone and writes the number.
 //! - `logs --trace` prints the debug lines ([`trace`]).
 //!
-//! Reading the log back undoes the kernel's escapes, so each line is
-//! printed escaped ([`dmesg::escaped`]), as the recovery shell's banner
-//! prints the errors. It needs no terminal (`logs | cat`, the prompt): it
-//! runs on the real system without a console. Where `/dev/kmsg` cannot be
-//! read, `dmesg` reads the messages since the boot, and no number is
-//! written; `--trace` then says why and exits 1. An unknown level or
-//! option exits 2.
+//! On a terminal, `logs` and `logs --trace` show their lines in the pager
+//! (`zbm_tui::menu::pager`), as `help` shows its topics ([`help::Show`]),
+//! its keys read with the key map `zbm.menu` sets; without one, or with
+//! `TERM=dumb`, they print them. `logs --prompt` always prints, as it runs
+//! before every prompt. Reading the log back undoes the kernel's escapes,
+//! so each line is escaped ([`dmesg::escaped`]), as the recovery shell's
+//! banner prints the errors. It needs no terminal (`logs | cat`, the
+//! prompt): it runs on the real system without a console. Where
+//! `/dev/kmsg` cannot be read, `dmesg` reads the messages since the boot,
+//! and no number is written; `--trace` then says why and exits 1. An
+//! unknown level or option exits 2.
 
 mod trace;
 
-use std::io::IsTerminal as _;
 use std::path::Path;
 
 use zbm_config::conf::{self, Conf};
@@ -33,8 +37,11 @@ use zbm_platform::dmesg::{self, Record};
 use zbm_platform::{NoConsole, RealSystem, System};
 use zbm_startup::preinit;
 use zbm_state::State;
+use zbm_tui::menu::keymap::Map;
+use zbm_tui::menu::pager::{self, Pager, Topic};
 use zbm_types::Printable;
 
+use crate::help::{self, Show};
 use crate::table::LOGS;
 use crate::{Io, USAGE};
 
@@ -53,17 +60,15 @@ enum Asked {
     Prompt,
 }
 
-/// `logs` with `args` on this machine; colour for `--trace` when standard
-/// output is a terminal.
+/// `logs` with `args` on this machine.
 pub(crate) fn run(args: &[String], io: &mut Io) -> i32 {
     let real = RealSystem::new();
-    let colour = std::io::stdout().is_terminal();
-    run_in(&real.with_console(&NoConsole), args, colour, io)
+    run_in(&real.with_console(&NoConsole), args, io, &mut pager::show)
 }
 
-/// `logs` with `args` on `system`, in colour or not, with the state
-/// directory the image's configuration names.
-fn run_in(system: &System<'_>, args: &[String], colour: bool, io: &mut Io) -> i32 {
+/// `logs` with `args` on `system`, with the state directory the image's
+/// configuration names; it shows its lines with `show`.
+fn run_in(system: &System<'_>, args: &[String], io: &mut Io, show: Show<'_>) -> i32 {
     let asked = match asked(args) {
         Ok(asked) => asked,
         Err(said) => {
@@ -77,10 +82,35 @@ fn run_in(system: &System<'_>, args: &[String], colour: bool, io: &mut Io) -> i3
         .map(|text| Conf::parse(&text))
         .unwrap_or_default();
     let state = State::new(system.files, preinit::base(&conf));
+    // The prompt, which runs before every prompt, prints: it reads no key
+    // map.
+    let map = || crate::menu::menu_asked(system, &conf).1;
     match asked {
-        Asked::Levels(names, levels) => show(system, &state, &names, &levels, io),
+        Asked::Levels(names, levels) => {
+            let paged = Paged { map: map(), show };
+            levels_shown(system, &state, (&names, &levels), io, paged)
+        }
         Asked::Prompt => prompt(system, &state, io),
-        Asked::Trace => trace::show(system.files, colour, io),
+        Asked::Trace => trace::show(system.files, io, &mut Paged { map: map(), show }),
+    }
+}
+
+/// How `logs` shows its lines: with `show`, its keys read with the key map
+/// `map`.
+struct Paged<'a> {
+    map: Map,
+    show: Show<'a>,
+}
+
+impl Paged<'_> {
+    /// Shows `lines`, escaped already, as `topic`: nothing without any. The
+    /// exit status, as [`help::shown`] says.
+    fn show(&mut self, topic: Topic, lines: Vec<String>, io: &mut Io) -> i32 {
+        if lines.is_empty() {
+            return 0;
+        }
+        let pager = Pager { topic, lines };
+        help::shown(("logs", "the kernel log"), self.show, &pager, self.map, io)
     }
 }
 
@@ -123,18 +153,30 @@ fn asked(args: &[String]) -> Result<Asked, String> {
     }
 }
 
-/// Prints ZFSBootMenu's messages of `levels` (named `names`). When they
-/// include the errors, removes `have_errors` and writes the number of the
-/// last record read; when they include the warnings, removes
-/// `have_warnings`: the markers say what was logged and not yet shown.
-fn show(system: &System<'_>, state: &State<'_>, names: &str, levels: &[u8], io: &mut Io) -> i32 {
+/// Shows ZFSBootMenu's messages of `levels` (named `names`) with
+/// `paged`. Once shown, when they include the errors, removes
+/// `have_errors` and writes the number of the last record read; when they
+/// include the warnings, removes `have_warnings`: the markers say what was
+/// logged and not yet shown.
+fn levels_shown(
+    system: &System<'_>,
+    state: &State<'_>,
+    (names, levels): (&str, &[u8]),
+    io: &mut Io,
+    mut paged: Paged<'_>,
+) -> i32 {
     let read = dmesg::read_after(system.files, levels, None);
     let text = match &read {
         Ok((records, _)) => dmesg::texts(records),
         Err(_) => dmesg::read_logs(system, names).unwrap_or_default(),
     };
-    if !text.trim_end_matches('\n').is_empty() {
-        let _ = io.stdout.write_all(dmesg::escaped(&text).as_bytes());
+    let lines = dmesg::escaped(text.trim_end_matches('\n'))
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    let status = paged.show(Topic::Logs, lines, io);
+    if status != 0 {
+        return status;
     }
     if levels.contains(&dmesg::ERR) {
         state.clear_errors();

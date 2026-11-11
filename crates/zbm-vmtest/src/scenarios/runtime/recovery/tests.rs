@@ -3,6 +3,8 @@ use pretty_assertions::assert_eq;
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
+mod help;
+
 /// The Recovery Tools as the menu shows them on a machine that boots from
 /// a BIOS.
 const BIOS_TOOLS: &str = "\x1b[H\x1b[2JRECOVERY TOOLS\r\n Recovery Shell\r\n Log\r\n \
@@ -458,75 +460,6 @@ fn a_logs_that_needs_a_terminal_fails() {
         [
             "FAIL - logs exits 0 through a pipe",
             "FAIL - logs prints the warning start-up logged at the boot",
-        ]
-    );
-}
-
-/// The shell's answers to [`help`]: `zbm help` prints `commands`, and
-/// `zbm --help` prints `usage`.
-fn help_script(commands: &'static str, usage: &'static str) -> Vec<Step> {
-    vec![
-        Step::Hear("{ zbm help; echo HELP-STATUS=$?; } | cat; echo RC=$?"),
-        Step::Say(commands),
-        Step::Hear("zbm --help; echo RC=$?"),
-        Step::Say(usage),
-    ]
-}
-
-/// Plays `script` against [`help`]; the checks it recorded.
-fn help_checks(name: &str, script: Vec<Step>) -> Vec<String> {
-    let settings = settings(name);
-    let test = Test::new(&settings, "runtime-rust-recovery").unwrap();
-    let (mut vm, guest) = scripted(&test, script);
-
-    help(&test, &mut vm).unwrap();
-
-    assert_eq!(guest.finish(), Vec::<String>::new());
-    let found = checks(&test);
-    cleanup(&settings);
-    found
-}
-
-/// What `zbm help` prints of the chroot, among the other commands.
-const HELP_COMMANDS: &str = "zfs-chroot\r\n\r\n  Open a shell in a chroot of a filesystem.\r\n\r\n\
-    \x20   Usage: zfs-chroot FILESYSTEM\r\nHELP-STATUS=0\r\nRC=0\r\n";
-
-#[test]
-fn the_shell_s_zbm_help_lists_zfs_chroot_and_zbm_help_prints_zbm_s_usage() {
-    let found = help_checks(
-        "runtime-recovery-help",
-        help_script(
-            HELP_COMMANDS,
-            "Usage: zbm <command> [arguments]\r\n       <command> [arguments]\r\nRC=0\r\n",
-        ),
-    );
-
-    assert_eq!(
-        found,
-        [
-            "ok   - zbm help exits 0 through a pipe",
-            "ok   - zbm help lists zfs-chroot",
-            "ok   - zbm --help prints zbm's usage, not the menu's (0)",
-        ]
-    );
-}
-
-#[test]
-fn a_zbm_help_that_opens_the_menu_fails() {
-    let found = help_checks(
-        "runtime-recovery-help-menu",
-        help_script(
-            "zfsbootmenu: unknown option help\r\nHELP-STATUS=2\r\nRC=0\r\n",
-            "Usage: zfsbootmenu\r\nRC=0\r\n",
-        ),
-    );
-
-    assert_eq!(
-        found,
-        [
-            "FAIL - zbm help exits 0 through a pipe",
-            "FAIL - zbm help lists zfs-chroot",
-            "FAIL - zbm --help prints zbm's usage, not the menu's (0)",
         ]
     );
 }

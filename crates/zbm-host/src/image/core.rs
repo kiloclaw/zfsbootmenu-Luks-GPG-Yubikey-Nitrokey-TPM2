@@ -1,6 +1,6 @@
 //! The runtime and ZFSBootMenu's own files: `zbm` and brush, the shell
-//! libraries and tools of the module root, the help pages, the release
-//! file and the hooks.
+//! libraries and tools of the module root, the legacy help pages, the
+//! release file and the hooks.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -13,10 +13,11 @@ use super::{Entry, Fatal, Image, library};
 /// is the start-up program, `zluks`, the menu, the hook stages' runner, the
 /// library functions' (`zfunc`), `reboot` with its other names,
 /// `zfs-chroot`, `zkexec`, `mount_esp`, and `logs` with its other names
-/// and the prompt's error printer (`logs --prompt`); `/bin/debug`, a
-/// legacy name of `ztrace`, goes, as `zbm debug` is another program. The
-/// library itself is generated ([`library`]).
-const RUST_REPLACES: [&str; 18] = [
+/// and the prompt's error printer (`logs --prompt`), and the help viewer
+/// (`zbm help`); `/bin/debug`, a legacy name of `ztrace`, goes, as `zbm
+/// debug` is another program. The library itself is generated
+/// ([`library`]).
+const RUST_REPLACES: [&str; 19] = [
     "libexec/zfsbootmenu-init",
     "libexec/zfsbootmenu-run-hooks",
     "libexec/zfunc",
@@ -35,6 +36,7 @@ const RUST_REPLACES: [&str; 18] = [
     "bin/ztrace",
     "bin/debug",
     "libexec/recovery-error-printer",
+    "libexec/zfsbootmenu-help",
 ];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug
@@ -176,8 +178,13 @@ fn library(image: &mut Image) {
     }
 }
 
-/// The help pages, below `/usr/share/docs`.
+/// The help pages of the legacy runtime, below `/usr/share/docs`, which
+/// its help viewer shows. Images of the Rust runtime have none: `zbm help`
+/// shows text from the code's own tables (ADR 0018, point 17).
 pub fn docs(image: &mut Image) {
+    if image.is_rust() {
+        return;
+    }
     let root = image.module_root();
     for (path, found) in image.host.walk(&root.join("help-files")) {
         if found != super::Found::File {

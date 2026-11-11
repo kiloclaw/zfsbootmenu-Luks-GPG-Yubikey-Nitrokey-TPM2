@@ -277,8 +277,9 @@ keyboard layouts reach the keys too: a key whose character means nothing to the 
 US keyboard (on a Russian layout, `й` is `q`); on a serial line and over SSH, and on the kernel console until `Ctrl-K`
 chose a layout, characters count as typed, and the arrows, `Enter` and the command line (`:`), which lists what only a
 character reaches, reach every action. [zfsbootmenu(7)](docs/man/zfsbootmenu.7.rst), The Menu's Keys, lists every key of
-the workspace and every alias, and `?` the keys of the view it is pressed in. The recovery shell's `help` still opens
-the legacy menu's help pages, which give the `fzf` keys, until the help viewer is ported (ROADMAP.md SB6).
+the workspace and every alias, and `?` the keys of the view it is pressed in. The recovery shell's `help`, which opened
+the legacy menu's help pages with the `fzf` keys, shows `zbm help`'s three topics, written from the code: the shell's
+commands, the menu's keys (`help keys`, in the key map that `zbm.menu` sets) and the kernel command line's options.
 
 Every list:
 
@@ -914,8 +915,8 @@ The log since start-up, and the boots saved before: the log view of the classic 
 
 ### `fzf`
 
-The menu no longer uses `fzf`. Rust images still install it, for the tools of the recovery shell that are not ported
-yet (`zsnapshots`, the help pages); it leaves the images when R5 and R6 port them.
+The menu no longer uses `fzf`. Rust images still install it, for the tool of the recovery shell that is not ported yet
+(`zsnapshots`); it leaves the images when R5 and R6 port it.
 
 ## The recovery shell's tools
 
@@ -978,15 +979,17 @@ scripts.
   nothing where `dmesg` was BusyBox's. Both showed the kernel's text raw.
 - **Now:** links to `zbm`'s `logs`. `logs` and `zlogtail` print the errors and warnings, or the levels that
   `--level` names as `dmesg -l` takes them; an unknown level is a usage error (exit status 2). They remove
-  `have_errors` when they printed the errors and `have_warnings` when they printed the warnings, so
-  `logs --level info` leaves both. `ztrace` is `logs --trace`: it prints the debug lines in the legacy layout, those
-  of the Rust runtime (`ZBM:[PID]|FILE,LINE|TEXT`) too, the calls in colour on a terminal alone, and says that debug
-  lines need `loglevel=7` when there are none. Its time is the record's, since the boot (`[   12.345678]`), where
+  `have_errors` when they showed the errors and `have_warnings` when they showed the warnings, so
+  `logs --level info` leaves both. Where they cannot show them, as when the terminal cannot be set up or standard
+  output cannot be written, they say why, exit with status 1 and remove neither. `ztrace` is `logs --trace`: it prints the debug lines in the legacy layout, those
+  of the Rust runtime (`ZBM:[PID]|FILE,LINE|TEXT`) too, without the script's colours, and says that debug lines need
+  `loglevel=7` when there are none. Its time is the record's, since the boot (`[   12.345678]`), where
   the script printed `dmesg --time-format reltime`'s, a clock time, then the time since the line before. They read
   `/dev/kmsg`. Where it cannot be read, `logs` runs `dmesg`, as the scripts did, and `ztrace` says why and exits
-  with status 1, where the script showed nothing and exited with 0. They print: they show no list and no pager yet,
-  so `logs | less` pages them. Every line is escaped (control characters and the characters that reorder text), as
-  the recovery shell's banner shows the errors.
+  with status 1, where the script showed nothing and exited with 0. On a terminal they show their lines in the pager
+  of `zbm help`, which `/` filters and `q` leaves, where `zlogtail` showed a list in `fzf` and `ztrace` a page in
+  `less`; through a pipe, or with `TERM=dumb`, they print them. Nothing to show opens no pager. Every line is escaped
+  (control characters and the characters that reorder text), as the recovery shell's banner shows the errors.
 - **Why:** the recovery shell's tools in Rust (ADR 0018, point 12); what the kernel log holds reaches no terminal
   raw (threat model, P13).
 
@@ -1021,10 +1024,22 @@ scripts.
   `options`, the kernel command line's options. Without a topic it shows the commands, then names the other topics;
   an unknown topic is a usage error (exit status 2). On a terminal it shows the topic in the pager, which `q` leaves;
   through a pipe, or with `TERM=dumb`, it prints its lines as plain text, and a reader that stops early, as `head`,
-  ends it with exit status 0. The image links `/bin/help` to it too, but Bash runs its alias `help`, or else its
-  own builtin `help`, before any program: the link runs only by that path, and the shell's `help` still opens the
-  help pages.
+  ends it with exit status 0. The shell's `help` is an alias of `zbm help`, so `help keys` shows the keys. The image
+  links `/bin/help` to it too, but Bash runs its alias `help`, or else its own builtin `help`, before any program:
+  the link runs only by that path.
 - **Why:** ADR 0018, points 14 and 16: one source for the help, the man page and the code.
+
+### No help pages and no help viewer in Rust images
+
+- **Before:** images had `/libexec/zfsbootmenu-help`, the help viewer, and the documentation rendered as `.ansi`
+  pages in `/usr/share/docs/help-files`, ten pages at each of three widths: the five screens of the `fzf` menu, the
+  recovery shell's page and four manual pages. The shell's `help` opened the recovery shell's page, and `MOD+H` in an
+  `fzf` screen the page of that screen.
+- **Now:** Rust images install neither: the shell's `help` is `zbm help` (above). Legacy images keep both. The legacy
+  `zsnapshots`, which Rust images still install until it is ported (see `fzf` above), still names `[CTRL+H] help`
+  in its header: in a Rust image `MOD+H` there shows no help.
+- **Why:** ADR 0018, point 17: the help comes from the code's own tables, and the `fzf` screens have gone from the
+  menu.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

@@ -21,6 +21,10 @@
 //!   recovery shell's commands, `zfs-chroot` among them; and `zbm --help`
 //!   prints `zbm`'s usage, not the menu's, as `/bin/zbm` gives `zbm` its
 //!   own options;
+//! - the shell's `help`, its alias of `zbm help`: through a pipe it prints
+//!   the commands, `zfs-chroot` among them; on the terminal it opens the
+//!   pager on the commands, and `q` leaves it, back at the prompt, `help`
+//!   ending with 0;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
@@ -241,7 +245,7 @@ const ZBM_USAGE: &str = "Usage: zbm <command> [arguments]";
 
 /// Runs `zbm help` through a pipe, which must exit 0 and list the
 /// recovery shell's commands, then `zbm --help`, which must print `zbm`'s
-/// usage.
+/// usage; then the shell's `help`, through a pipe and in the pager.
 ///
 /// # Errors
 ///
@@ -261,6 +265,43 @@ fn help(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     test.check(
         code == 0 && said.lines().any(|line| line.trim() == ZBM_USAGE),
         &format!("zbm --help prints zbm's usage, not the menu's ({code})"),
+    );
+    test.step("help | cat: the alias, through a pipe");
+    let (_, said) = vm.sh_show(ALIAS_PIPED)?;
+    test.check(
+        said.lines().any(|line| line.trim() == "ALIAS-STATUS=0")
+            && said.lines().any(|line| line.trim() == "zfs-chroot"),
+        "the shell's help is zbm help: through a pipe it lists zfs-chroot",
+    );
+    pager(test, vm)
+}
+
+/// The shell's `help` through a pipe, which shows its own exit status.
+const ALIAS_PIPED: &str = "{ help; echo ALIAS-STATUS=$?; } | cat";
+
+/// The shell's `help` on the terminal, then its exit status once it ends.
+const HELP_PAGED: &str = "help; echo PAGER-RC=$?";
+
+/// The title of the pager on the commands, as its border shows it.
+const PAGER_TITLE: &str = "screen:COMMANDS";
+
+/// Runs the shell's `help` on the terminal, which must open the pager on
+/// the commands; `q` must leave it, back at the prompt, `help` ending with
+/// 0. Where no pager shows, Ctrl-C ends whatever runs instead.
+///
+/// # Errors
+///
+/// When a key cannot be sent.
+fn pager(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("help: the pager on the terminal, then q");
+    vm.sendline(HELP_PAGED)?;
+    let shown = vm.expect1(PAGER_TITLE, 60).is_ok();
+    test.check(shown, "the shell's help opens the pager on the commands");
+    vm.send(if shown { "q" } else { "\x03" })?;
+    let left = vm.expect1("PAGER-RC=0", 60).is_ok();
+    test.check(
+        left,
+        "q leaves the pager, back at the prompt, help ending with 0",
     );
     Ok(())
 }

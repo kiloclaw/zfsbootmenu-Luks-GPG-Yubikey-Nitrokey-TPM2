@@ -1,6 +1,9 @@
 use pretty_assertions::assert_eq;
 use zbm_testkit::fakes::FakeFiles;
 
+use zbm_tui::menu::keymap::Map;
+use zbm_tui::menu::pager::Pager;
+
 use super::*;
 
 /// The kernel log's records, as `/dev/kmsg` gives them: shell code's and
@@ -15,9 +18,16 @@ const KMSG: &str = "\
 15,15,2000004,-;another program's
 ";
 
-/// `ztrace` on the kernel log `kmsg`, in colour or not: its exit status,
-/// standard output and standard error.
-fn trace(kmsg: Option<&str>, colour: bool) -> (i32, String, String) {
+/// `ztrace` on the kernel log `kmsg`, its lines printed as they are
+/// without a terminal: its exit status, standard output and standard
+/// error.
+fn trace(kmsg: Option<&str>) -> (i32, String, String) {
+    trace_with(kmsg, &mut crate::help::printed)
+}
+
+/// `ztrace` on the kernel log `kmsg`, its lines shown with `shown_with`:
+/// its exit status, standard output and standard error.
+fn trace_with(kmsg: Option<&str>, shown_with: crate::help::Show<'_>) -> (i32, String, String) {
     let files = FakeFiles::new();
     match kmsg {
         Some(kmsg) => {
@@ -27,14 +37,18 @@ fn trace(kmsg: Option<&str>, colour: bool) -> (i32, String, String) {
             files.fail("/dev/kmsg", std::io::ErrorKind::PermissionDenied);
         }
     }
+    let mut paged = Paged {
+        map: Map::default(),
+        show: shown_with,
+    };
     let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
     let status = show(
         &files,
-        colour,
         &mut Io {
             stdout: &mut stdout,
             stderr: &mut stderr,
         },
+        &mut paged,
     );
     (
         status,
@@ -46,7 +60,7 @@ fn trace(kmsg: Option<&str>, colour: bool) -> (i32, String, String) {
 #[test]
 fn trace_takes_the_shell_and_the_rust_shapes() {
     assert_eq!(
-        trace(Some(KMSG), false),
+        trace(Some(KMSG)),
         (
             0,
             "\
@@ -61,33 +75,25 @@ fn trace_takes_the_shell_and_the_rust_shapes() {
             String::new()
         )
     );
-    // On a terminal, the function in red, the first file in green and the
-    // others in orange, as the legacy `ztrace` painted them.
-    let (_, coloured, _) = trace(Some(KMSG), true);
-    let lines: Vec<&str> = coloured.lines().collect();
-    assert_eq!(
-        lines[1],
-        "[    1.500000]      trace: \x1b[0;31mmain@\x1b[0;32m/bin/zfsbootmenu\x1b[0m#12"
-    );
-    assert_eq!(
-        lines[2],
-        "[    1.500000]      trace:  \x1b[0;31mload_be@\x1b[0;33m/lib/core.sh\x1b[0m#99"
-    );
-    assert_eq!(
-        lines[5],
-        "[    2.000001]      trace: \x1b[0;32mcrates/zbm/src/a.rs\x1b[0m#40"
-    );
+    // On a terminal too, the calls are not coloured, where the legacy
+    // `ztrace` painted them: the pager would show the colours' escapes.
+    let mut drawn = Vec::new();
+    let mut draw = |pager: &Pager, _: Map, _: &mut dyn std::io::Write| {
+        drawn.extend(pager.lines.iter().cloned());
+        Ok(())
+    };
+    assert_eq!(trace_with(Some(KMSG), &mut draw).0, 0);
+    let printed: Vec<String> = trace(Some(KMSG)).1.lines().map(str::to_owned).collect();
+    assert_eq!(drawn, printed);
+    assert!(drawn.iter().all(|line| !line.contains('\x1b')));
 }
 
 #[test]
 fn trace_without_debug_lines_says_why() {
     let warning = "12,1,0,-;ZFSBootMenu: careful\n";
-    assert_eq!(
-        trace(Some(warning), false),
-        (0, NONE.to_owned(), String::new())
-    );
+    assert_eq!(trace(Some(warning)), (0, NONE.to_owned(), String::new()));
     assert!(NONE.contains("loglevel=7"));
-    let (status, stdout, stderr) = trace(None, false);
+    let (status, stdout, stderr) = trace(None);
     assert_eq!((status, stdout.as_str()), (1, ""));
     assert!(
         stderr.starts_with("logs: unable to read the kernel log:"),

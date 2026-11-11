@@ -42,14 +42,25 @@ const PROMPT_LEGACY: &str = "export PROMPT_COMMAND=\"/libexec/recovery-error-pri
 /// after the last record shown, escaped (ADR 0018, point 13).
 const PROMPT_RUST: &str = "export PROMPT_COMMAND=\"/libexec/zbm logs --prompt\"\n";
 
-/// The rest of `/root/.bashrc`, after the prompt's command.
-const BASHRC_END: &str = r#"export PS1='\[\033[0;33m\]zfsbootmenu\[\033[0m\] \w > '
+/// `/root/.bashrc` after the prompt's command, up to the alias `help`.
+const BASHRC_ALIASES: &str = r#"export PS1='\[\033[0;33m\]zfsbootmenu\[\033[0m\] \w > '
 
 alias clear="tput clear"
 alias reset="tput reset"
 alias trace="ztrace"
-alias help="/libexec/zfsbootmenu-help -L recovery-shell"
+"#;
 
+/// The legacy runtime's `help`: its help viewer, on the page of the
+/// recovery shell.
+const HELP_LEGACY: &str = "alias help=\"/libexec/zfsbootmenu-help -L recovery-shell\"\n";
+
+/// The Rust runtime's `help`: `zbm help` and the topic typed after it, as
+/// `/bin/zbm` passes a command on to `/libexec/zbm` (ADR 0018, point 17).
+/// Bash runs an alias before its builtin `help` and before `/bin/help`.
+const HELP_RUST: &str = "alias help=\"zbm help\"\n";
+
+/// The rest of `/root/.bashrc`, after the alias `help`.
+const BASHRC_END: &str = r#"
 zdebug "sourced /root/.bashrc" || true
 "#;
 
@@ -135,10 +146,15 @@ pub fn profiles(image: &mut Image) {
 }
 
 /// `/root/.bashrc` of the Rust runtime (`is_rust`) or of the legacy one,
-/// which differ in the command run before each prompt alone.
+/// which differ in the command run before each prompt and in `help`
+/// alone.
 fn bashrc(is_rust: bool) -> String {
-    let prompt = if is_rust { PROMPT_RUST } else { PROMPT_LEGACY };
-    [BASHRC, prompt, BASHRC_END].concat()
+    let (prompt, help) = if is_rust {
+        (PROMPT_RUST, HELP_RUST)
+    } else {
+        (PROMPT_LEGACY, HELP_LEGACY)
+    };
+    [BASHRC, prompt, BASHRC_ALIASES, help, BASHRC_END].concat()
 }
 
 /// Profiling, with `zfsbootmenu_trace_enable` and the profiling library of

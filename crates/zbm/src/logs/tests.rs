@@ -6,25 +6,48 @@ use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
 
-/// Runs `logs` with `args` on `fake`, without colour: its exit status,
-/// standard output and standard error.
+/// What `logs` showed: the pager, and the map it reads keys with.
+type Shown = Vec<(Pager, Map)>;
+
+/// Runs `logs` with `args` on `fake`, its lines printed as they are
+/// without a terminal: its exit status, standard output and standard
+/// error.
 fn call(fake: &FakeSystem, args: &[&str]) -> (i32, String, String) {
+    call_with(fake, args, &mut help::printed)
+}
+
+/// Runs `logs` with `args` on `fake`, its lines shown with `show`: its
+/// exit status, standard output and standard error.
+fn call_with(fake: &FakeSystem, args: &[&str], show: Show<'_>) -> (i32, String, String) {
     let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
     let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
     let status = run_in(
         &fake.system(),
         &args,
-        false,
         &mut Io {
             stdout: &mut stdout,
             stderr: &mut stderr,
         },
+        show,
     );
     (
         status,
         String::from_utf8(stdout).unwrap(),
         String::from_utf8(stderr).unwrap(),
     )
+}
+
+/// Runs `logs` with `args` on `fake` on a terminal, where the pager shows
+/// the lines and prints nothing: its exit status, standard output and
+/// standard error, and what it showed.
+fn on_a_terminal(fake: &FakeSystem, args: &[&str]) -> (i32, String, String, Shown) {
+    let mut shown = Vec::new();
+    let mut drawn = |pager: &Pager, map: Map, _: &mut dyn std::io::Write| {
+        shown.push((pager.clone(), map));
+        Ok(())
+    };
+    let (status, stdout, stderr) = call_with(fake, args, &mut drawn);
+    (status, stdout, stderr, shown)
 }
 
 /// A machine whose kernel log holds the lines `written`, the first
@@ -289,5 +312,77 @@ fn ztrace_is_logs_trace() {
     assert_eq!(
         call(&fake, &["--trace"]).1,
         "[    0.000000]    ZBM:[1]: traced\n[    0.000000]      trace: f.rs#2\n"
+    );
+}
+
+#[test]
+fn logs_on_a_terminal_opens_the_pager() {
+    let fake = machine(
+        "<3>ZFSBootMenu: broken \x1b[31mpool\n\
+         <4>ZFSBootMenu: careful\n\
+         <7>ZBM:[1]|f.rs,2|traced\n",
+    );
+    mark(&fake);
+    let (status, stdout, stderr, shown) = on_a_terminal(&fake, &[]);
+    assert_eq!((status, stdout.as_str(), stderr.as_str()), (0, "", ""));
+    let logs = Pager {
+        topic: Topic::Logs,
+        lines: vec![
+            "ZFSBootMenu: broken \\x1b[31mpool".to_owned(),
+            "ZFSBootMenu: careful".to_owned(),
+        ],
+    };
+    assert_eq!(shown, [(logs, Map::default())]);
+    // Once shown, they are forgotten, as when printed.
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    assert!(!state.has_errors() && !state.has_warnings());
+    assert_eq!(state.errors_since(), Some(2));
+
+    // `ztrace` too, its keys read with the map `zbm.menu` sets.
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.menu=classic\n");
+    let (status, stdout, _, shown) = on_a_terminal(&fake, &["--trace"]);
+    assert_eq!((status, stdout.as_str()), (0, ""));
+    let trace = Pager {
+        topic: Topic::Trace,
+        lines: vec![
+            "[    0.000000]    ZBM:[1]: traced".to_owned(),
+            "[    0.000000]      trace: f.rs#2".to_owned(),
+        ],
+    };
+    assert_eq!(shown, [(trace, Map::Classic)]);
+
+    // Nothing to show opens no pager; without debug lines, it says why.
+    let quiet = machine("<6>ZFSBootMenu: fine\n");
+    assert_eq!(on_a_terminal(&quiet, &[]).3, []);
+    let (status, stdout, _, shown) = on_a_terminal(&quiet, &["--trace"]);
+    assert_eq!((status, stdout.as_str(), shown), (0, trace::NONE, vec![]));
+}
+
+#[test]
+fn a_log_that_cannot_be_shown_exits_1_and_keeps_its_markers() {
+    let fake = machine("<3>ZFSBootMenu: broken\n");
+    mark(&fake);
+    let mut broken = |_: &Pager, _: Map, _: &mut dyn std::io::Write| -> std::io::Result<()> {
+        Err(std::io::Error::other("no terminal"))
+    };
+    let (status, stdout, stderr) = call_with(&fake, &[], &mut broken);
+    assert_eq!(
+        (status, stdout.as_str(), stderr.as_str()),
+        (1, "", "logs: unable to show the kernel log: no terminal\n")
+    );
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    assert!(state.has_errors() && state.has_warnings());
+    assert_eq!(state.errors_since(), None);
+}
+
+#[test]
+fn the_prompt_never_opens_the_pager() {
+    let fake = machine("<3>ZFSBootMenu: broken\n");
+    fake.files.file("/zfsbootmenu/have_errors", "");
+    let (status, stdout, _, shown) = on_a_terminal(&fake, &["--prompt"]);
+    assert_eq!(
+        (status, stdout.as_str(), shown),
+        (0, "\nZFSBootMenu: broken\n\n", vec![])
     );
 }

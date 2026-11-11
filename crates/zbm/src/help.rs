@@ -35,9 +35,22 @@ use crate::library_usage::FUNCTIONS;
 use crate::table::{APPLETS, HELP};
 use crate::{Io, USAGE};
 
-/// Shows a topic with the key map it reads keys with: in the pager on a
-/// terminal, else its lines printed to the writer.
-type Show<'a> = &'a mut dyn FnMut(&Pager, Map, &mut dyn Write) -> io::Result<()>;
+/// Shows a text with the key map it reads keys with: in the pager on a
+/// terminal, else its lines printed to the writer. `help` and `logs` show
+/// their texts with it; the real one is the pager's own choice
+/// (`zbm_tui::menu::pager::show`).
+pub(crate) type Show<'a> = &'a mut dyn FnMut(&Pager, Map, &mut dyn Write) -> io::Result<()>;
+
+/// Writes the lines of `pager` to `out`, one a line, as the pager does
+/// where it does not draw: the tests show texts with it, as without a
+/// terminal.
+#[cfg(test)]
+pub(crate) fn printed(pager: &Pager, _: Map, out: &mut dyn Write) -> io::Result<()> {
+    pager
+        .lines
+        .iter()
+        .try_for_each(|line| writeln!(out, "{line}"))
+}
 
 /// A topic of `help`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,15 +124,28 @@ fn run_in(system: &System<'_>, args: &[String], io: &mut Io, show: Show<'_>) -> 
         },
         lines: lines(subject, map),
     };
-    match show(&pager, map, io.stdout) {
+    shown(("help", "the topic"), show, &pager, map, io)
+}
+
+/// Shows `pager`, its keys read with the key map `map`, with `show`: the
+/// exit status of the command `name`, 0 once it is shown, also when the
+/// reader stopped reading early, as `head` does, since it had what it
+/// wanted; else 1, once it said on standard error that it could not show
+/// `what`.
+pub(crate) fn shown(
+    (name, what): (&str, &str),
+    show: Show<'_>,
+    pager: &Pager,
+    map: Map,
+    io: &mut Io,
+) -> i32 {
+    match show(pager, map, io.stdout) {
         Ok(()) => 0,
-        // A reader that stopped reading, as `head` does, had what it
-        // wanted.
         Err(error) if error.kind() == io::ErrorKind::BrokenPipe => 0,
         Err(error) => {
             let _ = writeln!(
                 io.stderr,
-                "help: unable to show the topic: {}",
+                "{name}: unable to show {what}: {}",
                 Printable(&error.to_string())
             );
             1

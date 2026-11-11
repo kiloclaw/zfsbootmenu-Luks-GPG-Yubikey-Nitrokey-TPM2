@@ -23,6 +23,8 @@ use super::lists::{
 };
 use super::*;
 
+mod shell;
+
 /// Where the module root is on the fake host.
 const MODULE_ROOT: &str = "/usr/share/zfsbootmenu";
 
@@ -352,82 +354,6 @@ fn what_an_image_cannot_have_stops_the_build() {
         missing.unwrap_err(),
         "failed to install essential executable 'zfs'"
     );
-}
-
-/// The `TERM` that `/etc/profile` of the plan of `settings` leaves, run by
-/// `sh` with `TERM` set to `term`.
-fn term_after_profile(settings: &str, term: &str) -> String {
-    let (files, runner) = (host_files(), host_runner());
-    let plan = plan_of(Builder::Dracut, settings, &files, &runner).unwrap();
-    let profile = plan.written(Path::new("/etc/profile")).unwrap();
-    let script = format!("{}\nprintf %s \"$TERM\"", String::from_utf8_lossy(profile));
-    let output = std::process::Command::new("sh")
-        .args(["-c", &script])
-        .env("TERM", term)
-        .output()
-        .unwrap();
-    String::from_utf8(output.stdout).unwrap()
-}
-
-/// What `/bin/zbm` of a Rust plan runs for `args`: the arguments it gives
-/// `/libexec/zbm`, run by `sh`.
-fn bin_zbm_runs(args: &[&str]) -> String {
-    let (files, runner) = (host_files(), host_runner());
-    let plan = plan_of(
-        Builder::Dracut,
-        "zfsbootmenu_runtime\trust\n",
-        &files,
-        &runner,
-    )
-    .unwrap();
-    let script = String::from_utf8_lossy(plan.written(Path::new("/bin/zbm")).unwrap())
-        .replace("exec /libexec/zbm", "echo");
-    let output = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(&script)
-        .arg("zbm")
-        .args(args)
-        .output()
-        .unwrap();
-    String::from_utf8(output.stdout).unwrap()
-}
-
-#[test]
-fn bin_zbm_gives_zbm_its_own_options_and_the_menu_the_others() {
-    for option in ["-h", "--help", "--list", "-V", "--version"] {
-        assert_eq!(bin_zbm_runs(&[option]), format!("{option}\n"));
-    }
-    assert_eq!(bin_zbm_runs(&[]), "zfsbootmenu\n");
-    assert_eq!(bin_zbm_runs(&["-x"]), "zfsbootmenu -x\n");
-    assert_eq!(bin_zbm_runs(&["help", "keys"]), "help keys\n");
-}
-
-#[test]
-fn the_rust_profile_keeps_a_dumb_terminal_for_the_line_view() {
-    let rust = "zfsbootmenu_runtime\trust\n";
-    assert_eq!(term_after_profile(rust, "dumb"), "dumb");
-    assert_eq!(term_after_profile(rust, "vt100"), "linux");
-    // The legacy runtime's menu needs the Linux console's description.
-    assert_eq!(term_after_profile("", "dumb"), "linux");
-}
-
-#[test]
-fn the_rust_bashrc_runs_logs_prompt_and_the_legacy_one_is_unchanged() {
-    let bashrc = |settings: &str| {
-        let (files, runner) = (host_files(), host_runner());
-        let plan = plan_of(Builder::Dracut, settings, &files, &runner).unwrap();
-        let text = plan.written(Path::new("/root/.bashrc")).unwrap();
-        String::from_utf8_lossy(text).into_owned()
-    };
-    let legacy = bashrc("");
-    let rust = bashrc("zfsbootmenu_runtime\trust\n");
-    let printer = "\nexport PROMPT_COMMAND=\"/libexec/recovery-error-printer\"\n";
-    assert!(legacy.contains(printer), "{legacy}");
-    assert!(!rust.contains("recovery-error-printer"), "{rust}");
-    // The Rust runtime's differs in that line alone; brush's hand-over
-    // follows it.
-    let logs = "\nexport PROMPT_COMMAND=\"/libexec/zbm logs --prompt\"\n";
-    assert!(rust.starts_with(&legacy.replace(printer, logs)), "{rust}");
 }
 
 #[test]

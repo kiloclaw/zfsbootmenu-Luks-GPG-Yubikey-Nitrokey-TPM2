@@ -133,7 +133,6 @@ file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks.sh	/lib/zfsbootmenu-luks.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-ui.sh	/lib/zfsbootmenu-ui.sh	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-diff	/libexec/zfsbootmenu-diff	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-edit-kcl	/libexec/zfsbootmenu-edit-kcl	-
-file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-help	/libexec/zfsbootmenu-help	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
 file	/usr/share/zfsbootmenu/libexec/zpowermenu	/libexec/zpowermenu	-
@@ -1006,36 +1005,6 @@ dir	/libexec/hooks/teardown.d	0755
 file	/root/hooks/teardown.d/10-bye.sh	/libexec/hooks/teardown.d/10-bye.sh	-
 dir	/libexec/hooks/boot-sel.d	0755
 file	/etc/zfsbootmenu/hooks/boot-sel.d/10-pick.sh	/libexec/hooks/boot-sel.d/10-pick.sh	-
-file	/usr/share/zfsbootmenu/help-files/132/diff-viewer.ansi	/usr/share/docs/help-files/132/diff-viewer.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/kernel-management.ansi	/usr/share/docs/help-files/132/kernel-management.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/main-screen.ansi	/usr/share/docs/help-files/132/main-screen.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/recovery-shell.ansi	/usr/share/docs/help-files/132/recovery-shell.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/snapshot-management.ansi	/usr/share/docs/help-files/132/snapshot-management.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/zbm-kcl.8.ansi	/usr/share/docs/help-files/132/zbm-kcl.8.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/zfsbootmenu-luks.7.ansi	/usr/share/docs/help-files/132/zfsbootmenu-luks.7.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/zfsbootmenu.7.ansi	/usr/share/docs/help-files/132/zfsbootmenu.7.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/zluks.8.ansi	/usr/share/docs/help-files/132/zluks.8.ansi	-
-file	/usr/share/zfsbootmenu/help-files/132/zpool-health.ansi	/usr/share/docs/help-files/132/zpool-health.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/diff-viewer.ansi	/usr/share/docs/help-files/52/diff-viewer.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/kernel-management.ansi	/usr/share/docs/help-files/52/kernel-management.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/main-screen.ansi	/usr/share/docs/help-files/52/main-screen.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/recovery-shell.ansi	/usr/share/docs/help-files/52/recovery-shell.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/snapshot-management.ansi	/usr/share/docs/help-files/52/snapshot-management.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/zbm-kcl.8.ansi	/usr/share/docs/help-files/52/zbm-kcl.8.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/zfsbootmenu-luks.7.ansi	/usr/share/docs/help-files/52/zfsbootmenu-luks.7.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/zfsbootmenu.7.ansi	/usr/share/docs/help-files/52/zfsbootmenu.7.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/zluks.8.ansi	/usr/share/docs/help-files/52/zluks.8.ansi	-
-file	/usr/share/zfsbootmenu/help-files/52/zpool-health.ansi	/usr/share/docs/help-files/52/zpool-health.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/diff-viewer.ansi	/usr/share/docs/help-files/92/diff-viewer.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/kernel-management.ansi	/usr/share/docs/help-files/92/kernel-management.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/main-screen.ansi	/usr/share/docs/help-files/92/main-screen.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/recovery-shell.ansi	/usr/share/docs/help-files/92/recovery-shell.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/snapshot-management.ansi	/usr/share/docs/help-files/92/snapshot-management.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/zbm-kcl.8.ansi	/usr/share/docs/help-files/92/zbm-kcl.8.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/zfsbootmenu-luks.7.ansi	/usr/share/docs/help-files/92/zfsbootmenu-luks.7.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/zfsbootmenu.7.ansi	/usr/share/docs/help-files/92/zfsbootmenu.7.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/zluks.8.ansi	/usr/share/docs/help-files/92/zluks.8.ansi	-
-file	/usr/share/zfsbootmenu/help-files/92/zpool-health.ansi	/usr/share/docs/help-files/92/zpool-health.ansi	-
 file	@/etc/zbm-release	/etc/zbm-release	0644
     | NAME="ZFSBootMenu"
     | PRETTY_NAME="ZFSBootMenu"
@@ -1094,7 +1063,7 @@ file	@/root/.bashrc	/root/.bashrc	0644
     | alias clear="tput clear"
     | alias reset="tput reset"
     | alias trace="ztrace"
-    | alias help="/libexec/zfsbootmenu-help -L recovery-shell"
+    | alias help="zbm help"
     | 
     | zdebug "sourced /root/.bashrc" || true
     | 

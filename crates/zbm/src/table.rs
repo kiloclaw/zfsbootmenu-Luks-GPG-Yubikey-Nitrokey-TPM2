@@ -379,12 +379,14 @@ saying why.
 pub(crate) const LOGS: Applet = Applet {
     name: "logs",
     names: &[("zlogtail", &[]), ("ztrace", &["--trace"])],
-    summary: "print ZFSBootMenu's errors and warnings, or its debug lines, in the kernel log",
+    summary: "show ZFSBootMenu's errors and warnings, or its debug lines, in the kernel log",
     usage: "\
 Usage: logs [--level LEVELS | --trace | --prompt]
 
 Prints ZFSBootMenu's errors and warnings in the kernel log since the boot,
-escaped, and forgets that errors and warnings were logged. zlogtail is logs.
+escaped, and once they are shown forgets that errors and warnings were
+logged. zlogtail is logs. On a terminal it shows them, and the debug lines,
+in a pager, which q leaves.
 
   --level LEVELS  prints the messages of LEVELS instead, as dmesg -l takes
                   them: names or numbers, comma-separated, such as err,warn;
@@ -393,10 +395,12 @@ escaped, and forgets that errors and warnings were logged. zlogtail is logs.
                   kernel log holds only with loglevel=7; ztrace is logs --trace
   --prompt        the shell's PROMPT_COMMAND: when errors were logged since
                   they were last shown, prints the new ones between blank
-                  lines and forgets that errors were logged
+                  lines, also on a terminal, and forgets that errors were
+                  logged
 
-The exit status is 1 when the debug lines cannot be read, and 2 for an
-unknown level or option.
+The exit status is 1 when the debug lines cannot be read or the lines
+cannot be shown, which forgets nothing, and 2 for an unknown level or
+option.
 ",
     run: logs::run,
 };

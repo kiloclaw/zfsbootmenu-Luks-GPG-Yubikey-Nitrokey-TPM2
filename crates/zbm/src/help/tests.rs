@@ -11,14 +11,11 @@ type Shown = Vec<(Pager, Map)>;
 /// it showed.
 fn call(fake: &FakeSystem, args: &[&str]) -> (i32, String, String, Shown) {
     let mut shown = Vec::new();
-    let mut printed = |pager: &Pager, map: Map, out: &mut dyn Write| {
+    let mut recorded = |pager: &Pager, map: Map, out: &mut dyn Write| {
         shown.push((pager.clone(), map));
-        pager
-            .lines
-            .iter()
-            .try_for_each(|line| writeln!(out, "{line}"))
+        printed(pager, map, out)
     };
-    let (status, stdout, stderr) = call_with(fake, args, &mut printed);
+    let (status, stdout, stderr) = call_with(fake, args, &mut recorded);
     (status, stdout, stderr, shown)
 }
 
@@ -256,12 +253,6 @@ fn a_reader_that_stops_reading_ends_help_with_0() {
             Ok(())
         }
     }
-    let mut printed = |pager: &Pager, _: Map, out: &mut dyn Write| {
-        pager
-            .lines
-            .iter()
-            .try_for_each(|line| writeln!(out, "{line}"))
-    };
     let mut stderr = Vec::new();
     let mut io = Io {
         stdout: &mut Closed,
