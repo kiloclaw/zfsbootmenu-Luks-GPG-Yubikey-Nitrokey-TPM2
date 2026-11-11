@@ -38,9 +38,12 @@ const RUST_REPLACES: [&str; 18] = [
 ];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug
-/// crash`, `zbm report`) that command of `/libexec/zbm`, which lists them.
+/// crash`, `zbm report`) that command of `/libexec/zbm`, which lists them;
+/// `/libexec/zbm`'s own options too (`--help`, `--list`, `--version`), and
+/// any other option the menu's.
 const BIN_ZBM: &str = r#"#!/bin/sh
 case "${1:-}" in
+  -h|--help|--list|-V|--version) exec /libexec/zbm "$@" ;;
   ""|-*) exec /libexec/zbm zfsbootmenu "$@" ;;
   *) exec /libexec/zbm "$@" ;;
 esac

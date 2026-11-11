@@ -173,6 +173,119 @@ impl Section {
             .collect();
         entries.join("\n")
     }
+
+    /// The same text as plain text ([`plain`]), as `zbm help` shows it.
+    pub fn render_plain(&self) -> String {
+        plain(&self.render())
+    }
+}
+
+/// `rst`, reStructuredText as the generated sections write it, as plain
+/// text for a terminal: without inline markup (bold, emphasis, literals,
+/// escapes, and roles such as `:doc:`, which keep their title), a
+/// `.. note::` said "Note:", and the lines of a `.. code-block::` kept as
+/// they are, without the directive and the blank line after it.
+pub fn plain(rst: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    // The indentation of the code block's directive, while in its block.
+    let mut code: Option<usize> = None;
+    let mut after_directive = false;
+    for line in rst.lines() {
+        let text = line.trim_start();
+        let indent = line.len() - text.len();
+        if let Some(at) = code {
+            if text.is_empty() || indent > at {
+                if !(after_directive && text.is_empty()) {
+                    lines.push(line.to_owned());
+                }
+                after_directive = false;
+                continue;
+            }
+            code = None;
+        }
+        if text.starts_with(".. code-block::") {
+            (code, after_directive) = (Some(indent), true);
+        } else if text == ".. note::" {
+            lines.push(format!("{}Note:", &line[..indent]));
+        } else {
+            lines.push(inline(line));
+        }
+    }
+    let mut text = lines.join("\n");
+    if rst.ends_with('\n') {
+        text.push('\n');
+    }
+    text
+}
+
+/// `line` without its inline markup: `*` and `**` go, and the backticks of
+/// interpreted text; a literal (two backticks) keeps what it holds as it
+/// is; a role, such as `:doc:`, keeps its title without its target (in
+/// angle brackets); an escaped character stays, and an escaped blank goes.
+fn inline(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    // Where the text of the role being read starts in `out`.
+    let mut role: Option<usize> = None;
+    let mut literal = false;
+    while let Some(c) = chars.next() {
+        let is_double = c == '`' && chars.peek() == Some(&'`');
+        if is_double {
+            chars.next();
+            literal = !literal;
+            continue;
+        }
+        if literal {
+            out.push(c);
+            continue;
+        }
+        match c {
+            '\\' => {
+                if let Some(escaped) = chars.next().filter(|next| *next != ' ') {
+                    out.push(escaped);
+                }
+            }
+            '*' => {}
+            '`' => {
+                if let Some(start) = role.take() {
+                    untarget(&mut out, start);
+                } else {
+                    let prefix = role_prefix(&out);
+                    out.truncate(out.len() - prefix);
+                    role = (prefix > 0).then_some(out.len());
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// The length of the role's name (`:doc:`) that `text` ends with, or 0.
+fn role_prefix(text: &str) -> usize {
+    let Some(name) = text.strip_suffix(':') else {
+        return 0;
+    };
+    let Some(colon) = name.rfind(':') else {
+        return 0;
+    };
+    let word = &name[colon + 1..];
+    let is_name = !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c == '-' || c == '_');
+    if is_name { word.len() + 2 } else { 0 }
+}
+
+/// Removes the target (` <target>`) that ends the role's text, from
+/// `start` on in `out`, keeping its title.
+fn untarget(out: &mut String, start: usize) {
+    if !out.ends_with('>') {
+        return;
+    }
+    if let Some(open) = out[start..].rfind(" <") {
+        out.truncate(start + open);
+    }
 }
 
 /// Why a page could not be updated.

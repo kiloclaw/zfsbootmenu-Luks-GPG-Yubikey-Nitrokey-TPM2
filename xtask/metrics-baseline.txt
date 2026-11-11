@@ -6,12 +6,12 @@
 crate         long_functions  long_files  flag_functions  legacy_docs  shell_helpers  shell_starts  legacy_tests  unsafe_blocks  zfs_commands  string_params  format_logs  public_items  c_programs
 rust-image                 0           0               0            0              0             0             0              0             0              0            0             0          45
 xtask                      0           0               0            0              0             0             0              0             0              0            0             0           0
-zbm                        0           0               0            0              0             0             0              0             0              0            0           102           0
+zbm                        0           0               0            0              0             0             0              0             0              0            0           103           0
 zbm-app                    0           0               0            0              0             1             0              0             0              0            0           189           0
 zbm-boot                   0           0               0            0              0             0             0              0             0              5            0            55           0
 zbm-bootenv                0           0               0            0              0             0             0              0             0              8            0            39           0
 zbm-brush                  0           0               0            0              0             0             0              0             0              0            0             6           0
-zbm-config                 0           0               0            0              0             0             0              0             0              0            0           219           0
+zbm-config                 0           0               0            0              0             0             0              0             0              0            0           220           0
 zbm-console                0           0               0            0              0             0             0              0             0              0            0           102           0
 zbm-crypt                  0           0               0            0              0             0             0              0             0              0            0            63           0
 zbm-display                0           0               0            0              0             0             0              0             0              0            0           101           0
@@ -25,7 +25,7 @@ zbm-sys                    0           0               0            0           
 zbm-testkit                0           0               0            0              0             0             0              0             0              0            0            63           0
 zbm-tools                  0           0               4            0              0             0             0              0             0              0            0            53           0
 zbm-trace                  0           0               0            0              0             0             0              0             0              0            0            50           0
-zbm-tui                    0           0               0            0              0             0             0              0             0              0            0           160           0
+zbm-tui                    0           0               0            0              0             0             0              0             0              0            0           161           0
 zbm-types                  0           0               0            0              0             0             0              0             0              0            0            48           0
 zbm-vmtest                 0           0               0            0              0             0             0              0             0              0            0           153           0
 zbm-zfs                    0           0               0            0              0             0             0              0             0              0            0            64           0

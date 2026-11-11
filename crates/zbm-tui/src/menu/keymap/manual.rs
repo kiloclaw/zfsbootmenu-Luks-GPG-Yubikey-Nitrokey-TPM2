@@ -57,17 +57,35 @@ struct Bound {
 /// under a title for each place: first those every view has, then each
 /// view's own, then the places listed whole.
 pub fn workspace() -> String {
-    let common: Vec<Bound> = keys(Main)
+    places(Map::Workspace)
+}
+
+/// The keys of `map` in each place of the menu, then the workspace's
+/// aliases under their title (the classic map has none), in the form of
+/// [`workspace`]: the text the recovery shell's `zbm help keys` shows as
+/// plain text.
+pub fn help_page(map: Map) -> String {
+    let places = places(map);
+    if map == Map::Classic {
+        return places;
+    }
+    format!("{places}\n{}", aliases())
+}
+
+/// The keys of `map` in each place of the menu, as [`workspace`] lists
+/// the workspace's.
+fn places(map: Map) -> String {
+    let common: Vec<Bound> = keys(map, Main)
         .into_iter()
         .filter(|key| {
             VIEWS
                 .iter()
-                .all(|view| keys(*view).iter().any(|other| is_same(key, other)))
+                .all(|view| keys(map, *view).iter().any(|other| is_same(key, other)))
         })
         .collect();
     let mut places = vec![place(&text!("manual-every-view"), &common)];
     for view in VIEWS {
-        let own: Vec<Bound> = keys(*view)
+        let own: Vec<Bound> = keys(map, *view)
             .into_iter()
             .filter(|key| {
                 key.what != key.usual
@@ -78,7 +96,7 @@ pub fn workspace() -> String {
         places.push(place(&name(*view), &own));
     }
     for other in OTHERS {
-        places.push(place(&name(*other), &keys(*other)));
+        places.push(place(&name(*other), &keys(map, *other)));
         if *other == Context::Command {
             places.push(command_names());
         }
@@ -108,11 +126,11 @@ fn command_names() -> String {
     format!("{title}\n{underline}\n\n{intro}\n\n{}", entries.join("\n"))
 }
 
-/// The classic aliases of the `fzf` menu that the workspace keeps, one
-/// entry for each letter: `MOD+K`, or `Alt+K` where the menu binds the
-/// letter with `Ctrl` itself, as the help view says; then the letter's
-/// meaning in each view, and where a terminal sends the letter with `Ctrl`
-/// as another key.
+/// The classic aliases of the `fzf` menu that the workspace keeps, under
+/// their title and what holds for all of them, then one entry for each
+/// letter: `MOD+K`, or `Alt+K` where the menu binds the letter with `Ctrl`
+/// itself, as the help view says; then the letter's meaning in each view,
+/// and where a terminal sends the letter with `Ctrl` as another key.
 pub fn aliases() -> String {
     let entries: Vec<String> = CLASSIC
         .iter()
@@ -150,14 +168,16 @@ pub fn aliases() -> String {
             entry(&keys, &body)
         })
         .collect();
-    entries.join("\n")
+    let title = text!("manual-aliases");
+    let underline = "-".repeat(title.chars().count());
+    let intro = text!("manual-aliases-intro");
+    format!("{title}\n{underline}\n\n{intro}\n\n{}", entries.join("\n"))
 }
 
-/// The keys of `context` one by one, in the order of the help view, and
-/// the keys of a field that `input` reads; not those the menu does nothing
-/// with there ([`said`]).
-fn keys(context: Context) -> Vec<Bound> {
-    let map = Map::Workspace;
+/// The keys of `map` in `context` one by one, in the order of the help
+/// view, and the keys of a field that `input` reads; not those the menu
+/// does nothing with there ([`said`]).
+fn keys(map: Map, context: Context) -> Vec<Bound> {
     let mut keys: Vec<Bound> = map
         .table()
         .into_iter()

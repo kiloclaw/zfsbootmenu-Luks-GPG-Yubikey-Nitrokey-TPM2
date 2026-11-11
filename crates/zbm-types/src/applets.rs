@@ -81,4 +81,9 @@ pub const LINKED: &[Linked] = &[
         dir: "/bin",
         first: &["--trace"],
     },
+    Linked {
+        name: "help",
+        dir: "/bin",
+        first: &[],
+    },
 ];

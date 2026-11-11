@@ -3,7 +3,7 @@
 //! for `--help`, and the function that runs it.
 
 use crate::{
-    Applet, applets, chroot, console, console_font, debug, esp, explain, fonts, image, kexec,
+    Applet, applets, chroot, console, console_font, debug, esp, explain, fonts, help, image, kexec,
     layouts, lock, logs, luks, measure, menu, power, report, run_hooks, unlock, zfunc,
 };
 
@@ -401,6 +401,22 @@ unknown level or option.
     run: logs::run,
 };
 
+pub(crate) const HELP: Applet = Applet {
+    name: "help",
+    names: &[],
+    summary: "show the recovery shell's commands, the menu's keys or the command line's options",
+    usage: "\
+Usage: help [commands | keys | options]
+
+Shows the recovery shell's commands, each with its usage, the menu's keys,
+in the key map zbm.menu sets, or the kernel command line's options. Without
+a topic it shows the commands, then names the other topics. On a terminal it
+shows them in a pager, which q leaves; otherwise it prints them. The exit
+status is 1 when the topic cannot be shown, and 2 for an unknown topic.
+",
+    run: help::run,
+};
+
 /// The commands `zbm` provides.
 pub const APPLETS: &[Applet] = &[
     INIT,
@@ -429,6 +445,7 @@ pub const APPLETS: &[Applet] = &[
     ZKEXEC,
     MOUNT_ESP,
     LOGS,
+    HELP,
 ];
 
 #[cfg(test)]

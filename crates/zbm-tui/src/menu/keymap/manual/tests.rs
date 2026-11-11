@@ -20,9 +20,9 @@ const ALIASES: &str = "keys-aliases";
 fn place_of(text: &str, title: &str) -> String {
     let lines: Vec<&str> = text.lines().collect();
     let is_title = |line: usize| {
-        lines
-            .get(line + 1)
-            .is_some_and(|next| !next.is_empty() && next.chars().all(|c| c == '~'))
+        lines.get(line + 1).is_some_and(|next| {
+            !next.is_empty() && (next.chars().all(|c| c == '~') || next.chars().all(|c| c == '-'))
+        })
     };
     let start = (0..lines.len())
         .find(|line| lines[*line] == title && is_title(*line))
@@ -359,4 +359,31 @@ fn the_page_lists_every_command_name_with_what_it_does() {
     // After the keys of the command line, which say F1 lists them.
     let line = place_of(&text, &text!("manual-command-line"));
     assert!(line.contains("**F1**"), "{line}");
+}
+
+#[test]
+fn the_plain_keys_follow_the_map_without_markup() {
+    let plain = |map| zbm_config::docs::plain(&help_page(map));
+    let workspace = plain(Map::Workspace);
+    let classic = plain(Map::Classic);
+    // The workspace moves with `j`, the classic map does not.
+    let every = place_of(&workspace, "Every View");
+    assert!(every.starts_with("\nj, Down, Ctrl-N\n\n  Select the row below.\n"));
+    let every = place_of(&classic, "Every View");
+    assert!(every.contains("\nDown, Ctrl-N\n\n  Select the row below.\n"));
+    // The workspace's aliases follow its places; the classic map has none.
+    // Under the title and the intro the manual page has, from the same
+    // text: the serial line's advice too.
+    let aliases = place_of(&workspace, "Aliases of the fzf Menu");
+    assert!(aliases.starts_with(&format!(
+        "\n{}\n",
+        text!("manual-aliases-intro").replace("**", "")
+    )));
+    assert!(aliases.contains("On a serial line, Ctrl-S may not reach the menu"));
+    assert!(aliases.contains("\nMOD+K\n\n  Boot Environments: kernels.\n"));
+    assert!(!classic.contains("MOD+"));
+    for text in [workspace, classic] {
+        assert!(!text.contains("**"));
+        assert!(text.contains("\nThe Pager\n~~~~~~~~~"));
+    }
 }

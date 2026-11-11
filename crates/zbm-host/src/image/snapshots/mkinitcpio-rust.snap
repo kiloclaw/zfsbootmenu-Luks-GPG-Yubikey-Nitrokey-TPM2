@@ -151,6 +151,7 @@ link	/libexec/zbm	/bin/mount_esp
 link	/libexec/zbm	/bin/logs
 link	/libexec/zbm	/bin/zlogtail
 link	/libexec/zbm	/bin/ztrace
+link	/libexec/zbm	/bin/help
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-core.sh	/usr/share/zfsbootmenu/legacy/lib/zfsbootmenu-core.sh	-
 file	@/lib/zfsbootmenu-core.sh	/lib/zfsbootmenu-core.sh	0644
     | #!/bin/bash
@@ -993,6 +994,7 @@ file	@/lib/zfsbootmenu-kcl.sh	/lib/zfsbootmenu-kcl.sh	0644
 file	@/bin/zbm	/bin/zbm	0755
     | #!/bin/sh
     | case "${1:-}" in
+    |   -h|--help|--list|-V|--version) exec /libexec/zbm "$@" ;;
     |   ""|-*) exec /libexec/zbm zfsbootmenu "$@" ;;
     |   *) exec /libexec/zbm "$@" ;;
     | esac

@@ -17,6 +17,10 @@
 //!   terminal, exits 0, and prints the warning start-up logged at the
 //!   boot, for the import policy the command line names and start-up does
 //!   not know;
+//! - the shell's `zbm help`, through a pipe: it exits 0 and prints the
+//!   recovery shell's commands, `zfs-chroot` among them; and `zbm --help`
+//!   prints `zbm`'s usage, not the menu's, as `/bin/zbm` gives `zbm` its
+//!   own options;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
@@ -97,6 +101,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     tools_to_shell(test, &mut vm, Duration::from_secs(2))?;
     shell_tools(test, &mut vm)?;
     logs(test, &mut vm)?;
+    help(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
@@ -224,6 +229,38 @@ fn logs(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     test.check(
         said.lines().any(|line| line.trim() == BOOT_WARNING),
         "logs prints the warning start-up logged at the boot",
+    );
+    Ok(())
+}
+
+/// `zbm help` through a pipe, which shows its own exit status.
+const HELP_PIPED: &str = "{ zbm help; echo HELP-STATUS=$?; } | cat";
+
+/// The first line of `zbm`'s usage.
+const ZBM_USAGE: &str = "Usage: zbm <command> [arguments]";
+
+/// Runs `zbm help` through a pipe, which must exit 0 and list the
+/// recovery shell's commands, then `zbm --help`, which must print `zbm`'s
+/// usage.
+///
+/// # Errors
+///
+/// When a command does not end in time.
+fn help(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("zbm help | cat: the recovery shell's commands, without a terminal");
+    let (_, said) = vm.sh_show(HELP_PIPED)?;
+    test.check(
+        said.lines().any(|line| line.trim() == "HELP-STATUS=0"),
+        "zbm help exits 0 through a pipe",
+    );
+    test.check(
+        said.lines().any(|line| line.trim() == "zfs-chroot"),
+        "zbm help lists zfs-chroot",
+    );
+    let (code, said) = vm.sh_show("zbm --help")?;
+    test.check(
+        code == 0 && said.lines().any(|line| line.trim() == ZBM_USAGE),
+        &format!("zbm --help prints zbm's usage, not the menu's ({code})"),
     );
     Ok(())
 }

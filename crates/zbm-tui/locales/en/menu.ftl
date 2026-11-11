@@ -406,6 +406,8 @@ manual-fields = Fields That Take Text
 manual-command-line = The Command Line
 manual-command-names = Command Names
 manual-command-names-intro = The command line finds a command by its name, in the menu's language or in English, then by the name of what it acts on: an environment, a snapshot, a kernel, a pool, a volume or a view. Tab completes the selected entry's command and target, and F1 lists the names.
+manual-aliases = Aliases of the fzf Menu
+manual-aliases-intro = The workspace keeps the keys of the earlier menu, built on fzf: **MOD** and a letter, where **MOD** is Alt or Ctrl, with its meaning in the view where it had one. Where the menu binds the letter with Ctrl itself, the alias works with Alt only. On a serial line, Ctrl-S may not reach the menu (flow control): use Alt. Where a terminal sends the letter with Ctrl as another key, as Ctrl-J, its entry says so. The aliases do not work on start-up's view.
 # A classic binding of the fzf menu that works with Alt only: its Ctrl form
 # is a key of the menu, as Ctrl-P is Select.
 manual-alt-only = Alt only: { $key } is { $action }.

@@ -176,3 +176,46 @@ fn the_manual_pages_are_up_to_date() {
         );
     }
 }
+
+#[test]
+fn plain_text_has_no_markup() {
+    for section in SECTIONS {
+        let text = section.render_plain();
+        assert!(!text.is_empty(), "{}", section.name);
+        for line in text.lines() {
+            assert!(
+                !line.contains("**") && !line.contains('`') && !line.contains("\\ "),
+                "{}: {line}",
+                section.name
+            );
+            assert!(
+                !line.trim_start().starts_with(".. "),
+                "{}: {line}",
+                section.name
+            );
+        }
+    }
+    let rst = "**zbm.skip**\n\n  Skip *it*: ``a *b*``, *\\*.gpg* or **--perf-**\\ *flag*.\n\n  \
+               .. note::\n\n    Look.\n\n    .. code-block::\n\n      echo **0** > x\n\n      \
+               y\n\n  After.\n";
+    assert_eq!(
+        plain(rst),
+        "zbm.skip\n\n  Skip it: a *b*, *.gpg or --perf-flag.\n\n  Note:\n\n    Look.\n\n      \
+         echo **0** > x\n\n      y\n\n  After.\n"
+    );
+}
+
+#[test]
+fn doc_links_keep_their_title() {
+    assert_eq!(
+        plain("see :doc:`zfsbootmenu-luks(7) </man/zfsbootmenu-luks.7>` and :manpage:`mount(8)`."),
+        "see zfsbootmenu-luks(7) and mount(8)."
+    );
+    let cmdline = SECTIONS
+        .iter()
+        .find(|section| section.name == "cmdline")
+        .unwrap()
+        .render_plain();
+    assert!(cmdline.contains("see zfsbootmenu-luks(7)."), "{cmdline}");
+    assert!(cmdline.contains("recognized by mount(8)"), "{cmdline}");
+}

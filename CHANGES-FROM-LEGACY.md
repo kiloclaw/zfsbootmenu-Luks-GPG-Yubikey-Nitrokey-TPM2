@@ -906,9 +906,11 @@ The log since start-up, and the boots saved before: the log view of the classic 
 
 ### `zbm` with a command
 
-- **Before:** `zbm` was the menu's other name.
+- **Before:** `zbm` was the menu's other name, and ignored its arguments: `zbm --help` opened the menu.
 - **Now:** it still is, and `zbm <command>` runs that command of the Rust program (`zbm debug crash`, `zbm report`),
-  as the messages of the runtime say.
+  as the messages of the runtime say. The program's own options are its own: `zbm -h` and `zbm --help` print its
+  usage, `zbm --list` lists its commands and `zbm -V` and `zbm --version` print its version; any other option goes to
+  the menu, as before.
 
 ### `fzf`
 
@@ -1008,6 +1010,21 @@ scripts.
   the errors, keep that number too, so the errors they showed are not shown again at a prompt. Two records never share a number, where several
   share a second.
 - **Why:** ADR 0018, point 13; the threat model's P13.
+
+### `zbm help` lists the commands, the keys and the options
+
+- **Before:** the shell's `help`, an alias, opened the help pages in `fzf`: `.ansi` renderings of the documentation,
+  with a page of the recovery shell's commands written by hand. There was no `/bin/help`.
+- **Now:** `zbm help [TOPIC]` shows text from the tables the man page is written from:
+  `commands`, each command of the recovery shell with its usage, the six functions of the shell library the shell
+  offers and a line that points to `zbm --list`; `keys`, the menu's keys in the key map that `zbm.menu` sets; and
+  `options`, the kernel command line's options. Without a topic it shows the commands, then names the other topics;
+  an unknown topic is a usage error (exit status 2). On a terminal it shows the topic in the pager, which `q` leaves;
+  through a pipe, or with `TERM=dumb`, it prints its lines as plain text, and a reader that stops early, as `head`,
+  ends it with exit status 0. The image links `/bin/help` to it too, but Bash runs its alias `help`, or else its
+  own builtin `help`, before any program: the link runs only by that path, and the shell's `help` still opens the
+  help pages.
+- **Why:** ADR 0018, points 14 and 16: one source for the help, the man page and the code.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

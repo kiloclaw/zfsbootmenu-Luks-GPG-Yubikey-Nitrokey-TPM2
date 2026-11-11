@@ -72,24 +72,24 @@ pub struct Pager {
 const FALLBACK_SIZE: (u16, u16) = (80, 24);
 
 /// Shows `pager` on the terminal, its keys read with the key map `map`,
-/// until it is left; or prints its lines where standard input or output is
-/// no terminal, or `TERM` is empty or `dumb`. The rest of a key's sequence may
-/// take as long as on a serial console, as the shell may be reached
-/// through one, or through SSH.
+/// until it is left; or prints its lines to `out`, the caller's standard
+/// output, where standard input or output is no terminal, or `TERM` is
+/// empty or `dumb`. The rest of a key's sequence may take as long as on a
+/// serial console, as the shell may be reached through one, or through
+/// SSH.
 ///
 /// # Errors
 ///
 /// When the terminal cannot be set up, read or drawn on, or the lines
 /// cannot be written.
-pub fn show(pager: &Pager, map: Map) -> io::Result<()> {
+pub fn show(pager: &Pager, map: Map, out: &mut dyn Write) -> io::Result<()> {
     let capabilities = Capabilities::detect(|name| ProcessEnvironment.var(name));
-    let stdout = io::stdout();
     if !is_drawn(
         capabilities,
         io::stdin().is_terminal(),
-        stdout.is_terminal(),
+        io::stdout().is_terminal(),
     ) {
-        return print(pager, &mut stdout.lock());
+        return print(pager, out);
     }
     let size = terminal::size(FALLBACK_SIZE);
     let mut frontend = terminal::on_terminal(size, SERIAL_ESCAPE_WAIT)?;

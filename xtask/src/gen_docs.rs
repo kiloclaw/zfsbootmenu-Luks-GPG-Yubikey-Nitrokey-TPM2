@@ -1,12 +1,14 @@
 //! `cargo xtask gen-docs`: the option sections of the manual pages, written
-//! from the table of options in `zbm-config` (`zbm_config::spec`), and the
-//! key section of zfsbootmenu(7), written from the key map in `zbm-tui`
-//! (`zbm_tui::menu::keymap::manual`).
+//! from the table of options in `zbm-config` (`zbm_config::spec`), the key
+//! section of zfsbootmenu(7), written from the key map in `zbm-tui`
+//! (`zbm_tui::menu::keymap::manual`), and the recovery shell's commands in
+//! zfsbootmenu(7), written from the table of applets in `zbm`
+//! (`zbm::shell_commands`).
 //!
-//! The work is done by the examples `gen_docs` of `zbm-config` and
-//! `gen_keys` of `zbm-tui`, which this runs in that order: developer tools
-//! depend on no crate of the workspace, so that they still run when one of
-//! those does not build.
+//! The work is done by the examples `gen_docs` of `zbm-config`, `gen_keys`
+//! of `zbm-tui` and `gen_commands` of `zbm`, which this runs in that
+//! order: developer tools depend on no crate of the workspace, so that they
+//! still run when one of those does not build.
 
 use std::path::Path;
 
@@ -14,7 +16,11 @@ use crate::error::Result;
 use crate::process::Program;
 
 /// The examples that write the generated sections: (package, example).
-const EXAMPLES: [(&str, &str); 2] = [("zbm-config", "gen_docs"), ("zbm-tui", "gen_keys")];
+const EXAMPLES: [(&str, &str); 3] = [
+    ("zbm-config", "gen_docs"),
+    ("zbm-tui", "gen_keys"),
+    ("zbm", "gen_commands"),
+];
 
 /// The command line of the example `example` of `package`, for `root` and
 /// `check`.
@@ -82,6 +88,7 @@ mod tests {
             [
                 "run --quiet --locked -p zbm-config --example gen_docs -- /repo --check",
                 "run --quiet --locked -p zbm-tui --example gen_keys -- /repo --check",
+                "run --quiet --locked -p zbm --example gen_commands -- /repo --check",
             ]
         );
         let written = arguments(Path::new("/repo"), "zbm-tui", "gen_keys", false);
@@ -97,7 +104,14 @@ mod tests {
                 command: example.to_owned(),
             })
         });
-        assert_eq!(ran, ["zbm-config gen_docs", "zbm-tui gen_keys"]);
+        assert_eq!(
+            ran,
+            [
+                "zbm-config gen_docs",
+                "zbm-tui gen_keys",
+                "zbm gen_commands"
+            ]
+        );
         assert!(matches!(
             result,
             Err(crate::error::Error::Failed { command }) if command == "gen_docs"

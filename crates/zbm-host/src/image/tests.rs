@@ -369,6 +369,39 @@ fn term_after_profile(settings: &str, term: &str) -> String {
     String::from_utf8(output.stdout).unwrap()
 }
 
+/// What `/bin/zbm` of a Rust plan runs for `args`: the arguments it gives
+/// `/libexec/zbm`, run by `sh`.
+fn bin_zbm_runs(args: &[&str]) -> String {
+    let (files, runner) = (host_files(), host_runner());
+    let plan = plan_of(
+        Builder::Dracut,
+        "zfsbootmenu_runtime\trust\n",
+        &files,
+        &runner,
+    )
+    .unwrap();
+    let script = String::from_utf8_lossy(plan.written(Path::new("/bin/zbm")).unwrap())
+        .replace("exec /libexec/zbm", "echo");
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .arg("zbm")
+        .args(args)
+        .output()
+        .unwrap();
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn bin_zbm_gives_zbm_its_own_options_and_the_menu_the_others() {
+    for option in ["-h", "--help", "--list", "-V", "--version"] {
+        assert_eq!(bin_zbm_runs(&[option]), format!("{option}\n"));
+    }
+    assert_eq!(bin_zbm_runs(&[]), "zfsbootmenu\n");
+    assert_eq!(bin_zbm_runs(&["-x"]), "zfsbootmenu -x\n");
+    assert_eq!(bin_zbm_runs(&["help", "keys"]), "help keys\n");
+}
+
 #[test]
 fn the_rust_profile_keeps_a_dumb_terminal_for_the_line_view() {
     let rust = "zfsbootmenu_runtime\trust\n";

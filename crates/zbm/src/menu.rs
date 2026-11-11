@@ -59,22 +59,29 @@ pub(crate) fn menu_wanted(
     conf: &Conf,
     capabilities: Capabilities,
 ) -> (bool, Map) {
+    let (asked, map) = menu_asked(system, conf);
+    let speakup = system.files.exists(Path::new(SPEAKUP));
+    (
+        lines::is_wanted(asked, capabilities.interactive, speakup),
+        map,
+    )
+}
+
+/// What `zbm.menu` of this boot's command line on `system` asks for:
+/// whether the line view, when it says (`lines` or `screen`), and the key
+/// map, the classic one with `classic`, else the default one.
+pub(crate) fn menu_asked(system: &System<'_>, conf: &Conf) -> (Option<bool>, Map) {
     let base = preinit::base(conf);
     let kcl = system
         .files
         .read_to_string(&base.join("zbm.cmdline"))
         .unwrap_or_default();
     let view = ZbmArgs::from_cmdline(&kcl).lookup(&MENU, &mut Vec::new());
-    let (asked, map) = match view.as_deref() {
+    match view.as_deref() {
         None => (None, Map::default()),
         Some("classic") => (None, Map::Classic),
         Some(view) => (Some(view == "lines"), Map::default()),
-    };
-    let speakup = system.files.exists(Path::new(SPEAKUP));
-    (
-        lines::is_wanted(asked, capabilities.interactive, speakup),
-        map,
-    )
+    }
 }
 
 /// Runs the menu on a machine until it ends; why it ended.

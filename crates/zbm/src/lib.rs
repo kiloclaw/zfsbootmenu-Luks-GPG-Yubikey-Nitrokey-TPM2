@@ -18,9 +18,11 @@ pub mod debug;
 mod esp;
 pub mod explain;
 pub mod fonts;
+mod help;
 pub mod image;
 mod kexec;
 pub mod layouts;
+mod library_usage;
 pub mod lock;
 mod logs;
 pub mod luks;
@@ -195,6 +197,16 @@ pub fn applet_name(argv0: &str, args: &[String]) -> String {
     applet_name_in(APPLETS, argv0, args)
 }
 
+/// The recovery shell's commands as the man page's "The Recovery Shell"
+/// lists them, in reStructuredText: each name an image of the Rust runtime
+/// links to `zbm`, with its applet's summary and usage, then the functions
+/// of the shell library the shell offers. `cargo xtask gen-docs` writes it
+/// through the example `gen_commands`; `zbm help commands` shows it as
+/// plain text.
+pub fn shell_commands() -> String {
+    help::commands()
+}
+
 /// Runs `zbm` with its own commands.
 pub fn run(argv0: &str, args: &[String], io: &mut Io) -> i32 {
     run_with(APPLETS, argv0, args, io)
@@ -367,6 +379,7 @@ mod tests {
             "zkexec",
             "mount_esp",
             "logs",
+            "help",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);
