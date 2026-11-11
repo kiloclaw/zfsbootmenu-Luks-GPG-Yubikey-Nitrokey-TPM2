@@ -429,6 +429,7 @@ Following a boot
   value enrolled; with another hook of the same name, the hook runs but the passphrase must be asked.
   ``locked`` (ADR 0010) boots an integrity image locked with a PIN (``zfsbootmenu_lock_hash``) twice with the TPM. With
   ``zbm.prefer=tauto``, the default boot must ask nothing. With ``zbm.prefer=tplain``, which waits in the menu, the
+  toolbar must mark the edit of the command line with the PIN (``Edit PIN``) before any PIN is typed, the
   recovery shell must ask for the PIN, refuse a wrong one, and open with the right one after a delay of a second at
   least; once it ended, booting ``tauto``'s environment, which is not the default, must ask for the PIN again, on the
   console, and boot once it is typed.
@@ -788,10 +789,65 @@ B5, many snapshots, in process
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``cargo run --release -p zbm-tui --example snapshots -- --runs 20`` gives the demo machine 100, 1,000 and 10,000
-snapshots on its default environment and draws the menu in memory at 120×40 and 80×24, in each key map. Each run
-opens the snapshots, scrolls ten pages, sorts, folds and unfolds (the workspace's ``z``), types a filter of six keys,
-opens the palette and types seven keys in it; every time includes the frame the key draws. Without ``--runs`` it
-makes five runs. The VM half of B5, a pool of 10,000 snapshots built by a VM test, is VE6's.
+snapshots on its default environment and draws the menu in memory at 120×40 and 80×24, in each key map, and in the
+workspace once more locked (``DemoOptions::menu_locked``), its entries marked. Each run opens the snapshots, scrolls
+ten pages, sorts, folds and unfolds (the workspace's ``z``), types a filter of six keys, opens the command line and
+types seven keys in it. In the workspace it then opens a dry run: ``:``, ``export`` and ``Enter`` once, then ``:`` and
+``Enter`` on that entry, now the first of the history; the time from ``:`` to the plan drawn is the second's, two keys
+and their frames, and the demo machine counts the plans it made, so the run stops if no plan was drawn. Last, ``:`` and
+``Ctrl-R`` show the history alone, the query empty, and ``Ctrl-R`` hides it: the history holds the export in the
+workspace, and the run stops if it shows another count. Every time includes the frame the key draws.
+Without ``--runs`` it makes five runs. The VM half of B5, a pool of 10,000 snapshots built by a VM test, is VE6's.
+
+Measured on 11 November 2026 on a cloud machine (Intel Xeon Processor at 2.3 GHz, four processors), with UI14's
+command line (UI14-8, on ``76088926``) and before UI14-3, at ``09302339`` (UI14-3a, which moved the palette's code and
+changed nothing else). At 10,000 snapshots, median and worst of 20 runs, in milliseconds, with UI14:
+
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+Menu, size           Snapshots open  Filter key   Page down    Sort         Fold         Palette opened  Palette key
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+Workspace, 120×40    3.32 / 5.46     0.85 / 2.79  0.26 / 0.50  0.52 / 0.83  0.48 / 0.80  3.44 / 5.98     0.96 / 3.55
+Workspace, 80×24     3.12 / 5.11     0.71 / 2.61  0.14 / 0.27  0.38 / 0.73  0.32 / 0.62  3.28 / 5.37     0.84 / 3.00
+Locked, 120×40       3.44 / 5.80     0.89 / 3.05  0.26 / 0.54  0.55 / 0.89  0.50 / 0.91  3.62 / 7.50     1.01 / 3.20
+Locked, 80×24        3.30 / 5.74     0.75 / 2.97  0.14 / 0.28  0.39 / 0.59  0.36 / 0.58  3.60 / 5.80     0.96 / 3.06
+Classic, 120×40      3.17 / 7.23     1.05 / 2.74  0.25 / 0.57  0.58 / 1.16  --           3.86 / 6.14     1.09 / 3.04
+Classic, 80×24       2.67 / 2.83     0.73 / 1.57  0.11 / 0.27  0.36 / 0.39  --           3.37 / 6.25     0.83 / 1.88
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+
+and before UI14-3:
+
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+Menu, size           Snapshots open  Filter key   Page down    Sort         Fold         Palette opened  Palette key
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+Workspace, 120×40    3.46 / 6.01     0.95 / 3.34  0.26 / 0.58  0.57 / 0.90  0.52 / 0.84  3.39 / 6.53     1.05 / 3.53
+Workspace, 80×24     3.04 / 3.19     0.70 / 2.29  0.14 / 0.19  0.36 / 0.43  0.34 / 0.45  3.06 / 4.57     0.81 / 2.40
+Classic, 120×40      2.72 / 6.81     0.92 / 2.80  0.24 / 0.53  0.52 / 0.77  --           3.17 / 5.12     0.84 / 2.77
+Classic, 80×24       2.57 / 4.19     0.75 / 2.49  0.11 / 0.23  0.33 / 0.54  --           3.39 / 5.10     0.78 / 2.73
+===================  ==============  ===========  ===========  ===========  ===========  ==============  ===========
+
+The new measures, with UI14 (the classic map has no dry run, and its history is empty). The ``Ctrl-R`` column is of a
+later run, made once the history it shows held the export (until then it showed the history filtered by a query that
+matched nothing); the other columns' keys were unchanged:
+
+===================  ===========  ==============
+Menu, size           Ctrl-R       Dry run opened
+===================  ===========  ==============
+Workspace, 120×40    0.44 / 0.56  4.45 / 7.33
+Workspace, 80×24     0.33 / 0.43  4.18 / 6.19
+Locked, 120×40       0.43 / 0.59  4.56 / 9.09
+Locked, 80×24        0.35 / 0.73  4.55 / 6.94
+Classic, 120×40      0.38 / 0.48  --
+Classic, 80×24       0.30 / 0.55  --
+===================  ===========  ==============
+
+No key is near a frame: the worst is 7.50 ms, the locked command line opening at 120×40, and the dry run, two keys and
+their frames, takes 9.09 ms at worst. No column is worse than before UI14-3 beyond what the machine varies: a second
+pair of runs moved the medians by up to 0.8 ms and the worst by up to 3.5 ms either way, and the largest rise above, the
+classic command line opening at 120×40 (3.17 to 3.86 ms median), was 3.34 to 3.26 ms in the second pair. The locked
+command line, its entries marked, opened 0.1 to 1 ms later than the unlocked one in the two pairs. Five later runs of
+the same code, made for the ``Ctrl-R`` column, put the median of each command line opening between 3.1 and 4.9 ms; their
+worst key took 7.92 ms and their worst dry run 9.34 ms. The peak memory was 20 to 22 MB, against 20 MB before; each run
+now also opens the dry run and the history.
 
 Measured on 8 November 2026 on a cloud machine (Intel Xeon Processor at 2.1 GHz, four processors), at ``fcd6db51``
 with UI10e-4's change, which makes a palette entry's name dialog only once the entry is chosen. At 10,000 snapshots,

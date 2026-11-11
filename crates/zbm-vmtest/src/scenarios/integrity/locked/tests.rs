@@ -8,6 +8,7 @@ fn the_shell_and_another_boot_ask_for_the_pin_of_the_locked_menu() {
     let settings = settings("integrity-locked-menu");
     let test = Test::new(&settings, "integrity-locked").unwrap();
     let script = vec![
+        Step::Say("\x1b[2J\x1b[1;1H BOOT ENVIRONMENTS \r\n Enter Boot   e Edit PIN \r\n"),
         Step::Keys("!"),
         Step::Keys("\r"),
         Step::Say(
@@ -33,6 +34,7 @@ fn the_shell_and_another_boot_ask_for_the_pin_of_the_locked_menu() {
     ];
     let (mut vm, guest) = scripted(&test, script);
 
+    marked(&test, &mut vm);
     shell_behind_the_pin(&test, &mut vm).unwrap();
     test.check(
         vm.expect1(LOCKED_ACTION, 0).is_err(),
@@ -43,7 +45,7 @@ fn the_shell_and_another_boot_ask_for_the_pin_of_the_locked_menu() {
     assert_eq!(guest.finish(), Vec::<String>::new());
     let found = checks(&test);
     cleanup(&settings);
-    assert_eq!(found.len(), 6, "{found:#?}");
+    assert_eq!(found.len(), 7, "{found:#?}");
     assert!(
         found.iter().all(|line| line.starts_with("ok")),
         "{found:#?}"

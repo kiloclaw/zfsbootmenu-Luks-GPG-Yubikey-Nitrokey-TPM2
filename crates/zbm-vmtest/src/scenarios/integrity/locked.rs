@@ -4,7 +4,8 @@
 //!
 //! - with `zbm.prefer=tauto`: the default boot needs nothing, the lock
 //!   notwithstanding, and `tauto`'s boot environment boots by itself;
-//! - with `zbm.prefer=tplain`, which waits in the menu: the recovery shell
+//! - with `zbm.prefer=tplain`, which waits in the menu: the toolbar marks
+//!   what the lock keeps with the PIN (ADR 0010); the recovery shell
 //!   asks for the PIN, refuses a wrong one, opens with the right one after
 //!   the delay a wrong one adds; once it ended, the menu is locked again:
 //!   booting `tauto`'s environment, which is not the default, asks for the
@@ -35,6 +36,9 @@ const LOCKED_ACTION: &str = "This ZFSBootMenu is locked. PIN";
 /// The prompt of the PIN, after which it is typed.
 const PIN_PROMPT: &str = "PIN: ";
 
+/// The toolbar's edit of the command line, which the lock keeps, marked.
+const LOCK_MARK: &str = r"screen:Edit PIN";
+
 /// The scenario.
 ///
 /// # Errors
@@ -64,6 +68,7 @@ pub fn run(test: &Test) -> Result<()> {
         &image,
     )?;
     vm.expect1(prompt::NEW_MENU, 1200)?;
+    marked(test, &mut vm);
     shell_behind_the_pin(test, &mut vm)?;
     let boot = boot_behind_the_pin(test, &mut vm)?;
     check_be(test, &boot, "tauto", &["tauto"], &[]);
@@ -75,6 +80,16 @@ pub(super) fn check_default(test: &Test, boot: &Boot, log: &str) {
     test.check(
         !log.contains(LOCKED_ACTION) && !boot.has_prompt("luks"),
         "the locked image boots its default by itself, nothing asked",
+    );
+}
+
+/// The locked menu marks on its toolbar what the PIN keeps, before any
+/// PIN is typed: the edit of the command line.
+pub(super) fn marked(test: &Test, vm: &mut Vm<'_>) {
+    let marked = vm.expect1(LOCK_MARK, 60).is_ok();
+    test.check(
+        marked,
+        "the locked menu's toolbar marks the edit with the PIN",
     );
 }
 

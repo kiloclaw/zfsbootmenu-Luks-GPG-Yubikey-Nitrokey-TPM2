@@ -95,6 +95,11 @@ impl<M: Machine> Session<M> {
         self.model.take().unwrap_or_else(|| unreachable!())
     }
 
+    /// The machine the menu runs on.
+    pub(crate) fn machine(&self) -> &M {
+        &self.machine
+    }
+
     fn step(&mut self, message: Message) {
         let Some(model) = self.model.take() else {
             return;

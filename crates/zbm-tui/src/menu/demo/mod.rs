@@ -113,6 +113,8 @@ pub struct FakeMachine {
     lists: snapshots::Lists,
     /// The boot history.
     history: History,
+    /// The plans made: the dry runs and review pages the menu opened.
+    plans: usize,
 }
 
 impl FakeMachine {
@@ -127,7 +129,14 @@ impl FakeMachine {
             exported: data::exported(options),
             lists: snapshots::Lists::new(data::snapshots(options)),
             history: history::history(options),
+            plans: 0,
         }
+    }
+
+    /// How many plans the machine made: one for each dry run and review
+    /// page the menu opened, and each it planned again.
+    pub fn planned(&self) -> usize {
+        self.plans
     }
 
     /// The machine as it is now.
@@ -246,7 +255,10 @@ impl FakeMachine {
                 packages: Some(health::packages()),
             }],
             Action::Reseal(volume) => self.reseal(&volume),
-            Action::Plan(action) => vec![review::planned(&self.snapshot, &self.lists, *action)],
+            Action::Plan(action) => {
+                self.plans = self.plans.saturating_add(1);
+                vec![review::planned(&self.snapshot, &self.lists, *action)]
+            }
             Action::RestoreFiles { snapshot, paths } => self.restore(&snapshot, paths),
             other => storage::apply(&mut self.snapshot, &mut self.lists, other),
         }

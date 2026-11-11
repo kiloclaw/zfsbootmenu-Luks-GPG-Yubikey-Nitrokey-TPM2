@@ -17,6 +17,12 @@ impl Session<FakeMachine> {
         };
         Session::on(FakeMachine::new(options), theme, map)
     }
+
+    /// How many plans the demo machine made: one for each dry run and
+    /// review page the menu opened, and each it planned again.
+    pub fn planned(&self) -> usize {
+        self.machine().planned()
+    }
 }
 
 impl Machine for FakeMachine {

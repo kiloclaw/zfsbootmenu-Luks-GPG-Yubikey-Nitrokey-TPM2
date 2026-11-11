@@ -1,8 +1,9 @@
 //! The review pages of a rollback, a destroy, a rewind and a forced import
-//! with the names the input gives.
+//! with the names the input gives, with their field and without it, as a
+//! dry run shows them; and the dry runs the palette opens.
 
 use zbm_display::keys::{Key, KeyPress};
-use zbm_tui::menu::model::{Model, Then};
+use zbm_tui::menu::model::{Dialog, Model, Then};
 use zbm_tui::menu::update::follow;
 use zbm_tui::menu::world::{
     Access, Action, Event, ImportOptions, Keep, Loss, Outcome, Plan, PoolHost, PoolUse, Review,
@@ -223,7 +224,8 @@ fn reviewed(
 /// The review pages of a rollback, a destroy, a rewind and a forced import
 /// with the names the input gives: each while it is planned, then with a
 /// plan the input names refused and not, typed in, scrolled, its focus
-/// moved, drawn and said; then closed.
+/// moved, drawn and said; then closed. Each again without its field, as a
+/// dry run shows it, with the same plans, its focus moved.
 pub fn review_pages(
     mut model: Model,
     next: &mut impl FnMut() -> Untrusted<String>,
@@ -233,20 +235,96 @@ pub fn review_pages(
         return model;
     };
     for action in actions {
-        let _ = follow(&mut model, Then::Review(action.clone()));
-        check_page(&model, size);
-        for refused in [false, true] {
-            let planned = Event::Planned {
-                action: Box::new(action.clone()),
-                plan: hostile_plan(next, &action, &target, refused),
-            };
-            model = update(model, Message::Event(Box::new(planned))).0;
-            for key in [Key::Char('x'), Key::PageDown, Key::Tab, Key::Tab] {
-                check_page(&model, size);
-                model = update(model, Message::Key(KeyPress::new(key))).0;
+        let mut plans = Vec::new();
+        for has_field in [true, false] {
+            let _ = follow(&mut model, Then::Review(action.clone()));
+            if !has_field && let Some(Dialog::Review(page)) = &mut model.dialog {
+                page.typed = None;
+                page.name.clear();
             }
+            check_page(&model, size);
+            for refused in [false, true] {
+                if has_field {
+                    plans.push(hostile_plan(next, &action, &target, refused));
+                }
+                let plan = plans.get(usize::from(refused)).cloned();
+                let keys: &[Key] = if has_field {
+                    &[Key::Char('x'), Key::PageDown, Key::Tab, Key::Tab]
+                } else {
+                    &[Key::Char('x'), Key::Tab]
+                };
+                model = planned(model, &action, plan, keys, size);
+            }
+            model = update(model, Message::Key(KeyPress::new(Key::Escape))).0;
         }
-        model = update(model, Message::Key(KeyPress::new(Key::Escape))).0;
     }
     model
+}
+
+/// `model` once the machine sent `plan` of `action`, drawn and said before
+/// each of `keys` is pressed.
+fn planned(
+    mut model: Model,
+    action: &Action,
+    plan: Option<Plan>,
+    keys: &[Key],
+    size: (u16, u16),
+) -> Model {
+    if let Some(plan) = plan {
+        let planned = Event::Planned {
+            action: Box::new(action.clone()),
+            plan,
+        };
+        model = update(model, Message::Event(Box::new(planned))).0;
+    }
+    for key in keys {
+        check_page(&model, size);
+        model = update(model, Message::Key(KeyPress::new(*key))).0;
+    }
+    model
+}
+
+/// The dry run or review page open in `model`, if one is, as the palette
+/// opened it: a plan of its change with the names the input gives,
+/// scrolled, its focus moved, drawn and said; then closed. A refused
+/// plan's page without the field is [`review_pages`]'.
+pub fn dry_run(
+    model: Model,
+    next: &mut impl FnMut() -> Untrusted<String>,
+    size: (u16, u16),
+) -> Model {
+    let Some(Dialog::Review(page)) = &model.dialog else {
+        return model;
+    };
+    let action = page.action.clone();
+    let Some(target) = target_of(&model, &action, next) else {
+        return model;
+    };
+    let plan = hostile_plan(next, &action, &target, false);
+    let model = planned(model, &action, Some(plan), &[Key::PageDown, Key::Tab], size);
+    update(model, Message::Key(KeyPress::new(Key::Escape))).0
+}
+
+/// The snapshot a plan of `action` names: the one it rolls back to or
+/// destroys first; else one the input names, of the focused environment
+/// or the first.
+fn target_of(
+    model: &Model,
+    action: &Action,
+    next: &mut impl FnMut() -> Untrusted<String>,
+) -> Option<SnapshotName> {
+    match action {
+        Action::Rollback(target) => return Some(target.clone()),
+        Action::Destroy(targets) => return targets.first().cloned(),
+        _ => {}
+    }
+    let first = model.snapshot.environments.first();
+    let environment = model
+        .focus
+        .clone()
+        .or_else(|| first.map(|e| e.name.clone()))?;
+    let named = format!("{environment}@{}", next().get()).parse();
+    named
+        .or_else(|_| format!("{environment}@target").parse::<SnapshotName>())
+        .ok()
 }

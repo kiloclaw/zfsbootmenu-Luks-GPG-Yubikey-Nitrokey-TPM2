@@ -144,6 +144,7 @@ fn enter_on_a_planned_dry_run_runs_the_change_once() {
     let reviewing = page(session.model());
     assert!(reviewing.plan.is_some(), "the demo plans at once");
     assert!(reviewing.is_ready());
+    assert_eq!(session.planned(), 1);
     // The plan only reads: nothing is recorded as sent.
     assert_eq!(session.actions, []);
     let export = reviewing.action.clone();

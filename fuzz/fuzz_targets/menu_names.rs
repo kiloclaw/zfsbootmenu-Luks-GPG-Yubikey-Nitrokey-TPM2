@@ -13,8 +13,9 @@
 //! with a stage that failed for a reason the input gives, and its Log tab
 //! while start-up runs; the Snapshots tab's timeline of the snapshots the
 //! input names, a group folded; the review pages of a rollback, a destroy,
-//! a rewind and a forced import (`reviews`); and the Pools tab's tree and a
-//! device's kernel messages (`pools`).
+//! a rewind and a forced import, with their field and without it, as a dry
+//! run shows them (`reviews`); and the Pools tab's tree and a device's
+//! kernel messages (`pools`).
 //!
 //! The first byte picks the size, 52×20, 80×25, 132×43 or 80×24, the
 //! theme, in colour or ASCII, and one group more, drawn in both key maps
@@ -32,7 +33,12 @@
 //!   actions end, failures included;
 //! - `sheets`: the choices of a snapshot, of each pool and of the power,
 //!   every choice followed: the classic confirmations, the names asked
-//!   for, and the palette.
+//!   for; then the palette: its history (`Ctrl-R`) and `Tab`, the first
+//!   entry of each section and of each kind followed into its dry run,
+//!   whose plan the input names, the save editor of the machine's
+//!   command line and of lines the machine refuses, and the palette of
+//!   the locked menu, its marks drawn, and a dry run under the lock, its
+//!   button marked.
 //!
 //! Drawing may not panic, and no cell may hold a character that acts on a
 //! terminal, nor any line the line view says.
