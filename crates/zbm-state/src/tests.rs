@@ -115,6 +115,20 @@ fn markers_and_locks() {
 }
 
 #[test]
+fn the_stamp_is_read_back_and_missing_without_one() {
+    let files = FakeFiles::new();
+    files.dir(BASE);
+    let state = State::new(&files, BASE);
+    assert_eq!(state.errors_since(), None);
+    state.set_errors_since(1234).unwrap();
+    assert_eq!(files.text("/zfsbootmenu/errors_since").unwrap(), "1234\n");
+    assert_eq!(state.errors_since(), Some(1234));
+    // The legacy runtime's stamp is a time, which is no record's number.
+    files.file("/zfsbootmenu/errors_since", "2026-11-11T10:00:00");
+    assert_eq!(state.errors_since(), None);
+}
+
+#[test]
 fn bootfs_and_host_id() {
     let files = FakeFiles::new();
     files.dir(BASE);
@@ -218,7 +232,6 @@ fn layout() {
         path("/zfsbootmenu/.keys/tank/keys")
     );
     assert_eq!(state.external_hooks(), path("/zfsbootmenu/.external_hooks"));
-    assert_eq!(state.errors_since(), path("/zfsbootmenu/errors_since"));
     assert_eq!(state.luks_mappings(), path("/zfsbootmenu/luks-mappings"));
     assert_eq!(state.luks_skipped(), path("/zfsbootmenu/luks-skipped"));
     assert_eq!(

@@ -14,7 +14,8 @@ use std::path::Path;
 use zbm_platform::Files as _;
 use zbm_platform::dmesg::{
     Record, device_lines, filter_raw, filtered_command, format_records, is_about, kernel_log,
-    names, raw_prefixes, read_logs, read_logs_with_dmesg, records, strip_timestamps,
+    levels, names, raw_prefixes, read_after, read_logs, read_logs_with_dmesg, records,
+    strip_timestamps,
 };
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 use zbm_testkit::{FakeRunner, TempDir, parity};
@@ -175,6 +176,7 @@ fn records_are_read_from_kmsg_with_their_escapes_undone() {
         Record {
             facility: 1,
             level: 3,
+            sequence: 3,
             micros: 2_000_001,
             text: "ZFSBootMenu: broken\tpool".to_owned(),
             device: None,
@@ -222,6 +224,75 @@ fn the_log_comes_from_kmsg_and_from_dmesg_without_it() {
     );
     assert_eq!(read_logs(&fake.system(), "debug").unwrap(), "\n");
     assert!(read_logs(&fake.system(), "").is_err());
+}
+
+#[test]
+fn a_record_keeps_its_sequence_number() {
+    let numbers: Vec<u64> = records(KMSG.as_bytes())
+        .iter()
+        .map(|record| record.sequence)
+        .collect();
+    assert_eq!(numbers, [1, 2, 3, 4, 5]);
+    // A record whose number is no number is no record.
+    assert!(records(b"3,x,1,-;ZFSBootMenu: broken\n").is_empty());
+}
+
+#[test]
+fn records_after_a_number_are_the_newer_ones_and_the_last_number_is_returned() {
+    let fake = zbm_testkit::fakes::FakeSystem::new();
+    fake.files.file("/dev/kmsg", KMSG);
+    let texts = |read: &[Record]| -> Vec<String> {
+        read.iter().map(|record| record.text.clone()).collect()
+    };
+    // ZFSBootMenu's errors and warnings, not the kernel's error; the last
+    // number is that of the last record, whatever its level.
+    let (all, last) = read_after(&fake.files, &[3, 4], None).unwrap();
+    assert_eq!(
+        texts(&all),
+        ["ZFSBootMenu: broken\tpool", "ZFSBootMenu: careful"]
+    );
+    assert_eq!(last, Some(5));
+    let (newer, last) = read_after(&fake.files, &[3, 4], Some(3)).unwrap();
+    assert_eq!(texts(&newer), ["ZFSBootMenu: careful"]);
+    assert_eq!(last, Some(5));
+    let (none, last) = read_after(&fake.files, &[3, 4], Some(5)).unwrap();
+    assert!(none.is_empty());
+    assert_eq!(last, Some(5));
+
+    fake.files.file("/dev/kmsg", "");
+    assert_eq!(read_after(&fake.files, &[3], None).unwrap(), (vec![], None));
+    fake.files
+        .fail("/dev/kmsg", std::io::ErrorKind::PermissionDenied);
+    assert!(read_after(&fake.files, &[3], None).is_err());
+}
+
+#[test]
+fn an_unknown_level_name_is_none() {
+    assert_eq!(levels("err,warn"), Some(vec![3, 4]));
+    assert_eq!(levels("debug,emerg,err,3"), Some(vec![0, 3, 7]));
+    assert_eq!(levels("err,bogus"), None);
+    assert_eq!(levels("error"), None);
+    assert_eq!(levels(" err"), None);
+    // An empty name between commas is none, as `dmesg -l` says; an empty
+    // list selects no level.
+    assert_eq!(levels("err,"), None);
+    assert_eq!(levels(","), None);
+    assert_eq!(levels(""), Some(vec![]));
+}
+
+#[test]
+fn levels_are_named_as_dmesg_takes_them() {
+    // Any case, and numbers from 0 to 7.
+    assert_eq!(levels("ERR,Warn"), Some(vec![3, 4]));
+    assert_eq!(levels("0,7,03"), Some(vec![0, 3, 7]));
+    assert_eq!(levels("8"), None);
+    assert_eq!(levels("99999999999999999999999"), None);
+    // `+` after a level adds the graver ones, before it the lighter ones.
+    assert_eq!(levels("err+"), Some(vec![0, 1, 2, 3]));
+    assert_eq!(levels("+notice"), Some(vec![5, 6, 7]));
+    assert_eq!(levels("+6,crit"), Some(vec![2, 6, 7]));
+    assert_eq!(levels("+err+"), None);
+    assert_eq!(levels("+"), None);
 }
 
 /// The kernel's records about `sdb` and its partition `sdb2`: one tagged

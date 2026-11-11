@@ -1,7 +1,8 @@
 //! Reading the kernel log back: all of it, as `dmesg` prints it, for saved
 //! logs and reports ([`kernel_log`]), and ZFSBootMenu's messages of some
-//! levels, for the recovery shell ([`read_logs`]); and the messages about
-//! some block devices, for the menu ([`device_lines`]).
+//! levels, for the recovery shell ([`read_logs`], and [`read_after`] for
+//! those after a record); and the messages about some block devices, for
+//! the menu ([`device_lines`]).
 //!
 //! The records are read from `/dev/kmsg` (ROADMAP.md CD2), without running
 //! `dmesg`. Where that cannot be read, `dmesg` is: util-linux `dmesg`
@@ -138,6 +139,9 @@ pub struct Record {
     pub facility: u8,
     /// How grave it is, 0 (`emerg`) to 7 (`debug`).
     pub level: u8,
+    /// Its number in the log: the kernel numbers records one after the
+    /// other, from 0 at the boot, so a later record has a greater number.
+    pub sequence: u64,
     /// When, in microseconds since the boot.
     pub micros: u64,
     /// The text, with the kernel's `\xNN` escapes undone.
@@ -178,11 +182,12 @@ fn record(line: &str) -> Option<Record> {
     let (prefix, text) = line.split_once(';')?;
     let mut fields = prefix.split(',');
     let priority: u16 = fields.next()?.parse().ok()?;
-    let _sequence = fields.next()?;
+    let sequence = fields.next()?.parse().ok()?;
     let micros = fields.next()?.parse().ok()?;
     Some(Record {
         facility: u8::try_from(priority >> 3).ok()?,
         level: u8::try_from(priority & 7).ok()?,
+        sequence,
         micros,
         text: unescape(text),
         device: None,
@@ -311,19 +316,78 @@ pub fn kernel_log(files: &dyn Files, runner: &dyn Runner) -> String {
         .unwrap_or_default()
 }
 
-/// The levels that `levels` (comma-separated names, such as `err,warn`)
-/// selects; `None` when one is not a level's name.
-fn level_numbers(levels: &str) -> Option<Vec<u8>> {
-    levels
-        .split(',')
-        .filter(|name| !name.is_empty())
-        .map(|name| {
-            LEVELS
-                .iter()
-                .position(|level| *level == name)
-                .and_then(|level| u8::try_from(level).ok())
+/// The levels that `names` selects, as numbers from 0 (`emerg`) to 7
+/// (`debug`), as `dmesg -l` takes them: comma-separated names, in any case,
+/// or numbers; a `+` after one adds the graver levels, before one the
+/// lighter ones (`err+` is `emerg` to `err`). `None` when one is not a
+/// level, an empty one between commas included; none for an empty list.
+pub fn levels(names: &str) -> Option<Vec<u8>> {
+    if names.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut wanted = [false; LEVELS.len()];
+    for name in names.split(',') {
+        let (lighter, name) = name
+            .strip_prefix('+')
+            .map_or((false, name), |name| (true, name));
+        let (graver, name) = name
+            .strip_suffix('+')
+            .map_or((false, name), |name| (true, name));
+        if lighter && graver {
+            return None;
+        }
+        let level = level(name)?;
+        let from = if graver { 0 } else { level };
+        let to = if lighter { LEVELS.len() - 1 } else { level };
+        for (level, chosen) in wanted.iter_mut().enumerate() {
+            *chosen |= (from..=to).contains(&level);
+        }
+    }
+    Some(
+        wanted
+            .iter()
+            .enumerate()
+            .filter(|(_, chosen)| **chosen)
+            .filter_map(|(level, _)| u8::try_from(level).ok())
+            .collect(),
+    )
+}
+
+/// The level that `name`, a level's name in any case or its number, is.
+fn level(name: &str) -> Option<usize> {
+    if !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit()) {
+        return name.parse().ok().filter(|level| *level < LEVELS.len());
+    }
+    LEVELS
+        .iter()
+        .position(|level| level.eq_ignore_ascii_case(name))
+}
+
+/// ZFSBootMenu's records of the `levels` (numbers, as [`levels`] gives
+/// them) that come after the record numbered `after`, or all of them
+/// without one; and the number of the last record read, of any level or
+/// facility, which a later read starts after (`None` when the log is
+/// empty).
+///
+/// # Errors
+///
+/// When `/dev/kmsg` cannot be read.
+pub fn read_after(
+    files: &dyn Files,
+    levels: &[u8],
+    after: Option<u64>,
+) -> std::io::Result<(Vec<Record>, Option<u64>)> {
+    let records = read_records(files)?;
+    let last = records.last().map(|record| record.sequence);
+    let selected = records
+        .into_iter()
+        .filter(|record| {
+            record.facility == USER
+                && levels.contains(&record.level)
+                && after.is_none_or(|after| record.sequence > after)
         })
-        .collect()
+        .collect();
+    Ok((selected, last))
 }
 
 /// Reads ZFSBootMenu's messages of the given levels from the kernel log,
@@ -337,14 +401,11 @@ pub fn read_logs(system: &System<'_>, levels: &str) -> Result<String, Message> {
     if levels.is_empty() {
         return Err(Message::error("levels is undefined"));
     }
-    if let Some(wanted) = level_numbers(levels)
-        && let Ok(records) = read_records(system.files)
+    if let Some(wanted) = self::levels(levels)
+        && let Ok((records, _)) = read_after(system.files, &wanted, None)
     {
         let mut text = String::new();
-        for record in records
-            .iter()
-            .filter(|record| record.facility == USER && wanted.contains(&record.level))
-        {
+        for record in &records {
             text.push_str(&record.text);
             text.push('\n');
         }

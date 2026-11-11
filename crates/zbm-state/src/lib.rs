@@ -19,6 +19,7 @@ use zbm_platform::files::{FileLock, Files, LockWait};
 
 /// The lock of the menu: one menu runs at a time.
 mod console;
+mod markers;
 
 const ACTIVE_LOCK: &str = "active.lock";
 
@@ -448,34 +449,6 @@ impl<'a> State<'a> {
     /// Where an external hook root is mounted (`.external_hooks`).
     pub fn external_hooks(&self) -> PathBuf {
         self.path(".external_hooks")
-    }
-
-    /// Whether errors were logged since the last time they were shown
-    /// (`have_errors`).
-    pub fn has_errors(&self) -> bool {
-        self.files.exists(&self.path("have_errors"))
-    }
-
-    /// Whether warnings were logged since the last time they were shown
-    /// (`have_warnings`).
-    pub fn has_warnings(&self) -> bool {
-        self.files.exists(&self.path("have_warnings"))
-    }
-
-    /// Forgets that errors were logged, after showing them.
-    pub fn clear_errors(&self) {
-        self.remove("have_errors");
-    }
-
-    /// Forgets that warnings were logged, after showing them.
-    pub fn clear_warnings(&self) {
-        self.remove("have_warnings");
-    }
-
-    /// The time stamp of the last error report in the recovery shell
-    /// (`errors_since`).
-    pub fn errors_since(&self) -> PathBuf {
-        self.path("errors_since")
     }
 
     /// The LUKS mappings ZFSBootMenu opened (`luks-mappings`), documented in
