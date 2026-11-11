@@ -14,19 +14,19 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │     luks-zroot-b                                               Volume · open ││                                      │
 │   tank (id 2)                                           read-only · DEGRADED ││                                      │
 │     raidz1-0                                                        DEGRADED ││                                      │
-│       sda2                                                            ONLINE ││                                      │
-│       sdb2                                             cannot open · UNAVAIL ││                                      │
-│       sdc2                  ┌──────────────────────────────────────────────────────────┐                             │
-│     luks-tank               │                       Pool archive                       │                             │
-│ ▶ archive                   │ archive: ONLINE · not imported                           │                             │
-│     sde                     │ last imported by host deadbeef                           │                             │
-│   tank (id 5)               │                                                          │                             │
-│     sdf                     │ ▶ Import with Its Last Host ID                           │                             │
+│       sda2                  ┌──────────────────────────────────────────────────────────┐                             │
+│       sdb2                  │                       Pool archive                       │                             │
+│       sdc2                  │ archive: ONLINE · not imported                           │                             │
+│     luks-tank               │ last imported by host deadbeef                           │                             │
+│ ▶ archive                   │                                                          │                             │
+│     sde                     │ ▶ Import with This Host ID                               │                             │
+│   tank (id 5)               │   Import Read/Write                                      │                             │
+│     sdf                     │   Import with Its Last Host ID                           │                             │
 │                             │   Force the Import…                                      │                             │
+│                             │   Rewind to the Checkpoint…                              │                             │
 │                             │ ──────────────────────────────────────────────────────── │                             │
 │                             │   Cancel                                                 │                             │
 │                             └──────────────────────────────────────────────────────────┘                             │
-│                                                                              ││                                      │
 │                                                                              ││                                      │
 │                                                                              ││                                      │
 │                                                                              ││                                      │

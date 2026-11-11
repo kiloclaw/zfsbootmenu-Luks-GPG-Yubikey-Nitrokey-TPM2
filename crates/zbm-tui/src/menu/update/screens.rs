@@ -1,6 +1,6 @@
 //! The intents of the main, kernels, pools and recovery views.
 
-use zbm_types::{ImportPolicy, Untrusted};
+use zbm_types::Untrusted;
 
 use super::action_of::action_of;
 use super::dialogs;
@@ -8,7 +8,7 @@ use crate::menu::keymap::{Context, Intent, Map, Tab};
 use crate::menu::model::{
     Choice, Column, Editor, ListState, Model, Screen, Then, own_command_line,
 };
-use crate::menu::world::{Access, Action, Environment, Origin, Outcome, Pool, Verdict, Volume};
+use crate::menu::world::{Action, Environment, Origin, Outcome, Pool, Verdict, Volume};
 use crate::text::text;
 
 /// What `intent` does on the current screen.
@@ -345,7 +345,8 @@ pub(super) fn edit_for(
 /// workspace's tree, `Enter` on a device nothing is below asks for the
 /// kernel's messages about it, by the path it has or had, which show below
 /// the tree; on a vdev, as on its pool, it opens the pool's details, and
-/// the other keys of a vdev or a device act on its pool.
+/// the other keys of a vdev or a device act on its pool. A key that does
+/// nothing to a pool says why.
 fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
     if let Some(then) = action_of(model, Context::Pools, intent) {
         return send(model, then);
@@ -359,6 +360,12 @@ fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
     match intent {
         Intent::Primary => dialogs::pool_details(model, &pool),
         Intent::Import => import_choices(model, &pool),
+        Intent::ReadWrite if pool.imported => {
+            model.notification = Some(Outcome::Warning(text!(
+                "pool-read-write-already",
+                pool = pool.name.to_string()
+            )));
+        }
         Intent::ReadWrite => shadowed(model, &pool),
         Intent::Rewind => {
             model.notification = Some(Outcome::Warning(text!(
@@ -418,28 +425,7 @@ fn import_choices(model: &mut Model, pool: &Pool) {
         shadowed(model, pool);
         return;
     } else {
-        vec![
-            Choice {
-                label: text!("pool-import-this-host"),
-                then: Then::Act(dialogs::import(
-                    named,
-                    Access::ReadOnly,
-                    ImportPolicy::Strict,
-                )),
-            },
-            Choice {
-                label: text!("pool-import-last-host"),
-                then: Then::Act(dialogs::import(
-                    named,
-                    Access::ReadOnly,
-                    ImportPolicy::Hostid,
-                )),
-            },
-            Choice {
-                label: text!("pool-force-import"),
-                then: dialogs::force_import(model.map, named),
-            },
-        ]
+        dialogs::imports(model.map, named)
     };
     let title = text!("import-title", pool = name.as_str());
     dialogs::choose_offered(model, &title, Vec::new(), choices);

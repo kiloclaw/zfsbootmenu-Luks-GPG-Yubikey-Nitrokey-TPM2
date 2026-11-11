@@ -8,19 +8,19 @@ use zbm_display::keys::{Key, KeyPress};
 
 use super::key_press;
 use super::offers_tests::{APP, Place, machine, machine_all, menu, places, presses};
-use crate::menu::keymap::{self, Context, ENTER_REACHES, Input, Intent, Map};
+use crate::menu::keymap::{self, Context, Input, Intent, Map};
 use crate::menu::model::{Dialog, DryRun, Model, PaletteItem, Recent, Then};
 use crate::menu::world::{Action, Event, Offer, Snapshot};
 
 /// The demo machine.
-type Machine = (Snapshot, Event);
+pub(super) type Machine = (Snapshot, Event);
 
 /// What a key or a few did: the actions sent, and the menu after, which
 /// counts no keys.
-type Effect = (Vec<Action>, Model);
+pub(super) type Effect = (Vec<Action>, Model);
 
 /// What `keys` do at `place`, from the start.
-fn effect(machine: &Machine, map: Map, place: Place, keys: &[KeyPress]) -> Effect {
+pub(super) fn effect(machine: &Machine, map: Map, place: Place, keys: &[KeyPress]) -> Effect {
     let mut model = menu(machine, map, place);
     let sent = keys
         .iter()
@@ -35,7 +35,7 @@ fn effect(machine: &Machine, map: Map, place: Place, keys: &[KeyPress]) -> Effec
 /// first, then runs: it is taken as run, the dry run closed, as `Enter` on
 /// it would once the plan came; and the dry run the entry starts and the
 /// history it keeps, which a key does not, are set aside.
-fn chosen(machine: &Machine, map: Map, place: Place, index: usize) -> Effect {
+pub(super) fn chosen(machine: &Machine, map: Map, place: Place, index: usize) -> Effect {
     let mut model = menu(machine, map, place);
     let _ = key_press(&mut model, KeyPress::new(Key::Char(':')));
     let palette = model.palette.as_mut().expect("the palette opens");
@@ -62,7 +62,7 @@ fn chosen(machine: &Machine, map: Map, place: Place, index: usize) -> Effect {
 }
 
 /// The entries of the palette at `place`.
-fn items(machine: &Machine, map: Map, place: Place) -> Vec<PaletteItem> {
+pub(super) fn items(machine: &Machine, map: Map, place: Place) -> Vec<PaletteItem> {
     let mut model = menu(machine, map, place);
     let _ = key_press(&mut model, KeyPress::new(Key::Char(':')));
     model.palette.expect("the palette opens").items
@@ -76,7 +76,12 @@ fn entries(machine: &Machine, map: Map, place: Place) -> Vec<Then> {
 
 /// What `Enter` at `place` does after the keys `before`, and each entry of
 /// the menu it opens.
-fn entered(machine: &Machine, map: Map, place: Place, before: &[KeyPress]) -> Vec<Effect> {
+pub(super) fn entered(
+    machine: &Machine,
+    map: Map,
+    place: Place,
+    before: &[KeyPress],
+) -> Vec<Effect> {
     let enter = KeyPress::new(Key::Enter);
     let first = effect(machine, map, place, &[before, &[enter]].concat());
     let count = match &first.1.dialog {
@@ -95,7 +100,7 @@ fn entered(machine: &Machine, map: Map, place: Place, before: &[KeyPress]) -> Ve
 
 /// Whether `intent` has a key in `context` that is no character: `Enter`,
 /// an arrow, `Tab`, `Esc`, `Delete`, a page or a function key.
-fn has_other_key(map: Map, context: Context, intent: Intent) -> bool {
+pub(super) fn has_other_key(map: Map, context: Context, intent: Intent) -> bool {
     map.table().into_iter().any(|binding| {
         binding.intent == intent
             && map.is_bound(binding, context)
@@ -104,7 +109,7 @@ fn has_other_key(map: Map, context: Context, intent: Intent) -> bool {
 }
 
 /// The intent `press` asks for in `context`, if it is one.
-fn intent_of(map: Map, context: Context, press: KeyPress) -> Option<Intent> {
+pub(super) fn intent_of(map: Map, context: Context, press: KeyPress) -> Option<Intent> {
     match keymap::input(map, context, press) {
         Some(Input::Intent(intent)) => Some(intent),
         _ => None,
@@ -115,7 +120,7 @@ fn intent_of(map: Map, context: Context, press: KeyPress) -> Option<Intent> {
 /// (`entered`), or by an entry of the palette (`chosen`, one effect for
 /// each of `palette`) that a command's name finds; or the key opened a
 /// menu whose every entry is such an entry of the palette, as power's.
-fn is_reached(
+pub(super) fn is_reached(
     key: &Effect,
     entered: &[Effect],
     chosen: &[Effect],
@@ -335,7 +340,7 @@ fn a_key_the_selected_row_does_not_take_has_no_entry() {
     // A volume's row takes none of its pool's keys, which a pool's row
     // of the same tree lists: the rewind, whose key says when the pool has
     // no checkpoint; its imports have entries of their own.
-    let volume = enter_place(&machine, map, Context::Pools);
+    let volume = volume_place(&machine, map);
     let rows = menu(&machine, map, Place::Pools(0)).pools.matches.len();
     let rewind = Intent::Rewind;
     assert_eq!(entry_of(&machine, map, volume, rewind), None);
@@ -357,12 +362,8 @@ fn a_key_the_selected_row_does_not_take_has_no_entry() {
     );
 }
 
-/// A place of `context` where `Enter` opens what [`ENTER_REACHES`] says,
-/// with `map`: a snapshot, or a volume of the pools.
-fn enter_place(machine: &Machine, map: Map, context: Context) -> Place {
-    if context == Context::Snapshots {
-        return Place::Snapshots;
-    }
+/// The first volume of the pools view, with `map`.
+fn volume_place(machine: &Machine, map: Map) -> Place {
     let rows = menu(machine, map, Place::Pools(0)).pools.matches.len();
     (0..rows)
         .map(Place::Pools)
@@ -371,40 +372,46 @@ fn enter_place(machine: &Machine, map: Map, context: Context) -> Place {
 }
 
 #[test]
-fn what_an_enter_menu_reaches_is_in_that_menu() {
+fn in_the_classic_map_what_the_palette_leaves_to_an_enter_menu_is_in_that_menu() {
     let machine = machine_all();
-    let press = |key| KeyPress::new(key);
+    let map = Map::Classic;
+    let press = KeyPress::new;
     // Another snapshot marked, which a snapshot's key may act on instead.
     let marked = [press(Key::Down), press(Key::Char(' ')), press(Key::Up)];
+    let volume = volume_place(&machine, map);
+    let cases = [
+        (Place::Snapshots, &[][..]),
+        (Place::Snapshots, &marked[..]),
+        (volume, &[][..]),
+    ];
     let mut checked = 0;
-    for map in [Map::Classic, Map::Workspace] {
-        for (context, intents) in ENTER_REACHES {
-            let place = enter_place(&machine, map, *context);
-            let mut befores = vec![Vec::new()];
-            if *context == Context::Snapshots {
-                befores.push(marked.to_vec());
+    for (place, before) in cases {
+        let context = menu(&machine, map, place).context();
+        let listed: Vec<Intent> = keymap::commands(map, context)
+            .into_iter()
+            .map(|(intent, _)| intent)
+            .collect();
+        let menu = entered(&machine, map, place, before);
+        let unchanged = effect(&machine, map, place, before);
+        for key in presses(map, context) {
+            let Some(intent) = intent_of(map, context, key) else {
+                continue;
+            };
+            let left = keymap::reach(context, intent) == Some(keymap::Reach::Menu);
+            if !left || listed.contains(&intent) {
+                continue;
             }
-            for before in befores {
-                let menu = entered(&machine, map, place, &before);
-                for key in presses(map, *context) {
-                    let Some(intent) = intent_of(map, *context, key) else {
-                        continue;
-                    };
-                    if !intents.contains(&intent) {
-                        continue;
-                    }
-                    let by_key =
-                        effect(&machine, map, place, &[before.as_slice(), &[key]].concat());
-                    assert!(
-                        menu.contains(&by_key),
-                        "{map:?} {context:?} {before:?} {key:?}"
-                    );
-                    checked += 1;
-                }
+            let by_key = effect(&machine, map, place, &[before, &[key]].concat());
+            // A volume takes no pool's import.
+            if by_key == unchanged {
+                continue;
             }
+            let at = format!("{place:?} {before:?} {key:?} {intent:?}");
+            assert!(menu.contains(&by_key), "{at}");
+            checked += 1;
         }
     }
-    // Each intent of the list, in each map, by its letter or its alias.
+    // Each snapshot's action, by its letter or its alias, and the unlock.
     assert!(checked >= 12, "{checked}");
 }
 

@@ -215,3 +215,39 @@ fn is_move(intent: Intent) -> bool {
             | Intent::Tab(_)
     )
 }
+
+#[test]
+fn every_action_a_character_reaches_in_the_workspace_has_its_place_under_rule_1() {
+    let map = Map::Workspace;
+    let mut checked = 0;
+    for context in CONTEXTS.into_iter().filter(|context| !is_text(*context)) {
+        let bound = map.table().into_iter();
+        let mut intents: Vec<Intent> = bound
+            .filter(|binding| map.is_bound(binding, context))
+            .filter(|binding| matches!(binding.key, Key::Char(_)))
+            .map(|binding| binding.intent)
+            .collect();
+        for (_, meanings) in CLASSIC {
+            let meant = meanings.iter().filter(|(view, _)| *view == context);
+            intents.extend(meant.map(|(_, intent)| *intent));
+        }
+        for intent in intents.into_iter().filter(|intent| !is_move(*intent)) {
+            let at = format!("{context:?} {intent:?}");
+            let place = reach(context, intent).expect(&at);
+            // A snapshot's, a pool's and a volume's are in their menus;
+            // `Enter` boots an environment or a kernel.
+            let item = matches!(context, Snapshots | Pools)
+                || (intent == Intent::Boot && matches!(context, Main | Kernels));
+            let is_menu = matches!(place, Reach::Menu | Reach::MenuAndCommand);
+            assert!(!is_menu || item, "{at}");
+            checked += 1;
+        }
+    }
+    assert!(checked > 60, "{checked}");
+    // Where `Enter` boots, the others are the command line's.
+    for (context, intent) in [(Main, Intent::NewSnapshot), (Kernels, Intent::Edit)] {
+        assert_eq!(reach(context, intent), Some(Reach::CommandLine));
+    }
+    assert_eq!(reach(Pools, Intent::Rewind), Some(Reach::MenuAndCommand));
+    assert_eq!(reach(Snapshots, Intent::Sort), Some(Reach::Command));
+}

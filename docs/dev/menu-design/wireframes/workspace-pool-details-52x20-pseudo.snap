@@ -5,19 +5,19 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
  archive
 ┌ PPÓÓLLS ÁÑÑD LÚÚKS VVÓLÚÚMÉSS ─────────────── 17 ┐
 │       nvme2n1                             ONLINE │
-│     luks-zroot-a               VVólúúmé · óópéññ │
 │ ┌──────────────────────────────────────────────┐ │
 │ │                PPóóll archive                │ │
 │ │ archive: ONLINE · ññót íímpóórtééd           │ │
 │ │ llástt ímppórttéd bbý hóóst deadbeef         │ │
 │ │                                              │ │
-│ │ ▶ ÍÍmpóórt wwíthh Ítss Lásst Hóóst ÍÍD       │ │
+│ │ ▶ ÍÍmpóórt wwíthh Thíís Hóóst ÍÍD            │ │
+│ │   ÍÍmpóórt RRéádd/Wrííté                     │ │
+│ │   ÍÍmpóórt wwíthh Ítss Lásst Hóóst ÍÍD       │ │
 │ │   FFórççé thhé Ímmpórrt…                     │ │
-│ │ ──────────────────────────────────────────── │ │
-└─│   ÇÇáñççél                                   │─┘
-┌ └──────────────────────────────────────────────┘─┐
-│     HHéállth  ONLINE, ññót íímpóórtééd           │
-│ LLástt Hósst  backup-server (deadbeef)           │
+└─│   RRéwííñd ttó thhé Çhhéçkkpóííñt…           │─┘
+┌ │ ──────────────────────────────────────────── │─┐
+│ │   ÇÇáñççél                                   │ │
+│ └──────────────────────────────────────────────┘ │
 │                                                  │
 └──────────────────────────────────────────────────┘
  ÉÉñtéér ÇÇhóóósé   ÉÉsç ÇÇáñççél

@@ -10,7 +10,7 @@ use zbm_types::{ImportPolicy, PoolName, SnapshotName, Untrusted};
 use super::{dialogs, diff, screens, snapshots};
 use crate::menu::keymap::{Context, Intent, Map};
 use crate::menu::model::{Item, Kind, Model, Node, RECOVERY, RecoveryTool, Screen, Then};
-use crate::menu::world::{Access, Action};
+use crate::menu::world::{Access, Action, Pool};
 
 /// What `intent` does in `context` to `model`'s selection; `None` when it
 /// opens a sheet, moves, or does nothing there.
@@ -113,8 +113,7 @@ fn on_snapshot(model: &Model, intent: Intent) -> Option<Then> {
 /// What `intent` does to the selected row of the pools view: a volume
 /// opens, but not while the machine works, as between two of its
 /// questions; `Enter` on a device of the workspace's tree asks for the
-/// kernel's messages about it; a pool is imported read/write or rewound,
-/// unless a pool of its name is imported, or it has no checkpoint. Its
+/// kernel's messages about it; a pool does what [`of_pool`] says. Its
 /// details and its imports are sheets.
 fn on_pool(model: &Model, intent: Intent) -> Option<Then> {
     if let Some(volume) = model.selected_volume() {
@@ -133,14 +132,20 @@ fn on_pool(model: &Model, intent: Intent) -> Option<Then> {
         let path = Untrusted::new(device.path().to_owned());
         return Some(Then::Act(Action::LoadDeviceLog(path)));
     }
-    let pool = model.selected_pool()?;
+    of_pool(model, model.selected_pool()?, intent)
+}
+
+/// What `intent` does to `pool`, which its details offer too: it is
+/// imported read/write, unless a pool of its name is imported or it is
+/// imported read/write already, or rewound, unless it has no checkpoint.
+pub(super) fn of_pool(model: &Model, pool: &Pool, intent: Intent) -> Option<Then> {
     let named = dialogs::Named::of(model, pool);
+    let is_read_write = pool.imported && pool.writable;
     match intent {
-        Intent::ReadWrite if !model.is_shadowed(pool) => Some(Then::Act(dialogs::import(
-            named,
-            Access::ReadWrite,
-            ImportPolicy::Strict,
-        ))),
+        Intent::ReadWrite if !model.is_shadowed(pool) && !is_read_write => {
+            let import = dialogs::import(named, Access::ReadWrite, ImportPolicy::Strict);
+            Some(Then::Act(import))
+        }
         // Unknown, as for a pool that is not imported, the machine checks.
         Intent::Rewind if pool.checkpoint != Some(false) => Some(dialogs::rewind(
             model.map,

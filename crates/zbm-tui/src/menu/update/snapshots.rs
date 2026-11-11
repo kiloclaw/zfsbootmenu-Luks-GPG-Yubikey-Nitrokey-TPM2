@@ -91,7 +91,8 @@ fn on_folded(model: &mut Model, intent: Intent) -> Vec<Action> {
 }
 
 /// Opens the choice of the actions the machine offers for a snapshot; the
-/// workspace's destroys it too.
+/// workspace's diffs the two marked ones, when two are, and destroys it
+/// too.
 fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
     let name = &snapshot.name;
     let choice = |label: String, then: Then| Choice { label, then };
@@ -111,6 +112,11 @@ fn actions(model: &mut Model, snapshot: &SnapshotInfo) {
         ),
     ];
     if model.map == Map::Workspace {
+        // Two marked: their diff, as `f` does then.
+        if let Ok(Some(diff @ Action::Diff(_, Some(_)))) = diff_of(model) {
+            let at = choices.len() - 1;
+            choices.insert(at, choice(text!("snapshot-diff-marked"), Then::Act(diff)));
+        }
         choices.push(choice(text!("snapshot-destroy"), destroy(vec![name])));
     }
     // A middle dot, or `|` in ASCII, as over a serial line.

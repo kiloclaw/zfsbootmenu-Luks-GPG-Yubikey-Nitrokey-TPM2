@@ -98,8 +98,15 @@ pub(super) fn menu((snapshot, diff): &(Snapshot, Event), map: Map, place: Place)
             screens::focus(&mut model, name, Screen::Kernels);
             model.kernels.selected = row;
         }
+        // Its list read, as the machine answers the load the focus asks
+        // for: the marks then know the snapshots' ages.
         (Place::Snapshots, Some(name)) => {
+            let list = snapshot.loaded.iter().find(|list| list.environment == name);
+            let list = list.cloned();
             screens::focus(&mut model, name, Screen::Snapshots);
+            if let Some(list) = list {
+                events::apply(&mut model, Event::SnapshotsLoaded(list));
+            }
         }
         (Place::Pools(row), _) => {
             model.screen = Screen::Pools;

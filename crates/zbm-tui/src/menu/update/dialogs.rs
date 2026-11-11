@@ -3,6 +3,7 @@
 
 use zbm_types::{Answer, ImportPolicy, PoolName};
 
+use super::action_of::of_pool;
 use super::screens;
 use crate::menu::keymap::{Input, Intent, Map};
 use crate::menu::model::{
@@ -203,9 +204,9 @@ pub(super) fn power(model: &mut Model) {
     choose_offered(model, &text!("power-title"), Vec::new(), choices);
 }
 
-/// The details of `pool`, with what the machine offers to do to it; one
-/// named like an imported pool that is another says why it is not
-/// imported.
+/// The details of `pool`, with what the machine offers to do to it, in the
+/// workspace all that its keys do (rule 1 of decision 18); one named like
+/// an imported pool that is another says why it is not imported.
 pub(super) fn pool_details(model: &mut Model, pool: &Pool) {
     let name = &pool.name;
     let mode = crate::menu::model::pool_mode(pool);
@@ -229,28 +230,76 @@ pub(super) fn pool_details(model: &mut Model, pool: &Pool) {
     } else if model.is_shadowed(pool) {
         lines.push(text!("pool-shadowed", pool = name.to_string()));
     } else {
-        choices.push(Choice {
-            label: text!("pool-import-last-host"),
-            then: Then::Act(import(named, Access::ReadOnly, ImportPolicy::Hostid)),
-        });
-        choices.push(Choice {
-            label: text!("pool-force-import"),
-            then: force_import(model.map, named),
-        });
+        choices = details_imports(model, pool);
     }
-    if pool.checkpoint == Some(true) {
-        let lines = vec![text!("rewind", pool = name.to_string())];
-        choices.push(Choice {
-            label: text!("pool-rewind"),
-            then: rewind(model.map, named, lines),
-        });
-    }
+    choices.extend(details_rewind(model, pool));
     let choices = super::offers::offered(model, choices);
     model.dialog = Some(choose(
         &text!("pool-title", pool = name.to_string()),
         lines,
         choices,
     ));
+}
+
+/// The imports of `pool`, not imported, that `i` offers: as this host, as
+/// the host that last imported it, or forced.
+pub(super) fn imports(map: Map, pool: Named<'_>) -> Vec<Choice> {
+    [vec![this_host(pool)], elsewhere(map, pool)].concat()
+}
+
+/// The import of `pool` as this host.
+fn this_host(pool: Named<'_>) -> Choice {
+    Choice {
+        label: text!("pool-import-this-host"),
+        then: Then::Act(import(pool, Access::ReadOnly, ImportPolicy::Strict)),
+    }
+}
+
+/// The imports of `pool` that another host's import does not stop: as
+/// the host that last imported it, or forced.
+fn elsewhere(map: Map, pool: Named<'_>) -> Vec<Choice> {
+    vec![
+        Choice {
+            label: text!("pool-import-last-host"),
+            then: Then::Act(import(pool, Access::ReadOnly, ImportPolicy::Hostid)),
+        },
+        Choice {
+            label: text!("pool-force-import"),
+            then: force_import(map, pool),
+        },
+    ]
+}
+
+/// The imports a pool's details offer of `pool`, not imported: the
+/// workspace's every import of `i` and what `w` does, as rule 1 of
+/// decision 18 asks of its `Enter` menu; the classic map's the last
+/// host's and the forced one.
+fn details_imports(model: &Model, pool: &Pool) -> Vec<Choice> {
+    let named = Named::of(model, pool);
+    if model.map == Map::Classic {
+        return elsewhere(model.map, named);
+    }
+    let read_write = of_pool(model, pool, Intent::ReadWrite).map(|then| Choice {
+        label: text!("pool-import-read-write"),
+        then,
+    });
+    let first = [this_host(named)].into_iter().chain(read_write);
+    first.chain(elsewhere(model.map, named)).collect()
+}
+
+/// The rewind a pool's details offer of `pool`: the workspace's what
+/// `Ctrl-R` does; the classic map's where a checkpoint is known.
+fn details_rewind(model: &Model, pool: &Pool) -> Option<Choice> {
+    let then = match model.map {
+        Map::Workspace => of_pool(model, pool, Intent::Rewind)?,
+        Map::Classic if pool.checkpoint == Some(true) => {
+            let lines = vec![text!("rewind", pool = pool.name.to_string())];
+            rewind(model.map, Named::of(model, pool), lines)
+        }
+        Map::Classic => return None,
+    };
+    let label = text!("pool-rewind");
+    Some(Choice { label, then })
 }
 
 /// The import of `pool`, imported, with the other access: read-only when

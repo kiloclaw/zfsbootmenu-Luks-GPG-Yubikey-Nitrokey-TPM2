@@ -5,19 +5,19 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
  archive
 ┌ POOLS AND LUKS VOLUMES ────────────────────── 17 ┐
 │       nvme2n1                             ONLINE │
-│     luks-zroot-a                   Volume · open │
 │ ┌──────────────────────────────────────────────┐ │
 │ │                 Pool archive                 │ │
 │ │ archive: ONLINE · not imported               │ │
 │ │ last imported by host deadbeef               │ │
 │ │                                              │ │
-│ │ ▶ Import with Its Last Host ID               │ │
+│ │ ▶ Import with This Host ID                   │ │
+│ │   Import Read/Write                          │ │
+│ │   Import with Its Last Host ID               │ │
 │ │   Force the Import…                          │ │
-│ │ ──────────────────────────────────────────── │ │
-└─│   Cancel                                     │─┘
-┌ └──────────────────────────────────────────────┘─┐
-│       Health  ONLINE, not imported               │
-│    Last Host  backup-server (deadbeef)           │
+└─│   Rewind to the Checkpoint…                  │─┘
+┌ │ ──────────────────────────────────────────── │─┐
+│ │   Cancel                                     │ │
+│ └──────────────────────────────────────────────┘ │
 │                                                  │
 └──────────────────────────────────────────────────┘
  Enter Choose   Esc Cancel   Up/Down Select

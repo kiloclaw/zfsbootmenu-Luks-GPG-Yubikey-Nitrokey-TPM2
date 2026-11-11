@@ -830,6 +830,7 @@ pool-force-import = Force the Import
 pool-rewind = Rewind to the Checkpoint
 pool-no-checkpoint = { $pool } has no checkpoint to rewind to.
 pool-shadowed = A pool named { $pool } is imported: export it to import this one.
+pool-read-write-already = { $pool } is imported read/write already.
 pool-export = Export
 
 ## A device's kernel messages, in the workspace's Pools tab.
@@ -875,6 +876,7 @@ snapshot-clone = Clone as a New Boot Environment
 snapshot-duplicate = Duplicate as an Independent Copy
 snapshot-promote = Clone and Promote
 snapshot-diff = Show Differences to Now
+snapshot-diff-marked = Show Differences between the Marked
 snapshot-chroot = Chroot into It, Read-Only
 snapshot-destroy = Destroy It
 rollback = { $environment } goes back to { $snapshot }: every change since is lost.

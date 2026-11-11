@@ -6,19 +6,19 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 + POOLS AND LUKS VOLUMES -------------------------------------------------- 17 +
 |       nvme2n1                                                         ONLINE |
 |     luks-zroot-a                                               Volume | open |
-|     luks-zroot-b                                               Volume | open |
-|   tank (id 2)                                           read-only | DEGRADED |
-|     raid+----------------------------------------------------------+DEGRADED |
-|       sd|                       Pool archive                       |  ONLINE |
-|       sd| archive: ONLINE | not imported                           | UNAVAIL |
-|       sd| last imported by host deadbeef                           |DEGRADED |
-|     luks|                                                          |e | open |
-| > archiv| > Import with Its Last Host ID                           || ONLINE |
+|     luks+----------------------------------------------------------+e | open |
+|   tank (|                       Pool archive                       |DEGRADED |
+|     raid| archive: ONLINE | not imported                           |DEGRADED |
+|       sd| last imported by host deadbeef                           |  ONLINE |
+|       sd|                                                          | UNAVAIL |
+|       sd| > Import with This Host ID                               |DEGRADED |
+|     luks|   Import Read/Write                                      |e | open |
+| > archiv|   Import with Its Last Host ID                           || ONLINE |
 +---------|   Force the Import...                                    |---------+
-+ archive | -------------------------------------------------------- |---------+
-|       He|   Cancel                                                 |         |
-|    Last +----------------------------------------------------------+         |
-|                                                                              |
++ archive |   Rewind to the Checkpoint...                            |---------+
+|       He| -------------------------------------------------------- |         |
+|    Last |   Cancel                                                 |         |
+|         +----------------------------------------------------------+         |
 | NEXT STEPS                                                                   |
 |   Esc cancel                           Up/Down select                        |
 |                                                                              |

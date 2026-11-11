@@ -293,6 +293,8 @@ mod destroy_tests;
 #[cfg(test)]
 mod dry_run_tests;
 #[cfg(test)]
+mod enter_menus_tests;
+#[cfg(test)]
 mod health_tests;
 #[cfg(test)]
 mod history_tests;

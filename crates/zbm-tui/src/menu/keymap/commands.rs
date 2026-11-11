@@ -12,7 +12,7 @@
 use zbm_display::keys::Key;
 
 use super::classic::{CLASSIC, alias_name};
-use super::{Context, Intent, Map, is_text, key_name};
+use super::{Context, Intent, Map, Tab, is_text, key_name};
 use crate::text::{Id, id};
 
 /// What the palette names by entries of its own: the boot of an
@@ -139,15 +139,64 @@ pub(crate) fn command_name(intent: Intent) -> Option<Id> {
     Some(name)
 }
 
-/// What an `Enter` menu of a view reaches, as its key does: a snapshot's
-/// actions (`update/snapshots.rs`) and a volume's unlock, which `Enter` on
-/// it does. Not a snapshot's diff, whose key diffs the marked snapshots
-/// too, nor a pool's rewind, whose key rewinds a pool not imported, which
-/// its details do not offer.
-pub(crate) const ENTER_REACHES: &[(Context, &[Intent])] = &[
+/// Where rule 1 of decision 18 finds an action that a character reaches in
+/// the workspace, as the maintainer amended it: the `Enter` menu of what
+/// it applies to, but where `Enter` is the item's primary action, and for
+/// what applies to a view rather than an item.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Reach {
+    /// An entry of the `Enter` menu of the item it applies to, a
+    /// snapshot's sheet or a pool's details, which hold every import of
+    /// `i`; or what `Enter` does itself, a volume's unlock, an environment's
+    /// or a kernel's boot. The command line lists no key's entry of it.
+    Menu,
+    /// An entry of that `Enter` menu in the workspace, and a key's entry of
+    /// the command line too, as the classic map's menu does not reach it in
+    /// full: a pool's rewind, which the classic details offer only where a
+    /// checkpoint is known; a snapshot's diff, whose key diffs the marked
+    /// ones too, which the workspace's sheet offers. With one snapshot
+    /// marked, the diff is that one's, whose own sheet offers it.
+    MenuAndCommand,
+    /// An entry of the command line, where `Enter` is the item's primary
+    /// action, an environment's or a kernel's boot, as rule 1 is amended.
+    /// The inspector's next steps list the first four keys too: of an
+    /// environment its kernels, snapshots, edit and default, not its new
+    /// snapshot; of a kernel its edit and default, not the default
+    /// inherited.
+    CommandLine,
+    /// A command only, as it applies to the view: the order, the folds,
+    /// the marks, the filter, the views and tabs, the recovery tools and
+    /// shell, power, help and the redraw. A digit only shortens the way to a
+    /// tab, which `Tab` and `Shift-Tab` reach.
+    Command,
+}
+
+/// The views, where a view's commands apply, and a sheet, which `Ctrl-L`
+/// redraws too.
+const VIEWS: &[Context] = &[
+    Context::Startup,
+    Context::Main,
+    Context::Snapshots,
+    Context::Kernels,
+    Context::Pools,
+    Context::Recovery,
+    Context::Log,
+    Context::Help,
+    Context::Diff,
+    Context::Packages,
+    Context::Choose,
+];
+
+/// Each action a character reaches in the workspace, by the views it is
+/// bound in, with where rule 1 finds it ([`Reach`]). What only an arrow,
+/// `Esc` or another key that is no character reaches is not listed, nor
+/// what a text field's chords do, nor the command line, which `:` opens.
+const ENTER_REACHES: &[(&[Context], Reach, &[Intent])] = &[
     (
-        Context::Snapshots,
+        &[Context::Snapshots],
+        Reach::Menu,
         &[
+            Intent::Boot,
             Intent::Rollback,
             Intent::Clone,
             Intent::CloneAndPromote,
@@ -155,8 +204,78 @@ pub(crate) const ENTER_REACHES: &[(Context, &[Intent])] = &[
             Intent::Chroot,
         ],
     ),
-    (Context::Pools, &[Intent::Unlock]),
+    (
+        &[Context::Snapshots],
+        Reach::MenuAndCommand,
+        &[Intent::Diff],
+    ),
+    (
+        &[Context::Pools],
+        Reach::Menu,
+        &[Intent::Unlock, Intent::Import, Intent::ReadWrite],
+    ),
+    (&[Context::Pools], Reach::MenuAndCommand, &[Intent::Rewind]),
+    (
+        &[Context::Main, Context::Kernels],
+        Reach::Menu,
+        &[Intent::Boot],
+    ),
+    (
+        &[Context::Main],
+        Reach::CommandLine,
+        &[
+            Intent::Kernels,
+            Intent::Snapshots,
+            Intent::Edit,
+            Intent::SetDefault,
+            Intent::NewSnapshot,
+            Intent::ReadWrite,
+            Intent::Chroot,
+            Intent::RevertCommandLine,
+        ],
+    ),
+    // A new snapshot is the focused environment's.
+    (
+        &[Context::Snapshots],
+        Reach::CommandLine,
+        &[Intent::NewSnapshot],
+    ),
+    (
+        &[Context::Kernels],
+        Reach::CommandLine,
+        &[Intent::Edit, Intent::SetDefault, Intent::InheritDefault],
+    ),
+    (
+        VIEWS,
+        Reach::Command,
+        &[
+            Intent::Sort,
+            Intent::Fold,
+            Intent::Mark,
+            Intent::Filter,
+            Intent::Pools,
+            Intent::Log,
+            Intent::Recovery,
+            Intent::Shell,
+            Intent::Power,
+            Intent::Help,
+            Intent::Redraw,
+            Intent::Tab(Tab::Boot),
+            Intent::Tab(Tab::Snapshots),
+            Intent::Tab(Tab::Pools),
+            Intent::Tab(Tab::Log),
+        ],
+    ),
 ];
+
+/// Where rule 1 finds `intent` in `context` of the workspace, as
+/// [`ENTER_REACHES`] says; `None` where it lists none.
+pub(crate) fn reach(context: Context, intent: Intent) -> Option<Reach> {
+    ENTER_REACHES
+        .iter()
+        .find(|(views, _, intents)| views.contains(&context) && intents.contains(&intent))
+        .map(|(_, reach, _)| *reach)
+}
 
 /// The actions of `context` with the key map `map` that only a character
 /// or a chord reaches, in the order of the help view, each with its keys
@@ -199,20 +318,15 @@ fn add(keys: &mut Vec<(Intent, Vec<String>)>, intent: Intent, name: String) {
 }
 
 /// Whether `intent` in `context` is reached otherwise than by a key: an
-/// entry of the palette, or of an `Enter` menu. A digit only shortens the
-/// way to a tab, which `Tab` and `Shift-Tab` reach; `Ctrl-L` redraws,
-/// which does nothing yet (ADR 0016, "found and left"); and the palette
-/// edits the command line of an environment (`palette-edit`), as `e` does
-/// on the Boot tab.
+/// entry of the palette, or of an `Enter` menu alone ([`Reach::Menu`]). A
+/// digit only shortens the way to a tab, which `Tab` and `Shift-Tab`
+/// reach; `Ctrl-L` redraws, which does nothing yet (ADR 0016, "found and
+/// left"); and the palette edits the command line of an environment
+/// (`palette-edit`), as `e` does on the Boot tab.
 fn is_reached(context: Context, intent: Intent) -> bool {
     match intent {
         Intent::Tab(_) | Intent::Redraw => true,
         Intent::Edit => context == Context::Main,
-        _ => {
-            PALETTE_HAS.contains(&intent)
-                || ENTER_REACHES
-                    .iter()
-                    .any(|(view, intents)| *view == context && intents.contains(&intent))
-        }
+        _ => PALETTE_HAS.contains(&intent) || reach(context, intent) == Some(Reach::Menu),
     }
 }
