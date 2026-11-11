@@ -10,9 +10,12 @@ use zbm_types::Untrusted;
 
 use zbm_boot::BootSettings;
 use zbm_boot::Recovery;
+use zbm_bootenv::BootEnvError;
+use zbm_bootenv::hooks::Variables;
 use zbm_bootenv::kernels::Kernel;
 use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::console::Screen;
+use zbm_platform::interaction::Interaction;
 use zbm_platform::{Context, Files, System};
 use zbm_state::State;
 use zbm_tools::console::ConsoleInteraction;
@@ -39,6 +42,37 @@ pub(crate) struct Boot<'s, 'a> {
     pub state: &'s State<'a>,
     /// How to boot: the hooks, the host ID, the saved logs.
     pub settings: &'s BootSettings,
+}
+
+/// The variables the hooks of `settings` see now: those of `settings`, with
+/// the default boot environment of `state` as it is now, which the menu may
+/// have changed since it started.
+fn env_now(settings: &BootSettings, state: &State<'_>) -> Variables {
+    let env = settings.env.clone();
+    match state.bootfs().and_then(|name| name.parse().ok()) {
+        Some(bootfs) => env.with_bootfs(&bootfs),
+        None => env,
+    }
+}
+
+/// Loads the key of the encryption root of `dataset` if it is locked, as a
+/// boot chosen in the menu loads it: with the key hooks of `settings`,
+/// which see the variables of now ([`env_now`]), asking through
+/// `interaction`. The menu's changes and its chroot load keys so.
+///
+/// # Errors
+///
+/// Why the key stays unloaded.
+pub(crate) fn load_menu_key(
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
+    state: &State<'_>,
+    settings: &BootSettings,
+    dataset: &DatasetName,
+) -> Result<(), BootEnvError> {
+    let env = env_now(settings, state);
+    let how = KeyLoad::new(&settings.hooks, &env, BootPath::Menu);
+    keys::load_key(context, interaction, state, &how, dataset)
 }
 
 /// A failed outcome, as the last event.
@@ -158,9 +192,7 @@ impl<'a> Boot<'_, 'a> {
     /// start-up (ADR 0017).
     fn settings_now(&self) -> BootSettings {
         let mut settings = self.settings.clone();
-        if let Some(bootfs) = self.state.bootfs().and_then(|name| name.parse().ok()) {
-            settings.env = settings.env.with_bootfs(&bootfs);
-        }
+        settings.env = env_now(self.settings, self.state);
         settings.steps = crate::steps::built_in(self.state);
         settings
     }

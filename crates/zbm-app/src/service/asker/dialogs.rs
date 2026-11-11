@@ -95,7 +95,8 @@ impl<'c> EverySecond<'c> {
 }
 
 /// The question of the timed prompt about `subject`, when it is one of
-/// unlocking's: a volume to retry, a device that is missing.
+/// unlocking's: a volume to retry, a device that is missing. A failed
+/// boot's and a chroot's are asked on the console, which the menu yielded.
 fn question(subject: &Subject) -> Option<Question> {
     match subject {
         Subject::Retry { name, .. } => Some(Question::RetryUnlock {
@@ -104,7 +105,7 @@ fn question(subject: &Subject) -> Option<Question> {
         Subject::Missing(device) => Some(Question::MissingVolume {
             device: device.clone(),
         }),
-        Subject::LoadFailed { .. } | Subject::KexecFailed { .. } => None,
+        Subject::LoadFailed { .. } | Subject::KexecFailed { .. } | Subject::Chroot { .. } => None,
     }
 }
 

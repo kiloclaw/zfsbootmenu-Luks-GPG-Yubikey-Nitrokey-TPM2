@@ -76,8 +76,8 @@ impl<'a> Mount<'a> {
     }
 }
 
-/// This system's `efivarfs`, remounted in a chroot's mode, which dropping
-/// it remounts read-only, as start-up left it.
+/// This system's `efivarfs`, mounted or remounted in a chroot's mode,
+/// which dropping it remounts read-only, as start-up left it.
 #[must_use = "dropping it sets the efivarfs back to read-only at once"]
 pub struct HostEfivars<'a> {
     mount: Mount<'a>,
@@ -93,7 +93,25 @@ impl<'a> HostEfivars<'a> {
     /// The exit status of `mount` when it failed, 126 when it could not
     /// start; the `efivarfs` is then as it was.
     pub fn remount(mount: Mount<'a>, mode: &str) -> Result<HostEfivars<'a>, i32> {
-        match mount.efivarfs_status(Path::new(EFIVARS), &format!("remount,{mode}")) {
+        Self::with_options(mount, &format!("remount,{mode}"))
+    }
+
+    /// Mounts this system's `efivarfs`, which is not mounted, in `mode`,
+    /// `ro` or `rw` (`mount -t efivarfs efivarfs /sys/firmware/efi/efivars
+    /// -o MODE`), its output on the console; dropping it leaves it mounted,
+    /// read-only.
+    ///
+    /// # Errors
+    ///
+    /// The exit status of `mount` when it failed, 126 when it could not
+    /// start; nothing is mounted then.
+    pub fn mount(mount: Mount<'a>, mode: &str) -> Result<HostEfivars<'a>, i32> {
+        Self::with_options(mount, mode)
+    }
+
+    /// Mounts this system's `efivarfs` with `options`.
+    fn with_options(mount: Mount<'a>, options: &str) -> Result<HostEfivars<'a>, i32> {
+        match mount.efivarfs_status(Path::new(EFIVARS), options) {
             0 => Ok(HostEfivars { mount }),
             code => Err(code),
         }

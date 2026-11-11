@@ -146,3 +146,24 @@ fn every_message_of_the_keyholder_reads_back_as_it_was_sent() {
         assert_eq!(FromKeyholder::decode(&message.encode()), Ok(message));
     }
 }
+
+#[test]
+fn a_chroot_subject_goes_through_the_keyholder_codec() {
+    let ask = FromKeyholder::Ask(PromptRequest {
+        subject: Subject::Chroot {
+            filesystem: "tank/ROOT/be@old".parse().unwrap(),
+        },
+        delay: RetryDelay::new(10),
+        message: String::new(),
+        on_return: "Enter r/o chroot".to_owned(),
+        on_escape: "Enter r/w chroot".to_owned(),
+    });
+    let encoded = ask.encode();
+    assert_eq!(FromKeyholder::decode(&encoded), Ok(ask));
+
+    // A name that is no filesystem's is no message.
+    let text = String::from_utf8(encoded).unwrap();
+    let bad = text.replace("tank/ROOT/be@old", "tank//be");
+    assert_ne!(bad, text);
+    assert!(FromKeyholder::decode(bad.as_bytes()).is_err());
+}

@@ -233,24 +233,32 @@ fn secret_prompt(kind: &SecretKind, device: &str) -> Option<(Option<String>, Str
     })
 }
 
+/// The timed prompt of `request`, with its delay, before its lines.
+fn timed(request: &PromptRequest) -> TimedPrompt {
+    match request.delay {
+        Some(delay) => TimedPrompt::new().delay(retry_delay(delay)),
+        None => TimedPrompt::new(),
+    }
+}
+
 impl Interaction for ConsoleInteraction<'_> {
     /// The timed prompt; a skipped device or a retry leaves the screen clear
     /// with the cursor on, as the legacy unlock loop leaves it. A failed
     /// boot's says what failed and counts down to the menu, as the legacy
-    /// runtime's does.
+    /// runtime's does; a chroot's says what ESCAPE and RETURN do and counts
+    /// down to entering it, as `zfs-chroot`'s did.
     fn ask(&self, request: &PromptRequest) -> Answer {
-        let mut prompt = TimedPrompt::new();
-        if let Some(delay) = request.delay {
-            prompt = prompt.delay(retry_delay(delay));
-        }
-        let prompt = prompt.message(colorize("red", &request.message));
+        let prompt = timed(request);
+        let message = colorize("red", &request.message);
         let answer = match &request.subject {
             Subject::LoadFailed { kernel, initramfs } => prompt
+                .message(message)
                 .message(colorize("orange", kernel))
                 .message(colorize("orange", initramfs))
                 .run(&self.system),
-            Subject::KexecFailed { .. } => prompt.run(&self.system),
+            Subject::KexecFailed { .. } => prompt.message(message).run(&self.system),
             Subject::Retry { .. } | Subject::Missing(_) => prompt
+                .message(message)
                 .on_return(&request.on_return)
                 .on_escape(&request.on_escape)
                 .prompt(|seconds| {
@@ -260,11 +268,23 @@ impl Interaction for ConsoleInteraction<'_> {
                     )
                 })
                 .run(&self.system),
+            Subject::Chroot { .. } => prompt
+                .on_escape(&request.on_escape)
+                .on_return(&request.on_return)
+                .prompt(|seconds| {
+                    format!(
+                        "Entering chroot in {} seconds",
+                        colorize("yellow", &format!("{seconds:02}"))
+                    )
+                })
+                .run(&self.system),
         };
         let clear = match request.subject {
             Subject::Retry { .. } => true,
             Subject::Missing(_) => answer == Answer::Escape,
-            Subject::LoadFailed { .. } | Subject::KexecFailed { .. } => false,
+            Subject::LoadFailed { .. } | Subject::KexecFailed { .. } | Subject::Chroot { .. } => {
+                false
+            }
         };
         if clear {
             self.system.console.screen(Screen::ShowCursor);

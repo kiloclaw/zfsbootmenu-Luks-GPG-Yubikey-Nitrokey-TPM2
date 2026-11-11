@@ -7,7 +7,6 @@ use std::path::Path;
 
 use zbm_boot::BootSettings;
 use zbm_bootenv::Noise;
-use zbm_bootenv::keys::{self, BootPath, KeyLoad};
 use zbm_platform::{Context, System};
 use zbm_pool::ImportSettings;
 use zbm_pool::writable::set_rw_pool;
@@ -16,6 +15,7 @@ use zbm_tools::console::ConsoleInteraction;
 use zbm_types::{DatasetName, FilesystemName, PoolName, Printable, SnapshotName, Untrusted};
 
 use super::restore::Restore;
+use crate::boot::load_menu_key;
 use crate::model::{ImportOptions, Step, StepKind};
 use crate::volumes::causes;
 
@@ -128,14 +128,9 @@ impl Needs for OnMachine<'_, '_> {
                 Some(root) => Err(vec![format!("the key of {root} is not loaded")]),
             };
         }
-        let mut env = self.settings.env.clone();
-        if let Some(bootfs) = self.state.bootfs().and_then(|name| name.parse().ok()) {
-            env = env.with_bootfs(&bootfs);
-        }
-        let how = KeyLoad::new(&self.settings.hooks, &env, BootPath::Menu);
         let context = Context::new(*self.system);
         let interaction = ConsoleInteraction::new(*self.system);
-        keys::load_key(&context, &interaction, self.state, &how, dataset)
+        load_menu_key(&context, &interaction, self.state, self.settings, dataset)
             .map_err(|error| causes(&error))
     }
 

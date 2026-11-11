@@ -160,6 +160,9 @@ pub(super) fn prompt(request: &PromptRequest) -> Value {
             json!({"load failed": {"kernel": kernel, "initramfs": initramfs}})
         }
         Subject::KexecFailed { kernel } => json!({"kexec failed": {"kernel": kernel}}),
+        Subject::Chroot { filesystem } => {
+            json!({"chroot": {"filesystem": filesystem.to_string()}})
+        }
     };
     json!({
         "subject": subject,
@@ -186,6 +189,10 @@ pub(super) fn read_prompt(object: &Map<String, Value>) -> Option<PromptRequest> 
     } else if let Some(kexec) = inner(subject, "kexec failed") {
         Subject::KexecFailed {
             kernel: owned(kexec, "kernel")?,
+        }
+    } else if let Some(chroot) = inner(subject, "chroot") {
+        Subject::Chroot {
+            filesystem: owned(chroot, "filesystem")?.parse().ok()?,
         }
     } else {
         Subject::Missing(owned(subject, "missing")?)

@@ -14,10 +14,10 @@ use zbm_platform::event::CancelToken;
 use zbm_platform::{Context, System};
 use zbm_pool::ImportSettings;
 
-use zbm_tools::programs::ZFS_CHROOT;
 use zbm_types::{DatasetName, FilesystemName};
 
 use crate::auth::{self, Authority};
+use crate::chroot::{self, ChrootError};
 use crate::keyholder::Keyholders;
 use crate::model::{Action, Encryption, Event, Keyboard, Outcome, Snapshot};
 use crate::power::{self, Reset};
@@ -344,7 +344,7 @@ impl<'a> App<'a> {
             }
             Action::FirmwareSetup => power::reset(&system, Reset::FirmwareSetup),
             Action::BootSnapshot(_, target) => self.boot_clone(action, target, &system, recovery),
-            Action::Chroot(filesystem) => self.chroot(action, filesystem, &system),
+            Action::Chroot(filesystem) => self.chroot(filesystem, &system),
             Action::ScanPools => self.scan(),
             Action::LoadDeviceLog(device) => self.device_log(device),
             Action::LoadSnapshots(environment) => self.load_snapshots(environment),
@@ -406,41 +406,20 @@ impl<'a> App<'a> {
         events
     }
 
-    /// Opens a shell in a chroot of `filesystem` on the console of `system`
-    /// with `zfs-chroot`, through the shell's gate (ADR 0010), unless the
-    /// image has no `zfs-chroot`. It is done once a shell ran: `zfs-chroot`
-    /// exits 0 then, whatever the shell's status, and otherwise, when it
-    /// could not mount the filesystem (one whose key is not loaded) or run
-    /// a shell in it, says why on the console and fails.
-    fn chroot(
-        &self,
-        action: &Action,
-        filesystem: &FilesystemName,
-        system: &System<'_>,
-    ) -> Vec<Event> {
-        if !system.files.exists(Path::new(ZFS_CHROOT)) {
-            return unavailable(action);
-        }
+    /// Opens a shell in a chroot of `filesystem` on the console of `system`,
+    /// through the shell's gate (ADR 0010), as [`chroot::open`] does: it
+    /// asks there whether to import a read-only pool read/write, and for
+    /// the key of a locked encryption root. It is done once a shell ran,
+    /// whatever the shell's status; otherwise it fails, saying why.
+    fn chroot(&self, filesystem: &FilesystemName, system: &System<'_>) -> Vec<Event> {
         let state = zbm_state::State::new(system.files, &self.runtime.base);
-        let now = system.clock.now();
-        let outcome = match auth::chroot(self.authority, &state, system.runner, now, filesystem) {
-            None => return auth::refused(),
-            Some(Ok(ran)) if ran.status.is_success() => {
-                Outcome::Done(format!("the shell in {filesystem} ended"))
-            }
-            Some(Ok(ran)) => Outcome::Failed {
+        let settings = &self.runtime.boot;
+        let outcome = match chroot::open(system, &state, self.authority, settings, filesystem) {
+            Ok(_) => Outcome::Done(format!("the shell in {filesystem} ended")),
+            Err(ChrootError::Refused) => return auth::refused(),
+            Err(error) => Outcome::Failed {
                 what: format!("unable to open a shell in {filesystem}"),
-                why: vec![format!(
-                    "zfs-chroot ended with status {}, after saying why on the console",
-                    ran.status.shell_code()
-                )],
-                next: vec![format!(
-                    "if {filesystem} is locked, load its key, then try again"
-                )],
-            },
-            Some(Err(error)) => Outcome::Failed {
-                what: format!("unable to open a shell in {filesystem}"),
-                why: vec![error.to_string()],
+                why: crate::volumes::causes(&error),
                 next: Vec::new(),
             },
         };
@@ -551,4 +530,4 @@ pub use seen::Seen;
 #[cfg(test)]
 mod offers_tests;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

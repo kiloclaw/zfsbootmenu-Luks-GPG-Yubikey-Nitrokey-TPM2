@@ -1,0 +1,1 @@
+{"version":1,"message":"ask","subject":{"chroot":{"filesystem":"tank/ROOT/be@old"}},"delay":10,"text":"","on_return":"Enter r/o chroot","on_escape":"Enter r/w chroot"}

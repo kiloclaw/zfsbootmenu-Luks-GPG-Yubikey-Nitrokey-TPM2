@@ -62,9 +62,10 @@ fn a_failed_mount_returns_its_code_and_mounts_nothing() {
         Some(32)
     );
     assert_eq!(HostEfivars::remount(mount, "rw").err(), Some(32));
+    assert_eq!(HostEfivars::mount(mount, "rw").err(), Some(32));
     // Nothing was mounted, so nothing is unmounted, nor set back.
     let lines = runner.lines();
-    assert_eq!(lines.len(), 6, "{lines:?}");
+    assert_eq!(lines.len(), 7, "{lines:?}");
     assert!(
         lines.iter().all(|line| line.starts_with("mount ")),
         "{lines:?}"
@@ -151,4 +152,20 @@ fn the_host_efivars_go_back_to_read_only_when_dropped() {
         "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o remount,ro"
     );
     assert_eq!(runner.calls()[1].get_stdout(), Stream::Inherit);
+}
+
+#[test]
+fn host_efivars_mounted_where_none_were_stay_mounted_read_only() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    let mount = Mount::new(&runner, &files);
+    let host = HostEfivars::mount(mount, "rw").unwrap();
+    drop(host);
+    assert_eq!(
+        runner.lines(),
+        [
+            "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o rw",
+            "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o remount,ro",
+        ]
+    );
+    assert_eq!(runner.calls()[0].get_stdout(), Stream::Inherit);
 }

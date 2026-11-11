@@ -2,6 +2,11 @@
 //! `zbm`'s applets (ADR 0018). One boot of the image of `runtime-rust`, with
 //! `tplain` (d0), on the group's machine, which boots from a BIOS:
 //!
+//! - the menu's chroot, from the Recovery Tools: the pool is imported
+//!   read-only, so it asks first, and Enter keeps it read-only; the shell
+//!   in `tplain`'s environment reads its `/etc/os-release`, and `exit` is
+//!   back at the menu, on its Recovery Tools, which the chroot left open.
+//!   The environment is not encrypted: no key is loaded;
 //! - the menu's Recovery Tools list no Firmware Setup, which a BIOS cannot
 //!   open, but Reboot and Power Off;
 //! - in the recovery shell, `firmware-setup` says why and exits 1;
@@ -31,6 +36,15 @@ const NO_FIRMWARE_SETUP: [&str; 2] = [
 /// How long a step may take, in seconds.
 const PATIENCE: u64 = 1200;
 
+/// The chroot's question, which counts down.
+const CHROOT_QUESTION: &str = "screen:Entering chroot in";
+
+/// The last of the chroot's notices, once its shell is found.
+const CHROOT_NOTICES: &str = "screen:/tmp is mounted read/write";
+
+/// What the test boot environment's `/etc/os-release` names.
+const TEST_ENVIRONMENT: &str = "ZBM test boot environment";
+
 /// Boots, looks at the Recovery Tools, then runs the shell's tools.
 ///
 /// # Errors
@@ -43,10 +57,68 @@ pub(super) fn run(test: &Test) -> Result<()> {
         Machine::boot(&image, super::ESCAPE_APPEND).with_disks(vec![super::disk(settings, 0)?]);
     let mut vm = Vm::start(test, "recovery", &machine)?;
     super::escape_countdown(&mut vm)?;
+    menu_chroot(test, &mut vm, Duration::from_secs(2))?;
     tools_to_shell(test, &mut vm, Duration::from_secs(2))?;
     shell_tools(test, &mut vm)?;
     vm.kill();
     Ok(())
+}
+
+/// Opens the menu's chroot of `tplain`'s environment from the Recovery
+/// Tools, the second of them; Enter at the question keeps it read-only.
+/// Reads the environment's `/etc/os-release` in the chroot's shell, then
+/// leaves it for the menu, which still shows its Recovery Tools with the
+/// chroot selected: Up selects the Recovery Shell again and Escape goes
+/// back to the boot environments. `pause` is how long to leave the menu
+/// between two keys.
+fn menu_chroot(test: &Test, vm: &mut Vm<'_>, pause: Duration) -> Result<()> {
+    vm.expect1(prompt::NEW_MENU, PATIENCE)?;
+    test.step("menu -> !, Down, Enter: the chroot from the Recovery Tools");
+    thread::sleep(pause);
+    vm.send("!")?;
+    let shown = vm.expect1(TOOLS, 60).is_ok();
+    test.check(
+        shown && vm.console().screen().contains("Chroot"),
+        "the menu's Recovery Tools offer the chroot",
+    );
+    thread::sleep(pause);
+    vm.send("\x1b[B")?;
+    thread::sleep(pause);
+    vm.send("\r")?;
+    let asked = vm.expect1(CHROOT_QUESTION, 120).is_ok();
+    test.check(
+        asked && vm.console().screen().contains("Enter r/o chroot"),
+        "a chroot on a pool imported read-only asks first",
+    );
+    test.step("Enter: a read-only chroot");
+    vm.send("\r")?;
+    let noticed = vm.expect1(CHROOT_NOTICES, 120).is_ok();
+    test.check(
+        noticed
+            && vm
+                .console()
+                .screen()
+                .contains("tplain/ROOT/be is mounted read-only"),
+        "Enter at the question mounts the environment read-only",
+    );
+    thread::sleep(pause);
+    let (code, said) = vm.sh_show("cat /etc/os-release")?;
+    test.check(
+        code == 0 && said.contains(TEST_ENVIRONMENT),
+        &format!("the chroot's shell reads the environment's os-release ({code})"),
+    );
+    test.step("exit: back to the menu's Recovery Tools");
+    vm.sendline("exit")?;
+    let back = vm.expect1(TOOLS, 120).is_ok();
+    test.check(
+        back,
+        "the menu is back on its Recovery Tools once the chroot's shell ends",
+    );
+    test.step("Up, Escape: the Recovery Shell selected, then the boot environments");
+    thread::sleep(pause);
+    vm.send("\x1b[A")?;
+    thread::sleep(pause);
+    vm.send("\x1b")
 }
 
 /// Opens the menu's Recovery Tools, checks what they list on a machine

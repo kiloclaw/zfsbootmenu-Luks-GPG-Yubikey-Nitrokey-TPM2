@@ -385,3 +385,40 @@ fn the_countdown_keeps_the_screen_before_a_zfs_key() {
         "Enter passphrase for 'zroot/ROOT':\n"
     );
 }
+
+#[test]
+fn a_chroot_s_prompt_counts_down_to_entering_it_as_zfs_chroot_s_did() {
+    let chroot = PromptRequest {
+        subject: Subject::Chroot {
+            filesystem: "tank/ROOT/be".parse().unwrap(),
+        },
+        delay: zbm_types::RetryDelay::new(10),
+        message: String::new(),
+        on_return: "Enter r/o chroot".to_owned(),
+        on_escape: "Enter r/w chroot".to_owned(),
+    };
+    let asked = shown(|fake| {
+        assert_eq!(console_of(fake).ask(&chroot), Answer::Continue);
+    });
+    let legacy = shown(|fake| {
+        let _ = TimedPrompt::new()
+            .delay(10)
+            .on_escape("Enter r/w chroot")
+            .on_return("Enter r/o chroot")
+            .prompt(|seconds| {
+                format!(
+                    "Entering chroot in {} seconds",
+                    colorize("yellow", &format!("{seconds:02}"))
+                )
+            })
+            .run(&fake.system());
+    });
+    assert_eq!(asked, legacy);
+    assert!(asked.0.contains("Entering chroot in"), "{}", asked.0);
+    // The chroot clears the screen itself, once it knows the mode.
+    assert!(!asked.1.contains(&Screen::ShowCursor), "{:?}", asked.1);
+
+    let fake = FakeSystem::new();
+    fake.console.keys(b"\x1b");
+    assert_eq!(console_of(&fake).ask(&chroot), Answer::Escape);
+}

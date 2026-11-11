@@ -2,7 +2,6 @@
 //! others.
 
 use zbm_testkit::fakes::FakeSystem;
-use zbm_tools::programs::ZFS_CHROOT;
 use zbm_types::DatasetName;
 
 use super::tests::NoShell;
@@ -85,14 +84,13 @@ fn of_kind(kind: model::Offer) -> Action {
 
 #[test]
 fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
-    // The chroot with `zfs-chroot`; opening a volume with a LUKS session,
-    // in an image with `cryptsetup`; the firmware setup where the firmware
+    // The chroot on every image; opening a volume with a LUKS session, in
+    // an image with `cryptsetup`; the firmware setup where the firmware
     // says it can open it.
-    for (has_chroot, has_luks) in [(false, false), (true, true)] {
+    for (has_firmware_setup, has_luks) in [(false, false), (true, true)] {
         let fake = FakeSystem::new();
         fake.files.dir("/zfsbootmenu");
-        if has_chroot {
-            fake.files.file(ZFS_CHROOT, "#!/bin/bash\n");
+        if has_firmware_setup {
             fake.files.file(OS_INDICATIONS_SUPPORTED, [7, 0, 0, 0, 1]);
         }
         fake.environment.set("PATH", "/sbin");
@@ -114,9 +112,12 @@ fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
         let offers = app.snapshot().unwrap().offers;
 
         assert!(!offers.is_empty());
-        assert_eq!(offers.contains(&model::Offer::Chroot), has_chroot);
+        assert!(offers.contains(&model::Offer::Chroot));
         assert_eq!(offers.contains(&model::Offer::OpenVolume), has_luks);
-        assert_eq!(offers.contains(&model::Offer::FirmwareSetup), has_chroot);
+        assert_eq!(
+            offers.contains(&model::Offer::FirmwareSetup),
+            has_firmware_setup
+        );
         for kind in model::Offer::ALL {
             let action = of_kind(kind);
             assert_eq!(action.offer(), Some(kind));

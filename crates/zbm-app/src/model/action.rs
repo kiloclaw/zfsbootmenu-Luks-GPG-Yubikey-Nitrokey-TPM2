@@ -89,7 +89,8 @@ pub enum Action {
     /// Seal a volume's TPM2 key to the PCRs as they are now.
     Reseal(String),
     /// A shell in a chroot of an environment, or of a snapshot read-only,
-    /// which `zfs-chroot` opens on the console through the shell's gate.
+    /// opened on the console through the shell's gate, once its key is
+    /// loaded ([`crate::chroot::open`]).
     Chroot(FilesystemName),
     /// Import a pool with the options given: one that is imported is
     /// exported first, which a rewind does whatever its access, and

@@ -20,8 +20,7 @@ use std::time::Duration;
 
 use zbm_platform::{Files, Output, RealFiles, Runner, Secret, System};
 use zbm_state::State;
-use zbm_tools::programs::ShellRoot;
-use zbm_types::FilesystemName;
+use zbm_tools::programs::{Chroot, ShellRoot};
 
 use crate::keyholder::Keyholders;
 use crate::model::{Event, Outcome};
@@ -199,15 +198,15 @@ impl ShellGate {
         Self::start(runner, ShellRoot::Image)
     }
 
-    /// Runs `zfs-chroot` for `filesystem` on the console with `runner`,
-    /// which opens a shell in a chroot of it, until it ends; the gate is
-    /// closed again.
+    /// Runs the shell of `chroot`, a chroot made ready, on the console with
+    /// `runner`, in the chroot, until it ends; the gate is closed again.
     ///
     /// # Errors
     ///
-    /// The error that kept `zfs-chroot` from starting.
-    pub fn chroot(self, runner: &dyn Runner, filesystem: &FilesystemName) -> io::Result<Output> {
-        Self::start(runner, ShellRoot::Chroot(filesystem))
+    /// The error that kept the shell from starting, such as a root that
+    /// cannot be entered.
+    pub fn chroot(self, runner: &dyn Runner, chroot: &Chroot) -> io::Result<Output> {
+        Self::start(runner, ShellRoot::Chroot(chroot))
     }
 
     /// The gate's one start of a shell, in `root`, which only an open gate
@@ -307,20 +306,31 @@ pub fn recovery_shell(
     ran
 }
 
-/// Opens a shell in a chroot of `filesystem` on the console with
-/// `runner`, through the shell's gate, when `authority` authorises it at
-/// `now`, as a person who opened a volume of `state` is; `None`, running
-/// nothing, when it does not. Once the shell ended, the proof is
-/// forgotten, as after the recovery shell.
-pub fn chroot(
+/// Opens a shell in a chroot on the console with `runner`, through the
+/// shell's gate, when `authority` authorises it at `now`, as a person who
+/// opened a volume of `state` is: the authorisation first, then `prepare`,
+/// which makes the chroot ready (imports, keys and mounts, which the lock
+/// keeps too), then the gate, for the chroot's shell, until it ends; what
+/// `prepare` made is dropped after. `None` without authority, before
+/// `prepare` runs. The proof is forgotten then, as after the recovery
+/// shell, and also when the chroot could not be made ready.
+///
+/// # Errors
+///
+/// The error of `prepare`, or the one that kept the shell from starting.
+pub fn chroot<P: AsRef<Chroot>, E: From<io::Error>>(
     authority: &Authority,
     state: &State<'_>,
     runner: &dyn Runner,
     now: Duration,
-    filesystem: &FilesystemName,
-) -> Option<io::Result<Output>> {
+    prepare: impl FnOnce() -> Result<P, E>,
+) -> Option<Result<Output, E>> {
     let authorized = authority.authorized(state.has_attended_unlock(), now)?;
-    let ran = ShellGate::open(&authorized).chroot(runner, filesystem);
+    let ran = prepare().and_then(|prepared| {
+        let ran = ShellGate::open(&authorized).chroot(runner, prepared.as_ref());
+        drop(prepared);
+        Ok(ran?)
+    });
     authority.forget();
     Some(ran)
 }

@@ -20,6 +20,7 @@ mod application;
 pub mod auth;
 mod boot;
 mod changes;
+pub mod chroot;
 pub mod console;
 pub mod devices;
 pub mod keyholder;

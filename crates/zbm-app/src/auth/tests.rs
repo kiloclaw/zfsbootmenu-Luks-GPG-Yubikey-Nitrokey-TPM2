@@ -135,27 +135,61 @@ fn the_recovery_shell_asks_for_the_pin_when_locked_and_locks_again_after() {
     ));
 }
 
+/// A chroot made ready, for the gate.
+struct Ready(Chroot);
+
+impl AsRef<Chroot> for Ready {
+    fn as_ref(&self) -> &Chroot {
+        &self.0
+    }
+}
+
 #[test]
-fn the_chroot_runs_only_while_a_proof_lasts_and_forgets_it_after() {
+fn without_authority_nothing_is_imported_or_mounted() {
     let fake = FakeSystem::new();
     fake.files.dir("/zfsbootmenu");
     let state = State::new(&fake.files, "/zfsbootmenu");
     let locked = Authority::new(Lock::On("hash".to_owned()));
-    let snapshot: FilesystemName = "tank/ROOT/be@old".parse().unwrap();
+    let prepared = std::cell::Cell::new(0);
+    let prepare = || {
+        prepared.set(prepared.get() + 1);
+        Ok::<_, io::Error>(Ready(Chroot {
+            root: "/zfsbootmenu/environments/tank/ROOT/be@old/mnt".into(),
+            shell: "/bin/sh".into(),
+            args: Vec::new(),
+            name: "tank/ROOT/be@old".parse().unwrap(),
+        }))
+    };
 
-    // No proof, then one that lapsed: nothing runs.
-    assert!(chroot(&locked, &state, &fake.runner, at(0), &snapshot).is_none());
+    // No proof, then one that lapsed: nothing is prepared, nothing runs.
+    let refused = chroot(&locked, &state, &fake.runner, at(0), prepare);
+    assert!(refused.is_none(), "{refused:?}");
     locked.prove(Verified::new(), at(10));
     let lapsed = at(10 + IDLE.as_secs());
-    assert!(chroot(&locked, &state, &fake.runner, lapsed, &snapshot).is_none());
+    let refused = chroot(&locked, &state, &fake.runner, lapsed, prepare);
+    assert!(refused.is_none(), "{refused:?}");
+    assert_eq!(prepared.get(), 0);
     assert_eq!(fake.runner.lines(), Vec::<String>::new());
 
-    // A proof that lasts: the chroot runs, and the proof goes with it.
+    // A proof that lasts: the chroot is prepared, its shell runs in it,
+    // and the proof goes with it.
     locked.prove(Verified::new(), at(1000));
-    let ran = chroot(&locked, &state, &fake.runner, at(1001), &snapshot);
+    let ran = chroot(&locked, &state, &fake.runner, at(1001), prepare);
     assert!(matches!(ran, Some(Ok(_))), "{ran:?}");
+    assert_eq!(prepared.get(), 1);
     assert!(locked.is_locked(false, at(1002)));
-    assert_eq!(fake.runner.lines(), ["/bin/zfs-chroot tank/ROOT/be@old"]);
+    assert_eq!(fake.runner.lines(), ["/bin/sh"]);
+
+    // A chroot that could not be prepared runs nothing, and the proof goes
+    // too.
+    locked.prove(Verified::new(), at(2000));
+    let failed = chroot(&locked, &state, &fake.runner, at(2001), || {
+        Err::<Ready, _>(io::Error::other("no shell runs there"))
+    });
+    let failed = failed.and_then(Result::err).map(|error| error.to_string());
+    assert_eq!(failed.as_deref(), Some("no shell runs there"));
+    assert!(locked.is_locked(false, at(2002)));
+    assert_eq!(fake.runner.lines(), ["/bin/sh"]);
 }
 
 #[test]

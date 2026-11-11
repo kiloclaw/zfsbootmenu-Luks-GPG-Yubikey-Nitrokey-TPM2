@@ -2,9 +2,6 @@
 //! performs there; the others end as [`unavailable`](super::unavailable).
 
 use std::collections::BTreeSet;
-use std::path::Path;
-
-use zbm_tools::programs::ZFS_CHROOT;
 
 use super::App;
 use crate::boot;
@@ -15,14 +12,12 @@ impl App<'_> {
     /// `files`: the boot, a snapshot's too, the changes of package D
     /// ([`Action::is_change`](crate::model::Action::is_change)), the
     /// default kernel and the command line, restoring files, the import
-    /// and the export among them, the recovery shell, the chroot when the
-    /// image has `zfs-chroot`, the power actions, the firmware setup where
-    /// the firmware says it can open it, which it does not on a machine
-    /// that boots from a BIOS, and opening a volume with a LUKS session in
-    /// an image with `cryptsetup`. The others have no use case yet, and
-    /// end as [`unavailable`](super::unavailable).
+    /// and the export among them, the recovery shell, the chroot, the power
+    /// actions, the firmware setup where the firmware says it can open it,
+    /// which it does not on a machine that boots from a BIOS, and opening a
+    /// volume with a LUKS session in an image with `cryptsetup`. The others
+    /// have no use case yet, and end as [`unavailable`](super::unavailable).
     pub(super) fn offers(&self, files: &dyn zbm_platform::Files) -> BTreeSet<Offer> {
-        let chroot = files.exists(Path::new(ZFS_CHROOT)).then_some(Offer::Chroot);
         let firmware = boot::can_open_firmware_setup(files)
             .is_ok()
             .then_some(Offer::FirmwareSetup);
@@ -46,10 +41,10 @@ impl App<'_> {
             Offer::Import,
             Offer::Export,
             Offer::Shell,
+            Offer::Chroot,
             Offer::Power,
         ]
         .into_iter()
-        .chain(chroot)
         .chain(firmware)
         .chain(open)
         .collect()

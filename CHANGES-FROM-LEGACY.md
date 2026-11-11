@@ -548,11 +548,22 @@ same commands. The menu also restores files from a snapshot, which the legacy me
 
 - **Before:** `mod-j` ran `zfs-chroot` on the console for the environment or snapshot selected; nothing stood in the
   way of the shell it opened.
-- **Now:** the chroot runs the same `/bin/zfs-chroot <filesystem>` on the console, through the one gate to a shell
-  (ADR 0010): a locked menu asks for the PIN first, and runs nothing without it; the proof is forgotten once the shell
-  ends. An image without `zfs-chroot` does not offer it. When `zfs-chroot` opens no shell, as on a filesystem whose
-  key is not loaded, the menu says it failed and why, where it used to come back as if a shell had run.
+- **Now:** the chroot goes through the one gate to a shell (ADR 0010): a locked menu asks for the PIN first, and
+  imports, mounts and runs nothing without it; the proof is forgotten once the shell ends. No `/bin/zfs-chroot`
+  script runs: ZFSBootMenu prepares the chroot itself, in the script's order, and the menu offers it on every image.
+  Its question, read/write or read-only, is asked on the console, as before, and over SSH on the client's terminal.
+  When no shell opens, as when no shell runs in the filesystem, the menu says it failed and why, where it used to
+  come back as if a shell had run.
 - **Why:** a shell in a chroot is a shell, and the lock keeps every shell.
+
+### A chroot loads the environment's key first
+
+- **Before:** `zfs-chroot` loaded the key of the filesystem's encryption root only after the question was answered
+  read/write; a read-only chroot of a locked environment failed to mount it.
+- **Now:** a chroot loads the environment's key first, read-only or read/write, as a boot chosen in the menu loads
+  it: the `load-key.d` hooks, then the prompt. A key refused, or none given, ends the chroot with nothing mounted.
+- **Why:** the menu's command line already marks a chroot of a locked environment with the key it costs; now the
+  chroot does what it says.
 
 ### Rollback has no safety snapshot
 

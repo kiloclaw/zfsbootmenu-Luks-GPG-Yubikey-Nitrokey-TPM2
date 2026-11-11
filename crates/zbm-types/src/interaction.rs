@@ -3,7 +3,7 @@
 //! the questions of `zbm_platform::interaction`'s `Interaction` port that
 //! borrow nothing.
 
-use crate::RetryDelay;
+use crate::{FilesystemName, RetryDelay};
 
 /// A secret a volume or a ZFS encryption root asks for.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -78,8 +78,8 @@ pub enum Told {
     Booting,
 }
 
-/// What a timed prompt is about: a volume of the LUKS code, or a boot that
-/// failed.
+/// What a timed prompt is about: a volume of the LUKS code, a boot that
+/// failed, or a chroot.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Subject {
     /// A round of passphrases did not open a volume: RETURN tries again,
@@ -106,6 +106,13 @@ pub enum Subject {
     KexecFailed {
         /// The kernel's path in its boot environment.
         kernel: String,
+    },
+    /// A chroot of a filesystem on a pool imported read-only: RETURN, or
+    /// the time running out, keeps it read-only; ESCAPE imports the pool
+    /// read/write first.
+    Chroot {
+        /// The filesystem.
+        filesystem: FilesystemName,
     },
 }
 
@@ -155,6 +162,17 @@ impl PromptRequest {
             }
             Subject::KexecFailed { .. } => {
                 arguments.extend(["-m".to_owned(), self.message.clone()]);
+                return arguments;
+            }
+            Subject::Chroot { .. } => {
+                arguments.extend([
+                    "-e".to_owned(),
+                    self.on_escape.clone(),
+                    "-r".to_owned(),
+                    self.on_return.clone(),
+                    "-p".to_owned(),
+                    "Entering chroot in %0.2d seconds".to_owned(),
+                ]);
                 return arguments;
             }
             Subject::Retry { .. } | Subject::Missing(_) => {}
@@ -251,6 +269,32 @@ mod tests {
         assert_eq!(
             retry.arguments().last().map(String::as_str),
             Some("Retrying in %0.2d seconds")
+        );
+    }
+
+    #[test]
+    fn a_chroot_prompts_as_zfs_chroot_did() {
+        let chroot = PromptRequest {
+            subject: Subject::Chroot {
+                filesystem: "tank/ROOT/be".parse().unwrap(),
+            },
+            on_return: "Enter r/o chroot".to_owned(),
+            on_escape: "Enter r/w chroot".to_owned(),
+            ..request(Subject::Missing(String::new()), "")
+        };
+        assert!(!chroot.subject.is_failed_boot());
+        assert_eq!(
+            chroot.arguments(),
+            [
+                "-d",
+                "10",
+                "-e",
+                "Enter r/w chroot",
+                "-r",
+                "Enter r/o chroot",
+                "-p",
+                "Entering chroot in %0.2d seconds"
+            ]
         );
     }
 }

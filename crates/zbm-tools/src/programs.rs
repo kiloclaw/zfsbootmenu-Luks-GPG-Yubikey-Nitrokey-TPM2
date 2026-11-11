@@ -11,7 +11,6 @@ use std::path::Path;
 
 use zbm_platform::shell::{self, Interpreter};
 use zbm_platform::{Command, Input, Output, Runner, Signal, Stream};
-use zbm_types::FilesystemName;
 
 mod chroot;
 
@@ -105,18 +104,15 @@ pub fn key_script(
 pub enum ShellRoot<'a> {
     /// In the image's own root: the shell the runtime chose.
     Image,
-    /// In a chroot of a filesystem, which [`ZFS_CHROOT`] mounts, read-only
-    /// for a snapshot, and cleans up after.
-    Chroot(&'a FilesystemName),
+    /// In a chroot of a filesystem, mounted and ready, with the shell that
+    /// runs there.
+    Chroot(&'a Chroot),
 }
-
-/// Where the image keeps `zfs-chroot`, which opens a shell in a chroot of a
-/// filesystem: one of a snapshot read-only.
-pub const ZFS_CHROOT: &str = "/bin/zfs-chroot";
 
 /// Runs an interactive shell on the console, in `root`: in the image, the
 /// one the runtime chose ([`zbm_platform::shell`]) or Bash
-/// (`/bin/bash -i`); in a chroot, [`ZFS_CHROOT`] for the filesystem.
+/// (`/bin/bash -i`); in a chroot, the chroot's shell, in its root, with a
+/// prompt that names the filesystem and no `PROMPT_COMMAND`.
 /// Ctrl-C reaches it with its default action. When it ends, this process
 /// takes the terminal back: a shell with job control that ended without
 /// giving it back, or was killed, leaves its own process group in the
@@ -131,7 +127,7 @@ pub fn interactive_shell(runner: &dyn Runner, root: ShellRoot<'_>) -> io::Result
             let program = shell::chosen().unwrap_or_else(|| shell::BASH.into());
             Command::new(program).arg("-i")
         }
-        ShellRoot::Chroot(filesystem) => Command::new(ZFS_CHROOT).arg(filesystem.to_string()),
+        ShellRoot::Chroot(chroot) => chroot.command(),
     };
     let command = on_console(command).default_signal(Signal::Interrupt);
     let ran = runner.run(&command);
@@ -506,8 +502,13 @@ mod tests {
         )
         .unwrap();
         interactive_shell(&runner, ShellRoot::Image).unwrap();
-        let snapshot = "tank/ROOT/be@old".parse().unwrap();
-        interactive_shell(&runner, ShellRoot::Chroot(&snapshot)).unwrap();
+        let chroot = Chroot {
+            root: "/zfsbootmenu/environments/tank/ROOT/be@old/mnt".into(),
+            shell: "/bin/sh".into(),
+            args: Vec::new(),
+            name: "tank/ROOT/be@old".parse().unwrap(),
+        };
+        interactive_shell(&runner, ShellRoot::Chroot(&chroot)).unwrap();
         applet(&runner, "zluks", &["unlock"], &[("LUKS_RETRY", "1")]).unwrap();
 
         copy_file(&runner, Path::new("/a"), Path::new("/b")).unwrap();
@@ -526,7 +527,7 @@ mod tests {
             [
                 "/etc/keyscript none",
                 "/bin/bash -i",
-                "/bin/zfs-chroot tank/ROOT/be@old",
+                "/bin/sh",
                 "zluks unlock",
                 "cp /a /b",
                 "cp -a -- /s/-a /b",
