@@ -53,10 +53,9 @@ pub fn line(name: &str, done: &Done) -> String {
 /// `zbm console-fonts <source> <destination>`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     let [source, destination] = args else {
-        let _ = writeln!(
-            io.stderr,
-            "Usage: zbm console-fonts <source directory> <destination directory>"
-        );
+        let _ = io
+            .stderr
+            .write_all(crate::table::CONSOLE_FONTS.usage.as_bytes());
         return crate::USAGE;
     };
     match convert(&RealFiles, Path::new(source), Path::new(destination)) {

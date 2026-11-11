@@ -19,11 +19,7 @@ use crate::debug::BASE;
 use crate::{Io, USAGE};
 
 /// The usage text.
-const USAGE_TEXT: &str = "\
-Usage: zbm report              write a report on the EFI system partition
-       zbm report DIR          write it in the directory DIR
-       zbm report PARTITION    write it on PARTITION (a device, or LABEL=...)
-";
+const USAGE_TEXT: &str = crate::table::REPORT.usage;
 
 /// `zbm report` on `system`, with the state directory `base`.
 pub fn run_in(system: &System<'_>, base: &Path, args: &[String], io: &mut Io) -> i32 {
@@ -132,7 +128,7 @@ mod tests {
         let fake = FakeSystem::new();
 
         assert_eq!(
-            call(&fake, &["--help"]),
+            call(&fake, &["--bogus"]),
             (USAGE, String::new(), USAGE_TEXT.to_owned())
         );
         assert_eq!(call(&fake, &["a", "b"]).0, USAGE);
@@ -153,7 +149,7 @@ mod tests {
             stdout: &mut stdout,
             stderr: &mut stderr,
         };
-        assert_eq!(run(&["--help".to_owned()], &mut io), USAGE);
+        assert_eq!(run(&["--bogus".to_owned()], &mut io), USAGE);
         assert!(stdout.is_empty());
         assert_eq!(String::from_utf8(stderr).unwrap(), USAGE_TEXT);
     }

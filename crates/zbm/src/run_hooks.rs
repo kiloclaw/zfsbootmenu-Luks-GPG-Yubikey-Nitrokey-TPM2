@@ -20,7 +20,7 @@ use zbm_types::HookStage;
 
 use crate::Io;
 
-const USAGE: &str = "Usage: zbm run-hooks [-once] STAGE\n";
+const USAGE: &str = crate::table::RUN_HOOKS.usage;
 
 /// `zbm run-hooks`: runs the stage below `/libexec/hooks` on the real
 /// system. The exit status is 0 when a hook or step ran, 1 when none did

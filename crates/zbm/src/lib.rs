@@ -31,8 +31,11 @@ pub mod saved;
 pub mod secret_search;
 pub mod startup;
 pub mod supervisor;
+mod table;
 pub mod unlock;
 mod zfunc;
+
+pub use table::APPLETS;
 
 /// The program's output streams.
 pub struct Io<'a> {
@@ -46,148 +49,16 @@ pub struct Io<'a> {
 pub struct Applet {
     /// The name it is run under.
     pub name: &'static str,
+    /// The other names it answers to through a link, each with the
+    /// arguments it puts before the user's (`ztrace` runs `logs --trace`).
+    pub names: &'static [(&'static str, &'static [&'static str])],
     /// A one-line description for `zbm --list`.
     pub summary: &'static str,
+    /// Its usage text, which `--help` as its first argument prints.
+    pub usage: &'static str,
     /// Runs the command with its arguments and returns its exit status.
     pub run: fn(&[String], &mut Io) -> i32,
 }
-
-const INIT: Applet = Applet {
-    name: "zfsbootmenu-init",
-    summary: "the start-up program, and with --supervise process 1",
-    run: applets::init,
-};
-
-const PARSE_COMMANDLINE: Applet = Applet {
-    name: "zfsbootmenu-parse-commandline",
-    summary: "read the command line into /etc/zfsbootmenu.conf (dracut cmdline hook)",
-    run: applets::parse_commandline,
-};
-
-const PREINIT: Applet = Applet {
-    name: "zfsbootmenu-preinit",
-    summary: "set up the console and start the supervisor (dracut pre-mount hook)",
-    run: applets::preinit,
-};
-
-const ZLUKS: Applet = Applet {
-    name: "zluks",
-    summary: "unlock, close and list LUKS volumes",
-    run: luks::zluks,
-};
-
-const UNLOCK: Applet = Applet {
-    name: "unlock",
-    summary: "the keyholder, which opens LUKS volumes for start-up and zluks",
-    run: unlock::run,
-};
-
-const CONSOLE_AUTOSIZE: Applet = Applet {
-    name: "console-autosize",
-    summary: "size the console font to the display (early-setup hook)",
-    run: applets::console_autosize,
-};
-
-const CONSOLE_FONT: Applet = Applet {
-    name: "console-font",
-    summary: "load a console font on a virtual terminal, as setfont does",
-    run: console_font::run,
-};
-
-const CONSOLE_FONTS: Applet = Applet {
-    name: "console-fonts",
-    summary: "write an image's console fonts as 256-glyph subsets (image build)",
-    run: fonts::run,
-};
-
-const KEYBOARD_LAYOUTS: Applet = Applet {
-    name: "keyboard-layouts",
-    summary: "compile an image's keyboard layouts from XKB data (image build)",
-    run: layouts::run,
-};
-
-const IMAGE: Applet = Applet {
-    name: "image",
-    summary: "the plan of an image, for the dracut module and mkinitcpio hook (image build)",
-    run: image::run,
-};
-
-const CONSOLE: Applet = Applet {
-    name: "console",
-    summary: "the console on the display, without the kernel's (zbm.console=drm)",
-    run: console::run,
-};
-
-const DEBUG: Applet = Applet {
-    name: "debug",
-    summary: "show crash reports and saved logs (zbm debug crash, saved)",
-    run: debug::run,
-};
-
-const REPORT: Applet = Applet {
-    name: "report",
-    summary: "write a bug report, without key material, on the ESP or a USB stick",
-    run: report::run,
-};
-
-const EXPLAIN: Applet = Applet {
-    name: "explain",
-    summary: "say what an error code (ZBM-E0412) means and what to do about it",
-    run: explain::run,
-};
-
-const MEASURE: Applet = Applet {
-    name: "measure",
-    summary: "replay the TPM event log of this boot, or predict a boot's PCR values",
-    run: measure::run,
-};
-
-const LOCK: Applet = Applet {
-    name: "lock",
-    summary: "ask for the PIN of a locked image, then open the recovery shell",
-    run: lock::run,
-};
-
-const RUN_HOOKS: Applet = Applet {
-    name: "run-hooks",
-    summary: "run a hook stage and its built-in steps (zfsbootmenu-run-hooks)",
-    run: run_hooks::run,
-};
-
-const ZFUNC: Applet = Applet {
-    name: "zfunc",
-    summary: "run a function of the hooks' shell library (/libexec/zfunc)",
-    run: zfunc::run,
-};
-
-const MENU: Applet = Applet {
-    name: "zfsbootmenu",
-    summary: "the menu: boot environments, booting and the recovery shell",
-    run: menu::run,
-};
-
-/// The commands `zbm` provides.
-pub const APPLETS: &[Applet] = &[
-    INIT,
-    PARSE_COMMANDLINE,
-    PREINIT,
-    ZLUKS,
-    UNLOCK,
-    CONSOLE_AUTOSIZE,
-    CONSOLE_FONT,
-    CONSOLE_FONTS,
-    KEYBOARD_LAYOUTS,
-    IMAGE,
-    CONSOLE,
-    MENU,
-    DEBUG,
-    REPORT,
-    EXPLAIN,
-    MEASURE,
-    LOCK,
-    RUN_HOOKS,
-    ZFUNC,
-];
 
 /// The exit status for a command that does not exist, as a shell reports it.
 pub const NOT_FOUND: i32 = 127;
@@ -221,17 +92,46 @@ Usage: zbm <command> [arguments]
     text
 }
 
+/// The applet of `applets` that `name` runs, by its name or one of its
+/// names, with the arguments that name puts first.
+fn find<'a>(applets: &'a [Applet], name: &str) -> Option<(&'a Applet, &'static [&'static str])> {
+    applets.iter().find_map(|applet| {
+        if applet.name == name {
+            return Some((applet, &[][..]));
+        }
+        let (_, first) = applet.names.iter().find(|(other, _)| *other == name)?;
+        Some((applet, *first))
+    })
+}
+
+/// Runs `applet` with `first`, then `args`; `--help` as the first of `args`
+/// prints its usage instead.
+fn run_applet(applet: &Applet, first: &[&str], args: &[String], io: &mut Io) -> i32 {
+    if args.first().is_some_and(|arg| arg == "--help") {
+        let _ = io.stdout.write_all(applet.usage.as_bytes());
+        return 0;
+    }
+    if first.is_empty() {
+        return (applet.run)(args, io);
+    }
+    let args: Vec<String> = first
+        .iter()
+        .map(|arg| (*arg).to_owned())
+        .chain(args.iter().cloned())
+        .collect();
+    (applet.run)(&args, io)
+}
+
 /// Runs `zbm` with the name it was started under and its arguments, using the
 /// commands in `applets`.
 pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -> i32 {
-    let find = |name: &str| applets.iter().find(|applet| applet.name == name);
     let name = command_name(argv0);
     if name != "zbm" {
-        let Some(applet) = find(name) else {
+        let Some((applet, first)) = find(applets, name) else {
             let _ = writeln!(io.stderr, "zbm: {name}: unknown command");
             return NOT_FOUND;
         };
-        return (applet.run)(args, io);
+        return run_applet(applet, first, args, io);
     }
     match args.first().map(String::as_str) {
         None => {
@@ -258,25 +158,36 @@ pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -
             USAGE
         }
         Some(command) => {
-            let Some(applet) = find(command) else {
+            let Some((applet, first)) = find(applets, command) else {
                 let _ = writeln!(
                     io.stderr,
                     "zbm: {command}: unknown command (see zbm --list)"
                 );
                 return NOT_FOUND;
             };
-            (applet.run)(args.get(1..).unwrap_or_default(), io)
+            run_applet(applet, first, args.get(1..).unwrap_or_default(), io)
         }
     }
 }
 
+/// The name of the applet `zbm` runs for `argv0` and `args` with the
+/// commands in `applets`: that of the name it was started under, else of its
+/// first argument; the name itself when no applet answers to it.
+fn applet_name_in(applets: &[Applet], argv0: &str, args: &[String]) -> String {
+    let name = match command_name(argv0) {
+        "zbm" => args.first().map_or("zbm", String::as_str),
+        name => name,
+    };
+    find(applets, name)
+        .map_or(name, |(applet, _)| applet.name)
+        .to_owned()
+}
+
 /// The name of the command `zbm` runs for `argv0` and `args`, which crash
-/// reports name: the name it was started under, else its first argument.
+/// reports name: the applet's, whether it was started under its name or one
+/// of its other names, or with either as its first argument.
 pub fn applet_name(argv0: &str, args: &[String]) -> String {
-    match command_name(argv0) {
-        "zbm" => args.first().map_or("zbm", String::as_str).to_owned(),
-        name => name.to_owned(),
-    }
+    applet_name_in(APPLETS, argv0, args)
 }
 
 /// Runs `zbm` with its own commands.
@@ -293,11 +204,22 @@ mod tests {
         i32::try_from(args.len()).unwrap_or(0)
     }
 
-    const TEST_APPLETS: &[Applet] = &[Applet {
-        name: "echo",
-        summary: "print the arguments",
-        run: echo,
-    }];
+    const TEST_APPLETS: &[Applet] = &[
+        Applet {
+            name: "echo",
+            names: &[],
+            summary: "print the arguments",
+            usage: "Usage: echo [ARGS]\n",
+            run: echo,
+        },
+        Applet {
+            name: "t",
+            names: &[("u", &["--x"])],
+            summary: "print the arguments, under another name with --x",
+            usage: "Usage: t [ARGS]\n",
+            run: echo,
+        },
+    ];
 
     fn call(applets: &[Applet], argv0: &str, args: &[&str]) -> (i32, String, String) {
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
@@ -330,8 +252,49 @@ mod tests {
         );
         assert_eq!(
             call(TEST_APPLETS, "zbm", &["--list"]).1,
-            "echo                 print the arguments\n"
+            "echo                 print the arguments\n\
+             t                    print the arguments, under another name with --x\n"
         );
+    }
+
+    #[test]
+    fn a_name_runs_its_applet_with_its_arguments_first() {
+        assert_eq!(
+            call(TEST_APPLETS, "/bin/u", &["a"]),
+            (2, "echo --x a\n".to_owned(), String::new())
+        );
+        assert_eq!(
+            call(TEST_APPLETS, "zbm", &["u", "a"]),
+            (2, "echo --x a\n".to_owned(), String::new())
+        );
+        assert_eq!(
+            call(TEST_APPLETS, "/bin/t", &["a"]),
+            (1, "echo a\n".to_owned(), String::new())
+        );
+    }
+
+    #[test]
+    fn help_prints_the_usage_and_exits_0_for_every_applet() {
+        for applets in [APPLETS, TEST_APPLETS] {
+            for applet in applets {
+                let expected = (0, applet.usage.to_owned(), String::new());
+                let link = format!("/bin/{}", applet.name);
+                assert_eq!(call(applets, &link, &["--help"]), expected);
+                assert_eq!(call(applets, "zbm", &[applet.name, "--help"]), expected);
+            }
+        }
+        assert_eq!(
+            call(TEST_APPLETS, "/bin/u", &["--help"]),
+            (0, "Usage: t [ARGS]\n".to_owned(), String::new())
+        );
+    }
+
+    #[test]
+    fn a_crash_under_a_name_is_reported_under_its_applet() {
+        let args = |list: &[&str]| list.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
+        assert_eq!(applet_name_in(TEST_APPLETS, "/bin/u", &args(&["a"])), "t");
+        assert_eq!(applet_name_in(TEST_APPLETS, "zbm", &args(&["u", "a"])), "t");
+        assert_eq!(applet_name_in(TEST_APPLETS, "/bin/v", &[]), "v");
     }
 
     #[test]

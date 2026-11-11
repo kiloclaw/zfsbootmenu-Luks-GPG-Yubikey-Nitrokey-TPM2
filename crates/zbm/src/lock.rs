@@ -24,11 +24,7 @@ use crate::unlock::ProcessKeyholders;
 use crate::{Io, USAGE};
 
 /// The usage of `zbm lock`.
-const USAGE_TEXT: &str = "\
-Usage: zbm lock shell    ask for the PIN, then open the recovery shell
-       zbm lock hash     ask for a new PIN, and print the configuration that locks an image
-       zbm lock status   say whether this image is locked
-";
+const USAGE_TEXT: &str = crate::table::LOCK.usage;
 
 /// The wrong PINs after which `zbm lock shell` goes back to the menu.
 const TRIES: u32 = 3;
@@ -59,7 +55,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             let _ = writeln!(io.stdout, "{state}");
             0
         }
-        Some("-h" | "--help") => {
+        Some("-h") => {
             let _ = io.stdout.write_all(USAGE_TEXT.as_bytes());
             0
         }

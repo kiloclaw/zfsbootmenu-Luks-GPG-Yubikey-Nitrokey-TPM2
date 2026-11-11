@@ -232,14 +232,17 @@ fn dracut_rust() {
     golden("dracut-rust", Builder::Dracut, RUST_ALL);
 }
 
+/// The settings of a release image of the Rust runtime without LUKS.
+const RUST_RELEASE: &str = "zfsbootmenu_runtime\trust
+zfsbootmenu_release_build\tyes
+zfsbootmenu_luks\tno
+zfsbootmenu_console_faces\tregular
+zfsbootmenu_keyboard_layouts\tus,fr
+";
+
 #[test]
 fn dracut_rust_release() {
-    golden(
-        "dracut-rust-release",
-        Builder::Dracut,
-        "zfsbootmenu_runtime\trust\nzfsbootmenu_release_build\tyes\nzfsbootmenu_luks\tno\n\
-         zfsbootmenu_console_faces\tregular\nzfsbootmenu_keyboard_layouts\tus,fr\n",
-    );
+    golden("dracut-rust-release", Builder::Dracut, RUST_RELEASE);
 }
 
 #[test]
@@ -254,6 +257,26 @@ fn mkinitcpio_legacy_miser() {
 #[test]
 fn mkinitcpio_rust() {
     golden("mkinitcpio-rust", Builder::Mkinitcpio, RUST_ALL);
+}
+
+#[test]
+fn every_linked_name_is_linked_in_rust_plans() {
+    let files = host_files();
+    let runner = host_runner();
+    let rust = [
+        (Builder::Dracut, RUST_ALL),
+        (Builder::Dracut, RUST_RELEASE),
+        (Builder::Mkinitcpio, RUST_ALL),
+    ];
+    for (builder, settings) in rust {
+        let plan = plan_of(builder, settings, &files, &runner)
+            .unwrap()
+            .golden();
+        for linked in zbm_types::LINKED {
+            let link = format!("\nlink\t/libexec/zbm\t{}/{}\n", linked.dir, linked.name);
+            assert!(plan.contains(&link), "{builder:?}: {link:?}");
+        }
+    }
 }
 
 /// Makes `runner` answer `line` so, before what it answered before.

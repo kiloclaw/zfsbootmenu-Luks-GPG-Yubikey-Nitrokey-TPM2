@@ -58,10 +58,9 @@ fn load(files: &dyn Files, fonts: &dyn ConsoleFonts, request: &Request) -> Resul
 /// `zbm console-font`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     let Some(request) = parse(args) else {
-        let _ = writeln!(
-            io.stderr,
-            "Usage: zbm console-font [-C <console>] [-d] <font>"
-        );
+        let _ = io
+            .stderr
+            .write_all(crate::table::CONSOLE_FONT.usage.as_bytes());
         return crate::USAGE;
     };
     match load(&RealFiles, &SystemFonts, &request) {

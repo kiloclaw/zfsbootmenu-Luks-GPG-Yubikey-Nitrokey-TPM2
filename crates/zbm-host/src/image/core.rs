@@ -5,6 +5,8 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use zbm_types::LINKED;
+
 use super::{Entry, Fatal, Image, library};
 
 /// What the Rust runtime is instead of the legacy runtime's files: `zbm`
@@ -88,8 +90,8 @@ pub fn runtime(image: &mut Image) -> Result<(), Fatal> {
 }
 
 /// The shell libraries, start-up programs and tools of the module root
-/// (`lib`, `libexec`, `bin`); the Rust runtime's links and `/bin/zbm`
-/// where it replaces them, and the legacy runtime's `init.d`.
+/// (`lib`, `libexec`, `bin`); the Rust runtime's links ([`LINKED`]) and
+/// `/bin/zbm` where it replaces them, and the legacy runtime's `init.d`.
 pub fn core(image: &mut Image) {
     let root = image.module_root();
     for dir in ["lib", "libexec", "bin"] {
@@ -103,9 +105,11 @@ pub fn core(image: &mut Image) {
         }
     }
     if image.is_rust() {
-        image.plan.link("/libexec/zbm", "/bin/zluks");
-        image.plan.link("/libexec/zbm", "/bin/zfsbootmenu");
-        image.plan.link("/libexec/zbm", "/libexec/zfunc");
+        for linked in LINKED {
+            image
+                .plan
+                .link("/libexec/zbm", Path::new(linked.dir).join(linked.name));
+        }
         library(image);
         image.plan.write("/bin/zbm", 0o755, BIN_ZBM);
         image

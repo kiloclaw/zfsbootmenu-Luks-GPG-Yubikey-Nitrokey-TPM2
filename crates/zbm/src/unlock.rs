@@ -43,12 +43,7 @@ use zbm_sys::socket::Connection;
 use crate::Io;
 
 /// The usage of `zbm unlock`.
-const USAGE: &str = "\
-Usage: zbm unlock serve [--quiet] [--journal FILE] [--verbose]
-
-The keyholder: opens LUKS volumes for the program that started it, on the
-connection it passed in ZBM_KEYHOLDER_FD. Start-up and zluks start it.
-";
+const USAGE: &str = crate::table::UNLOCK.usage;
 
 /// How long a client waits for its keyholder to end once the run is over,
 /// before it kills it.

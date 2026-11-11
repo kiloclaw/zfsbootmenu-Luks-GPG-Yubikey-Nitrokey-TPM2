@@ -8,10 +8,7 @@ use zbm_types::code::{ErrorCode, Explanation};
 use crate::{Io, USAGE};
 
 /// The usage text.
-const USAGE_TEXT: &str = "\
-Usage: zbm explain           list the error codes
-       zbm explain CODE      explain one, such as ZBM-E0412
-";
+const USAGE_TEXT: &str = crate::table::EXPLAIN.usage;
 
 /// The tables of every crate whose errors have codes, by crate.
 const TABLES: &[&[Explanation]] = &[

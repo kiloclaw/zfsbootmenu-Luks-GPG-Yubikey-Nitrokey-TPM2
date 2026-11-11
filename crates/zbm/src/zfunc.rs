@@ -16,7 +16,7 @@ use crate::Io;
 /// terminal, if it has one, with the image's configuration.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     let Some((function, args)) = args.split_first() else {
-        let _ = writeln!(io.stderr, "Usage: zbm zfunc FUNCTION [ARGS]");
+        let _ = io.stderr.write_all(crate::table::ZFUNC.usage.as_bytes());
         return crate::USAGE;
     };
     let real = RealSystem::new();

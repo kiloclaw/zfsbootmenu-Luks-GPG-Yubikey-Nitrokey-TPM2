@@ -137,7 +137,7 @@ fn the_usage_is_shown_for_anything_else() {
     let (status, _, stderr) = call(crate::APPLETS, "zbm", &["lock", "open"]);
     assert_eq!(status, USAGE);
     assert!(stderr.contains("zbm lock shell"), "{stderr}");
-    let (status, stdout, _) = call(crate::APPLETS, "zbm", &["lock", "--help"]);
+    let (status, stdout, _) = call(crate::APPLETS, "zbm", &["lock", "-h"]);
     assert_eq!(status, 0);
     assert!(stdout.contains("zbm lock status"), "{stdout}");
 }

@@ -30,6 +30,7 @@
 //! | [`BootfsPreference`] | The boot environment `zbm.prefer` names, if any |
 //! | [`Untrusted`] | Text from outside, shown only as [`Printable`] |
 //! | [`BootRecord`] | What the saved logs of a boot say about it: `boot.json` |
+//! | [`Linked`] | A name an image links to `zbm`: `/bin/zluks` |
 //!
 //! [`version`] holds the version order itself (`sort -V`), and [`number`]
 //! integers as the shell's `test` reads them.
@@ -47,6 +48,7 @@
 //! ```
 
 mod answer;
+mod applets;
 mod cmdline;
 pub mod code;
 mod device;
@@ -70,6 +72,7 @@ mod wire;
 mod zfs;
 
 pub use answer::Answer;
+pub use applets::{LINKED, Linked};
 pub use cmdline::{KernelArg, KernelCommandLine};
 pub use device::DevicePath;
 pub use error::{ParseError, Reason};

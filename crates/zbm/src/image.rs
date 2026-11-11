@@ -21,9 +21,7 @@ use zbm_host::image::{Builder, Config, Entry, Host, Plan, plan, prune_firmware};
 const DEFAULT_PATH: &str = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
 /// The usage.
-const USAGE: &str =
-    "Usage: zbm image plan --builder dracut|mkinitcpio --config <file> --stage <dir>
-       zbm image prune-firmware <image root> <directories> <files>";
+const USAGE: &str = crate::table::IMAGE.usage;
 
 /// What `zbm image plan` is asked.
 #[derive(Debug, Eq, PartialEq)]
@@ -143,7 +141,7 @@ fn run_plan(request: &Request, files: &dyn Files, io: &mut Io) -> i32 {
 /// `zbm image prune-firmware`.
 fn run_prune(files: &dyn Files, args: &[String], io: &mut Io) -> i32 {
     let [root, dirs, names] = args else {
-        let _ = writeln!(io.stderr, "{USAGE}");
+        let _ = io.stderr.write_all(USAGE.as_bytes());
         return crate::USAGE;
     };
     let words = |text: &str| {
@@ -184,14 +182,14 @@ fn run_with(files: &dyn Files, args: &[String], io: &mut Io) -> i32 {
     match args.split_first() {
         Some((command, rest)) if command == "plan" => {
             let Some(request) = parse(rest) else {
-                let _ = writeln!(io.stderr, "{USAGE}");
+                let _ = io.stderr.write_all(USAGE.as_bytes());
                 return crate::USAGE;
             };
             run_plan(&request, files, io)
         }
         Some((command, rest)) if command == "prune-firmware" => run_prune(files, rest, io),
         _ => {
-            let _ = writeln!(io.stderr, "{USAGE}");
+            let _ = io.stderr.write_all(USAGE.as_bytes());
             crate::USAGE
         }
     }

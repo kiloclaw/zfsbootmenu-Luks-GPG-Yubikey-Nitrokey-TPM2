@@ -93,20 +93,7 @@ use zbm_platform::sandbox::{self, Profile as _};
 use crate::{Io, USAGE};
 
 /// The usage text.
-const USAGE_TEXT: &str = "\
-Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
-                   [--numlock on|off] [--repeat <delay>,<rate>] [--scrollback <lines>]
-                   [--palette <name>] [--large] [--status]
-                   [--bell none|visual|audible|both] [--compose ralt|rwin|menu|rctrl|caps]
-                   [--keyboard <vendor>:<product>=<layout>]... [--mirror <file>]
-                   [--mode <width>x<height>] [--blank <minutes>] [--cells-fd <fd>]
-                   [--serial <device> [--serial-size <columns>x<rows>]]
-                   [--control-fd <fd>] [--devices-fd <fd>] [--kmsg-fd <fd>]
-       zbm console release [--timeout <milliseconds>]
-       zbm console reattach [--timeout <milliseconds>]
-       zbm console layout [<name>]
-       zbm console font [<pixels>|+|-|default]
-";
+const USAGE_TEXT: &str = crate::table::CONSOLE.usage;
 
 /// The lines of scrollback the console keeps by default: about 9 MB on a
 /// display of 192 columns.

@@ -43,20 +43,7 @@ use crate::{Io, USAGE};
 pub const BASE: &str = "/zfsbootmenu";
 
 /// The usage text.
-const USAGE_TEXT: &str = "\
-Usage: zbm debug crash [--list]   print the latest crash report, or list them
-       zbm debug config           the options in force, and where they came from
-       zbm debug state            the files of the state directory
-       zbm debug journal [--level LEVEL]
-                                  the runtime journal (error, warn, info, debug)
-       zbm debug commands         the programs the runtime ran, and how they ended
-       zbm debug luks             the LUKS volumes and their key methods
-       zbm debug pools            the pools and the boot environments
-       zbm debug saved            list the logs saved on the EFI system partition
-       zbm debug save             save this boot's logs there now
-       zbm debug yubikey [SLOT CHALLENGE]
-                                  the YubiKeys, or a slot's response beside ykchalresp's
-";
+const USAGE_TEXT: &str = crate::table::DEBUG.usage;
 
 /// When the crash report `name` was written, as its name tells:
 /// `crash-TIME-PID.txt`, then `crash-TIME-PID.N.txt` (N from 1) for the

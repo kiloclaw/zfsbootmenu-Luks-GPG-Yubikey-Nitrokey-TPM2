@@ -41,16 +41,7 @@ pub const LOG: &str = "/run/log/zfsbootmenu/tpm-measure.json";
 const MOUNTS: &str = "/proc/self/mounts";
 
 /// The usage text.
-const USAGE_TEXT: &str = "\
-Usage: zbm measure log [FILE]       replay the event log of this boot
-       zbm measure unseal [FILE]    PCR 9 as ZFSBootMenu unsealed, for systemd-cryptenroll
-       zbm measure predict [OPTIONS] DATASET [KERNEL]
-                                    the PCR values a boot of DATASET leaves
-Options of predict:
-       --root DIR           where DATASET is mounted, if not in the mount table
-       --command-line TEXT  the command line, if not that of this boot's log
-       --bank NAME          sha1, sha256 (the default), sha384 or sha512
-";
+const USAGE_TEXT: &str = crate::table::MEASURE.usage;
 
 /// `zbm measure`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
@@ -73,7 +64,7 @@ pub fn run_in(system: &System<'_>, args: &[String], io: &mut Io) -> i32 {
             },
             |predict| predict.run(system),
         ),
-        ["-h" | "--help"] => Ok(USAGE_TEXT.to_owned()),
+        ["-h"] => Ok(USAGE_TEXT.to_owned()),
         _ => {
             let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
             return USAGE;

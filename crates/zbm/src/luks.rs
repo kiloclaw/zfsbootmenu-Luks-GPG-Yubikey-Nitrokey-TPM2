@@ -17,26 +17,7 @@ use crate::Io;
 use crate::unlock::ProcessKeyholders;
 
 /// The usage of `zluks`.
-const USAGE: &str = "\
-Usage: zluks [command]
-
-Commands:
-  unlock               Unlock all configured LUKS volumes (default)
-  open <device> [name] Unlock a single LUKS volume; device may be a path or
-                       UUID=, PARTUUID=, LABEL=, PARTLABEL=, ID=, PATH=
-  open <device> <name> --key-file <path> [--allow-discards] [--read-only]
-       [--journal <file>] [--verbose]
-                       Open a LUKS volume with a key file and nothing else,
-                       with a JSON line in <file> for every event
-  close [name]         Export pools on, and close, mappings opened by
-                       ZFSBootMenu (all of them unless a name is given)
-  status               List mappings opened by ZFSBootMenu
-  list                 List all LUKS volumes on the system and their
-                       LUKS2 tokens (TPM2, FIDO2, clevis)
-
-After unlocking, return to ZFSBootMenu (type 'exit') to import pools, or
-run 'zpool import' manually.
-";
+const USAGE: &str = crate::table::ZLUKS.usage;
 
 /// The LUKS settings of `zluks` and `zbm debug luks`: the state directory of
 /// `conf`, its retry delay, and the LUKS variables of the environment.
@@ -193,7 +174,7 @@ pub fn run_zluks(volumes: Volumes<'_>, args: &[String], io: &mut Io) -> i32 {
             print_list(session, io);
             0
         }
-        "-h" | "--help" | "help" => {
+        "-h" | "help" => {
             let _ = io.stdout.write_all(USAGE.as_bytes());
             0
         }
@@ -442,7 +423,7 @@ mod tests {
     #[test]
     fn usage_and_errors() {
         let fake = machine();
-        let (code, stdout, _) = call(&fake, &["--help"]);
+        let (code, stdout, _) = call(&fake, &["-h"]);
         assert_eq!(code, 0);
         assert!(stdout.starts_with("Usage: zluks [command]"));
         assert_eq!(call(&fake, &["bogus"]).0, 1);

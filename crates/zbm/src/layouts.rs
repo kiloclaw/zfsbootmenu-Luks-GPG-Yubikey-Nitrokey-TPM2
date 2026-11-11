@@ -200,11 +200,9 @@ fn compile_all(files: &dyn Files, request: &Request, io: &mut Io) -> io::Result<
 /// <layout>...`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     let Some(request) = parse(args) else {
-        let _ = writeln!(
-            io.stderr,
-            "Usage: zbm keyboard-layouts [--xkb <directory>] [--compose <file>] \
-             <destination directory> <layout>..."
-        );
+        let _ = io
+            .stderr
+            .write_all(crate::table::KEYBOARD_LAYOUTS.usage.as_bytes());
         return crate::USAGE;
     };
     match compile_all(&RealFiles, &request, io) {

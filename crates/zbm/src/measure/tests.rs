@@ -202,7 +202,7 @@ fn wrong_arguments_print_the_usage() {
         assert_eq!((code, out.as_str()), (USAGE, ""), "{args:?}");
         assert!(err.starts_with("Usage: zbm measure"), "{args:?}");
     }
-    let (code, out, _) = call(&fake, &["--help"]);
+    let (code, out, _) = call(&fake, &["-h"]);
     assert_eq!(code, 0);
     assert!(out.starts_with("Usage: zbm measure"));
 }
