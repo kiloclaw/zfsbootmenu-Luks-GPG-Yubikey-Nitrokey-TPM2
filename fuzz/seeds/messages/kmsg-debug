@@ -1,0 +1,5 @@
+15,10,1500000,-;ZBM:[42]|main,/bin/zfsbootmenu,12;load_be,/lib/core.sh,99|loading \x1b[2Jtank
+15,11,2000001,-;ZBM:[7]||first of two
+15,12,2000001,-;ZBM:[7]|crates/zbm/src/a.rs,40|second of two
+15,13,2000002,-;ZBM:[1]|f,a.sh,3,4;;b.rs|x|y
+12,14,2000003,-;ZFSBootMenu: careful

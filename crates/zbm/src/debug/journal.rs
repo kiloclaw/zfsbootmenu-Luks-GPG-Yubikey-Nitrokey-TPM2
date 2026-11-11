@@ -1,6 +1,7 @@
 //! `zbm debug journal` and `zbm debug commands`: the runtime journal
-//! (`journal.jsonl` in the state directory) for people, in place of the
-//! legacy `zlogtail` and `ztrace`.
+//! (`journal.jsonl` in the state directory) for people. It holds what the
+//! Rust runtime logged; the kernel log, which hooks and the library's shell
+//! functions write to as well, is `logs`' (`zlogtail`, `ztrace`).
 //!
 //! - `journal [--level LEVEL]` prints each record at `LEVEL` or above
 //!   (`error`, `warn`, `info`, `debug`, `trace`; all by default) on one line:

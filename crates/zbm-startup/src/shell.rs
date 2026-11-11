@@ -2,7 +2,6 @@
 //! through the `zluks` applet: what the start-up stages and the boot code
 //! need from the program that runs them ([`Recovery`]).
 
-use std::fmt::Write as _;
 use std::path::Path;
 
 use crate::support::{self, Unsupported};
@@ -10,13 +9,12 @@ use zbm_app::auth::{self, Authority};
 use zbm_boot::BootError;
 use zbm_boot::Recovery;
 use zbm_platform::console::Screen;
-use zbm_platform::dmesg::read_logs;
+use zbm_platform::dmesg::{ERR, escaped, read_after, read_logs, texts};
 use zbm_platform::{Context, System};
 use zbm_state::State;
 use zbm_tools::console::colorize;
 use zbm_tools::mount::Mount;
 use zbm_tools::{Shown, programs};
-use zbm_types::Printable;
 
 use crate::error::StartupError;
 
@@ -94,6 +92,33 @@ impl<'s, 'a> Shell<'s, 'a> {
             items: list.iter().map(ToString::to_string).collect(),
         })
     }
+
+    /// Shows every error logged since the boot, each line escaped
+    /// ([`escaped`]) so that none can steer the console, when errors were
+    /// logged since they were last shown (`have_errors`), as the legacy
+    /// banner did, and records the number of the last record of the kernel log
+    /// (`errors_since`), whether it showed any or not: the shell's prompt
+    /// (`logs --prompt`) shows only the errors after it, so none that the
+    /// banner showed or that were here already. Without the kernel log's
+    /// records, `dmesg` shows the errors, and nothing is recorded.
+    fn show_errors(&self) {
+        let system = &self.system;
+        let read = read_after(system.files, &[ERR], None);
+        if self.state.has_errors() {
+            let errors = match &read {
+                Ok((records, _)) => Some(texts(records)),
+                Err(_) => read_logs(system, "err").ok(),
+            };
+            if let Some(errors) = errors {
+                let _ = system.console.write(escaped(&errors).as_bytes());
+            }
+            let _ = system.console.write(b"\n");
+            self.state.clear_errors();
+        }
+        if let Ok((_, Some(last))) = read {
+            let _ = self.state.set_errors_since(last);
+        }
+    }
 }
 
 impl Recovery for Shell<'_, '_> {
@@ -128,20 +153,7 @@ impl Recovery for Shell<'_, '_> {
             colorize("red", "exit"),
         );
         let _ = system.console.write(banner.as_bytes());
-        if self.state.has_errors() {
-            if let Ok(errors) = read_logs(system, "err") {
-                // Reading the log back undoes the kernel's escapes: what a
-                // message named, such as a file of a boot environment, is
-                // shown escaped, so that it cannot steer the console.
-                let mut shown = String::new();
-                for line in errors.lines() {
-                    let _ = writeln!(shown, "{}", Printable(line));
-                }
-                let _ = system.console.write(shown.as_bytes());
-            }
-            let _ = system.console.write(b"\n");
-            self.state.clear_errors();
-        }
+        self.show_errors();
         if system.command_exists("efibootmgr") {
             zbm_boot::mount_efivarfs(&Context::new(*system), "rw");
         }
@@ -173,8 +185,57 @@ impl Recovery for Shell<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_platform::KernelLog;
+    use zbm_platform::{Files as _, KernelLog};
     use zbm_testkit::fakes::FakeSystem;
+
+    #[test]
+    fn the_banner_writes_the_stamp_of_the_last_record() {
+        let fake = FakeSystem::new();
+        fake.files.dir("/zfsbootmenu");
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        // Records 0 to 2: an error, then an error and a notice that come
+        // after it.
+        fake.files
+            .append(
+                Path::new("/dev/kmsg"),
+                b"<3>ZFSBootMenu: broken \x1b[31mpool\n<3>ZFSBootMenu: again\n<5>later\n",
+            )
+            .unwrap();
+        fake.files.file("/zfsbootmenu/have_errors", "");
+        Shell::new(fake.system(), &state).emergency_shell("");
+        let shown = fake.console.output_text();
+        assert!(
+            shown.ends_with("ZFSBootMenu: broken \\x1b[31mpool\nZFSBootMenu: again\n\n"),
+            "{shown:?}"
+        );
+        assert!(!state.has_errors());
+        assert_eq!(state.errors_since(), Some(2));
+
+        // Without errors to show, the stamp is written all the same.
+        fake.files
+            .append(Path::new("/dev/kmsg"), b"<6>ZFSBootMenu: more\n")
+            .unwrap();
+        Shell::new(fake.system(), &state).emergency_shell("");
+        assert_eq!(state.errors_since(), Some(3));
+
+        // Without the kernel log's records, `dmesg` shows the errors, and
+        // no stamp is written.
+        fake.files.file("/zfsbootmenu/have_errors", "");
+        fake.files
+            .fail("/dev/kmsg", std::io::ErrorKind::PermissionDenied);
+        fake.runner.respond(
+            "dmesg -f user --color=never -l err",
+            0,
+            "[ 1.0] ZFSBootMenu: from dmesg\n",
+        );
+        Shell::new(fake.system(), &state).emergency_shell("");
+        assert!(
+            fake.console
+                .output_text()
+                .ends_with("ZFSBootMenu: from dmesg\n\n")
+        );
+        assert_eq!(state.errors_since(), Some(3));
+    }
 
     #[test]
     fn the_shell_banner_matches_the_legacy_one() {

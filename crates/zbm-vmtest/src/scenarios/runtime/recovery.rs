@@ -13,6 +13,10 @@
 //!   `reboot --help` and `shutdown --help` print the usages of `zbm`'s
 //!   `reboot` and `poweroff`, through the image's links. Neither is run,
 //!   since either would end the machine;
+//! - the shell's `logs`, which is `zbm`'s, through a pipe: it needs no
+//!   terminal, exits 0, and prints the warning start-up logged at the
+//!   boot, for the import policy the command line names and start-up does
+//!   not know;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
@@ -59,6 +63,19 @@ const CHROOT_NOTICES: &str = "screen:/tmp is mounted read/write";
 /// What the test boot environment's `/etc/os-release` names.
 const TEST_ENVIRONMENT: &str = "ZBM test boot environment";
 
+/// What the scenario adds to the runtime images' command line: an import
+/// policy start-up does not know, which it warns about at the boot, so that
+/// the kernel log certainly holds one of its warnings. The policy stays
+/// the default, host ID matching.
+const UNKNOWN_POLICY: &str = "zbm.import_policy=zbmtest";
+
+/// The warning start-up logs at the boot for [`UNKNOWN_POLICY`].
+const BOOT_WARNING: &str = "ZFSBootMenu: unknown import policy 'zbmtest', defaulting to hostid";
+
+/// `logs` through a pipe, which shows its own exit status (not as `RC=`,
+/// which ends a command's output).
+const LOGS_PIPED: &str = "{ logs; echo LOGS-STATUS=$?; } | cat";
+
 /// Boots, looks at the Recovery Tools, then runs the shell's tools.
 ///
 /// # Errors
@@ -71,13 +88,15 @@ pub(super) fn run(test: &Test) -> Result<()> {
     let dir = settings.disks("runtime");
     std::fs::create_dir_all(&dir).map_err(Error::io(format!("creating {}", dir.display())))?;
     let esp = vfat_disk(&dir.join("esp.img"), "ESP", &[], "64M", 512)?;
-    let machine = Machine::boot(&image, super::ESCAPE_APPEND)
+    let append = format!("{} {UNKNOWN_POLICY}", super::ESCAPE_APPEND);
+    let machine = Machine::boot(&image, &append)
         .with_disks(vec![super::disk(settings, 0)?, Disk::new(esp, "esp")]);
     let mut vm = Vm::start(test, "recovery", &machine)?;
     super::escape_countdown(&mut vm)?;
     menu_chroot(test, &mut vm, Duration::from_secs(2))?;
     tools_to_shell(test, &mut vm, Duration::from_secs(2))?;
     shell_tools(test, &mut vm)?;
+    logs(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
@@ -186,6 +205,26 @@ fn shell_tools(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
             &format!("{name} is zbm's: --help prints {usage:?} ({code})"),
         );
     }
+    Ok(())
+}
+
+/// Runs `logs` through a pipe, which must exit 0 without a terminal and
+/// print the warning start-up logged at the boot.
+///
+/// # Errors
+///
+/// When the command does not end in time.
+fn logs(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("logs | cat: ZFSBootMenu's errors and warnings, without a terminal");
+    let (_, said) = vm.sh_show(LOGS_PIPED)?;
+    test.check(
+        said.lines().any(|line| line.trim() == "LOGS-STATUS=0"),
+        "logs exits 0 through a pipe",
+    );
+    test.check(
+        said.lines().any(|line| line.trim() == BOOT_WARNING),
+        "logs prints the warning start-up logged at the boot",
+    );
     Ok(())
 }
 

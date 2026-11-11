@@ -22,6 +22,7 @@ pub mod image;
 mod kexec;
 pub mod layouts;
 pub mod lock;
+mod logs;
 pub mod luks;
 pub mod measure;
 pub mod menu;
@@ -365,6 +366,7 @@ mod tests {
             "zfs-chroot",
             "zkexec",
             "mount_esp",
+            "logs",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

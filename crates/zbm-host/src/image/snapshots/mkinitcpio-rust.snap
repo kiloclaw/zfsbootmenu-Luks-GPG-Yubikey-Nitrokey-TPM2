@@ -131,18 +131,13 @@ file	/usr/share/zfsbootmenu/lib/zfsbootmenu-completions.sh	/lib/zfsbootmenu-comp
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh	/lib/zfsbootmenu-luks-keys.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks.sh	/lib/zfsbootmenu-luks.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-ui.sh	/lib/zfsbootmenu-ui.sh	-
-file	/usr/share/zfsbootmenu/libexec/recovery-error-printer	/libexec/recovery-error-printer	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-diff	/libexec/zfsbootmenu-diff	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-edit-kcl	/libexec/zfsbootmenu-edit-kcl	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-help	/libexec/zfsbootmenu-help	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
 file	/usr/share/zfsbootmenu/libexec/zpowermenu	/libexec/zpowermenu	-
-link	ztrace	/bin/debug
-link	zlogtail	/bin/logs
-file	/usr/share/zfsbootmenu/bin/zlogtail	/bin/zlogtail	-
 file	/usr/share/zfsbootmenu/bin/zsnapshots	/bin/zsnapshots	-
-file	/usr/share/zfsbootmenu/bin/ztrace	/bin/ztrace	-
 link	/libexec/zbm	/bin/zluks
 link	/libexec/zbm	/bin/zfsbootmenu
 link	/libexec/zbm	/libexec/zfunc
@@ -153,6 +148,9 @@ link	/libexec/zbm	/bin/firmware-setup
 link	/libexec/zbm	/bin/zfs-chroot
 link	/libexec/zbm	/bin/zkexec
 link	/libexec/zbm	/bin/mount_esp
+link	/libexec/zbm	/bin/logs
+link	/libexec/zbm	/bin/zlogtail
+link	/libexec/zbm	/bin/ztrace
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-core.sh	/usr/share/zfsbootmenu/legacy/lib/zfsbootmenu-core.sh	-
 file	@/lib/zfsbootmenu-core.sh	/lib/zfsbootmenu-core.sh	0644
     | #!/bin/bash
@@ -1088,7 +1086,7 @@ file	@/root/.bashrc	/root/.bashrc	0644
     | [ -f /etc/profile ] && source /etc/profile
     | [ -f /lib/zfsbootmenu-completions.sh ] && source /lib/zfsbootmenu-completions.sh
     | 
-    | export PROMPT_COMMAND="/libexec/recovery-error-printer"
+    | export PROMPT_COMMAND="/libexec/zbm logs --prompt"
     | export PS1='\[\033[0;33m\]zfsbootmenu\[\033[0m\] \w > '
     | 
     | alias clear="tput clear"

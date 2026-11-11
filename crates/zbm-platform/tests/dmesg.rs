@@ -12,10 +12,11 @@
 use std::path::Path;
 
 use zbm_platform::Files as _;
+use zbm_platform::dmesg::debug::{self, Call, Line};
 use zbm_platform::dmesg::{
-    Record, device_lines, filter_raw, filtered_command, format_records, is_about, kernel_log,
-    levels, names, raw_prefixes, read_after, read_logs, read_logs_with_dmesg, records,
-    strip_timestamps,
+    ERR, Record, WARN, device_lines, escaped, filter_raw, filtered_command, format_records,
+    is_about, kernel_log, levels, names, raw_prefixes, read_after, read_logs, read_logs_with_dmesg,
+    records, strip_timestamps, texts,
 };
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 use zbm_testkit::{FakeRunner, TempDir, parity};
@@ -264,6 +265,92 @@ fn records_after_a_number_are_the_newer_ones_and_the_last_number_is_returned() {
     fake.files
         .fail("/dev/kmsg", std::io::ErrorKind::PermissionDenied);
     assert!(read_after(&fake.files, &[3], None).is_err());
+}
+
+#[test]
+fn texts_are_a_line_each_with_one_newline_at_the_end() {
+    let read = records(b"3,1,1,-;one\n3,2,2,-;two\\x0a\n");
+    assert_eq!(texts(&read), "one\ntwo\n");
+    assert_eq!(texts(&read[..1]), "one\n");
+    assert_eq!(texts(&[]), "\n");
+}
+
+#[test]
+fn escaped_text_is_a_printable_line_each() {
+    assert_eq!(
+        escaped("one \x1b[2J\ntwo \u{202e}\n\n"),
+        "one \\x1b[2J\ntwo \\u{202e}\n\n"
+    );
+    assert_eq!(escaped("last"), "last\n");
+    assert_eq!(escaped(""), "");
+}
+
+#[test]
+fn the_levels_named_are_those_dmesg_names() {
+    assert_eq!(levels("err"), Some(vec![ERR]));
+    assert_eq!(levels("warn"), Some(vec![WARN]));
+    assert_eq!(levels("debug"), Some(vec![debug::LEVEL]));
+}
+
+#[test]
+fn a_debug_line_of_any_shape_is_read() {
+    assert_eq!(debug::line("ZFSBootMenu: careful"), None);
+    assert_eq!(debug::line("other"), None);
+    assert_eq!(
+        debug::line("ZBM:[1]"),
+        Some(Line {
+            prefix: "ZBM:[1]",
+            calls: vec![],
+            text: ""
+        })
+    );
+    // Shell code's calls, the outermost first, and Rust's one.
+    assert_eq!(
+        debug::line("ZBM:[42]|main,/bin/zfsbootmenu,12;load_be,/lib/core.sh,99|loading"),
+        Some(Line {
+            prefix: "ZBM:[42]",
+            calls: vec![
+                Call {
+                    function: Some("main"),
+                    file: "/bin/zfsbootmenu",
+                    line: "12"
+                },
+                Call {
+                    function: Some("load_be"),
+                    file: "/lib/core.sh",
+                    line: "99"
+                },
+            ],
+            text: "loading"
+        })
+    );
+    // The text keeps its bars; a call's line keeps its commas; an empty
+    // call is none, and a call of one field is a file.
+    assert_eq!(
+        debug::line("ZBM:[1]|f,a.sh,3,4;;b.rs|x|y"),
+        Some(Line {
+            prefix: "ZBM:[1]",
+            calls: vec![
+                Call {
+                    function: Some("f"),
+                    file: "a.sh",
+                    line: "3,4"
+                },
+                Call {
+                    function: None,
+                    file: "b.rs",
+                    line: ""
+                },
+            ],
+            text: "x|y"
+        })
+    );
+    // Any cut of a line, between characters, is read without a panic.
+    let sample = "ZBM:[42]|main,/bin/zé,12;load,/lib/c.sh,9|text\u{202e}|more";
+    for (at, _) in sample.char_indices() {
+        let _ = debug::line(sample.get(..at).unwrap());
+        let _ = debug::line(sample.get(at..).unwrap());
+    }
 }
 
 #[test]

@@ -4,7 +4,7 @@
 
 use crate::{
     Applet, applets, chroot, console, console_font, debug, esp, explain, fonts, image, kexec,
-    layouts, lock, luks, measure, menu, power, report, run_hooks, unlock, zfunc,
+    layouts, lock, logs, luks, measure, menu, power, report, run_hooks, unlock, zfunc,
 };
 
 const INIT: Applet = Applet {
@@ -376,6 +376,31 @@ saying why.
     run: esp::run,
 };
 
+pub(crate) const LOGS: Applet = Applet {
+    name: "logs",
+    names: &[("zlogtail", &[]), ("ztrace", &["--trace"])],
+    summary: "print ZFSBootMenu's errors and warnings, or its debug lines, in the kernel log",
+    usage: "\
+Usage: logs [--level LEVELS | --trace | --prompt]
+
+Prints ZFSBootMenu's errors and warnings in the kernel log since the boot,
+escaped, and forgets that errors and warnings were logged. zlogtail is logs.
+
+  --level LEVELS  prints the messages of LEVELS instead, as dmesg -l takes
+                  them: names or numbers, comma-separated, such as err,warn;
+                  forgets only the errors and the warnings it prints
+  --trace         prints the debug lines, each with its calls, which the
+                  kernel log holds only with loglevel=7; ztrace is logs --trace
+  --prompt        the shell's PROMPT_COMMAND: when errors were logged since
+                  they were last shown, prints the new ones between blank
+                  lines and forgets that errors were logged
+
+The exit status is 1 when the debug lines cannot be read, and 2 for an
+unknown level or option.
+",
+    run: logs::run,
+};
+
 /// The commands `zbm` provides.
 pub const APPLETS: &[Applet] = &[
     INIT,
@@ -403,6 +428,7 @@ pub const APPLETS: &[Applet] = &[
     ZFS_CHROOT,
     ZKEXEC,
     MOUNT_ESP,
+    LOGS,
 ];
 
 #[cfg(test)]

@@ -379,6 +379,25 @@ fn the_rust_profile_keeps_a_dumb_terminal_for_the_line_view() {
 }
 
 #[test]
+fn the_rust_bashrc_runs_logs_prompt_and_the_legacy_one_is_unchanged() {
+    let bashrc = |settings: &str| {
+        let (files, runner) = (host_files(), host_runner());
+        let plan = plan_of(Builder::Dracut, settings, &files, &runner).unwrap();
+        let text = plan.written(Path::new("/root/.bashrc")).unwrap();
+        String::from_utf8_lossy(text).into_owned()
+    };
+    let legacy = bashrc("");
+    let rust = bashrc("zfsbootmenu_runtime\trust\n");
+    let printer = "\nexport PROMPT_COMMAND=\"/libexec/recovery-error-printer\"\n";
+    assert!(legacy.contains(printer), "{legacy}");
+    assert!(!rust.contains("recovery-error-printer"), "{rust}");
+    // The Rust runtime's differs in that line alone; brush's hand-over
+    // follows it.
+    let logs = "\nexport PROMPT_COMMAND=\"/libexec/zbm logs --prompt\"\n";
+    assert!(rust.starts_with(&legacy.replace(printer, logs)), "{rust}");
+}
+
+#[test]
 fn uutils_gives_its_programs_as_hard_links() {
     for builder in [Builder::Dracut, Builder::Mkinitcpio] {
         let plan = plan_with(builder, "", |files, runner| {

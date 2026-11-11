@@ -913,7 +913,7 @@ The log since start-up, and the boots saved before: the log view of the classic 
 ### `fzf`
 
 The menu no longer uses `fzf`. Rust images still install it, for the tools of the recovery shell that are not ported
-yet (`logs`, `zsnapshots`, the help pages); it leaves the images when R5 and R6 port them.
+yet (`zsnapshots`, the help pages); it leaves the images when R5 and R6 port them.
 
 ## The recovery shell's tools
 
@@ -967,6 +967,47 @@ scripts.
   the Log tab's boot history cannot read the boots saved on it until it is unmounted (`umount /mnt/NAME`); saving the
   logs on it still works.
 - **Why:** the recovery shell's tools in Rust (ADR 0018, point 10).
+
+### `logs`, `zlogtail` and `ztrace` are `zbm`, and print escaped
+
+- **Before:** `/bin/zlogtail`, and `/bin/logs`, a link to it, removed `have_errors` and `have_warnings` and showed
+  ZFSBootMenu's errors and warnings in the kernel log in `fzf`. `/bin/ztrace` showed the debug lines that shell code
+  writes at `loglevel=7`, each with its calls, in `less`, with the relative time of util-linux `dmesg`, and showed
+  nothing where `dmesg` was BusyBox's. Both showed the kernel's text raw.
+- **Now:** links to `zbm`'s `logs`. `logs` and `zlogtail` print the errors and warnings, or the levels that
+  `--level` names as `dmesg -l` takes them; an unknown level is a usage error (exit status 2). They remove
+  `have_errors` when they printed the errors and `have_warnings` when they printed the warnings, so
+  `logs --level info` leaves both. `ztrace` is `logs --trace`: it prints the debug lines in the legacy layout, those
+  of the Rust runtime (`ZBM:[PID]|FILE,LINE|TEXT`) too, the calls in colour on a terminal alone, and says that debug
+  lines need `loglevel=7` when there are none. Its time is the record's, since the boot (`[   12.345678]`), where
+  the script printed `dmesg --time-format reltime`'s, a clock time, then the time since the line before. They read
+  `/dev/kmsg`. Where it cannot be read, `logs` runs `dmesg`, as the scripts did, and `ztrace` says why and exits
+  with status 1, where the script showed nothing and exited with 0. They print: they show no list and no pager yet,
+  so `logs | less` pages them. Every line is escaped (control characters and the characters that reorder text), as
+  the recovery shell's banner shows the errors.
+- **Why:** the recovery shell's tools in Rust (ADR 0018, point 12); what the kernel log holds reaches no terminal
+  raw (threat model, P13).
+
+### `/bin/debug` is gone
+
+- **Before:** `/bin/debug` was another name of `ztrace`.
+- **Now:** Rust images have no `/bin/debug`. A link of that name to `zbm` would run `zbm debug` (`zbm debug crash`,
+  `zbm debug journal`), another program; `ztrace` and its alias `trace` stay.
+- **Why:** ADR 0018, point 4.
+
+### The prompt's errors are escaped and follow a record number
+
+- **Before:** the shell's `PROMPT_COMMAND`, `/libexec/recovery-error-printer`, printed between blank lines the errors
+  logged since the time it wrote at every prompt, read with `dmesg --since` and printed raw, while `have_errors`
+  existed, then removed it. Where `dmesg` had no `--since`, as BusyBox's has not, it printed every error since the
+  boot.
+- **Now:** Rust images run `/libexec/zbm logs --prompt`. Without `have_errors` it reads nothing; with it, it prints
+  between blank lines the errors after the last record shown, each line escaped, removes `have_errors` alone and
+  keeps the number of the last record of the kernel log in `errors_since`, where the script kept the time of every
+  prompt. The recovery shell's banner, which shows every error since the boot as before, and `logs`, when it prints
+  the errors, keep that number too, so the errors they showed are not shown again at a prompt. Two records never share a number, where several
+  share a second.
+- **Why:** ADR 0018, point 13; the threat model's P13.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

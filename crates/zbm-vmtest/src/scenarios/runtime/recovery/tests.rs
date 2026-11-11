@@ -404,3 +404,60 @@ fn a_zkexec_into_another_root_fails() {
 
     assert_eq!(found[3], "FAIL - root file system tank/ROOT/be / zfs rw");
 }
+
+/// The shell's answer to [`logs`]: `logs` prints `said`.
+fn logs_script(said: &'static str) -> Vec<Step> {
+    vec![
+        Step::Hear("{ logs; echo LOGS-STATUS=$?; } | cat; echo RC=$?"),
+        Step::Say(said),
+    ]
+}
+
+/// Plays `script` against [`logs`]; the checks it recorded.
+fn logs_checks(name: &str, script: Vec<Step>) -> Vec<String> {
+    let settings = settings(name);
+    let test = Test::new(&settings, "runtime-rust-recovery").unwrap();
+    let (mut vm, guest) = scripted(&test, script);
+
+    logs(&test, &mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let found = checks(&test);
+    cleanup(&settings);
+    found
+}
+
+#[test]
+fn the_shell_s_logs_prints_the_boot_s_warning_through_a_pipe() {
+    let found = logs_checks(
+        "runtime-recovery-logs",
+        logs_script(
+            "ZFSBootMenu: unknown import policy 'zbmtest', defaulting to hostid\r\n\
+             LOGS-STATUS=0\r\nRC=0\r\n",
+        ),
+    );
+
+    assert_eq!(
+        found,
+        [
+            "ok   - logs exits 0 through a pipe",
+            "ok   - logs prints the warning start-up logged at the boot",
+        ]
+    );
+}
+
+#[test]
+fn a_logs_that_needs_a_terminal_fails() {
+    let found = logs_checks(
+        "runtime-recovery-logs-terminal",
+        logs_script("zbm: no terminal: not a terminal\r\nLOGS-STATUS=1\r\nRC=0\r\n"),
+    );
+
+    assert_eq!(
+        found,
+        [
+            "FAIL - logs exits 0 through a pipe",
+            "FAIL - logs prints the warning start-up logged at the boot",
+        ]
+    );
+}

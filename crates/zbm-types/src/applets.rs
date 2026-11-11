@@ -66,4 +66,19 @@ pub const LINKED: &[Linked] = &[
         dir: "/bin",
         first: &[],
     },
+    Linked {
+        name: "logs",
+        dir: "/bin",
+        first: &[],
+    },
+    Linked {
+        name: "zlogtail",
+        dir: "/bin",
+        first: &[],
+    },
+    Linked {
+        name: "ztrace",
+        dir: "/bin",
+        first: &["--trace"],
+    },
 ];

@@ -8,8 +8,9 @@
 //! of the kernel log read (`zbm_platform::dmesg::Record::sequence`) instead:
 //! records written in the same microsecond have the same time, never the
 //! same number. A time in the file reads as no stamp. The legacy prompt's
-//! `dmesg --since` refuses a number, so nothing writes one while a Rust
-//! image still runs that prompt.
+//! `dmesg --since` refuses a number, so the prompt of Rust images is
+//! `logs --prompt` instead, which reads this one; the recovery shell's
+//! banner and `logs` write it too.
 
 use zbm_platform::error::Result;
 

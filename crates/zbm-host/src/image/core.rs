@@ -12,9 +12,11 @@ use super::{Entry, Fatal, Image, library};
 /// What the Rust runtime is instead of the legacy runtime's files: `zbm`
 /// is the start-up program, `zluks`, the menu, the hook stages' runner, the
 /// library functions' (`zfunc`), `reboot` with its other names,
-/// `zfs-chroot`, `zkexec` and `mount_esp`; the library itself is generated
-/// ([`library`]).
-const RUST_REPLACES: [&str; 13] = [
+/// `zfs-chroot`, `zkexec`, `mount_esp`, and `logs` with its other names
+/// and the prompt's error printer (`logs --prompt`); `/bin/debug`, a
+/// legacy name of `ztrace`, goes, as `zbm debug` is another program. The
+/// library itself is generated ([`library`]).
+const RUST_REPLACES: [&str; 18] = [
     "libexec/zfsbootmenu-init",
     "libexec/zfsbootmenu-run-hooks",
     "libexec/zfunc",
@@ -28,6 +30,11 @@ const RUST_REPLACES: [&str; 13] = [
     "bin/zfs-chroot",
     "bin/zkexec",
     "bin/mount_esp",
+    "bin/logs",
+    "bin/zlogtail",
+    "bin/ztrace",
+    "bin/debug",
+    "libexec/recovery-error-printer",
 ];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug

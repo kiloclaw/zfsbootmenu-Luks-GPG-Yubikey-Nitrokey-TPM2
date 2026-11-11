@@ -1,6 +1,7 @@
 //! What ZFSBootMenu's own processes leave for each other (input I11 of
-//! docs/dev/threat-model.md): crash reports, the kernel log they read back
-//! and a device's messages the menu picks from it, by the names of the
+//! docs/dev/threat-model.md): crash reports, the kernel log they read back,
+//! escaped for the recovery shell, with the debug lines `ztrace` shows and
+//! a device's messages the menu picks from it, by the names of the
 //! device a pool's label gives, the state files of
 //! `/zfsbootmenu` (finished stages, the active menu, the default boot
 //! environment, degraded pools, the command line override, the console's
@@ -34,6 +35,24 @@ const STATE: [&str; 8] = [
     "console/released",
 ];
 
+/// The debug line of a record's `text`, which `ztrace` shows: its parts
+/// are pieces of the text, split at the bars, semicolons and commas that
+/// separate them.
+fn debug_line(text: &str) {
+    let Some(line) = zbm_platform::dmesg::debug::line(text) else {
+        assert!(!text.starts_with("ZBM"), "{text:?}");
+        return;
+    };
+    assert!(text.starts_with(line.prefix) && !line.prefix.contains('|'));
+    assert!(text.ends_with(line.text));
+    for call in &line.calls {
+        for part in [call.function.unwrap_or_default(), call.file] {
+            assert!(!part.contains([',', ';', '|']), "{call:?}");
+        }
+        assert!(!call.line.contains([';', '|']), "{call:?}");
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
     let text = String::from_utf8_lossy(data);
     let _ = zbm_trace::crash::Report::parse(&text);
@@ -48,7 +67,18 @@ fuzz_target!(|data: &[u8]| {
         for word in &words {
             let _ = zbm_platform::dmesg::names(&record.text, word);
         }
+        debug_line(&record.text);
     }
+    debug_line(&text);
+    // What the recovery shell prints of the log: a line of text each, with
+    // no character left that acts on a terminal or reorders the text.
+    let shown = zbm_platform::dmesg::escaped(&text);
+    assert!(
+        shown
+            .lines()
+            .all(|line| !line.contains(zbm_types::must_escape)),
+        "{shown:?}"
+    );
     // The same words as a pool's label names its devices, on a machine
     // whose kernel lists none: a lost device's names are entries of
     // `/sys/class/block`, never a path.

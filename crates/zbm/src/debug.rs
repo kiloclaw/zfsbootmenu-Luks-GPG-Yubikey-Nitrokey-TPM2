@@ -9,8 +9,9 @@
 //!   from, and `zbm debug state` the files of the state directory
 //!   ([`files`]).
 //! - `zbm debug journal [--level LEVEL]` prints the runtime journal, and
-//!   `zbm debug commands` the programs the runtime ran ([`journal`]); they
-//!   replace the legacy `zlogtail` and `ztrace`.
+//!   `zbm debug commands` the programs the runtime ran ([`journal`]). The
+//!   kernel log, where hooks and the library's shell functions write too,
+//!   is `logs`' and `ztrace`'s.
 //! - `zbm debug luks` and `zbm debug pools` print the LUKS volumes, and the
 //!   pools and boot environments, as `zbm-app` reads them ([`machine`]).
 //! - `zbm debug saved` lists the logs saved on the EFI system partition

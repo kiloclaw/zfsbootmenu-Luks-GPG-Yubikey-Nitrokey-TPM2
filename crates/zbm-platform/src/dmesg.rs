@@ -1,8 +1,9 @@
 //! Reading the kernel log back: all of it, as `dmesg` prints it, for saved
 //! logs and reports ([`kernel_log`]), and ZFSBootMenu's messages of some
 //! levels, for the recovery shell ([`read_logs`], and [`read_after`] for
-//! those after a record); and the messages about some block devices, for
-//! the menu ([`device_lines`]).
+//! those after a record, whose texts [`texts`] gives and [`escaped`]
+//! makes safe to print; [`debug`] reads the debug lines); and the messages
+//! about some block devices, for the menu ([`device_lines`]).
 //!
 //! The records are read from `/dev/kmsg` (ROADMAP.md CD2), without running
 //! `dmesg`. Where that cannot be read, `dmesg` is: util-linux `dmesg`
@@ -22,6 +23,9 @@ use crate::exec::{Command, Input, Runner, Stream};
 use crate::{Files, System};
 
 use zbm_trace::kmsg::Message;
+use zbm_types::Printable;
+
+pub mod debug;
 
 /// The `dmesg` command that filters by `levels` (comma-separated, such as
 /// `err,warn`) and, optionally, by time.
@@ -125,6 +129,12 @@ const KMSG_LIMIT: usize = 32 << 20;
 /// The facility of messages from user space (`LOG_USER`), which those that
 /// ZFSBootMenu writes to `/dev/kmsg` without one get.
 const USER: u8 = 1;
+
+/// The level of errors (`err`).
+pub const ERR: u8 = 3;
+
+/// The level of warnings (`warn`).
+pub const WARN: u8 = 4;
 
 /// The level names of `dmesg -l`, by level.
 const LEVELS: [&str; 8] = [
@@ -390,6 +400,31 @@ pub fn read_after(
     Ok((selected, last))
 }
 
+/// The texts of `records`, a line each, as `dmesg -f user -l LEVELS`
+/// prints them without their timestamps, ending with one newline: a
+/// newline alone without records.
+pub fn texts(records: &[Record]) -> String {
+    let mut text = String::new();
+    for record in records {
+        text.push_str(&record.text);
+        text.push('\n');
+    }
+    format!("{}\n", text.trim_end_matches('\n'))
+}
+
+/// `text`, as [`texts`] or `dmesg` give it, with each of its lines escaped
+/// ([`Printable`]) and a newline after each, so that a line can be printed
+/// to a terminal: reading the log back undoes the kernel's escapes, so what
+/// a message named, such as a file of a boot environment, could otherwise
+/// steer the terminal.
+pub fn escaped(text: &str) -> String {
+    let mut shown = String::new();
+    for line in text.lines() {
+        let _ = writeln!(shown, "{}", Printable(line));
+    }
+    shown
+}
+
 /// Reads ZFSBootMenu's messages of the given levels from the kernel log,
 /// as `dmesg -f user -l LEVELS` prints them without their timestamps,
 /// ending with one newline.
@@ -404,12 +439,7 @@ pub fn read_logs(system: &System<'_>, levels: &str) -> Result<String, Message> {
     if let Some(wanted) = self::levels(levels)
         && let Ok((records, _)) = read_after(system.files, &wanted, None)
     {
-        let mut text = String::new();
-        for record in &records {
-            text.push_str(&record.text);
-            text.push('\n');
-        }
-        return Ok(format!("{}\n", text.trim_end_matches('\n')));
+        return Ok(texts(&records));
     }
     read_logs_with_dmesg(system.runner, levels, None)
 }

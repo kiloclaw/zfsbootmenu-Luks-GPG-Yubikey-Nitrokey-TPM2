@@ -328,7 +328,7 @@ they see today; and short-lived callback processes need no server to ask.
 | `.keys/<key source>/<path>` | key caching | key loading | copies of ZFS key files, mode 0600; removed before `kexec` |
 | `.keys/<key source>/.lock` | key caching, while it runs | key caching | empty; locked with `flock` |
 | `.external_hooks` | external hook root | hook import | mount point |
-| `have_errors`, `have_warnings`, `errors_since` | logging, error printer | previews, recovery shell, `zlogtail` | empty; time stamp |
+| `have_errors`, `have_warnings`, `errors_since` | logging, error printer (`logs --prompt` in Rust images), the recovery shell's banner, `logs` | previews, recovery shell, `zlogtail` | empty; time stamp, in Rust images the number of a record of the kernel log |
 | `luks-mappings`, `luks-mappings.lock`, `luks-skipped` | LUKS unlocking | the LUKS close (`zluks close`), `zluks`, retries | `name<TAB>device<TAB>auto` lines; a file locked with `flock`; one device per line |
 
 Files that other processes may read while they are rewritten (`bootfs`, `bootenvs`, `kernels`, `.kcl` files) are
@@ -642,7 +642,7 @@ The caller decides, at the same points as the legacy code:
    `kexec` or a prohibited read-write import.
 3. **Open the recovery shell:** `emergency_shell` with a message, after which the menu starts again, as in the legacy
    loop in `zfsbootmenu-init`. The shell prints the errors logged since the last time
-   (`recovery-error-printer`, `have_errors`).
+   (`have_errors`; at its prompt `logs --prompt` in Rust images, `recovery-error-printer` in the legacy runtime).
 
 Panics are bugs. In every runtime program a panic hook (`zbm_platform::CrashReporter`) writes a crash report to
 `/zfsbootmenu/crash-<time>-<pid>.txt` (the message and place, the build ID, the open `tracing` spans and the stack as
