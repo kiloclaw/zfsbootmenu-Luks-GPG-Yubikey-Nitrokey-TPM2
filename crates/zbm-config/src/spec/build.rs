@@ -113,7 +113,7 @@ default, or *rust*, the Rust runtime that is being written to replace it. The Ru
 imports pools, with every import option, loads the key of an encryption root with the
 **load-key.d** hooks, a key file in the image or the passphrase prompt, and shows its own menu, a
 workspace of tabs (see **zbm.menu**), from which it boots, manages snapshots and pools, and opens
-the recovery shell, whose tools are still the legacy runtime's.
+the recovery shell, whose tools are Rust applets.
 It keeps secrets in memory that is locked, left out of core dumps and, where the kernel allows it
 (*memfd_secret*), out of the kernel's own map of memory; boot it with *init_on_free=1* (in
 **Kernel.CommandLine** of **generate-zbm**) so that the kernel also zeroes the memory it frees,

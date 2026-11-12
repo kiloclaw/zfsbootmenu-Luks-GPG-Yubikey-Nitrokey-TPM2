@@ -24,6 +24,7 @@ use super::lists::{
 use super::*;
 
 mod fzf;
+mod module_root;
 mod shell;
 
 /// Where the module root is on the fake host.
@@ -263,16 +264,18 @@ fn mkinitcpio_rust() {
     golden("mkinitcpio-rust", Builder::Mkinitcpio, RUST_ALL);
 }
 
+/// The settings of the Rust plans, with their builder.
+const RUST: [(Builder, &str); 3] = [
+    (Builder::Dracut, RUST_ALL),
+    (Builder::Dracut, RUST_RELEASE),
+    (Builder::Mkinitcpio, RUST_ALL),
+];
+
 #[test]
 fn every_linked_name_is_linked_in_rust_plans() {
     let files = host_files();
     let runner = host_runner();
-    let rust = [
-        (Builder::Dracut, RUST_ALL),
-        (Builder::Dracut, RUST_RELEASE),
-        (Builder::Mkinitcpio, RUST_ALL),
-    ];
-    for (builder, settings) in rust {
+    for (builder, settings) in RUST {
         let plan = plan_of(builder, settings, &files, &runner)
             .unwrap()
             .golden();

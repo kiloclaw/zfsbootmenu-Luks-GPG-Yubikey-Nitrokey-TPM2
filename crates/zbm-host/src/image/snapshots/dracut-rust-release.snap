@@ -59,14 +59,7 @@ binary	/usr/bin/less	/usr/bin/less
 library	/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
 dir	/etc/zfs/compatibility.d	0755
 file	/etc/zfs/compatibility.d/grub2	/etc/zfs/compatibility.d/grub2	-
-file	/usr/share/zfsbootmenu/lib/echo-log-lib.sh	/lib/echo-log-lib.sh	-
-file	/usr/share/zfsbootmenu/lib/efi-firmware-lib.sh	/lib/efi-firmware-lib.sh	-
-file	/usr/share/zfsbootmenu/lib/zfsbootmenu-completions.sh	/lib/zfsbootmenu-completions.sh	-
-file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh	/lib/zfsbootmenu-luks-keys.sh	-
-file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks.sh	/lib/zfsbootmenu-luks.sh	-
-file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-edit-kcl	/libexec/zfsbootmenu-edit-kcl	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input	-
-file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
 link	/libexec/zbm	/bin/zluks
 link	/libexec/zbm	/bin/zfsbootmenu
 link	/libexec/zbm	/libexec/zfunc
@@ -971,7 +964,6 @@ file	@/root/.bashrc	/root/.bashrc	0644
     | source /lib/zfsbootmenu-core.sh >/dev/null 2>&1
     | source /lib/zfsbootmenu-kcl.sh >/dev/null 2>&1
     | [ -f /etc/profile ] && source /etc/profile
-    | [ -f /lib/zfsbootmenu-completions.sh ] && source /lib/zfsbootmenu-completions.sh
     | 
     | export PROMPT_COMMAND="/libexec/zbm logs --prompt"
     | export PS1='\[\033[0;33m\]zfsbootmenu\[\033[0m\] \w > '

@@ -20,12 +20,12 @@ the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut
 ### The recovery shell is brush
 
 - **Before:** `bash -i`, with readline.
-- **Now:** `brush -i`, which reads the same `/root/.bashrc`: the prompt, the aliases, `help`, `PROMPT_COMMAND` and
-  the completions stay. On the console on the display and over SSH, its line editor is reedline, with history hints
-  and syntax colours; on a serial line, which may not answer the terminal queries of reedline, it is brush's basic
-  line editor. `BASH_VERSION` is still set, for scripts that check it, and `BRUSH_VERSION` names brush's version. The
-  history goes to `~/.brush_history`. When brush cannot start, or ends within five seconds, the supervisor opens
-  `bash -i` instead; `bash` typed in the shell starts Bash too.
+- **Now:** `brush -i`, which reads the same `/root/.bashrc`: the prompt, the aliases, `help` and `PROMPT_COMMAND`
+  stay. On the console on the display and over SSH, its line editor is reedline, with history hints and syntax
+  colours; on a serial line, which may not answer the terminal queries of reedline, it is brush's basic line editor.
+  `BASH_VERSION` is still set, for scripts that check it, and `BRUSH_VERSION` names brush's version. The history goes
+  to `~/.brush_history`. When brush cannot start, or ends within five seconds, the supervisor opens `bash -i`
+  instead; `bash` typed in the shell starts Bash too.
 - **Why:** one shell, in Rust like the rest of the runtime, with a better line editor.
 
 ### Hooks run on brush
@@ -932,12 +932,12 @@ The log since start-up, and the boots saved before: the log view of the classic 
 - **Now:** the menu no longer uses `fzf`, nor does any tool of the recovery shell of Rust images, and Rust images have
   no `fzf`: they build on a host without it. Their `/etc/zfsbootmenu.conf`, and so the hooks' environment, has none of
   the six flags, and their build runs no `fzf` and looks for no `column` for them (`column` itself is still taken
-  where the host has it). The legacy menu's files that Rust images still had, which run `fzf`, go with it: its library
-  and options (`/lib/zfsbootmenu-ui.sh`, `/lib/fzf-defaults.sh`), its power menu (`/libexec/zpowermenu`) and its
-  differences screen (`/libexec/zfsbootmenu-diff`); the menu's power actions and Diff do what they did.
-  `/libexec/zfunc` still runs the functions of the hook contract's library, but no longer those of the menu's library
-  (`draw_be`, `draw_snapshots`, `draw_modal_prompt` and the rest), whose screens ran `fzf`. Legacy images keep `fzf`,
-  those files and the flags.
+  where the host has it). The legacy menu's files that run `fzf` go with it, with the other legacy files but the
+  library and `zfsbootmenu-input`
+  ([below](#rust-images-keep-only-the-library-and-zfsbootmenu-input-of-the-legacy-files)); the menu's power actions
+  and Diff do what they did. `/libexec/zfunc` still runs the functions of the hook contract's library, but no longer
+  those of the menu's library (`draw_be`, `draw_snapshots`, `draw_modal_prompt` and the rest), whose screens ran
+  `fzf`. Legacy images keep `fzf`, those files and the flags.
 - **Why:** ADR 0018, point 21: only the legacy runtime runs `fzf`, about 3.7 MB of the image.
 
 ## The recovery shell's tools
@@ -1079,6 +1079,31 @@ scripts.
   `zfsbootmenu` refuses any other argument (exit status 2).
 - **Why:** ADR 0018, point 18: the menu's Snapshots tab and its actions replace the `fzf` screen, and the menu holds
   the snapshots of boot environments only.
+
+### Rust images keep only the library and `zfsbootmenu-input` of the legacy files
+
+- **Before:** Rust images took every file of the legacy runtime's `lib`, `libexec` and `bin` that `zbm` did not
+  replace. Besides the hook contract's library and `/libexec/zfsbootmenu-input`, they were the LUKS libraries
+  (`/lib/zfsbootmenu-luks.sh`, `/lib/zfsbootmenu-luks-keys.sh`); logging functions to standard error, which nothing
+  in the image sourced (`/lib/echo-log-lib.sh`); the firmware variables' functions of the legacy `firmware-setup`
+  (`/lib/efi-firmware-lib.sh`); the shell's completions (`/lib/zfsbootmenu-completions.sh`), which the recovery
+  shell's `.bashrc` sourced; and the `fzf` menu's library and options (`/lib/zfsbootmenu-ui.sh`,
+  `/lib/fzf-defaults.sh`), its power menu (`/libexec/zpowermenu`), its differences screen
+  (`/libexec/zfsbootmenu-diff`), its command-line editor (`/libexec/zfsbootmenu-edit-kcl`) and its preview
+  (`/libexec/zfsbootmenu-preview`).
+- **Now:** Rust images take of those files only the hook contract's library (`/lib/zfsbootmenu-core.sh`,
+  `/lib/kmsg-log-lib.sh`, `/lib/zfsbootmenu-kcl.sh`, generated, with the legacy files below
+  `/usr/share/zfsbootmenu/legacy`) and `/libexec/zfsbootmenu-input`, which three of the library's functions run. The
+  others are gone: `zbm` unlocks and closes LUKS volumes itself, the menu replaces the `fzf` screens, the tools of the
+  recovery shell are `zbm`, and no function that `/libexec/zfunc` runs used them. A hook that sources one of them,
+  such as `/lib/zfsbootmenu-luks.sh` for `luks_close_all`, no longer finds it: `zluks close` closes the volumes, as
+  the built-in step `80-luks-close.sh` does. A copy of the legacy hook `teardown.d/80-luks-close.sh` among an image's
+  hooks takes the place of that step, as any hook of its name does, but now closes nothing: its `source` of the LUKS
+  library fails and it exits 0, so the volumes stay open across `kexec`. Delete such a copy, or make it run
+  `zluks close`. The recovery shell's `.bashrc` sources no completions, so Tab completes the names of commands, files and
+  variables alone. Legacy images keep every file.
+- **Why:** ADR 0018, points 20 and 22: Rust images take only what hooks and the library's legacy functions need, which
+  SB7 removes with them.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

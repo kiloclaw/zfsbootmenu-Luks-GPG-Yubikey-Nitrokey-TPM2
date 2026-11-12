@@ -24,23 +24,29 @@ const TERM_LINUX: &str = "export TERM=linux\n";
 /// the menu as lines (ADR 0011).
 const TERM_UNLESS_DUMB: &str = "[ \"${TERM}\" = dumb ] || export TERM=linux\n";
 
-/// `/root/.bashrc`, up to the command run before each prompt.
+/// `/root/.bashrc`, up to the completions: the configuration, the
+/// library and the profile.
 const BASHRC: &str = r"source /etc/zfsbootmenu.conf >/dev/null 2>&1
 source /lib/kmsg-log-lib.sh >/dev/null 2>&1
 source /lib/zfsbootmenu-core.sh >/dev/null 2>&1
 source /lib/zfsbootmenu-kcl.sh >/dev/null 2>&1
 [ -f /etc/profile ] && source /etc/profile
-[ -f /lib/zfsbootmenu-completions.sh ] && source /lib/zfsbootmenu-completions.sh
-
 ";
 
-/// The command the legacy runtime runs before each prompt: the errors
-/// logged since the last prompt, read with `dmesg --since` a time.
-const PROMPT_LEGACY: &str = "export PROMPT_COMMAND=\"/libexec/recovery-error-printer\"\n";
+/// The legacy runtime's completions, a file of its module root, which Rust
+/// images do not take.
+const COMPLETIONS_LEGACY: &str =
+    "[ -f /lib/zfsbootmenu-completions.sh ] && source /lib/zfsbootmenu-completions.sh\n";
 
-/// The command the Rust runtime runs before each prompt: the errors logged
-/// after the last record shown, escaped (ADR 0018, point 13).
-const PROMPT_RUST: &str = "export PROMPT_COMMAND=\"/libexec/zbm logs --prompt\"\n";
+/// The command the legacy runtime runs before each prompt, after a blank
+/// line: the errors logged since the last prompt, read with `dmesg
+/// --since` a time.
+const PROMPT_LEGACY: &str = "\nexport PROMPT_COMMAND=\"/libexec/recovery-error-printer\"\n";
+
+/// The command the Rust runtime runs before each prompt, after a blank
+/// line: the errors logged after the last record shown, escaped (ADR 0018,
+/// point 13).
+const PROMPT_RUST: &str = "\nexport PROMPT_COMMAND=\"/libexec/zbm logs --prompt\"\n";
 
 /// `/root/.bashrc` after the prompt's command, up to the alias `help`.
 const BASHRC_ALIASES: &str = r#"export PS1='\[\033[0;33m\]zfsbootmenu\[\033[0m\] \w > '
@@ -160,15 +166,23 @@ pub fn profiles(image: &mut Image) {
 }
 
 /// `/root/.bashrc` of the Rust runtime (`is_rust`) or of the legacy one,
-/// which differ in the command run before each prompt and in `help`
-/// alone.
+/// which differ in the completions, which the Rust one has none of, in the
+/// command run before each prompt and in `help`.
 fn bashrc(is_rust: bool) -> String {
-    let (prompt, help) = if is_rust {
-        (PROMPT_RUST, HELP_RUST)
+    let (completions, prompt, help) = if is_rust {
+        ("", PROMPT_RUST, HELP_RUST)
     } else {
-        (PROMPT_LEGACY, HELP_LEGACY)
+        (COMPLETIONS_LEGACY, PROMPT_LEGACY, HELP_LEGACY)
     };
-    [BASHRC, prompt, BASHRC_ALIASES, help, BASHRC_END].concat()
+    [
+        BASHRC,
+        completions,
+        prompt,
+        BASHRC_ALIASES,
+        help,
+        BASHRC_END,
+    ]
+    .concat()
 }
 
 /// Profiling, with `zfsbootmenu_trace_enable` and the profiling library of

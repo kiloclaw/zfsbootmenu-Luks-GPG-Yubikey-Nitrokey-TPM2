@@ -5,13 +5,6 @@ use std::path::Path;
 
 use super::*;
 
-/// The settings of the Rust plans, with their builder.
-const RUST: [(Builder, &str); 3] = [
-    (Builder::Dracut, RUST_ALL),
-    (Builder::Dracut, RUST_RELEASE),
-    (Builder::Mkinitcpio, RUST_ALL),
-];
-
 /// The settings of the legacy plans, with their builder.
 const LEGACY: [(Builder, &str); 3] = [
     (Builder::Dracut, ""),

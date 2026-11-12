@@ -77,12 +77,18 @@ fn the_rust_bashrc_runs_logs_prompt_and_the_legacy_one_is_unchanged() {
     let printer = "\nexport PROMPT_COMMAND=\"/libexec/recovery-error-printer\"\n";
     assert!(legacy.contains(printer), "{legacy}");
     assert!(!rust.contains("recovery-error-printer"), "{rust}");
-    // The Rust runtime's differs in that line and in `help` alone;
-    // brush's hand-over follows it.
+    // The Rust runtime's differs in that line, in `help` and in the
+    // completions alone; brush's hand-over follows it.
     let logs = "\nexport PROMPT_COMMAND=\"/libexec/zbm logs --prompt\"\n";
     let viewer = "\nalias help=\"/libexec/zfsbootmenu-help -L recovery-shell\"\n";
     let help = "\nalias help=\"zbm help\"\n";
-    let expected = legacy.replace(printer, logs).replace(viewer, help);
+    let completions =
+        "[ -f /lib/zfsbootmenu-completions.sh ] && source /lib/zfsbootmenu-completions.sh\n";
+    assert!(legacy.contains(completions), "{legacy}");
+    let expected = legacy
+        .replace(printer, logs)
+        .replace(viewer, help)
+        .replace(completions, "");
     assert!(rust.starts_with(&expected), "{rust}");
 }
 
@@ -113,12 +119,7 @@ fn the_rust_help_alias_runs_zbm_help() {
 fn no_rust_plan_installs_a_help_page() {
     let files = host_files();
     let runner = host_runner();
-    let rust = [
-        (Builder::Dracut, RUST_ALL),
-        (Builder::Dracut, RUST_RELEASE),
-        (Builder::Mkinitcpio, RUST_ALL),
-    ];
-    for (builder, settings) in rust {
+    for (builder, settings) in RUST {
         let plan = plan_of(builder, settings, &files, &runner)
             .unwrap()
             .golden();

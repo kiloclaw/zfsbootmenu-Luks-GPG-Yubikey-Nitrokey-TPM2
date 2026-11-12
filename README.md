@@ -134,8 +134,8 @@ with the same image, add `zbm.menu=classic` to the command line (for this releas
 lines by a screen reader, `zbm.menu=lines`. To rebuild after an update, run `git -C /usr/src/zbm pull`, rebuild the
 container image if `packaging/container/` changed, and repeat steps 8 and 9.
 
-The Rust runtime boots, unlocks and runs the menu by itself. Its recovery shell still offers the shell runtime's
-tools, so the image keeps Bash and a few of their programs.
+The Rust runtime boots, unlocks and runs the menu by itself. Its recovery shell offers its own tools (`zbm help`
+lists them); the image keeps Bash for hooks and the library of functions they source.
 
 ### ZFS pools on LUKS volumes
 

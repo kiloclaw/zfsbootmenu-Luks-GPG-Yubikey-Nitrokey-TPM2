@@ -9,43 +9,14 @@ use zbm_types::LINKED;
 
 use super::{Entry, Fatal, Image, library};
 
-/// What the Rust runtime is instead of the legacy runtime's files: `zbm`
-/// is the start-up program, `zluks`, the menu, the hook stages' runner, the
-/// library functions' (`zfunc`), `reboot` with its other names,
-/// `zfs-chroot`, `zkexec`, `mount_esp`, and `logs` with its other names
-/// and the prompt's error printer (`logs --prompt`), the help viewer
-/// (`zbm help`), and `zsnapshots` (the menu on its Snapshots tab);
-/// `/bin/debug`, a legacy name of `ztrace`, goes, as `zbm
-/// debug` is another program. The `fzf` menu's library and options, and
-/// its power and differences screens, which the menu replaces, go with
-/// `fzf` (ADR 0018, point 21). The library itself is generated
-/// ([`library`]).
-const RUST_REPLACES: [&str; 24] = [
-    "libexec/zfsbootmenu-init",
-    "libexec/zfsbootmenu-run-hooks",
-    "libexec/zfunc",
-    "bin/zluks",
-    "bin/zfsbootmenu",
-    "bin/zbm",
-    "bin/reboot",
-    "bin/poweroff",
-    "bin/shutdown",
-    "bin/firmware-setup",
-    "bin/zfs-chroot",
-    "bin/zkexec",
-    "bin/mount_esp",
-    "bin/logs",
-    "bin/zlogtail",
-    "bin/ztrace",
-    "bin/debug",
-    "libexec/recovery-error-printer",
-    "libexec/zfsbootmenu-help",
-    "bin/zsnapshots",
-    "lib/zfsbootmenu-ui.sh",
-    "lib/fzf-defaults.sh",
-    "libexec/zfsbootmenu-diff",
-    "libexec/zpowermenu",
-];
+/// What a Rust image takes of the module root's `lib`, `libexec` and `bin`
+/// besides the library, which it generates ([`library`]): the line reader
+/// that three functions of the library still run as the legacy runtime did
+/// (ADR 0018, point 22), until SB7. The rest is the legacy runtime's, and
+/// stays out: its start-up programs, menu and tools, which `zbm` and its
+/// links are, the `fzf` menu's library and screens, the completions, and
+/// the LUKS libraries: `zbm` unlocks and closes the volumes itself.
+const RUST_TAKES: [&str; 1] = ["libexec/zfsbootmenu-input"];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug
 /// crash`, `zbm report`) that command of `/libexec/zbm`, which lists them;
@@ -119,15 +90,15 @@ pub fn runtime(image: &mut Image) -> Result<(), Fatal> {
 }
 
 /// The shell libraries, start-up programs and tools of the module root
-/// (`lib`, `libexec`, `bin`); the Rust runtime's links ([`LINKED`]) and
-/// `/bin/zbm` where it replaces them, and the legacy runtime's `init.d`.
+/// (`lib`, `libexec`, `bin`), in images of the Rust runtime only those it
+/// takes (`RUST_TAKES`) and the library; its links ([`LINKED`]) and
+/// `/bin/zbm`; and the legacy runtime's `init.d`.
 pub fn core(image: &mut Image) {
     let root = image.module_root();
     for dir in ["lib", "libexec", "bin"] {
         for name in image.host.names(&root.join(dir)) {
             let at = format!("{dir}/{name}");
-            let generated = dir == "lib" && library::FILES.contains(&name.as_str());
-            if image.is_rust() && (generated || RUST_REPLACES.contains(&at.as_str())) {
+            if image.is_rust() && !RUST_TAKES.contains(&at.as_str()) {
                 continue;
             }
             image.install(&root.join(&at), &Path::new("/").join(&at));
