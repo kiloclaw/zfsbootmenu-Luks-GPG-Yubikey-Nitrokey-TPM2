@@ -291,7 +291,9 @@ FILES
 */lib/zfsbootmenu-luks.sh*, */lib/zfsbootmenu-luks-keys.sh*
 
   Unlock and teardown functions, and hardware key support, of the legacy runtime. Images with the Rust runtime have no
-  such files: **zbm** unlocks and closes the volumes itself.
+  such files: **zbm** unlocks and closes the volumes itself. Their build warns of a hook that names one, such as a copy
+  of the legacy *teardown.d/80-luks-close.sh*, which then closes nothing; make such a hook run **zluks close**. dracut
+  and mkinitcpio print the warning; **generate-zbm** prints it only with **--debug**.
 
 */libexec/init.d/45-luks-unlock*
 

@@ -241,6 +241,104 @@ fn hooks_of(image: &mut Image, stage: &str, files: &[PathBuf]) {
     }
 }
 
+/// The built-in step that closes the LUKS volumes, by stage and file name.
+const LUKS_CLOSE: (&str, &str) = ("teardown.d", "80-luks-close.sh");
+
+/// The legacy LUKS library, which the legacy hook of [`LUKS_CLOSE`]
+/// sources to close the volumes.
+const LUKS_LIBRARY: &str = "/lib/zfsbootmenu-luks.sh";
+
+/// The files of the module root's `lib`, `libexec` and `bin` that the image
+/// does not have, at their paths in a legacy image: in an image of the Rust
+/// runtime those it neither takes nor generates, writes or links to `zbm`.
+fn left_out(image: &Image) -> Vec<String> {
+    let root = image.module_root();
+    ["lib", "libexec", "bin"]
+        .into_iter()
+        .flat_map(|dir| {
+            let names = image.host.names(&root.join(dir));
+            names.into_iter().map(move |name| format!("/{dir}/{name}"))
+        })
+        .filter(|path| !image.plan.has(Path::new(path)))
+        .collect()
+}
+
+/// Whether `text` names the file `path` itself: not as part of a longer
+/// path or file name.
+fn is_named(text: &str, path: &str) -> bool {
+    let is_name = |c: char| c.is_ascii_alphanumeric() || "_-./".contains(c);
+    text.match_indices(path).any(|(at, _)| {
+        let before = text[..at].chars().next_back();
+        let after = text[at + path.len()..].chars().next();
+        !before.is_some_and(is_name) && !after.is_some_and(is_name)
+    })
+}
+
+/// What the build says of the hook at `dest` that names the files `named`,
+/// which the image does not have.
+fn left_out_warning(dest: &Path, named: &[&str]) -> String {
+    let list = named.join(", ");
+    let luks_close = Path::new("/libexec/hooks")
+        .join(LUKS_CLOSE.0)
+        .join(LUKS_CLOSE.1);
+    if dest == luks_close && named.contains(&LUKS_LIBRARY) {
+        return format!(
+            "hook {} takes the place of the built-in step that closes the LUKS \
+             volumes, but closes none: images of the Rust runtime do not have \
+             {list}, so the volumes stay open across kexec; delete it, or make \
+             it run `zluks close`",
+            dest.display()
+        );
+    }
+    format!(
+        "hook {} names {list}, which images of the Rust runtime do not have",
+        dest.display()
+    )
+}
+
+/// Whether `bytes` are those of a program rather than of a script: an ELF
+/// file, or one with a NUL byte, which text does not have.
+fn is_program(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"\x7fELF") || bytes.contains(&0)
+}
+
+/// Warns of each hook in an image of the Rust runtime that names a file of
+/// the legacy runtime the image does not have ([`left_out`]), whichever
+/// directory or option it came from. A hook that cannot be read, or is a
+/// program, is not looked at; a script is read whatever its encoding.
+fn warn_of_left_out(image: &mut Image) {
+    if !image.is_rust() {
+        return;
+    }
+    let left = left_out(image);
+    let hooks: Vec<(PathBuf, PathBuf)> = image
+        .plan
+        .entries()
+        .iter()
+        .filter_map(|entry| match entry {
+            Entry::File { src, dest, .. } if dest.starts_with("/libexec/hooks") => {
+                Some((src.clone(), dest.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    for (src, dest) in hooks {
+        let bytes = image.host.files.read(&src).unwrap_or_default();
+        if is_program(&bytes) {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes);
+        let named: Vec<&str> = left
+            .iter()
+            .map(String::as_str)
+            .filter(|path| is_named(&text, path))
+            .collect();
+        if !named.is_empty() {
+            image.plan.warn(left_out_warning(&dest, &named));
+        }
+    }
+}
+
 /// The files of the directory `dir`, as the shell's `dir/*` names them.
 fn listed(image: &Image, dir: &Path) -> Vec<PathBuf> {
     let names = image.host.names(dir);
@@ -262,7 +360,9 @@ fn is_built_in(stage: &str, name: &str) -> bool {
 /// The hooks: ZFSBootMenu's own first, so that the user's replace them,
 /// but in images of the Rust runtime those it runs as built-in steps; the
 /// user's of the deprecated options (`zfsbootmenu_early_setup`, `_setup`,
-/// `_teardown`), then those of `zfsbootmenu_hook_root`.
+/// `_teardown`), then those of `zfsbootmenu_hook_root`. In images of the
+/// Rust runtime, the build warns of the hooks that name a file of the
+/// legacy runtime the image does not have.
 pub fn hooks(image: &mut Image) {
     let root = image.module_root().join("hooks");
     for stage in STAGES {
@@ -299,6 +399,7 @@ pub fn hooks(image: &mut Image) {
             hooks_of(image, stage, &files);
         }
     }
+    warn_of_left_out(image);
 }
 
 #[cfg(test)]
@@ -310,6 +411,37 @@ mod tests {
         assert!(is_built_in("teardown.d", "80-luks-close.sh"));
         assert!(!is_built_in("early-setup.d", "80-luks-close.sh"));
         assert!(!is_built_in("teardown.d", "80-luks-close"));
+        assert!(is_built_in(LUKS_CLOSE.0, LUKS_CLOSE.1));
+    }
+
+    #[test]
+    fn a_program_is_an_elf_file_or_one_with_a_nul_byte() {
+        assert!(is_program(b"\x7fELF\x02\x01"));
+        assert!(is_program(b"#!/bin/sh\n\0"));
+        assert!(!is_program(b"#!/bin/sh\n# \xdcbersetzung\n"));
+        assert!(!is_program(b""));
+    }
+
+    #[test]
+    fn a_path_is_named_whole_not_as_part_of_a_longer_one() {
+        let path = "/lib/zfsbootmenu-luks.sh";
+        for text in [
+            "source /lib/zfsbootmenu-luks.sh",
+            "  /lib/zfsbootmenu-luks.sh\n)",
+            "[ -r \"/lib/zfsbootmenu-luks.sh\" ]",
+            "/lib/zfsbootmenu-luks.sh",
+        ] {
+            assert!(is_named(text, path), "{text}");
+        }
+        for text in [
+            "source /lib/zfsbootmenu-luks.sh.orig",
+            "source /usr/lib/zfsbootmenu-luks.sh",
+            "source ./lib/zfsbootmenu-luks.sh",
+            "source /lib/zfsbootmenu-luks-keys.sh",
+            "/lib/zfsbootmenu-luks.sh-old /lib/zfsbootmenu-luks.shx",
+        ] {
+            assert!(!is_named(text, path), "{text}");
+        }
     }
 
     #[test]

@@ -555,7 +555,10 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
 - **The image.** The context's "26 legacy entries, 20 files and 6 links" were 21 files and 5 links. `fzf` left with
   `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `zfsbootmenu-diff` and `zpowermenu`, which run it (SB6g-1); `RUST_TAKES`
   (`libexec/zfsbootmenu-input`) replaced `RUST_REPLACES` in SB6g-2, which took `efi-firmware-lib.sh` out too, its last
-  users gone. The `RUST_REPLACES` of points 3, 22 and 27 is the decision's word for the steps on the way.
+  users gone. The `RUST_REPLACES` of points 3, 22 and 27 is the decision's word for the steps on the way. A follow-up
+  of SB6 made the build warn of a user's hook that names a file of the module root's `lib`, `libexec` or `bin` that a
+  Rust image does not have, the files found as the image's plan leaves them out; a copy of the legacy
+  `teardown.d/80-luks-close.sh` gets its own warning, as it takes the built-in LUKS close's place but closes nothing.
 - **The VM checks** of "How it is checked" changed in three places. `menu-boot`'s tour has no palette to check: the
   command line (`:`) must offer no Reboot into Firmware Setup on the BIOS machine, and `menu-display` replays the
   same steps. The FAT disk of `runtime-rust-recovery` has no GPT, so no partition type to find: `mount_esp` gets the
@@ -566,8 +569,9 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
 
 **Left open,** for the maintainer: a copy of the legacy `teardown.d/80-luks-close.sh` among a Rust image's hooks
 replaces the built-in LUKS close but closes nothing, as the LUKS library it sources is gone (`CHANGES-FROM-LEGACY.md`
-says so; a warning at build time is offered); a failed `zkexec` in `runtime-rust-recovery` fails only at the step's
-1200 s time-out; no VM test chroots into an encrypted environment or hangs up an SSH session in `zfs-chroot`; and
-`zbm-sys`'s coverage sits at its floor. Firmware without an `OsIndications` variable, possibly a fresh OVMF, was
-offered firmware setup that then failed; a follow-up of SB6 creates the variable, as systemd does, which is still to
-be checked on OVMF: on the UEFI machine, Reboot into Firmware Setup must open the firmware's setup.
+says so, and the build warns of it since a follow-up of SB6; the image's start-up does not); a failed `zkexec` in
+`runtime-rust-recovery` fails only at the step's 1200 s time-out; no VM test chroots into an encrypted environment or
+hangs up an SSH session in `zfs-chroot`; and `zbm-sys`'s coverage sits at its floor. Firmware without an `OsIndications`
+variable, possibly a fresh OVMF, was offered firmware setup that then failed; a follow-up of SB6 creates the variable,
+as systemd does, which is still to be checked on OVMF: on the UEFI machine, Reboot into Firmware Setup must open the
+firmware's setup.

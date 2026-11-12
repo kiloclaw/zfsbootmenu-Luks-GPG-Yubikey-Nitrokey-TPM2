@@ -24,6 +24,7 @@ use super::lists::{
 use super::*;
 
 mod fzf;
+mod hooks;
 mod module_root;
 mod shell;
 

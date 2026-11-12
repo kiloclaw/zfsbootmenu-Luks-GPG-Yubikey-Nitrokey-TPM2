@@ -1115,7 +1115,10 @@ scripts.
   the built-in step `80-luks-close.sh` does. A copy of the legacy hook `teardown.d/80-luks-close.sh` among an image's
   hooks takes the place of that step, as any hook of its name does, but now closes nothing: its `source` of the LUKS
   library fails and it exits 0, so the volumes stay open across `kexec`. Delete such a copy, or make it run
-  `zluks close`. The recovery shell's `.bashrc` completes with `zbm` instead of the legacy file
+  `zluks close`. The build warns of a hook it puts in a Rust image that names a file Rust images do not have, and of
+  such a copy of `80-luks-close.sh` that the volumes stay open: dracut and mkinitcpio print the warning, `generate-zbm`
+  only with `--debug`, as it prints the rest of their output. The image does not warn when it starts, so a hook of
+  `zbm.hookroot` is not checked. The recovery shell's `.bashrc` completes with `zbm` instead of the legacy file
   ([below](#tab-completes-what-zbm-complete-lists)). Legacy images keep every file.
 - **Why:** ADR 0018, points 20 and 22: Rust images take only what hooks and the library's legacy functions need, which
   SB7 removes with them.
