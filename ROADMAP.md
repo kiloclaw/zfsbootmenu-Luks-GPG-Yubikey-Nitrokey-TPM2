@@ -624,6 +624,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | SB12 | The native image backend and a minimal early init, for release and container images first, checked against dracut's output (#13 reopened in this form) | perf, sec | L | RL2 |
 | SB13 | Releases publish the debug files of every binary, indexed by build ID | stab | S | |
 | SB14 | The rest of the hook library in Rust: the 51 functions still legacy (`crates/zbm/src/zfunc.rs`), each with a parity test; the seven that only the legacy runtime calls; the Log tab's lines of hooks, from the kernel log ([ADR 0018](docs/dev/adr/0018-recovery-tools.md), point 25) | mod, sec | L | SB5 |
+| SB15 | Name lookup in a chroot: where the image has its own `/etc/resolv.conf` (its network brought up by `dracut-network` or mkinitcpio's `net` hook, `docs/general/remote-access.rst`), the chroot of `zfs-chroot`, `zfs_chroot` and the menu mounts it read-only over the environment's, which it leaves unchanged and unmounts with the rest, and says so in its notices. The chroot already shares the image's network, but the environment's file often names `127.0.0.53` or a link into `/run`, so addresses work and names do not. A link there is followed inside the chroot's root, never the image's; no file is created where the environment has none. A VM step brings the test image's network up (QEMU's user network, DHCP) and resolves a name in the chroot, which needs `dracut-network` in that image, and checks that the network is up before the Rust start-up runs. Not in it: bringing the network up natively (a Rust DHCP client, `zbm.net=`), which would need its own ADR and the threat model's I16 | stab | S | SB6 |
 
 ### UI: the menu, the console and the display
 
@@ -799,7 +800,7 @@ six layouts of UI15.
 
 ### Phase 4: the boundary and the image
 
-SB4, SB5, SB6, SB7, SB8, SB9, SB13, SB14, DM10, VE7, VE8, CD4, CD5, CD12.
+SB4, SB5, SB6, SB7, SB8, SB9, SB13, SB14, SB15, DM10, VE7, VE8, CD4, CD5, CD12.
 
 **Exit:** Rust images without the legacy payload or `fzf`, and without kmod or `setfont`; the dracut module and the
 mkinitcpio hook as shims; `zbm-host` with no Perl or Bash emulation and no `objcopy`; no Bash, Perl or Python under
