@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use zbm_tools::host::{busybox_programs, hostid, zfs_version};
 
 use super::lists::{
-    ESSENTIAL_BINARIES, ESSENTIAL_MODULES, LUKS_MODULES, LUKS_TOKEN_MODULES, LUKS_UDEV_RULES,
-    OPTIONAL_BINARIES, OPTIONAL_MODULES, UDEV_RULES,
+    ESSENTIAL_BINARIES, ESSENTIAL_MODULES, LEGACY_BINARIES, LUKS_MODULES, LUKS_TOKEN_MODULES,
+    LUKS_UDEV_RULES, OPTIONAL_BINARIES, OPTIONAL_MODULES, UDEV_RULES,
 };
 use super::{Entry, Fatal, Image, Need, core, fonts, graphics, libs, luks, shell};
 
@@ -49,6 +49,26 @@ fn modules(image: &mut Image, names: &[&str], need: Need) {
     for name in names {
         image.plan.module(name, need, false);
     }
+}
+
+/// The essential program that legacy images list [`LEGACY_BINARIES`]
+/// after. The legacy runtime installed its programs in one list, in this
+/// order; legacy images keep it, so their plans do not change. A test
+/// fails when this program leaves [`ESSENTIAL_BINARIES`].
+const LEGACY_AFTER: &str = "dmesg";
+
+/// The programs every image of the runtime needs: legacy images also get
+/// those of the legacy runtime, after [`LEGACY_AFTER`].
+fn essential(image: &Image) -> Vec<&'static str> {
+    let mut names = ESSENTIAL_BINARIES.to_vec();
+    if !image.is_rust() {
+        let at = names
+            .iter()
+            .position(|name| *name == LEGACY_AFTER)
+            .map_or(names.len(), |after| after + 1);
+        names.splice(at..at, LEGACY_BINARIES.iter().copied());
+    }
+    names
 }
 
 /// The programs of the lists: the essential ones fail the build when the
@@ -218,12 +238,8 @@ pub fn dracut(image: &mut Image) -> Result<(), Fatal> {
     dracut_modules(image)?;
     core::runtime(image)?;
     rules(image, UDEV_RULES, Need::Required);
-    programs(
-        image,
-        ESSENTIAL_BINARIES,
-        OPTIONAL_BINARIES,
-        "optional component",
-    )?;
+    let essential = essential(image);
+    programs(image, &essential, OPTIONAL_BINARIES, "optional component")?;
     if luks::is_wanted(image) {
         luks_programs(image)?;
         if luks::luks(image).is_err() {
@@ -277,13 +293,9 @@ fn mkinitcpio_programs(image: &mut Image) -> Result<(), Fatal> {
             "1" | "y" | "yes" | "on"
         )
     });
+    let essential = essential(image);
     if !miser {
-        return programs(
-            image,
-            ESSENTIAL_BINARIES,
-            OPTIONAL_BINARIES,
-            "optional component",
-        );
+        return programs(image, &essential, OPTIONAL_BINARIES, "optional component");
     }
     let busybox = busybox_programs(image.host.runner);
     let lacks = |names: &[&'static str]| -> Vec<&'static str> {
@@ -293,7 +305,7 @@ fn mkinitcpio_programs(image: &mut Image) -> Result<(), Fatal> {
             .filter(|name| !busybox.iter().any(|have| have == name))
             .collect()
     };
-    let (essential, optional) = (lacks(ESSENTIAL_BINARIES), lacks(OPTIONAL_BINARIES));
+    let (essential, optional) = (lacks(&essential), lacks(OPTIONAL_BINARIES));
     for name in essential {
         if image.executable(name).is_none() {
             return Err(format!("failed to install essential executable '{name}'"));
@@ -392,5 +404,10 @@ mod tests {
         assert_eq!(hostid_bytes("0a1b2c3d"), [0x3d, 0x2c, 0x1b, 0x0a]);
         assert!(is_at_least_2("2.2.6-1") && is_at_least_2("10.0"));
         assert!(!is_at_least_2("0.8.6") && !is_at_least_2(""));
+    }
+
+    #[test]
+    fn the_program_legacy_images_list_fzf_after_is_essential() {
+        assert!(ESSENTIAL_BINARIES.contains(&LEGACY_AFTER));
     }
 }

@@ -3,6 +3,7 @@ use pretty_assertions::assert_eq;
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
+mod fzf;
 mod help;
 mod report;
 mod snapshots;

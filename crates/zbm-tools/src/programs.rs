@@ -189,7 +189,10 @@ pub const LEGACY_LIBRARY: &str = "/usr/share/zfsbootmenu/legacy";
 /// legacy `/libexec/zfunc` did, from the legacy files that Rust images keep
 /// below `$1` (`/usr/share/zfsbootmenu/legacy`): the function, then its
 /// arguments, follow. The legacy files source each other there, not the
-/// generated library of `/lib`, whose functions would come back here.
+/// generated library of `/lib`, whose functions would come back here. It
+/// sources what the legacy `/libexec/zfunc` sourced, except the library of
+/// the `fzf` menu (`zfsbootmenu-ui.sh`), which Rust images do not have; no
+/// function of the library calls the menu's.
 const LEGACY_FUNCTION: &str = r#"legacy="${1}"
 shift
 source() {
@@ -199,8 +202,7 @@ source() {
     *) builtin source "$@" ;;
   esac
 }
-for src in /lib/profiling-lib.sh /lib/kmsg-log-lib.sh \
-  /lib/zfsbootmenu-core.sh /lib/zfsbootmenu-ui.sh; do
+for src in /lib/profiling-lib.sh /lib/kmsg-log-lib.sh /lib/zfsbootmenu-core.sh; do
   if ! source "${src}" >/dev/null 2>&1; then
     echo "<3>ZFSBootMenu: unable to source '${src}' in $0" > /dev/kmsg
     exit 1
@@ -413,6 +415,16 @@ mod tests {
         );
         assert_eq!(call.get_env(), [("loglevel".into(), Some("7".into()))]);
         assert_eq!(call.get_stdout(), Stream::Inherit);
+    }
+
+    #[test]
+    fn the_legacy_runner_sources_no_ui_library() {
+        // The `fzf` menu's library is not in Rust images (ADR 0018, point
+        // 21): sourcing it would fail every legacy function.
+        assert!(!LEGACY_FUNCTION.contains("zfsbootmenu-ui.sh"));
+        let sourced = "for src in /lib/profiling-lib.sh /lib/kmsg-log-lib.sh \
+                       /lib/zfsbootmenu-core.sh; do";
+        assert!(LEGACY_FUNCTION.contains(sourced), "{LEGACY_FUNCTION}");
     }
 
     #[test]

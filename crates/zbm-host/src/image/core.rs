@@ -16,9 +16,11 @@ use super::{Entry, Fatal, Image, library};
 /// and the prompt's error printer (`logs --prompt`), the help viewer
 /// (`zbm help`), and `zsnapshots` (the menu on its Snapshots tab);
 /// `/bin/debug`, a legacy name of `ztrace`, goes, as `zbm
-/// debug` is another program. The library itself is generated
+/// debug` is another program. The `fzf` menu's library and options, and
+/// its power and differences screens, which the menu replaces, go with
+/// `fzf` (ADR 0018, point 21). The library itself is generated
 /// ([`library`]).
-const RUST_REPLACES: [&str; 20] = [
+const RUST_REPLACES: [&str; 24] = [
     "libexec/zfsbootmenu-init",
     "libexec/zfsbootmenu-run-hooks",
     "libexec/zfunc",
@@ -39,6 +41,10 @@ const RUST_REPLACES: [&str; 20] = [
     "libexec/recovery-error-printer",
     "libexec/zfsbootmenu-help",
     "bin/zsnapshots",
+    "lib/zfsbootmenu-ui.sh",
+    "lib/fzf-defaults.sh",
+    "libexec/zfsbootmenu-diff",
+    "libexec/zpowermenu",
 ];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug

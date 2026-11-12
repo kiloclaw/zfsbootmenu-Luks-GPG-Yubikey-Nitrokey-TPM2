@@ -32,6 +32,7 @@
 //!   serves the menu, which opens on the Snapshots tab of `tplain`'s
 //!   environment; `!` and Enter, its recovery shell, end it, back at the
 //!   prompt, `zsnapshots` ending with 0;
+//! - the shell's `command -v fzf` fails: Rust images have no `fzf`;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
@@ -115,6 +116,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     help(test, &mut vm)?;
     zreport(test, &mut vm)?;
     zsnapshots(test, &mut vm)?;
+    no_fzf(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
@@ -372,6 +374,21 @@ fn zsnapshots(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     test.check(
         left,
         "! and Enter leave the menu, back at the prompt, zsnapshots ending with 0",
+    );
+    Ok(())
+}
+
+/// Asks the recovery shell for `fzf`, which a Rust image does not have.
+///
+/// # Errors
+///
+/// When the command does not end in time.
+fn no_fzf(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("command -v fzf: Rust images have no fzf");
+    let (code, _) = vm.sh_show("command -v fzf")?;
+    test.check(
+        code != 0,
+        &format!("the image has no fzf: command -v fzf fails ({code})"),
     );
     Ok(())
 }

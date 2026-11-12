@@ -239,7 +239,8 @@ To build every image, on the build host:
 * OpenZFS: ``zfs``, ``zpool``, ``zdb``, ``mount.zfs``, its udev rules, and its kernel modules for the kernel the image
   uses;
 * dracut or mkinitcpio;
-* ``fzf`` and ``kexec`` (kexec-tools). Both are required for either runtime;
+* ``kexec`` (kexec-tools), required for either runtime, and ``fzf``, required for the shell runtime only: images of
+  the Rust runtime have no ``fzf``;
 * ``bash``, util-linux (``lsblk``, ``blkid``, ``setsid``, ``mount``), kmod (``insmod``, ``modinfo``, ``depmod``),
   procps (``ps``), ``tput`` (ncurses) and the usual core utilities;
 * ``strings`` from binutils, with which ``generate-zbm`` reads kernel versions;
@@ -715,7 +716,7 @@ Troubleshooting
   ``zbm`` is not installed. ``make core dracut`` does not install it; run ``make install``, or set ``zfsbootmenu_zbm``.
 
 ``failed to install essential executable '<name>'``
-  A required program is missing on the build host, often ``fzf`` or ``kexec``. Install it.
+  A required program is missing on the build host, often ``kexec``, or ``fzf`` for the shell runtime. Install it.
 
 ``Unable to locate libgcc_s.so``
   Install the GCC runtime library, or set ``zfsbootmenu_skip_gcc_s=yes``.

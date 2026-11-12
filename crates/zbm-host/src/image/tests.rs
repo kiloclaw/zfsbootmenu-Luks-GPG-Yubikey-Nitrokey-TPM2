@@ -18,11 +18,12 @@ use zbm_testkit::FakeRunner;
 use zbm_testkit::fakes::FakeFiles;
 
 use super::lists::{
-    ESSENTIAL_BINARIES, LUKS_BINARIES, LUKS_FIDO2_BINARIES, LUKS_LEGACY_BINARIES,
+    ESSENTIAL_BINARIES, LEGACY_BINARIES, LUKS_BINARIES, LUKS_FIDO2_BINARIES, LUKS_LEGACY_BINARIES,
     LUKS_TPM2_BINARIES, LUKS_YUBIKEY_BINARIES, OPTIONAL_BINARIES,
 };
 use super::*;
 
+mod fzf;
 mod shell;
 
 /// Where the module root is on the fake host.
@@ -65,6 +66,7 @@ fn host_files() -> FakeFiles {
     copy_tree(&files, &checkout_root(), Path::new(MODULE_ROOT));
     let programs = ESSENTIAL_BINARIES
         .iter()
+        .chain(LEGACY_BINARIES)
         .chain(OPTIONAL_BINARIES)
         .chain(LUKS_BINARIES)
         .chain(LUKS_LEGACY_BINARIES)

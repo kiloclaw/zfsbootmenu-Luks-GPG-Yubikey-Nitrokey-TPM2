@@ -16,7 +16,7 @@ pub const LISTS_FILE: &str = "crates/zbm-host/src/image/lists.rs";
 pub const ROW: &str = "rust-image";
 
 /// The lists of programs that a Rust image gets; the lists of the legacy
-/// runtime alone (`LUKS_LEGACY_*`) are left out.
+/// runtime alone (`LEGACY_BINARIES`, `LUKS_LEGACY_*`) are left out.
 pub const LISTS: &[&str] = &[
     "ESSENTIAL_BINARIES",
     "OPTIONAL_BINARIES",
@@ -28,10 +28,10 @@ pub const LISTS: &[&str] = &[
 ];
 
 /// The programs of the lists that are not C: uutils coreutils, which the
-/// images take their coreutils from (Rust, decision 4), and `fzf` (Go).
+/// images take their coreutils from (Rust, decision 4).
 pub const NOT_C: &[&str] = &[
     "cat", "chmod", "chroot", "cut", "env", "head", "hostid", "mkdir", "mktemp", "od", "sort",
-    "tac", "tail", "tr", "wc", "fzf",
+    "tac", "tail", "tr", "wc",
 ];
 
 /// The programs of the list `name` in the Rust text `text`: the quoted
@@ -108,5 +108,23 @@ mod tests {
         let programs = c_programs(&text).unwrap();
         assert!(programs.contains("cryptsetup") && programs.contains("bash"));
         assert!(!programs.contains("cat") && !programs.contains("sha256sum"));
+    }
+
+    #[test]
+    fn fzf_is_no_program_of_a_rust_image_and_not_counted() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let text = std::fs::read_to_string(root.join(LISTS_FILE)).unwrap();
+        let rust: Vec<String> = LISTS
+            .iter()
+            .flat_map(|list| array(&text, list).unwrap())
+            .collect();
+        // `fzf` is the legacy runtime's alone (ADR 0018, point 21).
+        assert!(!rust.contains(&"fzf".to_owned()), "{rust:?}");
+        assert_eq!(array(&text, "LEGACY_BINARIES").unwrap(), ["fzf"]);
+        assert!(!c_programs(&text).unwrap().contains("fzf"));
+        // Every program set aside is one a Rust image gets.
+        for program in NOT_C {
+            assert!(rust.contains(&(*program).to_owned()), "{program}");
+        }
     }
 }

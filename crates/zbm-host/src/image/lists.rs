@@ -2,7 +2,8 @@
 //! `install-helpers.sh`); `cargo xtask metrics` counts the C programs of
 //! those a Rust image gets (`xtask/src/metrics/image.rs`).
 
-/// The programs every image needs.
+/// The programs every image needs; legacy images also get
+/// [`LEGACY_BINARIES`].
 pub const ESSENTIAL_BINARIES: &[&str] = &[
     "bash",
     "zfs",
@@ -35,10 +36,15 @@ pub const ESSENTIAL_BINARIES: &[&str] = &[
     "lsmod",
     "depmod",
     "dmesg",
-    "fzf",
     "setsid",
     "cat",
 ];
+
+/// The programs the legacy runtime alone needs: `fzf`, which draws its
+/// menu and the screens of its tools. The Rust runtime runs no `fzf`
+/// (ADR 0018, point 21): its images leave it out, and build on a host
+/// without it.
+pub const LEGACY_BINARIES: &[&str] = &["fzf"];
 
 /// Programs an image goes without when the build host has none.
 pub const OPTIONAL_BINARIES: &[&str] = &["mbuffer", "column", "less"];

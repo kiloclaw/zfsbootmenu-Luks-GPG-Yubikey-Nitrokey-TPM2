@@ -594,7 +594,8 @@ other there, not the generated files of `/lib`, whose wrappers would come back t
 the caller's streams and signals; the configuration's variables are added where the environment does not set them.
 Inside it, `emergency_shell` and `zfs_chroot` are `zbm`'s, so the gate holds whichever legacy function opens a shell.
 The image links `/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool` (`docs/general/grub-migration.rst`) keeps
-working.
+working. The legacy `zfunc` also sourced the `fzf` menu's library (`zfsbootmenu-ui.sh`), which Rust images do not have
+(ADR 0018, point 21): its functions are not run.
 
 A test in `zbm` lists the 51 functions still legacy; SB6 and SB14 give them Rust code, and SB14 needs the list
 empty. ADR 0017 (point 10) has each function run its Rust code where some exists: only five do so far, because each

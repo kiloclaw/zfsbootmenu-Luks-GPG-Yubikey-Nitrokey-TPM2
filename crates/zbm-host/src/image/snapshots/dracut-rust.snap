@@ -109,7 +109,6 @@ binary	/usr/bin/modinfo	/usr/bin/modinfo
 binary	/usr/bin/lsmod	/usr/bin/lsmod
 binary	/usr/bin/depmod	/usr/bin/depmod
 binary	/usr/bin/dmesg	/usr/bin/dmesg
-binary	/usr/bin/fzf	/usr/bin/fzf
 binary	/usr/bin/setsid	/usr/bin/setsid
 binary	/usr/bin/cat	/usr/bin/cat
 warn	optional component 'mbuffer' not found, omitting from image
@@ -161,16 +160,12 @@ dir	/etc/zfs/compatibility.d	0755
 file	/etc/zfs/compatibility.d/grub2	/etc/zfs/compatibility.d/grub2	-
 file	/usr/share/zfsbootmenu/lib/echo-log-lib.sh	/lib/echo-log-lib.sh	-
 file	/usr/share/zfsbootmenu/lib/efi-firmware-lib.sh	/lib/efi-firmware-lib.sh	-
-file	/usr/share/zfsbootmenu/lib/fzf-defaults.sh	/lib/fzf-defaults.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-completions.sh	/lib/zfsbootmenu-completions.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh	/lib/zfsbootmenu-luks-keys.sh	-
 file	/usr/share/zfsbootmenu/lib/zfsbootmenu-luks.sh	/lib/zfsbootmenu-luks.sh	-
-file	/usr/share/zfsbootmenu/lib/zfsbootmenu-ui.sh	/lib/zfsbootmenu-ui.sh	-
-file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-diff	/libexec/zfsbootmenu-diff	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-edit-kcl	/libexec/zfsbootmenu-edit-kcl	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-input	/libexec/zfsbootmenu-input	-
 file	/usr/share/zfsbootmenu/libexec/zfsbootmenu-preview	/libexec/zfsbootmenu-preview	-
-file	/usr/share/zfsbootmenu/libexec/zpowermenu	/libexec/zpowermenu	-
 link	/libexec/zbm	/bin/zluks
 link	/libexec/zbm	/bin/zfsbootmenu
 link	/libexec/zbm	/libexec/zfunc
@@ -1064,12 +1059,6 @@ file	@/etc/zfsbootmenu.conf	/etc/zfsbootmenu.conf	0644
     | # Include guard
     | [ -n "${_ETC_ZFSBOOTMENU_CONF}" ] && return
     | readonly _ETC_ZFSBOOTMENU_CONF=1
-    | export HAS_REFRESH="1"
-    | export HAS_DISABLED="1"
-    | export HAS_BORDER="1"
-    | export HAS_COLUMN="1"
-    | export HAS_COLORS="1"
-    | export HAS_RAW=""
     | export ZBM_BUILDSTYLE="dracut"
     | export ZBM_RELEASE_BUILD=""
     | export ZBM_RUNTIME="rust"

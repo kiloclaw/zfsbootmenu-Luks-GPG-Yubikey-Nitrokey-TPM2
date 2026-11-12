@@ -47,10 +47,11 @@ the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut
 - **Now:** every stage's hooks get the variables of `/etc/zfsbootmenu.conf`, `BOOTFS` once it is known, and their
   stage's own, as in the legacy runtime: `ZFSBOOTMENU_INITIALIZATION=yes` in `early-setup.d`, `ZBM_LOCKED_FS` and
   `ZBM_ENCRYPTION_ROOT` in `load-key.d`, `ZBM_SELECTED_*` in `boot-sel.d` and `teardown.d`. A new default boot
-  environment chosen in the menu is `BOOTFS` for the hooks that run after it, as the legacy menu's was. The variables
-  of the `fzf` menu (`FUZZYSEL`, `PREVIEW_HEIGHT`, `FZF_DEFAULT_OPTS`) are not set: Rust images have no `fzf` menu.
-  Nor are `NO_CACHE` and `CLEAR_SCREEN`, which the legacy runtime's key loading set for its own functions and its
-  `load-key.d` hooks inherited: the Rust runtime passes them as arguments.
+  environment chosen in the menu is `BOOTFS` for the hooks that run after it, as the legacy menu's was. The variables of
+  the `fzf` menu (`FUZZYSEL`, `PREVIEW_HEIGHT`, `FZF_DEFAULT_OPTS`) are not set: Rust images have no `fzf` menu. Nor are
+  the flags of the `fzf` menu (`HAS_*`), which Rust images' `/etc/zfsbootmenu.conf` does not have
+  ([`fzf`](#fzf)). Nor are `NO_CACHE` and `CLEAR_SCREEN`, which the legacy runtime's key loading set for its own
+  functions and its `load-key.d` hooks inherited: the Rust runtime passes them as arguments.
 - **Why:** one environment per stage, built in one place and tested for each stage.
 
 ### SSH logins get brush
@@ -924,8 +925,20 @@ The log since start-up, and the boots saved before: the log view of the classic 
 
 ### `fzf`
 
-The menu no longer uses `fzf`, nor does any tool of the recovery shell of Rust images. Rust images still install it;
-it leaves them before the legacy runtime's other files they keep.
+- **Before:** every image had `fzf`, which drew the legacy menu and the screens of its tools, and the build stopped on a
+  host without it. `/etc/zfsbootmenu.conf` said what the build host's `fzf` could do, and whether the image had
+  `column`, in six flags (`HAS_REFRESH`, `HAS_DISABLED`, `HAS_BORDER`, `HAS_COLUMN`, `HAS_COLORS`, `HAS_RAW`), which
+  hooks got with the file's other variables.
+- **Now:** the menu no longer uses `fzf`, nor does any tool of the recovery shell of Rust images, and Rust images have
+  no `fzf`: they build on a host without it. Their `/etc/zfsbootmenu.conf`, and so the hooks' environment, has none of
+  the six flags, and their build runs no `fzf` and looks for no `column` for them (`column` itself is still taken
+  where the host has it). The legacy menu's files that Rust images still had, which run `fzf`, go with it: its library
+  and options (`/lib/zfsbootmenu-ui.sh`, `/lib/fzf-defaults.sh`), its power menu (`/libexec/zpowermenu`) and its
+  differences screen (`/libexec/zfsbootmenu-diff`); the menu's power actions and Diff do what they did.
+  `/libexec/zfunc` still runs the functions of the hook contract's library, but no longer those of the menu's library
+  (`draw_be`, `draw_snapshots`, `draw_modal_prompt` and the rest), whose screens ran `fzf`. Legacy images keep `fzf`,
+  those files and the flags.
+- **Why:** ADR 0018, point 21: only the legacy runtime runs `fzf`, about 3.7 MB of the image.
 
 ## The recovery shell's tools
 

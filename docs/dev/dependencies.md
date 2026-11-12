@@ -63,10 +63,10 @@ which run at build time only.
 `zbm` links glibc alone (ROADMAP.md, decision 12): `cargo xtask check-links`, a CI job, builds the release binary and
 fails when `readelf -d` lists a library other than glibc's or GCC's unwinder (`libgcc_s`, which unwinds a panic).
 
-The programs a Rust image carries are C programs but for uutils coreutils (Rust, decision 4) and `fzf` (Go). `cargo
-xtask metrics` counts them in its `rust-image` row, from the lists of `crates/zbm-host/src/image/lists.rs` that a Rust
-image gets, and the count may only go down (CD1; 45 on 28 October 2026). Each goes with the item that replaces it, or
-stays for a reason:
+The programs a Rust image carries are C programs but for uutils coreutils (Rust, decision 4); `fzf` (Go) is the legacy
+runtime's alone (`LEGACY_BINARIES`, ADR 0018 point 21). `cargo xtask metrics` counts the C programs in its `rust-image`
+row, from the lists of `crates/zbm-host/src/image/lists.rs` that a Rust image gets, and the count may only go down (CD1;
+45 on 28 October 2026). Each goes with the item that replaces it, or stays for a reason:
 
 | Programs | Replaced by | Or stays because |
 | --- | --- | --- |

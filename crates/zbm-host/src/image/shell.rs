@@ -101,20 +101,34 @@ fn flag(on: bool) -> &'static str {
     if on { "1" } else { "" }
 }
 
-/// `/etc/zfsbootmenu.conf`'s first part: what the build host's `fzf` can
-/// do, whether the image has `column`, the builder, whether this is a
-/// release and the runtime; with dracut, the embedded command line
-/// (`embedded_kcl`) after it, in single quotes so that the shell and the
-/// Rust runtime read it the same.
-pub fn conf(image: &mut Image) {
-    let fzf: Vec<(&str, &str)> = FZF_FEATURES
+/// What the legacy menu reads in `/etc/zfsbootmenu.conf`: what the build
+/// host's `fzf` can do, and whether the image has `column`. The Rust
+/// runtime runs no `fzf` (ADR 0018, point 21), so its images have none of
+/// these flags, and their build asks neither.
+fn fzf_flags(image: &Image) -> Vec<(&'static str, &'static str)> {
+    let mut flags: Vec<(&str, &str)> = FZF_FEATURES
         .iter()
         .map(|(name, options)| (*name, flag(fzf_supports(image.host.runner, options))))
         .collect();
-    let column = flag(image.host.which("column").is_some());
+    flags.insert(
+        3,
+        ("HAS_COLUMN", flag(image.host.which("column").is_some())),
+    );
+    flags
+}
+
+/// `/etc/zfsbootmenu.conf`'s first part: in legacy images the flags of the
+/// legacy menu (`fzf_flags`); the builder, whether this is a release and
+/// the runtime; with dracut, the embedded command line (`embedded_kcl`)
+/// after it, in single quotes so that the shell and the Rust runtime read
+/// it the same.
+pub fn conf(image: &mut Image) {
     let release = flag(image.config.is_release());
-    let mut exports = fzf;
-    exports.insert(3, ("HAS_COLUMN", column));
+    let mut exports = if image.is_rust() {
+        Vec::new()
+    } else {
+        fzf_flags(image)
+    };
     exports.extend([
         ("ZBM_BUILDSTYLE", image.builder.name()),
         ("ZBM_RELEASE_BUILD", release),
