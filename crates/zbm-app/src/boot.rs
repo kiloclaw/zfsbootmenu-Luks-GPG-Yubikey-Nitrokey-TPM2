@@ -30,9 +30,30 @@ const OS_INDICATIONS: &str =
 pub(crate) const OS_INDICATIONS_SUPPORTED: &str =
     "/sys/firmware/efi/efivars/OsIndicationsSupported-8be4df61-93ca-11d2-aa0d-00e098032b8c";
 
-/// `EFI_OS_INDICATIONS_BOOT_TO_FW_UI`, in the first byte of the variable's
-/// value, which follows its four bytes of attributes.
-const BOOT_TO_FIRMWARE: u8 = 0x01;
+/// `EFI_OS_INDICATIONS_BOOT_TO_FW_UI`, a bit of the 64-bit value of both
+/// variables.
+const BOOT_TO_FIRMWARE: u64 = 0x01;
+
+/// The attributes the specification gives `OsIndications`, which systemd
+/// writes when it creates the variable: non-volatile, boot service and
+/// runtime access.
+const OS_INDICATIONS_ATTRIBUTES: u32 = 0x07;
+
+/// The attributes and the value of `variable`, an EFI variable as
+/// `efivarfs` shows it: four bytes of attributes, then the value, both
+/// little-endian; `None` when it holds no 64-bit value, which systemd
+/// refuses too.
+fn u64_variable(variable: &[u8]) -> Option<(u32, u64)> {
+    let (attributes, value) = variable.split_first_chunk()?;
+    let value = <[u8; 8]>::try_from(value).ok()?;
+    Some((u32::from_le_bytes(*attributes), u64::from_le_bytes(value)))
+}
+
+/// The bytes of a variable with `attributes` that holds `value`, as
+/// [`u64_variable`] reads them.
+fn u64_variable_bytes(attributes: u32, value: u64) -> Vec<u8> {
+    [attributes.to_le_bytes().as_slice(), &value.to_le_bytes()].concat()
+}
 
 /// What the boot use case works on.
 pub(crate) struct Boot<'s, 'a> {
@@ -294,41 +315,45 @@ fn export_writable(system: &System<'_>, pools: &[PoolName]) {
 /// # Errors
 ///
 /// What stands in the way: no EFI, which a machine that boots from a BIOS
-/// has not, or no support for it.
+/// has not, or no support for it, which a variable that holds no 64-bit
+/// value gives none of, as systemd reads it.
 pub(crate) fn can_open_firmware_setup(files: &dyn Files) -> Result<(), String> {
     let supported = files
         .read(Path::new(OS_INDICATIONS_SUPPORTED))
         .map_err(|_| "the firmware does not say that it can open its setup".to_owned())?;
-    if supported
-        .get(4)
-        .is_none_or(|bits| bits & BOOT_TO_FIRMWARE == 0)
-    {
-        return Err("the firmware cannot open its setup at the next boot".to_owned());
+    match u64_variable(&supported) {
+        Some((_, bits)) if bits & BOOT_TO_FIRMWARE != 0 => Ok(()),
+        _ => Err("the firmware cannot open its setup at the next boot".to_owned()),
     }
-    Ok(())
 }
 
 /// Asks the firmware to open its setup at the next boot; why not when it
-/// cannot.
+/// cannot. A firmware without `OsIndications`, as some remove it when no
+/// bit is set, gets one with [`OS_INDICATIONS_ATTRIBUTES`], as systemd
+/// creates it; the attributes and the value go in one write, as `efivarfs`
+/// needs.
 ///
 /// # Errors
 ///
 /// What stands in the way: no EFI, no support for it, or a variable that
-/// cannot be written.
+/// cannot be read, holds no 64-bit value, as systemd refuses it, or cannot
+/// be written.
 fn request_firmware_setup(system: &System<'_>) -> Result<(), String> {
     let files = system.files;
     can_open_firmware_setup(files)?;
     zbm_boot::mount_efivarfs(&Context::new(*system), "rw");
-    let mut current = files
-        .read(Path::new(OS_INDICATIONS))
-        .map_err(|_| "the firmware has no OsIndications variable".to_owned())?;
-    let Some(bits) = current.get_mut(4) else {
-        return Err("the OsIndications variable is too short".to_owned());
+    let (attributes, bits) = match files.read(Path::new(OS_INDICATIONS)) {
+        Ok(read) => u64_variable(&read)
+            .ok_or_else(|| "the OsIndications variable holds no 64-bit value".to_owned())?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            (OS_INDICATIONS_ATTRIBUTES, 0)
+        }
+        Err(error) => return Err(format!("OsIndications cannot be read: {error}")),
     };
-    if *bits & BOOT_TO_FIRMWARE == 0 {
-        *bits |= BOOT_TO_FIRMWARE;
+    if bits & BOOT_TO_FIRMWARE == 0 {
+        let variable = u64_variable_bytes(attributes, bits | BOOT_TO_FIRMWARE);
         files
-            .write(Path::new(OS_INDICATIONS), &current)
+            .write(Path::new(OS_INDICATIONS), &variable)
             .map_err(|error| format!("OsIndications cannot be written: {error}"))?;
     }
     Ok(())

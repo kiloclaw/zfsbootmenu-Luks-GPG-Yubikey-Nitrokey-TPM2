@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use zbm_testkit::fakes::FakeSystem;
+use zbm_testkit::fakes::{FakeSystem, FileOperation};
 
 use super::*;
 use crate::Application as _;
@@ -337,20 +337,96 @@ fn a_reset_exports_the_writable_pools_of_the_names_it_is_given() {
     ));
 }
 
-#[test]
-fn the_firmware_setup_is_asked_for_through_os_indications() {
+/// A UEFI machine whose firmware can open its setup at the next boot, with
+/// `OsIndications` holding `value` if it is given.
+fn uefi(value: Option<&[u8]>) -> FakeSystem {
     let fake = FakeSystem::new();
     fake.files.dir("/proc").dir("/sys/firmware/efi/efivars");
+    fake.files.file(
+        OS_INDICATIONS_SUPPORTED,
+        [7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    );
+    if let Some(value) = value {
+        fake.files.file(OS_INDICATIONS, value);
+    }
+    fake
+}
+
+/// The writes of `OsIndications` that `fake` saw.
+fn os_indications_writes(fake: &FakeSystem) -> Vec<Vec<u8>> {
     fake.files
-        .file(OS_INDICATIONS_SUPPORTED, [7, 0, 0, 0, 1, 0, 0, 0])
-        .file(OS_INDICATIONS, [7, 0, 0, 0, 4, 0, 0, 0]);
+        .operations()
+        .into_iter()
+        .filter_map(|operation| match operation {
+            FileOperation::Write(path, contents) if path == Path::new(OS_INDICATIONS) => {
+                Some(contents)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_missing_os_indications_is_created_with_the_boot_to_firmware_bit() {
+    let fake = uefi(None);
+    firmware_setup(&fake.system(), &[]);
+    // The attributes (non-volatile, boot service and runtime access) and
+    // the 64-bit value, little-endian, in one write, as systemd writes them.
+    let created = vec![7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+    assert_eq!(os_indications_writes(&fake), [created]);
+    assert_eq!(fake.files.text("/proc/sysrq-trigger").as_deref(), Some("b"));
+}
+
+#[test]
+fn an_existing_os_indications_keeps_its_attributes_and_other_bits() {
+    let fake = uefi(Some(&[0x27, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0x80]));
     firmware_setup(&fake.system(), &[]);
     assert_eq!(
-        fake.files.contents(OS_INDICATIONS),
-        Some(vec![7, 0, 0, 0, 5, 0, 0, 0])
+        os_indications_writes(&fake),
+        [vec![0x27, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0x80]]
     );
     assert_eq!(fake.files.text("/proc/sysrq-trigger").as_deref(), Some("b"));
+}
 
+#[test]
+fn an_os_indications_with_the_bit_set_already_is_not_written_again() {
+    // As systemd spares the firmware's store.
+    let fake = uefi(Some(&[7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]));
+    firmware_setup(&fake.system(), &[]);
+    assert!(os_indications_writes(&fake).is_empty());
+    assert_eq!(fake.files.text("/proc/sysrq-trigger").as_deref(), Some("b"));
+}
+
+#[test]
+fn an_os_indications_that_cannot_be_read_is_not_written() {
+    let fake = uefi(None);
+    fake.files
+        .fail(OS_INDICATIONS, std::io::ErrorKind::PermissionDenied);
+    let events = firmware_setup(&fake.system(), &[]);
+    assert!(matches!(
+        events.last(),
+        Some(Event::Finished(Outcome::Failed { why, .. }))
+            if why[0].starts_with("OsIndications cannot be read: ")
+    ));
+    assert!(os_indications_writes(&fake).is_empty());
+    assert!(fake.files.text("/proc/sysrq-trigger").is_none());
+}
+
+#[test]
+fn an_os_indications_that_holds_no_64_bit_value_is_refused() {
+    // systemd refuses a value of any other size (`get_os_indications`).
+    for value in [&[7_u8][..], &[7, 0, 0, 0, 4, 0, 0, 0], &[7; 13]] {
+        let fake = uefi(Some(value));
+        assert_eq!(
+            request_firmware_setup(&fake.system()),
+            Err("the OsIndications variable holds no 64-bit value".to_owned())
+        );
+        assert_eq!(fake.files.contents(OS_INDICATIONS).as_deref(), Some(value));
+    }
+}
+
+#[test]
+fn the_firmware_setup_needs_the_firmware_to_say_it_can_open() {
     let unsupported = FakeSystem::new();
     unsupported
         .files
@@ -361,20 +437,27 @@ fn the_firmware_setup_is_asked_for_through_os_indications() {
         Some(Event::Finished(Outcome::Failed { why, .. }))
             if why[0].contains("cannot open its setup")
     ));
-    for files in [
-        vec![],
-        vec![(OS_INDICATIONS_SUPPORTED, vec![7, 0, 0, 0, 1])],
-        vec![
-            (OS_INDICATIONS_SUPPORTED, vec![7, 0, 0, 0, 1]),
-            (OS_INDICATIONS, vec![7]),
-        ],
-    ] {
+    // Neither on a BIOS machine, nor where the firmware does not say so,
+    // nor where it says so in no 64-bit value, as systemd reads it, is
+    // `OsIndications` created.
+    let efi = Path::new("/sys/firmware/efi");
+    let bios = FakeSystem::new();
+    bios.files.dir("/proc");
+    assert!(!bios.system().files.is_dir(efi));
+    let short = [7, 0, 0, 0, 1, 0, 0, 0];
+    let long = [7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+    for supported in [None, Some(&short[..]), Some(&long[..])] {
         let fake = FakeSystem::new();
-        for (path, contents) in files {
-            fake.files.file(path, contents);
+        fake.files.dir("/proc").dir("/sys/firmware/efi/efivars");
+        if let Some(supported) = supported {
+            fake.files.file(OS_INDICATIONS_SUPPORTED, supported);
         }
+        assert!(fake.system().files.is_dir(efi));
         assert!(request_firmware_setup(&fake.system()).is_err());
+        assert!(fake.files.contents(OS_INDICATIONS).is_none());
     }
+    assert!(request_firmware_setup(&bios.system()).is_err());
+    assert!(bios.files.contents(OS_INDICATIONS).is_none());
 }
 
 /// An environment of the snapshot, with no kernels read yet.

@@ -539,7 +539,9 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
   `zbm report`'s partition (point 10); it finds a device named by a link mounted by its canonical path, says its
   refusals on standard error too, and takes two arguments or more as a usage error.
 - **Firmware setup** is offered where `OsIndicationsSupported` has the bit, as point 11 says; the legacy power menu
-  also wanted `OsIndications` to exist, and where it does not, choosing it fails.
+  also wanted `OsIndications` to exist. Where it does not, choosing it failed until a follow-up of SB6 made it create
+  the variable, as systemd does (`efi_set_reboot_to_firmware`), and refuse either variable when it holds no 64-bit
+  value. No VM test chooses Firmware Setup, so the creation is tested on fakes only.
 - **Logs.** The prompt's stamp is the kernel's sequence number of the last record shown, not its microseconds, which
   several records share; the banner writes it always, and `logs` when it shows the errors, so the first error after
   the banner is not shown twice (point 13). `--level` takes what `dmesg -l` takes and refuses the rest; `--trace`
@@ -562,9 +564,10 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
   stick's) counts down 30 seconds, and the test escapes the countdown, as `runtime` does, before it checks the menu's
   power sheet. `runtime-rust-recovery` is estimated at about 7 minutes, not 6 (`docs/luks/testing.rst`).
 
-**Left open,** for the maintainer: firmware without an `OsIndications` variable, possibly a fresh OVMF, is offered
-firmware setup that then fails (the fix: create the variable, as systemd does, checked on OVMF); a copy of the legacy
-`teardown.d/80-luks-close.sh` among a Rust image's hooks replaces the built-in LUKS close but closes nothing, as the
-LUKS library it sources is gone (`CHANGES-FROM-LEGACY.md` says so; a warning at build time is offered); a failed
-`zkexec` in `runtime-rust-recovery` fails only at the step's 1200 s time-out; no VM test chroots into an encrypted
-environment or hangs up an SSH session in `zfs-chroot`; and `zbm-sys`'s coverage sits at its floor.
+**Left open,** for the maintainer: a copy of the legacy `teardown.d/80-luks-close.sh` among a Rust image's hooks
+replaces the built-in LUKS close but closes nothing, as the LUKS library it sources is gone (`CHANGES-FROM-LEGACY.md`
+says so; a warning at build time is offered); a failed `zkexec` in `runtime-rust-recovery` fails only at the step's
+1200 s time-out; no VM test chroots into an encrypted environment or hangs up an SSH session in `zfs-chroot`; and
+`zbm-sys`'s coverage sits at its floor. Firmware without an `OsIndications` variable, possibly a fresh OVMF, was
+offered firmware setup that then failed; a follow-up of SB6 creates the variable, as systemd does, which is still to
+be checked on OVMF: on the UEFI machine, Reboot into Firmware Setup must open the firmware's setup.

@@ -884,9 +884,12 @@ The log since start-up, and the boots saved before: the log view of the classic 
 - **Before:** the Rust menu offered Reboot into Firmware Setup on every machine: in its power sheet, its command line
   and its recovery tools, where on a machine that boots from a BIOS it could only fail. The legacy power menu
   (`zpowermenu`) offered it only where the firmware said it could open its setup.
-- **Now:** the menu offers it only where the firmware says so (`OsIndicationsSupported`). `zpowermenu` also wanted
-  the `OsIndications` variable to exist; where it does not, the menu still offers Firmware Setup, and choosing it says
-  that the firmware has no `OsIndications` variable.
+- **Now:** the menu offers it only where the firmware says so (`OsIndicationsSupported`, which must hold a 64-bit
+  value, as systemd reads it; `zpowermenu` read its fifth byte whatever its size). `zpowermenu` also wanted the
+  `OsIndications` variable to exist; where it does not, as some firmware removes it when no bit is set, choosing
+  Firmware Setup creates it, as systemd does: the attributes (non-volatile, boot service and runtime access) and the
+  64-bit value with the setup's bit, in one write. A variable that holds no 64-bit value is refused, as systemd
+  refuses it.
 - **Why:** the menu offers what it can do.
 
 ### `zbm.menu`: lines, a screen, or the classic menu

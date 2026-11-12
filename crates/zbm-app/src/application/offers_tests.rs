@@ -12,11 +12,13 @@ use crate::model;
 #[test]
 fn firmware_setup_is_offered_only_where_the_firmware_says_it_can_open() {
     // No variable, as on a machine that boots from a BIOS; the bit clear;
-    // the bit set, in the first byte after the four of the attributes.
-    let cases: [(Option<Vec<u8>>, bool); 3] = [
+    // the bit set, in the first byte after the four of the attributes, of
+    // a 64-bit value, as systemd reads it, and of no 64-bit value.
+    let cases: [(Option<Vec<u8>>, bool); 4] = [
         (None, false),
-        (Some(vec![7, 0, 0, 0, 0, 0, 0, 0]), false),
-        (Some(vec![7, 0, 0, 0, 1, 0, 0, 0]), true),
+        (Some(vec![7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), false),
+        (Some(vec![7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]), true),
+        (Some(vec![7, 0, 0, 0, 1, 0, 0, 0]), false),
     ];
     for (supported, offered) in cases {
         let fake = FakeSystem::new();
@@ -91,7 +93,10 @@ fn every_kind_the_app_offers_is_performed_and_the_others_are_unavailable() {
         let fake = FakeSystem::new();
         fake.files.dir("/zfsbootmenu");
         if has_firmware_setup {
-            fake.files.file(OS_INDICATIONS_SUPPORTED, [7, 0, 0, 0, 1]);
+            fake.files.file(
+                OS_INDICATIONS_SUPPORTED,
+                [7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            );
         }
         fake.environment.set("PATH", "/sbin");
         fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
