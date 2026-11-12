@@ -20,12 +20,13 @@ the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut
 ### The recovery shell is brush
 
 - **Before:** `bash -i`, with readline.
-- **Now:** `brush -i`, which reads the same `/root/.bashrc`: the prompt, the aliases, `help`, `PROMPT_COMMAND` and
-  the completions stay. On the console on the display and over SSH, its line editor is reedline, with history hints
-  and syntax colours; on a serial line, which may not answer the terminal queries of reedline, it is brush's basic
-  line editor. `BASH_VERSION` is still set, for scripts that check it, and `BRUSH_VERSION` names brush's version. The
-  history goes to `~/.brush_history`. When brush cannot start, or ends within five seconds, the supervisor opens
-  `bash -i` instead; `bash` typed in the shell starts Bash too.
+- **Now:** `brush -i`, which reads the same `/root/.bashrc`: the prompt, the aliases, `help`, `PROMPT_COMMAND` and the
+  completions stay, as Rust images write them (`help` is `zbm help`, `PROMPT_COMMAND` is `zbm logs --prompt`, Tab
+  completes with `zbm complete`; see [The recovery shell's tools](#the-recovery-shells-tools)). On the console on the
+  display and over SSH, its line editor is reedline, with history hints and syntax colours; on a serial line, which may
+  not answer the terminal queries of reedline, it is brush's basic line editor. `BASH_VERSION` is still set, for scripts
+  that check it, and `BRUSH_VERSION` names brush's version. The history goes to `~/.brush_history`. When brush cannot
+  start, or ends within five seconds, the supervisor opens `bash -i` instead; `bash` typed in the shell starts Bash too.
 - **Why:** one shell, in Rust like the rest of the runtime, with a better line editor.
 
 ### Hooks run on brush
@@ -160,18 +161,18 @@ runtime's variables](#hooks-get-the-legacy-runtimes-variables). `zfsbootmenu(7)`
 
 - **Before:** `/lib/zfsbootmenu-core.sh`, `/lib/kmsg-log-lib.sh` and `/lib/zfsbootmenu-kcl.sh` were the legacy shell
   code, and a hook that sourced them ran their functions in its own shell.
-- **Now:** Rust images install the three files generated from the legacy ones. Their 69 functions keep their names;
-  56 are wrappers that run `/libexec/zbm zfunc <name> "$@"` in a subshell that exports the variables the legacy
-  functions read, so a variable a hook set without `export` still reaches the function. The functions that only
-  transform text (`colorize`, `decolorize`, `center_string`, `is_snapshot`, `kcl_tokenize`, `kcl_suppress`,
-  `kcl_append`, `kcl_assemble`) and the logging functions (`zdebug`, `zinfo`, `znotice`, `zwarn`, `zerror`) stay the
-  legacy shell code. The wrappers leave in the caller's shell what callers read of the legacy functions: `BOOTFS`
-  after a `set_default_env` that succeeded; `ret` after `import_pool`, and `spl_hostid` after a failed import; `ret`
-  after `export_pool`; `HEIGHT` and `WIDTH` after `timed_prompt`; `mount_dev` after `is_mounted`. The other variables
-  the legacy functions left set, such as their loop variables, are not. `emergency_shell`, `zfs_chroot` and
-  `is_degraded` are Rust code; any other function runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash,
-  which sources the legacy files, kept below `/usr/share/zfsbootmenu/legacy/lib`, and runs the function with the
-  caller's streams and signals. `emergency_shell` opens the recovery shell, and `zfs_chroot` its chroot, through the
+- **Now:** Rust images install the three files generated from the legacy ones. Their 69 functions keep their names; 56
+  are wrappers that run `/libexec/zbm zfunc <name> "$@"` in a subshell that exports the variables the legacy functions
+  read, so a variable a hook set without `export` still reaches the function. The functions that only transform text
+  (`colorize`, `decolorize`, `center_string`, `is_snapshot`, `kcl_tokenize`, `kcl_suppress`, `kcl_append`,
+  `kcl_assemble`) and the logging functions (`zdebug`, `zinfo`, `znotice`, `zwarn`, `zerror`) stay the legacy shell
+  code. The wrappers leave in the caller's shell what callers read of the legacy functions: `BOOTFS` after a
+  `set_default_env` that succeeded; `ret` after `import_pool`, and `spl_hostid` after a failed import; `ret` after
+  `export_pool`; `HEIGHT` and `WIDTH` after `timed_prompt`; `mount_dev` after `is_mounted`. The other variables the
+  legacy functions left set, such as their loop variables, are not. `emergency_shell`, `zfs_chroot`, `is_degraded`,
+  `zreport` and `zbmcmdline` are Rust code; any other function runs as the legacy `zfunc` ran it: `zbm` replaces itself
+  with Bash, which sources the legacy files, kept below `/usr/share/zfsbootmenu/legacy/lib`, and runs the function with
+  the caller's streams and signals. `emergency_shell` opens the recovery shell, and `zfs_chroot` its chroot, through the
   shell's gate, whichever function calls them: a locked image asks for the PIN first. Each wrapped call is a process, so
   a hook that calls `import_pool` in a loop is slower; its arguments must be valid UTF-8 (`zbm` refuses others, with
   status 2); and the function does not see the functions the hook defined.
@@ -944,6 +945,17 @@ The log since start-up, and the boots saved before: the log view of the classic 
 
 The tools of the recovery shell that Rust images take from `zbm` (ADR 0018), in place of the legacy runtime's
 scripts.
+
+### `--help` prints the usage
+
+- **Before:** each script answered `--help` in its own way, or not at all: `/libexec/zfunc --help` looked for a
+  function named `--help` and failed as a shell does (exit status 127), and `zfsbootmenu`, which ignored its
+  arguments, opened the menu.
+- **Now:** every command that is a link to `zbm` prints its usage on standard output and exits 0 when its first
+  argument is `--help`, as `zbm COMMAND --help` does: `zfsbootmenu`, `/libexec/zfunc`, `zluks` and the tools below.
+  `-h` is not `--help`, but for `zluks`, which takes both.
+- **Why:** one rule for every command, with the usage from `zbm`'s table of commands, which `zbm help` and the man
+  page print too (ADR 0018, point 3).
 
 ### `reboot`, `poweroff`, `shutdown` and `firmware-setup` are `zbm`
 

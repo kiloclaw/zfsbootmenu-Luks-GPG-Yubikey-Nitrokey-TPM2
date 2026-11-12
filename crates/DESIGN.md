@@ -40,10 +40,11 @@ same change as the code that needs them.
 ## Overview
 
 The boot image holds one Rust program, `/libexec/zbm`. Like BusyBox, it acts as each of the legacy executables: the
-image links each legacy path (`/bin/zfsbootmenu`, `/bin/zluks`, `/libexec/zfsbootmenu-preview` and the rest) to it,
-and `zbm` runs the applet named after the path it was started as. The paths, names, arguments and subcommands of the
-legacy executables stay the same, so documentation, `fzf` key bindings and user habits keep working; no applet gains a
-subcommand a user could see.
+image links each legacy path (`/bin/zfsbootmenu`, `/bin/zluks`, `/bin/zfs-chroot` and the rest) to it, and `zbm`
+runs the applet named after the path it was started as. The paths, names, arguments and subcommands of the legacy
+executables stay the same, so documentation, hooks and user habits keep working; no applet gains a subcommand a user
+could see. Paths that only the legacy menu's `fzf` ran (its previews, help viewer and power menu) are not linked:
+Rust images have no `fzf` (ADR 0018).
 
 A boot runs these processes:
 
@@ -53,15 +54,14 @@ PID 1   zbm, as zfsbootmenu-init --supervise   the supervisor: never exits, reap
     ├── early-setup.d, setup.d, ... hooks      the user's programs, among the built-in steps
     ├── zluks unlock                           LUKS unlocking without the menu, in its own process
     ├── zfsbootmenu                            the menu (also started over SSH or from the recovery shell)
-    │   └── fzf                                draws a screen
-    │       └── zfsbootmenu-preview, -help,    started by fzf for previews and key bindings
-    │           zlogtail, ztrace, -diff
-    └── bash -i                                the recovery shell
+    │   └── hooks, the chroot's shell          what the menu runs on its terminal
+    └── brush -i                               the recovery shell (`bash -i` where brush fails)
+        └── zfs-chroot, logs, help, zfunc      its commands, applets of zbm
 ```
 
 The processes share state through the files under `/zfsbootmenu`, as the legacy runtime does, and each process reads
 its configuration from `/etc/zfsbootmenu.conf` and keeps its own data in memory while it runs. External programs
-(`zfs`, `zpool`, `cryptsetup`, `kexec`, `gpg`, `fzf` and the rest) stay the same, and are run through one interface
+(`zfs`, `zpool`, `cryptsetup`, `kexec`, `gpg` and the rest) stay the same, and are run through one interface
 that tests replace.
 
 ## Crates
@@ -166,8 +166,8 @@ The runtime keeps the legacy process structure, for three reasons:
 
 - **The menu can be started more than once.** A user connected over SSH, or in the recovery shell, runs
   `zfsbootmenu`, which takes over from the instance on the console. That needs the menu to be a separate process.
-- **`fzf` starts other programs.** Previews and key bindings run commands, which are new processes and cannot share
-  memory with the menu.
+- **Shell code starts other programs.** Hooks and the recovery shell run applets by their paths (and the legacy
+  menu's `fzf` ran its previews and key bindings so), which are new processes and cannot share memory with the menu.
 - **A crash must not take the machine down.** In the legacy runtime, `zfsbootmenu-init` is process 1: dracut's
   `/init` sources its `pre-mount` hooks (`source_hook pre-mount`), and mkinitcpio's `/init` runs `run_hook` in its own
   shell, so the `exec` in the start-up scripts replaces process 1. Bash survives failing commands, but a Rust panic or
@@ -179,9 +179,9 @@ The runtime keeps the legacy process structure, for three reasons:
 | Supervisor | `zfsbootmenu-init --supervise` | Process 1. Starts `zfsbootmenu-init` on the console and reaps every child, including orphans. If `zfsbootmenu-init` ends for any reason, it logs that, opens a recovery shell and then starts it again. Contains no ZFS logic. |
 | Start-up | `zfsbootmenu-init` | The start-up sequence, the countdown and the automatic boot, then the loop of menu and recovery shell, as in `libexec/zfsbootmenu-init`. Its modes are described below. |
 | Menu | `zfsbootmenu` | The menu loop of `bin/zfsbootmenu`, as users run it over SSH or from the recovery shell. Holds `/zfsbootmenu/active`. On the console the menu runs in the start-up program itself (below). |
-| `fzf` callbacks | `zfsbootmenu-preview`, `zfsbootmenu-help`, `zfsbootmenu-diff`, `zlogtail`, `ztrace`, `zfunc` | Short-lived; read the configuration, the state directory and ZFS, draw or act, and exit. |
+| Shell commands | `zfunc`, the recovery shell's commands (`zfs-chroot`, `logs`, `help`, `zsnapshots` and the rest), `zbm complete` | Short-lived; started by hooks and the recovery shell; read the configuration, the state directory and ZFS, draw or act, and exit. In legacy images `fzf` started its own (`zfsbootmenu-preview`, `zfsbootmenu-help`, `zfsbootmenu-diff`), which Rust images do not have, and `zlogtail` and `ztrace`, which Rust images link to `logs`. |
 | LUKS unlocking | `zluks unlock` | The existing `zluks` subcommand. On the plain console, the start-up program runs it as its own process, as the legacy subshell in `init.d/45-luks-unlock` does. Either way the volumes are opened by a keyholder, `zbm unlock serve`, a process that `zluks` or the start-up program starts for the run and answers, on the start-up view in its dialogs (below, and [Secrets](#secrets)). |
-| Recovery shell | `bash -i` | Unchanged. The recovery commands it offers are applets. |
+| Recovery shell | `brush -i` | brush, the Rust shell of `zbm-brush`, on the same `/root/.bashrc`; the supervisor opens `bash -i` where brush cannot start or ends within five seconds. The recovery commands it offers are applets. |
 
 On the console, the start-up program is the session (ADR 0002, PM9): when the terminal can run the menu, the stages
 run on its start-up view, and the menu then runs in the same process, on the same terminal and with the same model,
@@ -321,14 +321,14 @@ they see today; and short-lived callback processes need no server to ask.
 | `noresume` | resume prompt | command line assembly, command line cache | empty; its modification time matters |
 | `zbm.cmdline`, `cmdline.d/<key>` | command line parsing | option lookups | tokenized command line; one value per key |
 | `cmdline` | command line editor, `zbm.kcl_override` | command line assembly, main screen header | tokenized command line |
-| `bootenvs` | menu | `fzf` | one boot environment per line |
+| `bootenvs` | the legacy menu (not the Rust runtime) | its `fzf` | one boot environment per line |
 | `environments/<dataset>/kernels` | kernel discovery | kernel selection, kernel screen, previews | `dataset<TAB>kernel<TAB>initramfs` lines |
 | `environments/<dataset>/kcl/<kernel>.kcl` | kernel discovery, command line cache | command line assembly | command line |
 | `environments/<dataset>/mnt` | mounting a boot environment | users | mount point |
 | `.keys/<key source>/<path>` | key caching | key loading | copies of ZFS key files, mode 0600; removed before `kexec` |
 | `.keys/<key source>/.lock` | key caching, while it runs | key caching | empty; locked with `flock` |
 | `.external_hooks` | external hook root | hook import | mount point |
-| `have_errors`, `have_warnings`, `errors_since` | logging, error printer (`logs --prompt` in Rust images), the recovery shell's banner, `logs` | previews, recovery shell, `zlogtail` | empty; time stamp, in Rust images the number of a record of the kernel log |
+| `have_errors`, `have_warnings`, `errors_since` | logging, error printer (`logs --prompt` in Rust images), the recovery shell's banner, `logs` | the legacy previews, the recovery shell's prompt, `logs` (`zlogtail`) | empty; time stamp, in Rust images the number of a record of the kernel log |
 | `luks-mappings`, `luks-mappings.lock`, `luks-skipped` | LUKS unlocking | the LUKS close (`zluks close`), `zluks`, retries | `name<TAB>device<TAB>auto` lines; a file locked with `flock`; one device per line |
 
 Files that other processes may read while they are rewritten (`bootfs`, `bootenvs`, `kernels`, `.kcl` files) are
@@ -348,10 +348,11 @@ at the same moments.
 
 `/etc/zfsbootmenu.conf` stays the configuration of the image, in the same shell format, because shell code reads it
 directly: hooks source it (the bundled console hooks do), `/root/.bashrc` sources it for the recovery shell and for
-SSH sessions, and the legacy scripts source it at their start. The image build writes its first part (the `HAS_*`
-feature flags, `ZBM_BUILDSTYLE`, `ZBM_RELEASE_BUILD`, `ZBM_RUNTIME`, behind an include guard); the command line
-parsing appends the parsed options (`BASE`, `loglevel`, `import_policy`, `menu_timeout`, `zbm_*`, `spl_hostid`,
-`control_term` and the rest) as `export name='value'` lines, as the legacy start-up script does.
+SSH sessions, and the legacy scripts source it at their start. The image build writes its first part (in legacy
+images the `HAS_*` feature flags of `fzf`, then `ZBM_BUILDSTYLE`, `ZBM_RELEASE_BUILD`, `ZBM_RUNTIME`, behind an
+include guard); the command line parsing appends the parsed options (`BASE`, `loglevel`, `import_policy`,
+`menu_timeout`, `zbm_*`, `spl_hostid`, `control_term` and the rest) as `export name='value'` lines, as the legacy
+start-up script does.
 
 Every Rust applet reads the file itself at start, with a parser for the lines the image build and the command line
 parsing write, as each legacy script sources it, instead of trusting an environment inherited from the supervisor: a
@@ -368,22 +369,22 @@ edition): variables for a child are set on its `Command`.
 
 ### `fzf` callbacks
 
-The menu writes the screen's rows to a file or a pipe and runs `fzf` with the legacy options and key bindings. The
-bindings and the preview command run applets by their legacy paths with the legacy arguments (`fzf` substitutes the
-selected row for `{}`), for example `/libexec/zfsbootmenu-preview -b <bootfs> <dataset>`. The applet reads what it
-needs from the configuration, the state directory and ZFS, as the legacy scripts do, and exits. `fzf` reports the key
-that ended the selection (`--expect`), and the menu loop maps it to the next screen as `bin/zfsbootmenu` does; that
-mapping is a pure function, which unit tests check for every key binding.
+The legacy menu writes the screen's rows to a file or a pipe and runs `fzf`, whose bindings and preview command run
+scripts by their paths (`fzf` substitutes the selected row for `{}`), for example
+`/libexec/zfsbootmenu-preview -b <bootfs> <dataset>`. The Rust runtime runs no `fzf` (ADR 0018, point 21): the menu
+draws its screens itself (`zbm-tui`), the keys are its key map's, and what the bindings ran is the menu's own views
+or an applet of the recovery shell (`logs` for `zlogtail` and `ztrace`, `help` for `zfsbootmenu-help`, `zsnapshots`
+for the snapshot screen). Rust images install none of those scripts.
 
 ### Concurrent instances and takeover
 
 The protocol stays as it is, because users rely on it (`remote-access.rst`): the menu writes its process ID to
 `active`; a second `zfsbootmenu` sends `SIGUSR1` to that process, finds its deepest child through
-`/proc/<pid>/task/<pid>/children` and ends it, so the blocked `fzf` returns; the first menu exits on `SIGUSR1`, which
-removes `active`. The start-up sequence does not boot automatically while `active` exists, and opens the recovery
-shell instead. The menu blocks `SIGUSR1`, `SIGTERM` and `SIGHUP` first thing, so they wait in a `signalfd`
-(`zbm_sys::Signals`, ROADMAP.md PM3), and reads them after each child process returns, which is when the legacy trap
-runs too.
+`/proc/<pid>/task/<pid>/children` and ends it, so the program the menu waits for (the legacy menu's `fzf`) returns;
+the first menu exits on `SIGUSR1`, which removes `active`. The start-up sequence does not boot automatically while
+`active` exists, and opens the recovery shell instead. The menu blocks `SIGUSR1`, `SIGTERM` and `SIGHUP` first thing,
+so they wait in a `signalfd` (`zbm_sys::Signals`, ROADMAP.md PM3), and reads them after each child process returns,
+which is when the legacy trap runs too.
 
 The session's menu (ROADMAP.md, PM9) is ended by a handshake instead (PM10, ADR 0002): the start-up program listens
 on `/run/zfsbootmenu/session.sock` (`zbm_app::session`), a `SOCK_SEQPACKET` socket in a directory only root reaches,
@@ -414,7 +415,7 @@ takeover's, `generate-zbm` `SIGINT` and `SIGTERM`; no
 handler runs in the middle of the program, and no global slot holds the last signal. A signal sent to the process
 reaches a thread that does not block it, so each blocks them before it starts a thread. Programs inherit the mask, and
 the standard library's `Command` keeps it: `zbm_sys::prepare_child` empties it in every child that `zbm-platform`
-starts, so hooks, `fzf` and the shells see the dispositions above and no blocked signal. A process that is signalled
+starts, so hooks and the shells see the dispositions above and no blocked signal. A process that is signalled
 and waited for is held by a pidfd (`zbm_sys::Process`).
 
 The console on the display takes no signal: `zbm console release`, `reattach`, `layout` and `font`, and the menu's
@@ -537,9 +538,10 @@ the runtime writes it, and the hooks that read it are measured (ADR 0009) or the
 
 Hooks may source `/lib/zfsbootmenu-core.sh` and `/lib/kmsg-log-lib.sh` (the hooks in `contrib/` do, as does
 `/root/.bashrc`), and `zfsbootmenu-core.sh` sources `/lib/zfsbootmenu-kcl.sh` and stops if it is missing. The contract
-covers every function these three files define, 69, not a selection. SB5 owns these three files (ADR 0017, point 9);
-SB6 owns the rest of the legacy library (the menu's UI, `fzf`, the completions, the LUKS libraries) with the recovery
-tools.
+covers every function these three files define, 69, not a selection. SB5 owns these three files (ADR 0017, point 9).
+The rest of the legacy library (the menu's UI, `fzf`'s options, the completions, the LUKS libraries, `echo-log-lib.sh`,
+`efi-firmware-lib.sh`) is the legacy runtime's alone: Rust images take none of it since SB6 (ADR 0018, points 20 and
+22), and have `zbm`'s own completions in their `.bashrc`.
 
 Rust images install the three files as `zbm_host::image::library` generates them from the module root's legacy files.
 What the files run besides their functions stays as it is: the include guards, the error trap, the `source` of the
@@ -597,10 +599,10 @@ The image links `/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool` (`doc
 working. The legacy `zfunc` also sourced the `fzf` menu's library (`zfsbootmenu-ui.sh`), which Rust images do not have
 (ADR 0018, point 21): its functions are not run.
 
-A test in `zbm` lists the 51 functions still legacy; SB6 and SB14 give them Rust code, and SB14 needs the list
-empty. ADR 0017 (point 10) has each function run its Rust code where some exists: only five do so far, because each
-needs its legacy output, status and log lines bridged, and a parity test (`zfs_chroot`'s was the first of a native;
-`zreport`'s and `zbmcmdline`'s run them on the same machine as the Rust code).
+A test in `zbm` lists the 51 functions still legacy; SB14 gives them Rust code, and SB7 needs the list empty. ADR
+0017 (point 10) has each function run its Rust code where some exists: only five do so far, because each needs its
+legacy output, status and log lines bridged, and a parity test (`zfs_chroot`'s was the first of a native; `zreport`'s
+and `zbmcmdline`'s run them on the same machine as the Rust code).
 
 ## Errors and logging
 
@@ -702,8 +704,8 @@ an operation.
 Every program is run through the `Runner` trait of `zbm-platform` with a `Command`: program, arguments, standard input
 (inherited, `/dev/null`, bytes or a secret), standard output and standard error (inherited, captured, discarded, or
 captured as a secret), and environment changes. `SystemRunner` runs it; a program that does not exist returns status
-127, as a shell reports it. Interactive programs (`fzf`, `zfs load-key -L prompt`, `bash -i`, hooks) inherit the
-terminal.
+127, as a shell reports it. Interactive programs (`zfs load-key -L prompt`, `bash -i`, hooks, and `fzf` in legacy
+images) inherit the terminal.
 
 - **Building commands** is a pure function for each operation (`zpool import` with its options, `kexec -l` with its
   command line, `cryptsetup open` with its options), so unit tests compare the exact arguments with the legacy ones.
@@ -825,7 +827,7 @@ secret's bytes appear in any argument, environment variable, written file or con
 | C: boot environments | sorting, kernel selection and version order, command line cache, key sources, hook environment | every VM test that boots |
 | D: snapshots and pools | the commands each action runs | a new suite test per action, written against the legacy image first |
 | E: menu | the screen that follows each key; snapshot tests of each screen's text | the VM tests that drive the menu |
-| F: recovery tools (SB6) | the programs `zbm` needs, the recovery commands' logic | the `contrib/` hooks unchanged; image sizes compared |
+| F: recovery tools (SB6) | the programs `zbm` needs, the recovery commands' logic: each applet on `FakeSystem` (the chroot's mounts and question, power, `zkexec`, `mount_esp`, `logs`, `help` and its pager, the completions), the natives' parity tests, the image plans without `fzf` or the legacy tools | `runtime-rust-recovery`; `integrity-locked`'s second PIN; `menu-boot`'s and `firmware-boot`'s firmware setup; the `contrib/` hooks unchanged; the image's size before and after, which no tool measures: the maintainer compares it by hand |
 | SB5: hooks | the table of built-in steps, skipping and replacing them, the LUKS close kept when guarded, how a hook runs, each stage's environment and context file, the compatibility library's function list and implicit outputs, the functions still legacy | `runtime-rust-hooks`; the LUKS VM tests' teardown check (`check_teardown`) for the LUKS close; `firmware-usb*` for the USB unbind; `runtime-rust-autosize` and `runtime-rust-console-lines` for the `early-setup.d` steps |
 
 Pure functions with a Bash counterpart get parity tests that run both on the same inputs (`zbm-testkit::legacy`), as
@@ -885,8 +887,9 @@ countdown runs in the menu; since PM9 the menu runs in the start-up program, the
 
 The Phase 5 image left out only the legacy start-up program and `init.d`. Since SB5 the bundled hooks are built-in
 steps, and the three files of the hook contract are the generated library (see "Compatibility library"), with their
-legacy copies below `/usr/share/zfsbootmenu/legacy/lib`. The rest of the legacy shell library and the recovery shell's
-tools stay in the Rust image until SB6 replaces them; SB7 leaves the legacy payload out.
+legacy copies below `/usr/share/zfsbootmenu/legacy/lib`. Since SB6 the recovery shell's tools are applets of `zbm`, and
+of the rest of the legacy payload the Rust image takes only `zfsbootmenu-input`, which the library's legacy functions
+run; SB7 leaves the legacy payload out.
 
 ## Freezing the legacy runtime
 
@@ -909,8 +912,9 @@ These choices shape the later phases and are the points to review:
    recovery shell.
 3. **Every applet reads `/etc/zfsbootmenu.conf` itself,** like the legacy scripts, so a menu started over SSH works
    as one started on the console.
-4. **Applets keep the legacy names, arguments and subcommands,** so `fzf` bindings, documentation and habits stay
-   valid; LUKS unlocking at start-up is `zluks unlock` on the plain console (decision 11).
+4. **Applets keep the legacy names, arguments and subcommands,** so hooks, documentation and habits stay valid (the
+   legacy menu's `fzf` bindings ran them by those names; Rust images have no `fzf`); LUKS unlocking at start-up is
+   `zluks unlock` on the plain console (decision 11).
 5. **The compatibility library covers every function** of the three legacy libraries, checked by a test.
 6. **Secrets never touch files the runtime creates,** which is stricter than the legacy code but invisible to users.
 7. **The LUKS unit suites drive the Rust code through a test build of `zbm`** with the same seams as the legacy

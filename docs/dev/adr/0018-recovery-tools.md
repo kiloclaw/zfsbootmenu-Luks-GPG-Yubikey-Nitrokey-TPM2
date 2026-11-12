@@ -1,6 +1,7 @@
 # ADR 0018: The recovery tools as `zbm` applets, help from the code's tables, and `fzf` out of Rust images
 
-- **Status:** accepted, 9 November 2026 (proposed the same day)
+- **Status:** accepted, 9 November 2026 (proposed the same day); implemented on 11 and 12 November 2026 (see the
+  notes at the end)
 - **Decides:** item SB6 of [ROADMAP.md](../../../ROADMAP.md) (`ROADMAP.md:617`): the form of every tool of the legacy
   `bin/`, `libexec/` and `lib/` that ADR 0017 left to SB6 (`docs/dev/adr/0017-native-hooks.md:129-130`), the LUKS
   libraries among them; which of the 54 functions still legacy (`crates/zbm/src/zfunc.rs:112-166`) get Rust code in
@@ -485,3 +486,85 @@ Accepted as proposed, on 9 November 2026:
 6. **`zsnapshots`:** the menu on the Snapshots tab, environments only.
 7. **`logs`:** ZFSBootMenu's errors and warnings in the kernel log, and `ztrace` as its `--trace`.
 8. **Completions:** written by `zbm-host` for the commands' names, listing what the legacy ones listed but kernels.
+
+## Notes from the implementation
+
+Implemented in 18 commits, SB6a-1 to SB6h (844c5dc0 onwards), on 11 and 12 November 2026, in the ADR's eight steps.
+The VM run of SB6 is the maintainer's.
+
+**The question the ADR left open.** Point 6 loads the filesystem's key only after a read/write yes, as `zfs-chroot`
+did, while UI14's command line already marked every chroot of a locked environment with the `key` it costs. The
+maintainer answered on 11 November 2026: a chroot of an environment whose root is locked loads its key first,
+read-only or read/write, through the console's interaction as the menu's boot does
+(`a_locked_root_is_unlocked_before_the_chroot`); the command line's cost and the man page stay, and
+`CHANGES-FROM-LEGACY.md` says "A chroot loads the environment's key first". This holds for the menu's chroot, the
+shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
+
+**Three changes to the accepted text:**
+
+- **Point 6, "the menu shows the question as a dialog":** the chroot asks on the console, through
+  `ConsoleInteraction` (`Subject::Chroot`), as every action that takes the console asks once the menu has yielded it;
+  over SSH, on the client's terminal. The menu has no dialog and no Fluent id for it. The time-out and Enter keep the
+  pool read-only, which a test pins, since `NoInteraction` would have answered Escape, read/write.
+- **Points 23 and 27, the Rust `.bashrc` in SB6g:** it split from the legacy one in SB6d-2, with
+  `PROMPT_COMMAND="/libexec/zbm logs --prompt"`; SB6e-3 set `alias help="zbm help"` and SB6g-3 added the completions.
+  Each step that took a legacy file out of Rust images had to stop the `.bashrc` naming it, as point 27's own rule
+  asks.
+- **Point 15, the `Pager` context:** `keymap/pager.rs` binds `q` (Back) and `/` (Filter) alone; the arrows and page
+  keys come from the shared tables, Esc and Ctrl-C leave, `h` leaves in the workspace map only (as a mover: the classic
+  map's `h` means Rewind), and F1 does nothing. No screen of the model opens the pager, so its context stays out of
+  `CONTEXTS` and the key map's rule-1 tests and has tests of its own, as
+  [keymap.md](../menu-design/keymap.md#the-recovery-shells-pager) says.
+
+**Other departures, in brief:**
+
+- **Layers.** `zbm` may not use an adapter, so the applets parse, print and map exit codes, and their logic lives in
+  `zbm-app` (power, the chroot, `mount_esp`, `zkexec`'s boot files, the completions) and `zbm-startup` (the natives).
+  `zbm-host` cannot read `APPLETS`, so the linked names and what Tab completes after them are a table of `zbm-types`
+  (`LINKED`), which a `zbm` test holds to `APPLETS` (points 3 and 23). The import stage cannot reach `zbm-startup`, so
+  `zbm_pool::stage` takes the report as an argument (point 17).
+- **Applets.** `--help` as the first argument prints the usage on standard output and exits 0 for every applet,
+  `zfunc` and `zfsbootmenu` among them; `-h` stays only where an applet took it (`zluks`, `zbm lock`, `zbm measure`).
+  The power applets share `zbm_app::power::reset` with the menu, from one `zpool list`; their messages go to standard
+  error, and an argument is a usage error.
+- **The chroot** needed five mounts, not four (`bind`, `proc`, `sysfs`, `devpts` and the chroot's `efivarfs`), and
+  `mount_esp` a sixth, `Mount::block` (point 10); `devpts` is tested after the bind of `/dev`, as the script did; the
+  root's guard unmounts recursively, as `recursive_umount` took what the user mounted inside; the filesystem mounts
+  through `zbm_bootenv::mount_zfs`; the authority is proven before anything is imported or mounted. `zfs-chroot` blocks
+  `SIGHUP`, `SIGINT`, `SIGQUIT` and `SIGTERM` until it has unmounted, as the script's trap undid the mounts, so Ctrl-C
+  no longer ends it at the PIN or the question. After the menu's chroot the menu stays on its Recovery Tools.
+- **`zkexec`** takes a boot environment and refuses a snapshot; it searches the environment's kernels first, so its
+  command line is the menu's.
+- **`mount_esp`** without an argument mounts the EFI system partition the boot loader names, or the only one, not
+  `zbm report`'s partition (point 10); it finds a device named by a link mounted by its canonical path, says its
+  refusals on standard error too, and takes two arguments or more as a usage error.
+- **Firmware setup** is offered where `OsIndicationsSupported` has the bit, as point 11 says; the legacy power menu
+  also wanted `OsIndications` to exist, and where it does not, choosing it fails.
+- **Logs.** The prompt's stamp is the kernel's sequence number of the last record shown, not its microseconds, which
+  several records share; the banner writes it always, and `logs` when it shows the errors, so the first error after
+  the banner is not shown twice (point 13). `--level` takes what `dmesg -l` takes and refuses the rest; `--trace`
+  reads the Rust runtime's debug lines as well as the shell's; `logs` forgets only the levels it showed; `ztrace` exits
+  1 where `/dev/kmsg` cannot be read.
+- **Help.** The topics are plain text from the tables' reStructuredText (`zbm_config::docs::plain`), and the six
+  library functions got a usage table in `zbm`; `/bin/help` is linked, but Bash's alias and builtin come first.
+- **Completion** has seven kinds: the six of point 23 and the boot environments, which `zsnapshots` and
+  `zfsbootmenu --snapshots` take (point 18); `zkexec`'s first word keeps every filesystem, as point 23 says. Names are
+  printed shell-escaped, so one with a space stays one word, and a name with a control character is left out.
+- **The image.** The context's "26 legacy entries, 20 files and 6 links" were 21 files and 5 links. `fzf` left with
+  `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `zfsbootmenu-diff` and `zpowermenu`, which run it (SB6g-1); `RUST_TAKES`
+  (`libexec/zfsbootmenu-input`) replaced `RUST_REPLACES` in SB6g-2, which took `efi-firmware-lib.sh` out too, its last
+  users gone. The `RUST_REPLACES` of points 3, 22 and 27 is the decision's word for the steps on the way.
+- **The VM checks** of "How it is checked" changed in three places. `menu-boot`'s tour has no palette to check: the
+  command line (`:`) must offer no Reboot into Firmware Setup on the BIOS machine, and `menu-display` replays the
+  same steps. The FAT disk of `runtime-rust-recovery` has no GPT, so no partition type to find: `mount_esp` gets the
+  disk by name there, and the form without an argument is unit-tested. `firmware-boot`'s image counted down 3 seconds
+  and its boot cannot stop in the menu: with the Rust runtime that image (the `boot` scenario's, not the USB
+  stick's) counts down 30 seconds, and the test escapes the countdown, as `runtime` does, before it checks the menu's
+  power sheet. `runtime-rust-recovery` is estimated at about 7 minutes, not 6 (`docs/luks/testing.rst`).
+
+**Left open,** for the maintainer: firmware without an `OsIndications` variable, possibly a fresh OVMF, is offered
+firmware setup that then fails (the fix: create the variable, as systemd does, checked on OVMF); a copy of the legacy
+`teardown.d/80-luks-close.sh` among a Rust image's hooks replaces the built-in LUKS close but closes nothing, as the
+LUKS library it sources is gone (`CHANGES-FROM-LEGACY.md` says so; a warning at build time is offered); a failed
+`zkexec` in `runtime-rust-recovery` fails only at the step's 1200 s time-out; no VM test chroots into an encrypted
+environment or hangs up an SSH session in `zfs-chroot`; and `zbm-sys`'s coverage sits at its floor.

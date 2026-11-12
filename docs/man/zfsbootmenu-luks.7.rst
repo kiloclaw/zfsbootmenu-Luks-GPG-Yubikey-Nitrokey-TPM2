@@ -295,7 +295,8 @@ FILES
 
 */libexec/init.d/45-luks-unlock*
 
-  Start-up stage that unlocks volumes.
+  Start-up stage that unlocks volumes, a file of the legacy runtime. Images with the Rust runtime have no
+  */libexec/init.d*: their start-up program runs the stage of that name itself.
 
 */libexec/hooks/teardown.d/80-luks-close.sh*
 

@@ -245,6 +245,9 @@ Following a boot
   ``luks.key=`` and ``luks.crypttab=no``.
 
   * ``firmware-boot``: one passphrase prompt; in the boot environment no prompt, 4096-byte sectors, flags active.
+    With the Rust runtime, its image counts down 30 seconds (``zbm.timeout=30``); the test escapes the countdown, the
+    menu's power sheet must offer Reboot into Firmware Setup, which OVMF can open (ADR 0018, point 11), and the
+    environment is booted from the menu.
   * ``firmware-usbkey``: ``zbm.luks_key=`` names a key file on a FAT USB stick; no prompt.
   * ``firmware-usblate``: the stick is inserted while ZFSBootMenu waits for it; no prompt.
   * ``firmware-nostick``: no stick; ZFSBootMenu waits, then asks for the passphrase.
@@ -431,7 +434,9 @@ Following a boot
   ``zbm.prefer=tauto``, the default boot must ask nothing. With ``zbm.prefer=tplain``, which waits in the menu, the
   toolbar must mark the edit of the command line with the PIN (``Edit PIN``) before any PIN is typed, the
   recovery shell must ask for the PIN, refuse a wrong one, and open with the right one after a delay of a second at
-  least; once it ended, booting ``tauto``'s environment, which is not the default, must ask for the PIN again, on the
+  least; in it, ``zfs-chroot tplain/ROOT/be`` must ask for the PIN again (ADR 0018, point 8), then for a read-only
+  chroot, whose shell must read the environment's ``/etc/os-release``, and end with 0 once that shell ended; once the
+  recovery shell ended, booting ``tauto``'s environment, which is not the default, must ask for the PIN again, on the
   console, and boot once it is typed.
 
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
@@ -446,6 +451,40 @@ Following a boot
   have been opened by a keyholder (``zbm unlock serve``, ROADMAP.md SB10), the process whose ID its client logged as
   the one it started. The test notes how the image's kernel lets secrets be kept (``Secret`` with ``memfd_secret``,
   else ``Locked``).
+
+* ``runtime-rust-recovery`` checks the recovery shell's tools, which are ``zbm``'s in Rust images (ROADMAP.md SB6,
+  ADR 0018), in one boot of the Rust ``auto`` image on the group's machine, which boots from a BIOS, with d0
+  (``tplain``) and a 64 MB FAT disk ``esp``, made fresh for each run, and ``zbm.import_policy=zbmtest`` on the command
+  line, an import policy start-up does not know, so that the kernel log holds a warning. In order:
+
+  * the menu's Recovery Tools (``!``) offer Chroot; the chroot of ``tplain``'s environment, on a pool imported
+    read-only, asks first, and Enter keeps it read-only; its shell reads the environment's ``/etc/os-release``, and
+    ``exit`` is back on the Recovery Tools;
+  * the Recovery Tools list Reboot and Power Off but no Firmware Setup, which a BIOS cannot open; Enter opens the
+    recovery shell;
+  * ``firmware-setup`` says why it cannot and exits 1; ``reboot --help`` and ``shutdown --help`` print the usages of
+    ``zbm``'s ``reboot`` and ``poweroff`` (neither is run, as either would end the machine);
+  * ``logs | cat`` exits 0 and prints start-up's warning about the import policy;
+  * ``zbm help | cat`` exits 0 and lists ``zfs-chroot``; ``zbm --help`` prints ``zbm``'s usage, not the menu's;
+    ``help | cat``, the shell's alias, lists ``zfs-chroot`` too; ``help`` on the terminal opens the pager on the
+    commands, and ``q`` leaves it, ``help`` ending with 0;
+  * ``zreport | cat`` exits 0 and lists the built-in step ``teardown.d/80-luks-close.sh``, to run;
+  * ``zsnapshots tplain/ROOT/be`` opens the menu on the Snapshots tab of that environment, and its recovery shell
+    (``!`` and Enter) ends it, ``zsnapshots`` ending with 0;
+  * ``command -v fzf`` fails: Rust images have no ``fzf``;
+  * the ``.bashrc``'s completion, called as Tab calls it after ``zsnapshots tplain/``, offers ``tplain/ROOT/be``
+    alone;
+  * ``zfs-chroot tplain/ROOT/be`` asks as the menu's chroot does, Enter keeps it read-only, its shell reads
+    ``/etc/os-release``, and ``exit`` ends it with 0;
+  * ``mount_esp /dev/disk/by-id/virtio-esp`` mounts the FAT disk read/write at ``/mnt/virtio-esp`` and prints that,
+    and run again prints where it is mounted already;
+  * last, ``zkexec tplain/ROOT/be vmlinuz-KVER initramfs-KVER.img`` boots the environment by its kernel's files,
+    through the menu's boot, which the boot environment's report shows.
+
+  The host needs ``mkfs.vfat``, as for ``runtime-rust-saved``. Not covered by a VM test: the completions but that one
+  (unit tests), ``mount_esp`` without an argument (the FAT disk has no GPT), a hook's ``zfs_chroot``, a chroot of an
+  encrypted environment or over SSH, and ``reboot``, ``poweroff`` and a reboot into the firmware's setup, which end
+  the machine.
 
 * ``runtime-rust-saved`` checks the saved boot logs and bug reports (ROADMAP.md #9). Besides d0, the machine has a
   FAT disk labelled ``ZBMLOGS``, made fresh for each run, and both boots have ``zbm.save_logs=LABEL=ZBMLOGS``. The
@@ -509,13 +548,14 @@ Following a boot
     its last host. The shell checks which pools are read-only, ``tother/after`` and the checkpoint gone, the host ID
     ``deadbeef`` and the volume's mapping.
   * ``menu-boot``, in three boots: with a FAT disk for ``zbm.save_logs``, the command line's entries, with none to give
-    boot tries back or to re-seal; the command line of ``tmenu/ROOT/be`` saved for every boot with ``zbmtest.saved=1``
-    added (``BOOT_SAVED``): ``Set the Command Line of tmenu/ROOT/be`` on ``:`` opens the editor for every boot, its
-    dry run must show ``org.zfsbootmenu:commandline=`` and the note on PCR 8, and once it runs the inspector must say
-    the line is set here; the second kernel booted with ``zbmtest.edited=1`` added to that line for this boot, both of
-    which the boot environment's ``BE-CMDLINE`` must show, and the boot's ``boot.json`` record the kernel; then a clone
-    of ``five`` booted from the command line, whose dry run must show ``zfs clone`` before ``Enter`` runs it and whose
-    ``BE-ROOT`` must be ``tmenu/ROOT/booted``; then the command line's Power Off.
+    boot tries back or to re-seal, and none to reboot into the firmware's setup, which the machine's BIOS cannot open
+    (ADR 0018, point 11; ``menu-display`` replays the same steps); the command line of ``tmenu/ROOT/be`` saved for every
+    boot with ``zbmtest.saved=1`` added (``BOOT_SAVED``): ``Set the Command Line of tmenu/ROOT/be`` on ``:`` opens the
+    editor for every boot, its dry run must show ``org.zfsbootmenu:commandline=`` and the note on PCR 8, and once it
+    runs the inspector must say the line is set here; the second kernel booted with ``zbmtest.edited=1`` added to that
+    line for this boot, both of which the boot environment's ``BE-CMDLINE`` must show, and the boot's ``boot.json``
+    record the kernel; then a clone of ``five`` booted from the command line, whose dry run must show ``zfs clone``
+    before ``Enter`` runs it and whose ``BE-ROOT`` must be ``tmenu/ROOT/booted``; then the command line's Power Off.
   * ``menu-display``, in five boots: the tasks of the three on the console on the display, with the image of
     ``runtime-rust-console`` (``zbm.console=drm zbm.console_serial=off``), the keys typed with ``sendkey`` and the
     screens read from the console's mirror on the second serial port (``zbm.console_mirror=/dev/ttyS1``). Each boot
@@ -695,6 +735,13 @@ it. With KVM, and without building its images (the Rust ``auto`` image, the lega
 about 12 with one boot for each layout), about 27 in all. UI14's steps add about a minute: ``menu-pools``' dry run
 about 10 s, ``menu-boot``'s saved command line about 40 s and its clone's dry run about 10 s, and ``menu-display``'s
 two dry runs about 20 s.
+
+SB6 (ADR 0018) adds a test and four steps, none run yet. With KVM, ``runtime-rust-recovery`` is expected to take
+about 7 minutes without building its image (an estimate from its steps: the boot and the escaped countdown, two
+chroots, ``zsnapshots``'s menu and ``zkexec``'s boot, a minute or so each, and a few seconds for each other
+command). ``integrity-locked``'s second PIN and chroot add about a minute, ``firmware-boot``'s 30-second countdown and
+power sheet about a minute with the Rust runtime, and the command line's firmware entry about 10 s to ``menu-boot``
+and to ``menu-display`` each.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to

@@ -1,7 +1,7 @@
 //! The state directory of the runtime, `/zfsbootmenu`.
 //!
-//! The processes of the runtime (the start-up program, the menu, the programs
-//! `fzf` starts, the recovery commands) share state only through files in this
+//! The processes of the runtime (the start-up program, the menu, the recovery
+//! shell's commands, the hooks) share state only through files in this
 //! directory, with the layout and formats of the legacy runtime, which users,
 //! hooks and the documentation rely on. [`State`] owns that layout: no other
 //! code builds these paths. See "Shared state" in `crates/DESIGN.md` for which
@@ -385,7 +385,8 @@ impl<'a> State<'a> {
         self.remove("cmdline");
     }
 
-    /// The file `fzf` reads the boot environments from (`bootenvs`).
+    /// The file the legacy menu's `fzf` reads the boot environments from
+    /// (`bootenvs`); the Rust runtime does not write it.
     pub fn boot_environments(&self) -> PathBuf {
         self.path("bootenvs")
     }

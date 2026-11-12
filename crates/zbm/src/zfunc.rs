@@ -97,7 +97,7 @@ mod tests {
     }
 
     /// ADR 0017, point 10: the functions of the library that still run the
-    /// legacy code, which SB6 and SB14 make Rust; every function is copied
+    /// legacy code, which SB14 makes Rust; every function is copied
     /// shell code, Rust or legacy.
     #[test]
     fn the_functions_still_legacy() {
