@@ -86,4 +86,9 @@ pub const LINKED: &[Linked] = &[
         dir: "/bin",
         first: &[],
     },
+    Linked {
+        name: "zsnapshots",
+        dir: "/bin",
+        first: &[],
+    },
 ];

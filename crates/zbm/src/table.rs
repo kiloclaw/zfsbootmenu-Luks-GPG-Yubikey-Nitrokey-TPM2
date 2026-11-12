@@ -4,7 +4,7 @@
 
 use crate::{
     Applet, applets, chroot, console, console_font, debug, esp, explain, fonts, help, image, kexec,
-    layouts, lock, logs, luks, measure, menu, power, report, run_hooks, unlock, zfunc,
+    layouts, lock, logs, luks, measure, menu, power, report, run_hooks, snapshots, unlock, zfunc,
 };
 
 const INIT: Applet = Applet {
@@ -274,11 +274,15 @@ const MENU: Applet = Applet {
     names: &[],
     summary: "the menu: boot environments, booting and the recovery shell",
     usage: "\
-Usage: zfsbootmenu
+Usage: zfsbootmenu [--snapshots [ENVIRONMENT]]
 
-The menu, as users run it over SSH or from the recovery shell. It takes no
-arguments. The exit status is 0 when the menu ended, 1 when the machine could
-not be read or the terminal used, 2 for an argument.
+The menu, as users run it over SSH or from the recovery shell. It ends a menu
+running elsewhere. With --snapshots it opens on the Snapshots tab, of the
+boot environment ENVIRONMENT, else of the one selected; the classic menu
+(zbm.menu=classic) has no such tab. The exit status is 0 when the menu ended,
+1 when the machine could not be read or the terminal used, or ENVIRONMENT is
+no boot environment, and 2 for another argument, a name that is no
+filesystem's, or the classic menu.
 ",
     run: menu::run,
 };
@@ -421,6 +425,24 @@ status is 1 when the topic cannot be shown, and 2 for an unknown topic.
     run: help::run,
 };
 
+pub(crate) const ZSNAPSHOTS: Applet = Applet {
+    name: "zsnapshots",
+    names: &[],
+    summary: "the menu on its Snapshots tab, of a boot environment",
+    usage: "\
+Usage: zsnapshots [ENVIRONMENT]
+
+The menu on its Snapshots tab, of the boot environment ENVIRONMENT, else of
+the one selected: zfsbootmenu --snapshots. Like zfsbootmenu, it ends a menu
+running elsewhere. The menu lists the snapshots of boot environments only:
+zfs list -t snapshot -r lists those of another filesystem. The exit status is
+0 when the menu ended, 1 when ENVIRONMENT is no boot environment or the menu
+could not run, and 2 for more arguments, a name that is no filesystem's, or
+the classic menu (zbm.menu=classic), which has no Snapshots tab.
+",
+    run: snapshots::run,
+};
+
 /// The commands `zbm` provides.
 pub const APPLETS: &[Applet] = &[
     INIT,
@@ -450,6 +472,7 @@ pub const APPLETS: &[Applet] = &[
     MOUNT_ESP,
     LOGS,
     HELP,
+    ZSNAPSHOTS,
 ];
 
 #[cfg(test)]

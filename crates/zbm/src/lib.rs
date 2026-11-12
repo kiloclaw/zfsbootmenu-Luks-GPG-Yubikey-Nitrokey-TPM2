@@ -36,6 +36,7 @@ mod run_hooks;
 pub mod saved;
 #[cfg(any(test, feature = "secret-test"))]
 pub mod secret_search;
+mod snapshots;
 pub mod startup;
 pub mod supervisor;
 mod table;
@@ -380,6 +381,7 @@ mod tests {
             "mount_esp",
             "logs",
             "help",
+            "zsnapshots",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

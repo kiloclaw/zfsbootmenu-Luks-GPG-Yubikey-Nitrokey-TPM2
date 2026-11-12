@@ -43,6 +43,11 @@ pub enum Message {
     Event(Box<Event>),
     /// The machine started performing an action on its own, or ended.
     Busy(bool),
+    /// The menu opens on the Snapshots tab of this environment, else of the
+    /// selected one, as `zfsbootmenu --snapshots` asks: start-up's end
+    /// first, as the menu's first snapshot does, and no countdown, as for
+    /// a key.
+    OpenSnapshots(Option<zbm_types::DatasetName>),
 }
 
 /// The menu after `message`, and the actions it asks the machine for:
@@ -73,6 +78,18 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
                 model.reading_history = false;
             }
             Vec::new()
+        }
+        Message::OpenSnapshots(environment) => {
+            events::start(&mut model);
+            model.countdown = None;
+            let environment = environment.or_else(|| {
+                model
+                    .selected_environment()
+                    .map(|environment| environment.name.clone())
+            });
+            environment.map_or_else(Vec::new, |environment| {
+                screens::focus(&mut model, environment, Screen::Snapshots)
+            })
         }
     };
     // A device's messages belong to the Pools tab: leaving it, but for its

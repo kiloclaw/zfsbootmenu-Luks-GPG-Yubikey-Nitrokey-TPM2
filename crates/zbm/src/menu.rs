@@ -38,6 +38,7 @@ use zbm_tui::menu::screen::MenuScreen;
 use zbm_tui::menu::session::Session;
 use zbm_tui::menu::terminal;
 use zbm_tui::menu::theme::Theme;
+use zbm_types::{DatasetName, Printable};
 
 use crate::Io;
 use crate::applets::on_console;
@@ -271,15 +272,110 @@ impl SessionMenu for InSession<'_, '_> {
     }
 }
 
+/// What the menu opens on.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Opening {
+    /// Its first view.
+    First,
+    /// The Snapshots tab of the environment, else of the selected one
+    /// (`--snapshots [ENVIRONMENT]`).
+    Snapshots(Option<DatasetName>),
+}
+
+/// What the options `args` of `zfsbootmenu` open the menu on: none, or
+/// `--snapshots` with an environment or without, an empty one being none,
+/// as the legacy `zsnapshots` took it.
+///
+/// # Errors
+///
+/// What is wrong with them, a usage error: another option, or a name that
+/// is no filesystem's.
+pub(crate) fn opening(args: &[String]) -> Result<Opening, String> {
+    match args {
+        [] => Ok(Opening::First),
+        [option] if option == SNAPSHOTS => Ok(Opening::Snapshots(None)),
+        [option, name] if option == SNAPSHOTS && name.is_empty() => Ok(Opening::Snapshots(None)),
+        [option, name] if option == SNAPSHOTS => match name.parse() {
+            Ok(environment) => Ok(Opening::Snapshots(Some(environment))),
+            Err(_) => Err(format!(
+                "{} is not the name of a filesystem",
+                Printable(name)
+            )),
+        },
+        _ => Err(format!("unknown options {}", args.join(" "))),
+    }
+}
+
+/// The option that opens the menu on the Snapshots tab.
+pub(crate) const SNAPSHOTS: &str = "--snapshots";
+
+/// How the menu on `system` shows, as [`menu_wanted`] says, when it can
+/// open on `opening`.
+///
+/// # Errors
+///
+/// Why it cannot: the classic menu has no Snapshots tab, as it gains no
+/// view (ADR 0018, point 18).
+pub(crate) fn menu_opening(
+    system: &System<'_>,
+    conf: &Conf,
+    capabilities: Capabilities,
+    opening: &Opening,
+) -> Result<(bool, Map), &'static str> {
+    let (lines, map) = menu_wanted(system, conf, capabilities);
+    let snapshots = matches!(opening, Opening::Snapshots(_));
+    if snapshots && map == Map::Classic {
+        return Err("the classic menu (zbm.menu=classic) has no Snapshots tab");
+    }
+    Ok((lines, map))
+}
+
+/// `session`, opened as `opening` says, before it draws: on the Snapshots
+/// tab, of the environment it names. Its machine was read already, so this
+/// asks nothing of ZFS, which the menu over SSH may not run.
+///
+/// # Errors
+///
+/// A named filesystem that is no boot environment of the machine: the
+/// menu lists the snapshots of environments only.
+pub(crate) fn opened<M: Machine>(
+    mut session: Session<M>,
+    opening: &Opening,
+) -> io::Result<Session<M>> {
+    let Opening::Snapshots(environment) = opening else {
+        return Ok(session);
+    };
+    if let Some(name) = environment {
+        let environments = &session.model().snapshot.environments;
+        if !environments.iter().any(|known| &known.name == name) {
+            return Err(io::Error::other(format!(
+                "{name} is not a boot environment: zfs list -t snapshot -r {name} lists its \
+                 snapshots"
+            )));
+        }
+    }
+    session.open_snapshots(environment.clone());
+    Ok(session)
+}
+
 /// `zfsbootmenu`: the menu, as users run it over SSH or from the recovery
-/// shell; it waits for the user. The exit status is 0 when the menu ended,
-/// 1 when the machine could not be read or the terminal used, 2 for an
+/// shell; it waits for the user. The exit status is 0 when the menu ended;
+/// 1 when the machine could not be read, the terminal could not be used, or
+/// the ENVIRONMENT of `--snapshots` is no boot environment; 2 for an
 /// option.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
-    if !args.is_empty() {
-        let _ = writeln!(io.stderr, "zfsbootmenu: unknown options {}", args.join(" "));
-        return crate::USAGE;
+    match opening(args) {
+        Ok(opening) => show("zfsbootmenu", &opening, io),
+        Err(error) => {
+            let _ = writeln!(io.stderr, "zfsbootmenu: {error}");
+            crate::USAGE
+        }
     }
+}
+
+/// The menu, as `program` runs it, opened on `opening`: [`run`]'s exit
+/// status, 2 when the key map cannot show what it opens on.
+pub(crate) fn show(program: &str, opening: &Opening, io: &mut Io) -> i32 {
     // trap '' SIGINT; the USR1 trap of a takeover, whose signals wait to be
     // read, first, before any thread starts; and SIGQUIT, which Bash ignores
     let signals = Signals::block(TAKEOVER).ok();
@@ -295,7 +391,13 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         let theme = Theme::new(capabilities);
         let clock = SystemClock::new();
         let line_view: LineView<'_> = (system.console, &clock);
-        let (lines, map) = menu_wanted(&system, conf, capabilities);
+        let (lines, map) = match menu_opening(&system, conf, capabilities, opening) {
+            Ok(wanted) => wanted,
+            Err(refusal) => {
+                let _ = writeln!(io.stderr, "{program}: {refusal}");
+                return crate::USAGE;
+            }
+        };
         let line_view = lines.then_some(line_view);
         let escape_wait = crate::startup::escape_wait(&ZbmOptions::from_conf(conf).control_term);
         // The session's menu, when it serves one; else this process's.
@@ -305,10 +407,12 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             // The session performs the actions: this process needs no more
             // than its terminal and the sockets.
             confine_remote(&base, sockets.unwrap_or(Path::new("/")));
-            show_session(Session::on(machine, theme, map), line_view, escape_wait)
+            let session = opened(Session::on(machine, theme, map), opening)?;
+            show_session(session, line_view, escape_wait)
         };
         let (input, output) = (io::stdin(), io::stdout());
         let served = Remote {
+            program,
             socket: Path::new(session::SOCKET),
             terminal: (input.as_fd(), output.as_fd()),
             stop: &stop,
@@ -318,11 +422,12 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         }
         // The menu as lines, or on the terminal's screen.
         let mut show = |machine: RealMachine<'_, '_>| {
-            show_session(Session::on(machine, theme, map), line_view, escape_wait)
+            let session = opened(Session::on(machine, theme, map), opening)?;
+            show_session(session, line_view, escape_wait)
         };
         let show = (&mut show as Show<'_>, Countdown::Skip);
         menu(system, conf, show, signals.as_ref()).unwrap_or_else(|error| {
-            let _ = writeln!(io.stderr, "zfsbootmenu: {error}");
+            let _ = writeln!(io.stderr, "{program}: {error}");
             zbm_startup::program::menu::FAILED
         })
     })
@@ -371,6 +476,8 @@ pub fn confine_remote(state: &Path, sockets: &Path) {
 /// The menu as a client of the session (ROADMAP.md, PM10), which runs the
 /// menu program on this terminal and performs the menu's actions.
 struct Remote<'s> {
+    /// The program's name, which its messages start with.
+    program: &'s str,
     /// The session's socket.
     socket: &'s Path,
     /// The terminal's input and output, which the session takes.
@@ -405,7 +512,7 @@ impl Remote<'_> {
             Err(error) if error.to_string() == crate::remote::NOT_SERVED => 0,
             Err(error) if error.kind() == io::ErrorKind::Interrupted => 0,
             Err(error) => {
-                let _ = writeln!(io.stderr, "zfsbootmenu: {error}");
+                let _ = writeln!(io.stderr, "{}: {error}", self.program);
                 zbm_startup::program::menu::FAILED
             }
         };
@@ -413,5 +520,7 @@ impl Remote<'_> {
     }
 }
 
+#[cfg(test)]
+mod snapshots_tests;
 #[cfg(test)]
 mod tests;

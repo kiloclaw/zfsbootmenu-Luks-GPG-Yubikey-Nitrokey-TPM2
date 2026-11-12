@@ -139,18 +139,33 @@ fn the_menu_counts_down_only_at_the_end_of_start_up_with_a_chosen_environment() 
 }
 
 #[test]
-fn the_menu_takes_no_option() {
-    let mut out = Vec::new();
-    let mut err = Vec::new();
-    let mut io = Io {
-        stdout: &mut out,
-        stderr: &mut err,
-    };
-    assert_eq!(run(&["--bogus".to_owned()], &mut io), crate::USAGE);
-    assert_eq!(
-        String::from_utf8_lossy(&err),
-        "zfsbootmenu: unknown options --bogus\n"
-    );
+fn another_option_or_a_name_that_is_no_filesystem_is_refused() {
+    for (args, said) in [
+        (&["--bogus"][..], "zfsbootmenu: unknown options --bogus\n"),
+        (
+            &["--snapshots", "tank/ROOT/void", "now"],
+            "zfsbootmenu: unknown options --snapshots tank/ROOT/void now\n",
+        ),
+        (
+            &["tank/ROOT/void"],
+            "zfsbootmenu: unknown options tank/ROOT/void\n",
+        ),
+        (
+            &["--snapshots", "tank/ROOT/void@now"],
+            "zfsbootmenu: tank/ROOT/void@now is not the name of a filesystem\n",
+        ),
+    ] {
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let mut io = Io {
+            stdout: &mut out,
+            stderr: &mut err,
+        };
+        let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
+        assert_eq!(run(&args, &mut io), crate::USAGE, "{args:?}");
+        assert_eq!(String::from_utf8_lossy(&err), said);
+    }
+    assert_eq!(opening(&[]), Ok(Opening::First));
 }
 
 /// The session's menu: it reads the machine until it is told to leave.
@@ -244,7 +259,7 @@ fn the_menu_asks_the_instance_holding_the_lock_to_end_and_waits() {
     clippy::disallowed_methods,
     reason = "the session's socket is a real one, in a directory of the test's own"
 )]
-fn remotely(
+pub(super) fn remotely(
     name: &str,
     session: Option<&(dyn Fn(zbm_sys::socket::Connection) + Sync)>,
     show: impl FnOnce(RemoteMachine<'_>) -> io::Result<String>,
@@ -259,6 +274,7 @@ fn remotely(
     let (terminal, _other) = zbm_sys::socket::Connection::pair().unwrap();
     let never = || false;
     let remote = Remote {
+        program: "zfsbootmenu",
         socket: &path,
         terminal: (terminal.as_fd(), terminal.as_fd()),
         stop: &never,
@@ -356,6 +372,7 @@ fn without_a_session_that_serves_menus_zfsbootmenu_runs_its_own() {
     let never = || false;
     let (terminal, _other) = zbm_sys::socket::Connection::pair().unwrap();
     let remote = Remote {
+        program: "zfsbootmenu",
         socket: &path,
         terminal: (terminal.as_fd(), terminal.as_fd()),
         stop: &never,

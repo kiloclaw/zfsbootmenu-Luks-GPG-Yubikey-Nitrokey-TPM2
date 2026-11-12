@@ -9,7 +9,7 @@ use zbm_display::keys::{Key, KeyPress};
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::keymap::{Context, Map, Tab};
-use crate::menu::model::{Dialog, Model, Screen};
+use crate::menu::model::{Column, Dialog, Model, Screen};
 use crate::menu::theme::Theme;
 use crate::menu::world::Snapshot;
 
@@ -156,4 +156,43 @@ fn a_new_round_asks_for_the_history_again_and_keeps_the_tab_left_at_start_up() {
     model.started = true;
     model.begin_round();
     assert_eq!(model.screen, Screen::Main);
+}
+
+#[test]
+fn opening_on_snapshots_after_start_up_loads_them_without_the_start_up_warning() {
+    let arch: zbm_types::DatasetName = "tank/ROOT/arch".parse().unwrap();
+    let mut session = powered_on(&workspace());
+
+    session.open_snapshots(Some(arch.clone()));
+
+    let model = session.model();
+    assert!(model.started);
+    assert_eq!(
+        (model.screen, model.focus.as_ref(), model.countdown),
+        (Screen::Snapshots, Some(&arch), None)
+    );
+    assert_ne!(model.column(), Column::NotRead);
+    assert_eq!(model.notification, None);
+    // Its keys are the menu's: the log, and the help of the tab.
+    session.press(KeyPress::new(Key::Char('l')).with_alt());
+    assert_eq!(session.model().screen, Screen::Log);
+    session.key(Key::Char('2'));
+    session.key(Key::Char('?'));
+    assert_eq!(session.model().screen, Screen::Help(Context::Snapshots));
+}
+
+#[test]
+fn opening_on_snapshots_without_an_environment_shows_the_selected_one_s() {
+    let mut session = powered_on(&workspace());
+
+    session.open_snapshots(None);
+
+    let model = session.model();
+    let selected = model.selected_environment().map(|e| e.name.clone());
+    assert!(selected.is_some());
+    assert_eq!(
+        (model.screen, model.focus.clone(), model.countdown),
+        (Screen::Snapshots, selected, None)
+    );
+    assert_ne!(model.column(), Column::NotRead);
 }

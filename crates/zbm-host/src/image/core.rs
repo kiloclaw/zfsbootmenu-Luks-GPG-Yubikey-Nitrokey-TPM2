@@ -13,11 +13,12 @@ use super::{Entry, Fatal, Image, library};
 /// is the start-up program, `zluks`, the menu, the hook stages' runner, the
 /// library functions' (`zfunc`), `reboot` with its other names,
 /// `zfs-chroot`, `zkexec`, `mount_esp`, and `logs` with its other names
-/// and the prompt's error printer (`logs --prompt`), and the help viewer
-/// (`zbm help`); `/bin/debug`, a legacy name of `ztrace`, goes, as `zbm
+/// and the prompt's error printer (`logs --prompt`), the help viewer
+/// (`zbm help`), and `zsnapshots` (the menu on its Snapshots tab);
+/// `/bin/debug`, a legacy name of `ztrace`, goes, as `zbm
 /// debug` is another program. The library itself is generated
 /// ([`library`]).
-const RUST_REPLACES: [&str; 19] = [
+const RUST_REPLACES: [&str; 20] = [
     "libexec/zfsbootmenu-init",
     "libexec/zfsbootmenu-run-hooks",
     "libexec/zfunc",
@@ -37,6 +38,7 @@ const RUST_REPLACES: [&str; 19] = [
     "bin/debug",
     "libexec/recovery-error-printer",
     "libexec/zfsbootmenu-help",
+    "bin/zsnapshots",
 ];
 
 /// `/bin/zbm` of the Rust runtime: the menu, or with a command (`zbm debug

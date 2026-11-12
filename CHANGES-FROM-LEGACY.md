@@ -924,8 +924,8 @@ The log since start-up, and the boots saved before: the log view of the classic 
 
 ### `fzf`
 
-The menu no longer uses `fzf`. Rust images still install it, for the tool of the recovery shell that is not ported yet
-(`zsnapshots`); it leaves the images when R5 and R6 port it.
+The menu no longer uses `fzf`, nor does any tool of the recovery shell of Rust images. Rust images still install it;
+it leaves them before the legacy runtime's other files they keep.
 
 ## The recovery shell's tools
 
@@ -1044,11 +1044,28 @@ scripts.
   pages in `/usr/share/docs/help-files`, ten pages at each of three widths: the five screens of the `fzf` menu, the
   recovery shell's page and four manual pages. The shell's `help` opened the recovery shell's page, and `MOD+H` in an
   `fzf` screen the page of that screen.
-- **Now:** Rust images install neither: the shell's `help` is `zbm help` (above). Legacy images keep both. The legacy
-  `zsnapshots`, which Rust images still install until it is ported (see `fzf` above), still names `[CTRL+H] help`
-  in its header: in a Rust image `MOD+H` there shows no help.
+- **Now:** Rust images install neither: the shell's `help` is `zbm help` (above). Legacy images keep both.
 - **Why:** ADR 0018, point 17: the help comes from the code's own tables, and the `fzf` screens have gone from the
   menu.
+
+### `zsnapshots` is the menu on its Snapshots tab
+
+- **Before:** `/bin/zsnapshots [FILESYSTEM]`, a Bash script, showed the snapshots of any ZFS filesystem in `fzf`, in
+  the snapshot screen of the `fzf` menu; without FILESYSTEM it first offered the boot environments in an `fzf` picker.
+  A name that was no filesystem's, a snapshot's among them, was refused in the kernel log, which the next prompt
+  showed ("'NAME' is not a ZFS filesystem"), with the exit status 1. The script ran in the shell's own process, beside a menu running elsewhere, as
+  over SSH. `zfsbootmenu` ignored its arguments.
+- **Now:** a link to `zbm`, which runs the menu as `zfsbootmenu --snapshots [ENVIRONMENT]`: it opens on the Snapshots
+  tab, of the boot environment named, else of the one the menu selects, and from there it is the whole menu, with the
+  Snapshots tab's keys (see Keys) and its other tabs. It takes boot environments only, as the menu lists their
+  snapshots alone: another filesystem is refused on standard error, which names `zfs list -t snapshot -r` to list its
+  snapshots, with the exit status 1; a name that is no filesystem's, a snapshot's among them, and more than one
+  argument are usage errors (exit status 2). As `zfsbootmenu` does, it ends a menu running elsewhere, as over SSH, and
+  the session serves it, so its changes keep the lock of a locked menu; its recovery shell ends it, back to the shell
+  it ran in. The classic menu (`zbm.menu=classic`) has no Snapshots tab: there both are refused (exit status 2).
+  `zfsbootmenu` refuses any other argument (exit status 2).
+- **Why:** ADR 0018, point 18: the menu's Snapshots tab and its actions replace the `fzf` screen, and the menu holds
+  the snapshots of boot environments only.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

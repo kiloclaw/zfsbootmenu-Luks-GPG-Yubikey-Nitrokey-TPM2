@@ -28,6 +28,10 @@
 //! - the shell's zreport, which is `zbm`'s, through a pipe: it exits 0
 //!   and lists the built-in step `teardown.d/80-luks-close.sh` among its
 //!   steps, to run, as nothing replaces or skips it on this machine;
+//! - the shell's `zsnapshots tplain/ROOT/be`, which is `zbm`'s: the session
+//!   serves the menu, which opens on the Snapshots tab of `tplain`'s
+//!   environment; `!` and Enter, its recovery shell, end it, back at the
+//!   prompt, `zsnapshots` ending with 0;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
@@ -110,6 +114,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     logs(test, &mut vm)?;
     help(test, &mut vm)?;
     zreport(test, &mut vm)?;
+    zsnapshots(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
@@ -335,6 +340,38 @@ fn zreport(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
             .lines()
             .any(|line| line.contains(LUKS_CLOSE) && !line.contains(" (")),
         &format!("zreport lists the built-in step {LUKS_CLOSE}, which runs"),
+    );
+    Ok(())
+}
+
+/// The recovery shell's `zsnapshots` of `tplain`'s environment, followed by
+/// its exit status once the menu ended.
+const ZSNAPSHOTS: &str = "clear; zsnapshots tplain/ROOT/be; echo ZSNAPSHOTS-RC=$?";
+
+/// The title of the Snapshots tab's column, as the menu draws it, in the
+/// order its snapshots are sorted by.
+const SNAPSHOTS_TITLE: &str = "screen:SNAPSHOTS BY";
+
+/// Runs `zsnapshots` on `tplain`'s environment, which must open the menu
+/// on its Snapshots tab; `!` and Enter, the recovery shell, must end it,
+/// back at the prompt, `zsnapshots` ending with 0.
+///
+/// # Errors
+///
+/// When a key cannot be sent.
+fn zsnapshots(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("zsnapshots tplain/ROOT/be: the menu on the environment's Snapshots tab");
+    vm.sendline(ZSNAPSHOTS)?;
+    let shown = vm.expect1(SNAPSHOTS_TITLE, 120).is_ok();
+    test.check(
+        shown && vm.console().screen().contains("tplain/ROOT/be"),
+        "zsnapshots opens the menu on the Snapshots tab of tplain/ROOT/be",
+    );
+    crate::boot::ask_menu_for_shell(vm)?;
+    let left = vm.expect1("ZSNAPSHOTS-RC=0", 120).is_ok();
+    test.check(
+        left,
+        "! and Enter leave the menu, back at the prompt, zsnapshots ending with 0",
     );
     Ok(())
 }

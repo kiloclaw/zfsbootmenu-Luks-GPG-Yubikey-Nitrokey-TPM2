@@ -229,6 +229,15 @@ impl<M: Machine> Session<M> {
         }
     }
 
+    /// Opens the Snapshots tab of `environment`, else of the selected one,
+    /// as `zfsbootmenu --snapshots` opens the menu. Start-up ends first
+    /// ([`Session::start`]), so the warning of the tab's key, that the
+    /// snapshots wait for start-up, does not show.
+    pub fn open_snapshots(&mut self, environment: Option<zbm_types::DatasetName>) {
+        self.start();
+        self.step(Message::OpenSnapshots(environment));
+    }
+
     /// Why the menu ended, once it did.
     pub fn leaving(&self) -> Option<&str> {
         self.model().leaving.as_deref()
