@@ -75,10 +75,10 @@ const NO_FIRMWARE_SETUP: [&str; 2] = [
 const PATIENCE: u64 = 1200;
 
 /// The chroot's question, which counts down.
-const CHROOT_QUESTION: &str = "screen:Entering chroot in";
+pub(crate) const CHROOT_QUESTION: &str = "screen:Entering chroot in";
 
 /// The last of the chroot's notices, once its shell is found.
-const CHROOT_NOTICES: &str = "screen:/tmp is mounted read/write";
+pub(crate) const CHROOT_NOTICES: &str = "screen:/tmp is mounted read/write";
 
 /// What the test boot environment's `/etc/os-release` names.
 const TEST_ENVIRONMENT: &str = "ZBM test boot environment";

@@ -169,6 +169,9 @@ pub struct ImageSpec {
     pub features: Option<String>,
     /// `Global.ConsoleFont` of the `generate-zbm` configuration.
     pub console_font: Option<String>,
+    /// Ubuntu packages the build installs in its container first, as
+    /// `build-init.sh -p` does for a user, such as `network-manager`.
+    pub packages: Vec<String>,
 }
 
 impl ImageSpec {
@@ -203,6 +206,10 @@ impl ImageSpec {
         );
         if let Some(font) = &self.console_font {
             writeln!(stamp, "console-font {}", hex(font.as_bytes())).ok();
+        }
+        if !self.packages.is_empty() {
+            let packages = self.packages.join(" ");
+            writeln!(stamp, "packages {}", hex(packages.as_bytes())).ok();
         }
         let mut files: Vec<&(String, Vec<u8>)> = self.files.iter().collect();
         files.sort();
@@ -298,9 +305,11 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
         .map(|f| ("ZBM_CARGO_FEATURES", f))
         .into_iter()
         .collect();
+    let args = build_args(spec);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let output = container(
         settings,
-        &["-V"],
+        &args,
         &[(&settings.repo, "/zbm:ro"), (&dir, "/build")],
         "/zbm/packaging/container/build-init.sh",
         &env,
@@ -315,6 +324,16 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     }
     fs::write(&stamp_path, stamp).map_err(Error::io("writing the image's inputs"))?;
     own_links(&image, &settings.work.join("zbm"), &variant)
+}
+
+/// The arguments of `build-init.sh` for an image with `spec`: no versions
+/// in the names (`-V`), and `-p` for each of its packages.
+fn build_args(spec: &ImageSpec) -> Vec<String> {
+    let packages = spec
+        .packages
+        .iter()
+        .flat_map(|name| ["-p".to_owned(), name.clone()]);
+    std::iter::once("-V".to_owned()).chain(packages).collect()
 }
 
 /// The directory below `images` (`in-use/`) where each harness process

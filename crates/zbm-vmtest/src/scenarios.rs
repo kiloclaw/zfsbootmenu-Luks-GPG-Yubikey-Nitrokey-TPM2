@@ -71,6 +71,7 @@ pub const ALL: &[&str] = &[
     "runtime-rust-console-lines",
     "runtime-rust-saved",
     "runtime-rust-recovery",
+    "runtime-rust-resolv",
     "runtime-rust-gpu",
     "menu-setup",
     "menu-snapshots",

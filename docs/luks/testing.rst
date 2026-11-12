@@ -44,7 +44,10 @@ Virtual-machine tests
   Podman with the build container image (``localhost/zbm-builder``, see :doc:`/general/container-building`).
   ``runtime-rust-crash`` also runs ``cargo xtask symbolize`` on the host, which needs the Rust toolchain and
   ``addr2line`` (binutils); started with ``sudo``, it runs as the user who started it, with their
-  *~/.cargo/bin*. They use about 8 GB in the work directory. With KVM, the whole run takes about
+  *~/.cargo/bin*. ``runtime-rust-resolv``'s image installs ``network-manager`` in the build container each time it is
+  built, so the container must reach Ubuntu's mirrors then; its name lookup needs a resolver on the host that answers
+  QEMU's user network, as QEMU forwards each question to it (offline, an answer such as SERVFAIL passes; no answer
+  fails). They use about 8 GB in the work directory. With KVM, the whole run takes about
   an hour; with software emulation (TCG), several hours. The harness writes partition tables for 4 KiB sectors itself
   and maps partitions of disk images to loop devices by offset, so it needs neither util-linux 2.40 nor a kernel that
   scans partitions on loop devices.
@@ -272,7 +275,9 @@ Following a boot
 
   * ``runtime-setup``: creates the pools in the recovery shell of the legacy image, and a third, ``tkeys``, whose
     boot environment is encrypted with a key file kept in its key source ``tkeys/keystore``
-    (``org.zfsbootmenu:keysource``), itself encrypted with a passphrase.
+    (``org.zfsbootmenu:keysource``), itself encrypted with a passphrase. ``tplain``'s boot environment alone gets an
+    ``/etc/resolv.conf``: systemd-resolved's link ``../run/systemd/resolve/stub-resolv.conf``, into its empty
+    ``/run``.
   * ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
     start-up program (the Rust supervisor), and hooks see ``BOOTFS``.
   * ``-hostid``: ``tforeign`` alone: host ID matching imports it, and the boot environment gets ``spl_hostid``.
@@ -485,6 +490,25 @@ Following a boot
   (unit tests), ``mount_esp`` without an argument (the FAT disk has no GPT), a hook's ``zfs_chroot``, a chroot of an
   encrypted environment or over SSH, and ``reboot``, ``poweroff`` and a reboot into the firmware's setup, which end
   the machine.
+
+* ``runtime-rust-resolv`` checks that names resolve in a chroot with ZFSBootMenu's name servers (ROADMAP.md SB15). Its
+  Rust image, ``auto-net``, is built with NetworkManager, installed by ``build-init.sh -p network-manager`` as
+  :doc:`/general/container-building/example` tells users, and dracut's ``network-manager`` module; the machine has
+  QEMU's user network and ``ip=dhcp rd.neednet=1`` on its command line, and d0 (``tplain``). In order:
+
+  * before the countdown, an early-setup hook prints a ``ZBMTEST-NET`` line: the image's address must be in
+    ``10.0.2.0/24`` (the network was up before start-up ran), NetworkManager must have finished, and the image's
+    ``/etc/resolv.conf`` must name QEMU's name server ``10.0.2.3``; each is a check of its own;
+  * ``zfs-chroot tplain/ROOT/be``, read-only: its notices say ``/run`` is in memory, read/write, then that
+    ``/etc/resolv.conf -> /run/systemd/resolve/stub-resolv.conf`` is mounted read-only, before ``/tmp``; in the
+    chroot, ``/etc/resolv.conf`` names ``10.0.2.3``, ``/proc/mounts`` shows the file mounted read-only, writing it
+    fails on a read-only file system, and ``busybox nslookup example.org`` must get a reply from ``10.0.2.3``: an
+    address, or an answer such as NXDOMAIN or SERVFAIL; no reply, or a reply from another server, fails. Its output
+    goes into the test's notes; ``exit`` ends ``zfs-chroot`` with 0;
+  * after the chroot, nothing it mounted is left in ``/proc/self/mounts``, and ``tplain``'s environment, mounted
+    read-only meanwhile, still has its link and an empty ``/run``.
+
+  The menu's chroot is the same code, which ``runtime-rust-recovery`` opens.
 
 * ``runtime-rust-saved`` checks the saved boot logs and bug reports (ROADMAP.md #9). Besides d0, the machine has a
   FAT disk labelled ``ZBMLOGS``, made fresh for each run, and both boots have ``zbm.save_logs=LABEL=ZBMLOGS``. The
@@ -742,6 +766,10 @@ chroots, ``zsnapshots``'s menu and ``zkexec``'s boot, a minute or so each, and a
 command). ``integrity-locked``'s second PIN and chroot add about a minute, ``firmware-boot``'s 30-second countdown and
 power sheet about a minute with the Rust runtime, and the command line's firmware entry about 10 s to ``menu-boot``
 and to ``menu-display`` each.
+
+SB15 adds ``runtime-rust-resolv``, not run yet. With KVM, it is expected to take about 3 minutes without building its
+image (a minute to the countdown, 5 to 15 s of DHCP, about a minute for the chroot and its checks); building
+``auto-net-rust`` adds the installation of NetworkManager to the usual build.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to

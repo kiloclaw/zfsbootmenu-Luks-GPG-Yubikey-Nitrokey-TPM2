@@ -1,7 +1,9 @@
 //! `runtime-setup`: the pools `tplain` (d0, exported by this host) and
 //! `tforeign` (d1, left imported by the host `deadbeef`), each holding the
 //! test boot environment as its bootfs, and `tkeys` (d2), whose boot
-//! environment's key comes from a key source (`keysource`).
+//! environment's key comes from a key source (`keysource`). Only `tplain`'s
+//! environment has an `/etc/resolv.conf`: systemd-resolved's link into its
+//! empty `/run` ([`RESOLV_LINK`], for `resolv`).
 
 use std::fmt::Write as _;
 
@@ -23,6 +25,10 @@ const FOREIGN: [u8; 4] = [0xef, 0xbe, 0xad, 0xde];
 
 /// The pools, in the order of their disks.
 const POOLS: [&str; 2] = ["tplain", "tforeign"];
+
+/// Where `tplain`'s environment's `/etc/resolv.conf` leads: the stub of
+/// systemd-resolved, below the environment's `/run`, which is empty.
+pub(crate) const RESOLV_LINK: &str = "../run/systemd/resolve/stub-resolv.conf";
 
 /// The passphrase in the key file of `tkeys`'s boot environment.
 pub(super) const BE_KEY: &str = "tkeys-be-key";
@@ -52,6 +58,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
             "zfs set org.zfsbootmenu:commandline='{BE_CMDLINE}' {pool}/ROOT/be"
         ))?;
     }
+    vm.must(&resolver_link())?;
     keyed_pool(test, &mut vm)?;
     vm.must("finish")?;
     // tforeign belongs to another host and stays imported, as after a crash
@@ -90,6 +97,16 @@ fn keyed_pool(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     Ok(())
 }
 
+/// The command that makes `tplain`'s `/etc/resolv.conf` the link
+/// [`RESOLV_LINK`], with the environment mounted on `/be` meanwhile, as
+/// `mkbe` mounts it; it fails when the link cannot be made.
+fn resolver_link() -> String {
+    format!(
+        "mount -t zfs -o zfsutil tplain/ROOT/be /be && \
+         {{ ln -s {RESOLV_LINK} /be/etc/resolv.conf; made=$?; umount /be && [ $made -eq 0 ]; }}"
+    )
+}
+
 /// The command that writes the other host's ID and imports `tforeign`.
 pub(crate) fn foreign_import() -> String {
     let hostid = FOREIGN.iter().fold(String::new(), |mut out, byte| {
@@ -103,6 +120,16 @@ pub(crate) fn foreign_import() -> String {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn tplain_s_resolv_conf_is_systemd_resolved_s_link_made_while_mounted() {
+        assert_eq!(
+            resolver_link(),
+            "mount -t zfs -o zfsutil tplain/ROOT/be /be && { ln -s \
+             ../run/systemd/resolve/stub-resolv.conf /be/etc/resolv.conf; made=$?; \
+             umount /be && [ $made -eq 0 ]; }"
+        );
+    }
 
     #[test]
     fn the_other_host_id_is_written_little_endian() {

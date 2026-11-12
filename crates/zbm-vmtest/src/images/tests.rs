@@ -90,6 +90,34 @@ fn a_console_font_is_a_global_key_of_the_generate_zbm_configuration() {
 }
 
 #[test]
+fn packages_reach_build_init_as_dash_p_and_the_stamp() {
+    let spec = ImageSpec {
+        packages: vec!["network-manager".into(), "iproute2".into()],
+        ..ImageSpec::new("auto-net")
+    };
+
+    assert_eq!(
+        build_args(&spec),
+        ["-V", "-p", "network-manager", "-p", "iproute2"]
+    );
+    assert!(
+        spec.stamp().contains(&format!(
+            "\npackages {}\n",
+            "network-manager iproute2"
+                .bytes()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        )),
+        "{}",
+        spec.stamp()
+    );
+    // Without packages, the build and the stamp are as before.
+    let plain = ImageSpec::new("auto-net");
+    assert_eq!(build_args(&plain), ["-V"]);
+    assert!(!plain.stamp().contains("packages"), "{}", plain.stamp());
+}
+
+#[test]
 fn an_image_without_a_crypttab_names_none() {
     let conf = dracut_conf(&ImageSpec::new("auto"), "");
 
