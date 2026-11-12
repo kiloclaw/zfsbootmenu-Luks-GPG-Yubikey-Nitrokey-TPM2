@@ -33,6 +33,10 @@
 //!   environment; `!` and Enter, its recovery shell, end it, back at the
 //!   prompt, `zsnapshots` ending with 0;
 //! - the shell's `command -v fzf` fails: Rust images have no `fzf`;
+//! - the shell's completion of `zsnapshots`, called as Tab calls it after
+//!   `zsnapshots tplain/`: it offers `tplain`'s boot environment alone,
+//!   which `zbm complete` lists, so the `.bashrc`'s completions run in the
+//!   image's shell;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
 //!   the menu's chroot does, Enter keeps it read-only, its shell reads the
 //!   environment's `/etc/os-release`, and `exit` is back in the recovery
@@ -117,6 +121,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     zreport(test, &mut vm)?;
     zsnapshots(test, &mut vm)?;
     no_fzf(test, &mut vm)?;
+    completion(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
@@ -389,6 +394,30 @@ fn no_fzf(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     test.check(
         code != 0,
         &format!("the image has no fzf: command -v fzf fails ({code})"),
+    );
+    Ok(())
+}
+
+/// The `.bashrc`'s completion, called as Tab calls it for the word
+/// `tplain/` after `zsnapshots`, then what it offers, between `<` and `>`.
+const COMPLETION: &str =
+    "COMP_CWORD=1; _zbm_complete zsnapshots tplain/; echo \"<${COMPREPLY[*]}>\"";
+
+/// What [`COMPLETION`] prints: `tplain`'s boot environment, alone.
+const COMPLETED: &str = "<tplain/ROOT/be>";
+
+/// Calls the recovery shell's completion of `zsnapshots`'s argument as Tab
+/// does, which must offer `tplain`'s boot environment alone.
+///
+/// # Errors
+///
+/// When the command does not end in time.
+fn completion(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    test.step("Tab after zsnapshots tplain/: the boot environments zbm complete lists");
+    let (code, said) = vm.sh_show(COMPLETION)?;
+    test.check(
+        code == 0 && said.lines().any(|line| line.trim() == COMPLETED),
+        &format!("Tab after zsnapshots tplain/ offers tplain/ROOT/be alone ({code})"),
     );
     Ok(())
 }

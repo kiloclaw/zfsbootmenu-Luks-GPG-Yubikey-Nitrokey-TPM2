@@ -7,6 +7,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use zbm_tools::host::fzf_supports;
+use zbm_types::{Completion, LINKED};
 
 use super::{Builder, Image};
 
@@ -37,6 +38,62 @@ source /lib/zfsbootmenu-kcl.sh >/dev/null 2>&1
 /// images do not take.
 const COMPLETIONS_LEGACY: &str =
     "[ -f /lib/zfsbootmenu-completions.sh ] && source /lib/zfsbootmenu-completions.sh\n";
+
+/// The Rust runtime's completions, before the lines that name their
+/// commands ([`completions_rust`]).
+const COMPLETE_FUNCTION: [&str; 2] = [
+    r#"
+# Tab completes the argument of the recovery shell's commands with the names
+# zbm lists for it, those the command takes
+_zbm_complete() {
+  local kind IFS=$'\n'
+  COMPREPLY=()
+  case "${1##*/} ${COMP_CWORD} $3" in
+"#,
+    r#"    *) return 0 ;;
+  esac
+  COMPREPLY=( $( /libexec/zbm complete "${kind}" "$2" ) )
+}
+"#,
+];
+
+/// The Rust runtime's completions, from the names an image links to `zbm`
+/// and the shell library's functions, each with what it completes (ADR
+/// 0018, point 23): one function that asks `zbm complete` for the names
+/// that fit the word, and the commands it completes. A command's first
+/// argument is completed, or the argument of its option where it names
+/// one; the patterns match the command's name, the word's place and the
+/// word before it.
+pub(super) fn completions_rust() -> String {
+    let linked = LINKED.iter().filter_map(|linked| {
+        let (kind, option) = linked.complete?;
+        let pattern = match option {
+            Some(option) => format!("\"{} 2 {option}\"", linked.name),
+            None => format!("\"{} 1 \"*", linked.name),
+        };
+        Some((linked.name, pattern, kind))
+    });
+    let functions = Completion::FUNCTIONS
+        .iter()
+        .map(|(name, kind)| (*name, format!("\"{name} 1 \"*"), *kind));
+    let completed: Vec<(&str, String, Completion)> = linked.chain(functions).collect();
+    let mut text = String::from(COMPLETE_FUNCTION[0]);
+    for kind in Completion::ALL {
+        let patterns: Vec<&str> = completed
+            .iter()
+            .filter(|(_, _, of)| *of == kind)
+            .map(|(_, pattern, _)| pattern.as_str())
+            .collect();
+        if !patterns.is_empty() {
+            let _ = writeln!(text, "    {}) kind={} ;;", patterns.join("|"), kind.name());
+        }
+    }
+    text.push_str(COMPLETE_FUNCTION[1]);
+    for (name, _, _) in &completed {
+        let _ = writeln!(text, "complete -F _zbm_complete {name}");
+    }
+    text
+}
 
 /// The command the legacy runtime runs before each prompt, after a blank
 /// line: the errors logged since the last prompt, read with `dmesg
@@ -166,17 +223,17 @@ pub fn profiles(image: &mut Image) {
 }
 
 /// `/root/.bashrc` of the Rust runtime (`is_rust`) or of the legacy one,
-/// which differ in the completions, which the Rust one has none of, in the
-/// command run before each prompt and in `help`.
+/// which differ in the completions, in the command run before each prompt
+/// and in `help`.
 fn bashrc(is_rust: bool) -> String {
     let (completions, prompt, help) = if is_rust {
-        ("", PROMPT_RUST, HELP_RUST)
+        (completions_rust(), PROMPT_RUST, HELP_RUST)
     } else {
-        (COMPLETIONS_LEGACY, PROMPT_LEGACY, HELP_LEGACY)
+        (COMPLETIONS_LEGACY.to_owned(), PROMPT_LEGACY, HELP_LEGACY)
     };
     [
         BASHRC,
-        completions,
+        &completions,
         prompt,
         BASHRC_ALIASES,
         help,

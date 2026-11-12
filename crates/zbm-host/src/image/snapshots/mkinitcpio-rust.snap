@@ -1038,6 +1038,34 @@ file	@/root/.bashrc	/root/.bashrc	0644
     | source /lib/zfsbootmenu-kcl.sh >/dev/null 2>&1
     | [ -f /etc/profile ] && source /etc/profile
     | 
+    | # Tab completes the argument of the recovery shell's commands with the names
+    | # zbm lists for it, those the command takes
+    | _zbm_complete() {
+    |   local kind IFS=$'\n'
+    |   COMPREPLY=()
+    |   case "${1##*/} ${COMP_CWORD} $3" in
+    |     "zkexec 1 "*) kind=filesystems ;;
+    |     "zfs-chroot 1 "*|"zfs_chroot 1 "*|"mount_zfs 1 "*) kind=filesystems-and-snapshots ;;
+    |     "zfsbootmenu 2 --snapshots"|"zsnapshots 1 "*) kind=boot-environments ;;
+    |     "set_rw_pool 1 "*) kind=read-only-pools ;;
+    |     "set_ro_pool 1 "*) kind=writable-pools ;;
+    |     "mount_esp 1 "*) kind=esp-partitions ;;
+    |     "mount_efivarfs 1 "*) kind=efivarfs-modes ;;
+    |     *) return 0 ;;
+    |   esac
+    |   COMPREPLY=( $( /libexec/zbm complete "${kind}" "$2" ) )
+    | }
+    | complete -F _zbm_complete zfsbootmenu
+    | complete -F _zbm_complete zfs-chroot
+    | complete -F _zbm_complete zkexec
+    | complete -F _zbm_complete mount_esp
+    | complete -F _zbm_complete zsnapshots
+    | complete -F _zbm_complete zfs_chroot
+    | complete -F _zbm_complete set_rw_pool
+    | complete -F _zbm_complete set_ro_pool
+    | complete -F _zbm_complete mount_zfs
+    | complete -F _zbm_complete mount_efivarfs
+    | 
     | export PROMPT_COMMAND="/libexec/zbm logs --prompt"
     | export PS1='\[\033[0;33m\]zfsbootmenu\[\033[0m\] \w > '
     | 

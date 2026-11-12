@@ -3,8 +3,9 @@
 //! for `--help`, and the function that runs it.
 
 use crate::{
-    Applet, applets, chroot, console, console_font, debug, esp, explain, fonts, help, image, kexec,
-    layouts, lock, logs, luks, measure, menu, power, report, run_hooks, snapshots, unlock, zfunc,
+    Applet, applets, chroot, complete, console, console_font, debug, esp, explain, fonts, help,
+    image, kexec, layouts, lock, logs, luks, measure, menu, power, report, run_hooks, snapshots,
+    unlock, zfunc,
 };
 
 const INIT: Applet = Applet {
@@ -443,6 +444,25 @@ the classic menu (zbm.menu=classic), which has no Snapshots tab.
     run: snapshots::run,
 };
 
+/// The completions of the recovery shell's `.bashrc`, which nobody types:
+/// `zbm --list` and `zbm help` leave it out.
+pub(crate) const COMPLETE: Applet = Applet {
+    name: "complete",
+    names: &[],
+    summary: "list the names Tab completes in the recovery shell",
+    usage: "\
+Usage: zbm complete KIND [PREFIX]
+
+Prints the names of KIND that start with PREFIX, one per line, for the
+recovery shell's Tab: each as one shell word, a space behind a backslash,
+and PREFIX as typed. The exit status is 2 for an unknown KIND.
+
+Kinds: filesystems filesystems-and-snapshots boot-environments
+  read-only-pools writable-pools esp-partitions efivarfs-modes
+",
+    run: complete::run,
+};
+
 /// The commands `zbm` provides.
 pub const APPLETS: &[Applet] = &[
     INIT,
@@ -473,6 +493,7 @@ pub const APPLETS: &[Applet] = &[
     LOGS,
     HELP,
     ZSNAPSHOTS,
+    COMPLETE,
 ];
 
 #[cfg(test)]
@@ -524,6 +545,17 @@ mod tests {
             for (name, first) in applet.names {
                 let linked = LINKED.iter().find(|linked| linked.name == *name);
                 assert_eq!(linked.map(|linked| linked.first), Some(*first), "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_option_whose_argument_tab_completes_is_the_menu_s() {
+        // Only the menu completes the argument of an option: the one its
+        // applet opens on the Snapshots tab with.
+        for linked in LINKED {
+            if let Some((_, Some(option))) = linked.complete {
+                assert_eq!((linked.name, option), ("zfsbootmenu", menu::SNAPSHOTS));
             }
         }
     }

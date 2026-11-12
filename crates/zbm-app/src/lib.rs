@@ -21,6 +21,7 @@ pub mod auth;
 mod boot;
 mod changes;
 pub mod chroot;
+pub mod complete;
 pub mod console;
 pub mod devices;
 pub mod esp;

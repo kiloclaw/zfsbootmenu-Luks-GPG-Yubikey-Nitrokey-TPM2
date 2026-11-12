@@ -40,6 +40,9 @@ const SYS_BLOCK: &str = "/sys/class/block";
 /// udev's database of devices.
 const UDEV_DATA: &str = "/run/udev/data";
 
+/// The GPT partition type of an EFI system partition.
+const ESP_TYPE: &str = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b";
+
 /// The block devices: `blkid`, run through a [`Runner`], and what the
 /// kernel and udev say of them, read through [`Files`].
 #[derive(Clone, Copy)]
@@ -133,12 +136,12 @@ impl<'a> Devices<'a> {
             .is_ok_and(|output| output.status.is_success())
     }
 
-    /// The partitions whose GPT partition type is `kind`, a GUID such as
-    /// the EFI system partition's, as paths, in the order of their names:
-    /// the type udev read from the partition table (`ID_PART_ENTRY_TYPE`).
-    /// Without udev's record of any partition, `lsblk -rnpo NAME,PARTTYPE`
-    /// says.
-    pub fn partitions_of_type(&self, kind: &str) -> Vec<String> {
+    /// The EFI system partitions, by their GPT partition type, as paths,
+    /// in the order of their names: the type udev read from the partition
+    /// table (`ID_PART_ENTRY_TYPE`). Without udev's record of any
+    /// partition, `lsblk -rnpo NAME,PARTTYPE` says.
+    pub fn efi_system_partitions(&self) -> Vec<String> {
+        let kind = ESP_TYPE;
         let mut recorded = false;
         let mut found = Vec::new();
         for name in self.block_devices() {
@@ -290,7 +293,7 @@ mod tests {
         assert_eq!(devices.content_type("/dev/mapper/a"), "zfs_member");
         assert_eq!(devices.tag("/dev/sda2", "LABEL"), "");
         assert_eq!(devices.size("/dev/sda2"), "7.5G");
-        let esp = devices.partitions_of_type("c12a7328-f81f-11d2-ba4b-00a0c93ec93b");
+        let esp = devices.efi_system_partitions();
         assert_eq!(esp, ["/dev/sda1"]);
         let failing = FakeRunner::new();
         failing.on(|_| Some(Err(std::io::Error::other("no blkid"))));
@@ -341,7 +344,7 @@ mod tests {
         assert_eq!(devices.size("/dev/sda1"), "512M");
         assert_eq!(devices.size("/dev/sda2"), "7.5G");
         assert_eq!(devices.size("/dev/sdb1"), "12.5M");
-        let esp = devices.partitions_of_type("c12a7328-f81f-11d2-ba4b-00a0c93ec93b");
+        let esp = devices.efi_system_partitions();
         assert_eq!(esp, ["/dev/sda1"]);
         assert!(runner.calls().is_empty(), "{:?}", runner.lines());
     }

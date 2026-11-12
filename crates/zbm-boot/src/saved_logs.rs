@@ -27,9 +27,6 @@ use zbm_tools::devices::Devices;
 use zbm_tools::mount::Mount;
 use zbm_types::BootRecord;
 
-/// The GPT partition type of an EFI system partition.
-pub(crate) const ESP_TYPE: &str = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b";
-
 /// The EFI variable with the partition the boot loader was loaded from.
 pub(crate) const LOADER_DEVICE: &str =
     "/sys/firmware/efi/efivars/LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f";
@@ -203,7 +200,7 @@ pub fn device(context: &Context<'_>, destination: &Destination) -> Result<String
                     return Ok(found);
                 }
             }
-            match devices.partitions_of_type(ESP_TYPE).as_slice() {
+            match devices.efi_system_partitions().as_slice() {
                 [] => Err(SaveError::NoEsp),
                 [one] => Ok(one.clone()),
                 many => Err(SaveError::Ambiguous(many.join(", "))),

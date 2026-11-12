@@ -12,6 +12,7 @@ use std::io::Write;
 
 pub mod applets;
 mod chroot;
+mod complete;
 pub mod console;
 pub mod console_font;
 pub mod debug;
@@ -100,6 +101,12 @@ Usage: zbm <command> [arguments]
     text
 }
 
+/// Whether `zbm --list` lists `applet`: all but `zbm complete`, which
+/// the recovery shell's Tab runs and nobody types.
+fn is_listed(applet: &Applet) -> bool {
+    applet.name != table::COMPLETE.name
+}
+
 /// The applet of `applets` that `name` runs, by its name or one of its
 /// names, with the arguments that name puts first.
 fn find<'a>(applets: &'a [Applet], name: &str) -> Option<(&'a Applet, &'static [&'static str])> {
@@ -155,7 +162,7 @@ pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -
             0
         }
         Some("--list") => {
-            for applet in applets {
+            for applet in applets.iter().filter(|applet| is_listed(applet)) {
                 let _ = writeln!(io.stdout, "{:<20} {}", applet.name, applet.summary);
             }
             0

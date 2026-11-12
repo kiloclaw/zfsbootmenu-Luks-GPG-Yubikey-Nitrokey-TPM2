@@ -88,8 +88,118 @@ fn the_rust_bashrc_runs_logs_prompt_and_the_legacy_one_is_unchanged() {
     let expected = legacy
         .replace(printer, logs)
         .replace(viewer, help)
-        .replace(completions, "");
+        .replace(completions, &super::super::shell::completions_rust());
     assert!(rust.starts_with(&expected), "{rust}");
+}
+
+#[test]
+fn every_completed_name_is_in_the_rust_bashrc() {
+    let rust = bashrc("zfsbootmenu_runtime\trust\n");
+    let completed = zbm_types::LINKED
+        .iter()
+        .filter_map(|linked| Some((linked.name, linked.complete?.0)))
+        .chain(zbm_types::Completion::FUNCTIONS.iter().copied());
+    let mut count = 0;
+    for (name, kind) in completed {
+        let line = format!("\ncomplete -F _zbm_complete {name}\n");
+        assert!(rust.contains(&line), "{name}: {rust}");
+        let arm = rust
+            .lines()
+            .find(|arm| arm.contains(&format!("\"{name} ")))
+            .unwrap_or_default();
+        assert!(
+            arm.ends_with(&format!(") kind={} ;;", kind.name())),
+            "{name}: {arm}"
+        );
+        count += 1;
+    }
+    assert_eq!(rust.matches("complete -F ").count(), count, "{rust}");
+    // The legacy runtime keeps its file.
+    let legacy = bashrc("");
+    assert!(!legacy.contains("_zbm_complete"), "{legacy}");
+}
+
+/// What the Rust `.bashrc`'s completion offers for the words `words`, the
+/// last being completed, run by `shell`: `zbm complete` stands in for
+/// `/libexec/zbm` and answers with its kind, its prefix and a name with a
+/// space, behind a backslash as `zbm complete` prints it.
+fn completed_by(shell: &str, words: &[&str]) -> String {
+    let rust = bashrc("zfsbootmenu_runtime\trust\n");
+    let start = rust.find("\n# Tab completes").unwrap();
+    let end = rust.find("\nexport PROMPT_COMMAND").unwrap();
+    let function = rust[start..end].replace("/libexec/zbm complete", "zbm_complete");
+    let quoted: Vec<String> = words.iter().map(|word| format!("'{word}'")).collect();
+    let (last, before) = (words.len() - 1, words.len().saturating_sub(2));
+    let script = format!(
+        "zbm_complete() {{ printf '%s\\n' \"$1:$2\" 'a\\ name'; }}\n{function}\n\
+         COMP_WORDS=({words})\nCOMP_CWORD={last}\n\
+         _zbm_complete {command} {current} {previous}\n\
+         printf '[%s]' \"${{COMPREPLY[@]}}\"\n",
+        words = quoted.join(" "),
+        command = quoted[0],
+        current = quoted[last],
+        previous = quoted[before],
+    );
+    let output = std::process::Command::new(shell)
+        .args(["--norc", "-c", &script])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    String::from_utf8(output.stdout).unwrap()
+}
+
+/// The workspace's `brush`, the image's shell, which the tests' build
+/// puts beside them: `target/debug/brush` for `target/debug/deps/TEST`.
+fn workspace_brush() -> std::path::PathBuf {
+    let test = std::env::current_exe().unwrap();
+    let deps = test.parent().unwrap();
+    deps.parent().unwrap_or(deps).join("brush")
+}
+
+#[test]
+fn the_rust_bashrc_completes_the_argument_a_command_takes_in_bash() {
+    if zbm_testkit::can_run(zbm_testkit::have_program("bash"), "bash") {
+        completes_the_argument_a_command_takes("bash");
+    }
+}
+
+#[test]
+fn the_rust_bashrc_completes_the_argument_a_command_takes_in_brush() {
+    let brush = workspace_brush();
+    let what = "the workspace's brush (cargo build -p zbm-brush)";
+    if zbm_testkit::can_run(brush.is_file(), what) {
+        completes_the_argument_a_command_takes(brush.to_str().unwrap());
+    }
+}
+
+/// The checks of the tests that the Rust `.bashrc` completes the argument
+/// a command takes, in `shell`.
+fn completes_the_argument_a_command_takes(shell: &str) {
+    assert_eq!(
+        completed_by(shell, &["zfs-chroot", "tank/R"]),
+        "[filesystems-and-snapshots:tank/R][a\\ name]"
+    );
+    assert_eq!(
+        completed_by(shell, &["/bin/zsnapshots", ""]),
+        "[boot-environments:][a\\ name]"
+    );
+    assert_eq!(
+        completed_by(shell, &["zfsbootmenu", "--snapshots", "t"]),
+        "[boot-environments:t][a\\ name]"
+    );
+    assert_eq!(
+        completed_by(shell, &["zkexec", "tank/h"]),
+        "[filesystems:tank/h][a\\ name]"
+    );
+    assert_eq!(
+        completed_by(shell, &["set_rw_pool", "r"]),
+        "[read-only-pools:r][a\\ name]"
+    );
+    // Not the second argument, nor the first of the menu, which takes an
+    // option there.
+    assert_eq!(completed_by(shell, &["zfs-chroot", "tank", "x"]), "[]");
+    assert_eq!(completed_by(shell, &["zfsbootmenu", "--"]), "[]");
+    assert_eq!(completed_by(shell, &["zkexec", "tank/ROOT/be", "v"]), "[]");
 }
 
 #[test]

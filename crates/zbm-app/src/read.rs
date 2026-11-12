@@ -143,6 +143,17 @@ fn is_boot_filesystem(dataset: &zbm_zfs::Dataset) -> bool {
     dataset.value("mountpoint") == Some("/") && dataset.value("canmount") != Some("off")
 }
 
+/// The names of the boot environments of the machine, in the order `zfs
+/// list` gives them; none when they cannot be listed.
+pub(crate) fn environment_names(zfs: &dyn Zfs) -> Vec<DatasetName> {
+    zfs.filesystems(None, PROPERTIES)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(is_boot_filesystem)
+        .map(|dataset| dataset.name)
+        .collect()
+}
+
 /// Whether `name` is a boot environment of the machine; not when it cannot
 /// be listed.
 pub(crate) fn is_environment(zfs: &dyn Zfs, name: &DatasetName) -> bool {

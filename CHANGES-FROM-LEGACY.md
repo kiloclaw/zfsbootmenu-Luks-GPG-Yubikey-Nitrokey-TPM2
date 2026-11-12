@@ -20,12 +20,12 @@ the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut
 ### The recovery shell is brush
 
 - **Before:** `bash -i`, with readline.
-- **Now:** `brush -i`, which reads the same `/root/.bashrc`: the prompt, the aliases, `help` and `PROMPT_COMMAND`
-  stay. On the console on the display and over SSH, its line editor is reedline, with history hints and syntax
-  colours; on a serial line, which may not answer the terminal queries of reedline, it is brush's basic line editor.
-  `BASH_VERSION` is still set, for scripts that check it, and `BRUSH_VERSION` names brush's version. The history goes
-  to `~/.brush_history`. When brush cannot start, or ends within five seconds, the supervisor opens `bash -i`
-  instead; `bash` typed in the shell starts Bash too.
+- **Now:** `brush -i`, which reads the same `/root/.bashrc`: the prompt, the aliases, `help`, `PROMPT_COMMAND` and
+  the completions stay. On the console on the display and over SSH, its line editor is reedline, with history hints
+  and syntax colours; on a serial line, which may not answer the terminal queries of reedline, it is brush's basic
+  line editor. `BASH_VERSION` is still set, for scripts that check it, and `BRUSH_VERSION` names brush's version. The
+  history goes to `~/.brush_history`. When brush cannot start, or ends within five seconds, the supervisor opens
+  `bash -i` instead; `bash` typed in the shell starts Bash too.
 - **Why:** one shell, in Rust like the rest of the runtime, with a better line editor.
 
 ### Hooks run on brush
@@ -1100,10 +1100,31 @@ scripts.
   the built-in step `80-luks-close.sh` does. A copy of the legacy hook `teardown.d/80-luks-close.sh` among an image's
   hooks takes the place of that step, as any hook of its name does, but now closes nothing: its `source` of the LUKS
   library fails and it exits 0, so the volumes stay open across `kexec`. Delete such a copy, or make it run
-  `zluks close`. The recovery shell's `.bashrc` sources no completions, so Tab completes the names of commands, files and
-  variables alone. Legacy images keep every file.
+  `zluks close`. The recovery shell's `.bashrc` completes with `zbm` instead of the legacy file
+  ([below](#tab-completes-what-zbm-complete-lists)). Legacy images keep every file.
 - **Why:** ADR 0018, points 20 and 22: Rust images take only what hooks and the library's legacy functions need, which
   SB7 removes with them.
+
+### Tab completes what `zbm complete` lists
+
+- **Before:** the recovery shell's `.bashrc` sourced `/lib/zfsbootmenu-completions.sh`, whose functions completed the
+  first argument of a few commands: every filesystem and snapshot (`zfs list`) for `zfs-chroot`, `zfs_chroot` and
+  `mount_zfs`; every filesystem for `zsnapshots` and for `zkexec`'s first argument, and for its second and third the
+  files of the environment's `/boot`, which the completion mounted to list them; the pools imported read-only for
+  `set_rw_pool` and those imported read/write for `set_ro_pool`, asking each pool with `is_writable`; the EFI system
+  partitions that `lsblk` listed and that were not mounted for `mount_esp`; and `ro` and `rw` for
+  `mount_efivarfs`. `zfsbootmenu` had no completion.
+- **Now:** the `.bashrc` of Rust images has one function, `_zbm_complete`, which completes the same commands, written
+  from the table of `zbm`'s links and of the library's functions. It asks `zbm complete KIND PREFIX`, which `zbm
+  --list` and `zbm help` leave out, for the names of a kind that start with the word typed, as the command takes
+  them: `zsnapshots` and `zfsbootmenu --snapshots` complete boot environments only (filesystems mounted at `/` that
+  can be mounted), which are all they take; `zkexec`'s first argument completes every filesystem, as before;
+  filesystems are those of type `filesystem`, without volumes; the EFI system partitions are found by the partition
+  type that the kernel and udev record, as `mount_esp` finds one, `lsblk` only where udev recorded none. No
+  completion lists kernels, and none mounts an environment or changes anything: they only read. A name with a space
+  is completed with the space behind a backslash, so it stays one argument; the legacy completions split it in two.
+  A name with a control character is left out. Legacy images keep the legacy file.
+- **Why:** ADR 0018, point 23: the completions follow the commands' rules, and Tab never mounts a boot environment.
 
 ## The host tools: `generate-zbm` and `zbm-kcl`
 

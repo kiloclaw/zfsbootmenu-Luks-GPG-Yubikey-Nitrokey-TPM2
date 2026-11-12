@@ -77,11 +77,7 @@ pub fn mount_esp(system: &System<'_>, device: Option<&DevicePath>) -> Result<Pat
     if !is_block {
         return Err(EspError::NotBlockDevice(device));
     }
-    // An unreadable table says nothing is mounted.
-    let table = files
-        .read_to_string(Path::new(MOUNTS))
-        .map(|text| MountTable::parse(&text))
-        .unwrap_or_default();
+    let table = mount_table(files);
     if let Some(point) = mounted_at(files, &table, &device) {
         return Ok(point);
     }
@@ -117,10 +113,19 @@ fn esp(system: &System<'_>) -> Result<String, EspError> {
     })
 }
 
+/// The kernel's table of this process's mounts; empty where it cannot be
+/// read, as if nothing were mounted.
+pub(crate) fn mount_table(files: &dyn Files) -> MountTable {
+    files
+        .read_to_string(Path::new(MOUNTS))
+        .map(|text| MountTable::parse(&text))
+        .unwrap_or_default()
+}
+
 /// Where `device` is mounted, as `table` says: the first mount of it by
 /// the name given, else by the device a link names, such as
 /// `/dev/disk/by-id/...`.
-fn mounted_at(files: &dyn Files, table: &MountTable, device: &str) -> Option<PathBuf> {
+pub(crate) fn mounted_at(files: &dyn Files, table: &MountTable, device: &str) -> Option<PathBuf> {
     if let Some(point) = table.mountpoint_of(device) {
         return Some(point.into());
     }
