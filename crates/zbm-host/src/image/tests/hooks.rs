@@ -31,13 +31,16 @@ fn hook(files: &FakeFiles, stage: &str, name: &str, text: impl AsRef<[u8]>) {
 fn hook_warnings(golden: &str) -> Vec<&str> {
     golden
         .lines()
-        .filter(|line| line.starts_with("warn\thook "))
+        .filter(|line| line.starts_with("warn\t[zfsbootmenu] hook "))
         .collect()
 }
 
 /// What the build says of a hook at `dest` that names `named` alone.
 fn names_warning(dest: &str, named: &str) -> String {
-    format!("warn\thook {dest} names {named}, which images of the Rust runtime do not have")
+    format!(
+        "warn\t[zfsbootmenu] hook {dest} names {named}, which images of the Rust runtime do not \
+         have"
+    )
 }
 
 #[test]
@@ -80,10 +83,10 @@ fn a_copied_legacy_luks_close_warns_that_volumes_stay_open() {
         assert_eq!(
             hook_warnings(&plan),
             [
-                "warn\thook /libexec/hooks/teardown.d/80-luks-close.sh takes the place of the \
-                 built-in step that closes the LUKS volumes, but closes none: images of the \
-                 Rust runtime do not have /lib/zfsbootmenu-luks.sh, so the volumes stay open \
-                 across kexec; delete it, or make it run `zluks close`"
+                "warn\t[zfsbootmenu] hook /libexec/hooks/teardown.d/80-luks-close.sh takes the \
+                 place of the built-in step that closes the LUKS volumes, but closes none: \
+                 images of the Rust runtime do not have /lib/zfsbootmenu-luks.sh, so the \
+                 volumes stay open across kexec; delete it, or make it run `zluks close`"
             ],
             "{builder:?}"
         );
@@ -137,7 +140,8 @@ fn a_hook_of_the_module_root_named_by_an_option_is_checked() {
     assert_eq!(warnings.len(), 1, "{plan}");
     assert!(
         warnings[0].starts_with(
-            "warn\thook /libexec/hooks/teardown.d/80-luks-close.sh takes the place of"
+            "warn\t[zfsbootmenu] hook /libexec/hooks/teardown.d/80-luks-close.sh takes the \
+             place of"
         ),
         "{plan}"
     );

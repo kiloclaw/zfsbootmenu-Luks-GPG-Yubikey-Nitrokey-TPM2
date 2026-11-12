@@ -111,7 +111,7 @@ binary	/usr/bin/depmod	/usr/bin/depmod
 binary	/usr/bin/dmesg	/usr/bin/dmesg
 binary	/usr/bin/setsid	/usr/bin/setsid
 binary	/usr/bin/cat	/usr/bin/cat
-warn	optional component 'mbuffer' not found, omitting from image
+warn	[zfsbootmenu] optional component 'mbuffer' not found, omitting from image
 binary	/usr/bin/column	/usr/bin/column
 binary	/usr/bin/less	/usr/bin/less
 binary	/usr/bin/cryptsetup	/usr/bin/cryptsetup
@@ -147,12 +147,12 @@ binary	/usr/bin/ykchalresp	/usr/bin/ykchalresp
 binary	/usr/bin/ykinfo	/usr/bin/ykinfo
 file	/etc/zfsbootmenu/crypttab	/etc/zfsbootmenu/crypttab	0600
 file	/etc/zfsbootmenu/keys/root.key.gpg	/etc/zfsbootmenu/keys/root.key.gpg	0600
-warn	/etc/zfsbootmenu/keys/data.key.gpg is only protected by a passphrase; anyone with the image can attack it offline
+warn	[zfsbootmenu] /etc/zfsbootmenu/keys/data.key.gpg is only protected by a passphrase; anyone with the image can attack it offline
 file	/etc/zfsbootmenu/keys/data.key.gpg	/etc/zfsbootmenu/keys/data.key.gpg	0600
 binary	/lib/cryptsetup/scripts/passdev	/lib/cryptsetup/scripts/passdev
-warn	crypttab entry 'plain' uses key file '/etc/zfsbootmenu/keys/plain.key', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device
-warn	key script '/none' for crypttab entry 'usb' not found
-warn	LUKS configuration was not fully installed
+warn	[zfsbootmenu] crypttab entry 'plain' uses key file '/etc/zfsbootmenu/keys/plain.key', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device
+warn	[zfsbootmenu] key script '/none' for crypttab entry 'usb' not found
+warn	[zfsbootmenu] LUKS configuration was not fully installed
 file	@/etc/cmdline.d/zfsbootmenu-luks.conf	/etc/cmdline.d/zfsbootmenu-luks.conf	0644
     | rd.luks=0
 library	/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
@@ -1133,13 +1133,13 @@ file	/usr/share/zfsbootmenu/fonts/dejavu/DejaVuSansMono-Bold.ttf	/usr/share/zfsb
 file	/usr/share/zfsbootmenu/fonts/dejavu/DejaVuSansMono-Oblique.ttf	/usr/share/zfsbootmenu/fonts/DejaVuSansMono-Oblique.ttf	-
 file	/usr/share/zfsbootmenu/fonts/dejavu/DejaVuSansMono-BoldOblique.ttf	/usr/share/zfsbootmenu/fonts/DejaVuSansMono-BoldOblique.ttf	-
 file	/usr/share/zfsbootmenu/fonts/dejavu/LICENSE	/usr/share/zfsbootmenu/fonts/LICENSE.dejavu	-
-warn	fallback font /usr/share/fonts/none.ttf not found; leaving it out
-warn	keyboard-layouts: de: no such keyboard layout
-warn	keyboard-layouts: us: no such keyboard layout
-warn	keyboard-layouts: fr: no such keyboard layout
-warn	keyboard-layouts: gb: no such keyboard layout
-warn	keyboard-layouts: /usr/share/X11/locale/en_US.UTF-8/Compose: No such file or directory (os error 2); dead keys will type nothing
-warn	unable to compile every keyboard layout of 'de us de fr gb'
+warn	[zfsbootmenu] fallback font /usr/share/fonts/none.ttf not found; leaving it out
+warn	[zfsbootmenu] keyboard-layouts: de: no such keyboard layout
+warn	[zfsbootmenu] keyboard-layouts: us: no such keyboard layout
+warn	[zfsbootmenu] keyboard-layouts: fr: no such keyboard layout
+warn	[zfsbootmenu] keyboard-layouts: gb: no such keyboard layout
+warn	[zfsbootmenu] keyboard-layouts: /usr/share/X11/locale/en_US.UTF-8/Compose: No such file or directory (os error 2); dead keys will type nothing
+warn	[zfsbootmenu] unable to compile every keyboard layout of 'de us de fr gb'
 file	@/usr/share/zfsbootmenu/layouts/layouts	/usr/share/zfsbootmenu/layouts/layouts	0644
 file	@/etc/inputrc	/etc/inputrc	0644
     | set input-meta on

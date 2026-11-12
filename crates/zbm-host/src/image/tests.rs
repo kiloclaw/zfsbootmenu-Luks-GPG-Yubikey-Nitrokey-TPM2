@@ -470,8 +470,8 @@ fn clevis_pcscd_and_key_files_are_taken_as_the_host_has_them() {
         "dir\t/usr/lib/pcsc/drivers\t",
         "file\t/usr/lib/pcsc/drivers/ifd-ccid.bundle/Info.plist\t",
         "file\t/etc/libccid_Info.plist\t/etc/libccid_Info.plist\t-\n",
-        "warn\t/etc/zfsbootmenu/keys/root.key.gpg is not GnuPG-encrypted; refusing",
-        "warn\tGnuPG key file /etc/zfsbootmenu/keys/data.key.gpg not found\n",
+        "warn\t[zfsbootmenu] /etc/zfsbootmenu/keys/root.key.gpg is not GnuPG-encrypted; refusing",
+        "warn\t[zfsbootmenu] GnuPG key file /etc/zfsbootmenu/keys/data.key.gpg not found\n",
     ] {
         assert!(plan.contains(line), "{line}\n{plan}");
     }
@@ -481,5 +481,8 @@ fn clevis_pcscd_and_key_files_are_taken_as_the_host_has_them() {
         files.remove_file(Path::new("/usr/bin/cryptsetup")).unwrap();
     })
     .unwrap();
-    assert!(no_cryptsetup.contains("warn\tcryptsetup not found; ZFS pools on LUKS volumes"));
+    assert!(
+        no_cryptsetup
+            .contains("warn\t[zfsbootmenu] cryptsetup not found; ZFS pools on LUKS volumes")
+    );
 }

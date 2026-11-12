@@ -10,9 +10,10 @@ use zbm_config::spec::OptionSpec;
 use zbm_config::spec::generate::{GLOBAL_DRACUT_FLAGS, GLOBAL_INIT_CPIO_FLAGS};
 
 impl Generator<'_, '_, '_> {
-    /// Runs a command built for the initramfs or the bundle: its output is logged
-    /// when it succeeds and printed when it fails, and failure ends the program
-    /// with the command's status.
+    /// Runs a command built for the initramfs or the bundle. Its output is
+    /// printed when it fails, and failure ends the program with the command's
+    /// status; when it succeeds, its output is logged, or, without the debug
+    /// log, the image plan's warnings in it are shown.
     pub(super) fn run_build_step(
         &mut self,
         invocation: &Invocation,
@@ -24,7 +25,11 @@ impl Generator<'_, '_, '_> {
         self.log(&format!("Executing: {}", invocation.line()));
         let (lines, status) = self.execute(invocation)?;
         if status == 0 {
-            self.log_lines(&lines);
+            if self.debug {
+                self.log_lines(&lines);
+            } else {
+                self.show_plan_warnings(&lines);
+            }
             Ok(())
         } else {
             self.print_lines(&lines);

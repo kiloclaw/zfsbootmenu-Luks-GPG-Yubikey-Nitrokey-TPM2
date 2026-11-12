@@ -23,9 +23,16 @@
 //! `NEED` is `required` or `optional`; `HOST` is `host`, or `any` for a
 //! module that goes in even when dracut builds a host-only image. `MODE` is
 //! octal, or `-` for the file's own; `unomit` is dracut's `omit_drivers`.
+//! The text of a `warn` line starts with [`WARNING_MARK`].
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+
+/// What starts the text of each warning in the manifest. The shims print
+/// the text as it is, in the builder's own words for a warning, and
+/// `generate-zbm` finds the plan's warnings in the builder's output by this
+/// mark.
+pub(crate) const WARNING_MARK: &str = "[zfsbootmenu] ";
 
 /// Whether a module or a rule must be there.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -316,7 +323,7 @@ impl Plan {
                     format!("firmware\t{}\t{}", dirs.join(" "), names.join(" "))
                 }
                 Entry::Info(text) => format!("info\t{}", one_line(text)),
-                Entry::Warn(text) => format!("warn\t{}", one_line(text)),
+                Entry::Warn(text) => format!("warn\t{WARNING_MARK}{}", one_line(text)),
             };
             let _ = writeln!(text, "{line}");
         }
@@ -417,7 +424,7 @@ mod tests {
              hostonly\t/etc/hostid\n\
              firmware\ti915\ti915/a.bin i915/b.bin\n\
              info\ttwo fields\n\
-             warn\ta b\n"
+             warn\t[zfsbootmenu] a b\n"
         );
         assert_eq!(
             plan.written(Path::new("/lib/a.sh")),

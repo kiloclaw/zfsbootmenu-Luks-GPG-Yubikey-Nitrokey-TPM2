@@ -199,7 +199,7 @@ fn the_dracut_module_installs_the_plan() {
         "{log}"
     );
     assert!(
-        log.contains("dwarning: brush not found at /none/brush;"),
+        log.contains("dwarning: [zfsbootmenu] brush not found at /none/brush;"),
         "{log}"
     );
     assert!(

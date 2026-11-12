@@ -13,7 +13,8 @@
 //! steps are in submodules: `settings` (the configuration file and the
 //! options), `system` (the boot partition, hooks, hostid and work directory),
 //! `kernels` (the choice of the kernel), `initramfs`, `bundle` (the EFI bundle)
-//! and `install` (placing the images and pruning old ones).
+//! and `install` (placing the images and pruning old ones); `warnings` finds
+//! the image plan's warnings in the builder's output.
 
 #![allow(
     clippy::disallowed_methods,
@@ -30,6 +31,7 @@ mod invocation;
 mod kernels;
 mod settings;
 mod system;
+mod warnings;
 
 use std::collections::BTreeMap;
 use std::io::Write;

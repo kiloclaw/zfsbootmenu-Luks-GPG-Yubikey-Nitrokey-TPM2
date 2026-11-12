@@ -1130,10 +1130,10 @@ scripts.
   hooks takes the place of that step, as any hook of its name does, but now closes nothing: its `source` of the LUKS
   library fails and it exits 0, so the volumes stay open across `kexec`. Delete such a copy, or make it run
   `zluks close`. The build warns of a hook it puts in a Rust image that names a file Rust images do not have, and of
-  such a copy of `80-luks-close.sh` that the volumes stay open: dracut and mkinitcpio print the warning, `generate-zbm`
-  only with `--debug`, as it prints the rest of their output. The image does not warn when it starts, so a hook of
-  `zbm.hookroot` is not checked. The recovery shell's `.bashrc` completes with `zbm` instead of the legacy file
-  ([below](#tab-completes-what-zbm-complete-lists)). Legacy images keep every file.
+  such a copy of `80-luks-close.sh` that the volumes stay open: dracut and mkinitcpio print the warning, and
+  `generate-zbm` shows it ([below](#generate-zbm-shows-the-images-warnings)). The image does not warn when it starts,
+  so a hook of `zbm.hookroot` is not checked. The recovery shell's `.bashrc` completes with `zbm` instead of the
+  legacy file ([below](#tab-completes-what-zbm-complete-lists)). Legacy images keep every file.
 - **Why:** ADR 0018, points 20 and 22: Rust images take only what hooks and the library's legacy functions need, which
   SB7 removes with them.
 
@@ -1197,6 +1197,19 @@ directory, and do what their manual pages say where Perl or Bash did something e
   syntax stops `generate-zbm` with the reason. A program that cannot be started gets status 127 or 126, and one a
   signal ends is described as the shell described it (`Killed`).
 - **Why:** a path with a space or a quote cannot turn into another command, and a flag means what it says.
+
+### `generate-zbm` shows the image's warnings
+
+- **Before:** when dracut or mkinitcpio succeeded, `generate-zbm` showed what they printed only with `--debug`, so the
+  warnings of the image's plan, such as a key file left out of the image or an optional program not found, went
+  unseen.
+- **Now:** the dracut module and the mkinitcpio hook start each warning of the image's plan with `[zfsbootmenu]`, and
+  `generate-zbm` shows those warnings on standard error after a build that succeeds, each once and in order, as
+  `WARNING: ` and the text, without the builder's words and colours. The rest of the builder's output is shown as
+  before: in full with `--debug` (the warnings among it, not twice), and on standard output when the build fails.
+  The module's and the hook's own warning that an optional udev rule could not be installed is not the plan's, and
+  is still shown only with `--debug`.
+- **Why:** a warning nobody sees warns nobody; the rest of the builder's output is noise when it succeeds.
 
 ### `--enable` and `--disable` change one line
 

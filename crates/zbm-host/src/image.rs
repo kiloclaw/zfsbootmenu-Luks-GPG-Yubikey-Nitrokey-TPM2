@@ -28,6 +28,7 @@ use std::path::{Path, PathBuf};
 
 pub use config::{Builder, Config, Runtime};
 pub use host::{Found, Host};
+pub(crate) use plan::WARNING_MARK;
 pub use plan::{Entry, Need, Plan};
 pub use prune::{Pruned, prune_firmware};
 

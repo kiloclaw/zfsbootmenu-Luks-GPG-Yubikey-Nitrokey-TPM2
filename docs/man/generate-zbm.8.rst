@@ -87,7 +87,9 @@ release. Operands may come anywhere, and are ignored; **--** ends the options.
 
 **--debug|-d**
 
-  Enable debug output
+  Enable debug output, which includes all that dracut or mkinitcpio prints. Without it, their output is shown when
+  the build fails; when it succeeds, only the warnings of the image's plan, those that dracut or mkinitcpio prints
+  with *[zfsbootmenu]*, are shown, on standard error, each once.
 
 **--showver|-V**
 

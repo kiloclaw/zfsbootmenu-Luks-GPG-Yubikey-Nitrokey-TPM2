@@ -100,7 +100,7 @@ binary	/usr/bin/dmesg	/usr/bin/dmesg
 binary	/usr/bin/fzf	/usr/bin/fzf
 binary	/usr/bin/setsid	/usr/bin/setsid
 binary	/usr/bin/cat	/usr/bin/cat
-warn	optional component 'mbuffer' not found, omitting from image
+warn	[zfsbootmenu] optional component 'mbuffer' not found, omitting from image
 binary	/usr/bin/column	/usr/bin/column
 binary	/usr/bin/less	/usr/bin/less
 binary	/usr/bin/cryptsetup	/usr/bin/cryptsetup
@@ -136,12 +136,12 @@ binary	/usr/bin/ykchalresp	/usr/bin/ykchalresp
 binary	/usr/bin/ykinfo	/usr/bin/ykinfo
 file	/etc/zfsbootmenu/crypttab	/etc/zfsbootmenu/crypttab	0600
 file	/etc/zfsbootmenu/keys/root.key.gpg	/etc/zfsbootmenu/keys/root.key.gpg	0600
-warn	/etc/zfsbootmenu/keys/data.key.gpg is only protected by a passphrase; anyone with the image can attack it offline
+warn	[zfsbootmenu] /etc/zfsbootmenu/keys/data.key.gpg is only protected by a passphrase; anyone with the image can attack it offline
 file	/etc/zfsbootmenu/keys/data.key.gpg	/etc/zfsbootmenu/keys/data.key.gpg	0600
 binary	/lib/cryptsetup/scripts/passdev	/lib/cryptsetup/scripts/passdev
-warn	crypttab entry 'plain' uses key file '/etc/zfsbootmenu/keys/plain.key', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device
-warn	key script '/none' for crypttab entry 'usb' not found
-warn	LUKS configuration was not fully installed
+warn	[zfsbootmenu] crypttab entry 'plain' uses key file '/etc/zfsbootmenu/keys/plain.key', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device
+warn	[zfsbootmenu] key script '/none' for crypttab entry 'usb' not found
+warn	[zfsbootmenu] LUKS configuration was not fully installed
 file	@/etc/cmdline.d/zfsbootmenu-luks.conf	/etc/cmdline.d/zfsbootmenu-luks.conf	0644
     | rd.luks=0
 library	/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
