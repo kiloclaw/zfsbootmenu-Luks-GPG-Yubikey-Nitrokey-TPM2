@@ -1,9 +1,9 @@
 //! A shell in a chroot of a filesystem (ADR 0018, points 6 and 7), as the
 //! legacy `zfs-chroot` opened one: on a pool imported read-only, the
 //! question whether to import it read/write; the key of the filesystem's
-//! encryption root; the filesystem with the kernel's file systems mounted
-//! below it; and the first shell that runs there, which the shell's gate
-//! opens (ADR 0010).
+//! encryption root; the filesystem with this system's name servers
+//! (SB15) and the kernel's file systems mounted below it; and the first
+//! shell that runs there, which the shell's gate opens (ADR 0010).
 
 use std::io;
 use std::path::Path;
@@ -21,6 +21,9 @@ use zbm_tools::programs::Chroot;
 use zbm_types::{Answer, FilesystemName, Printable, RetryDelay};
 
 use crate::auth::{self, Authority};
+
+mod inside;
+mod resolv;
 
 /// How long the question waits, in seconds, before the chroot stays
 /// read-only.
@@ -54,10 +57,12 @@ pub enum ChrootError {
 }
 
 /// What a chroot has mounted, which dropping it unmounts: the kernel's
-/// file systems below the root in reverse, then the root with everything
-/// below it, then the host's `efivarfs`, set back to read-only.
+/// file systems and the name servers below the root in reverse, then the
+/// root with everything below it, then the host's `efivarfs`, set back to
+/// read-only.
 struct Mounts<'a> {
-    /// The kernel's file systems below the root, in the order mounted.
+    /// The name servers and the kernel's file systems below the root, in
+    /// the order mounted.
     below: Vec<Mounted<'a>>,
     /// The filesystem, unmounted with everything below it.
     root: Mounted<'a>,
@@ -186,11 +191,14 @@ fn ask_and_unlock(
 }
 
 /// Mounts `fs` on its mount point in the state directory, read/write when
-/// `writable`, then, as `zfs-chroot` did: `/tmp` bound below it, a `proc`,
-/// a `sysfs` and `/dev` bound below it; on EFI, this system's `efivarfs`
-/// remounted in the chroot's mode, or mounted so where it is not, and one
-/// in the chroot; and a `devpts` where the bound `/dev` has `pts`. A mount
-/// below the filesystem that fails is left out, as `zfs-chroot` left it.
+/// `writable`; this system's `/etc/resolv.conf`, read-only, over the
+/// filesystem's, before anything else is mounted below it
+/// ([`resolv::name_servers`]); then, as `zfs-chroot` did: `/tmp` bound
+/// below it, a `proc`, a `sysfs` and `/dev` bound below it; on EFI, this
+/// system's `efivarfs` remounted in the chroot's mode, or mounted so where
+/// it is not, and one in the chroot; and a `devpts` where the bound `/dev`
+/// has `pts`. A mount below the filesystem that fails is left out, as
+/// `zfs-chroot` left it.
 ///
 /// # Errors
 ///
@@ -215,6 +223,9 @@ fn mount<'c>(
         notices: vec![notice(&fs.to_string(), writable)],
     };
     let mount = Mount::new(context.runner(), context.files());
+    let names = resolv::name_servers(mount, context.files(), &at);
+    mounts.below.extend(names.mounts);
+    mounts.notices.extend(names.notices);
     let kernel = [
         mount.bind(Path::new("/tmp"), &at.join("tmp")),
         mount.proc(&at.join("proc")),

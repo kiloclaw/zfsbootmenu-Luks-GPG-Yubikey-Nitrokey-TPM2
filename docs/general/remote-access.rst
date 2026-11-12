@@ -156,6 +156,12 @@ Enabling Network Access
 
           sed -e '/BINARIES=/a BINARIES+=(ip)' -i /etc/zfsbootmenu/mkinitcpio.conf
 
+.. note::
+
+  **Names in a chroot.** In images with the Rust runtime, where the ZFSBootMenu image has an ``/etc/resolv.conf``, a
+  chroot of a boot environment mounts it read-only over the environment's own, so that names resolve there with the
+  name servers ZFSBootMenu's network uses. Nothing is written to the boot environment. With mkinitcpio, a hook must
+  write ``/etc/resolv.conf``, as the ``rc.local`` script above does.
 
 Unless you've taken steps not described here, the network-enabled ZFSBootMenu image will not advertise itself via
 dynamic DNS or mDNS. You will need to know the IP address of the ZFSBootMenu host to connect. Thus, you should either

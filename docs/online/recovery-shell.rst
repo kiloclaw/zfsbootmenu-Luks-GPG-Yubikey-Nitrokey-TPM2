@@ -11,6 +11,7 @@ Common Commands
 **zfs-chroot** *dataset*
 
   Enter a chroot of the specified boot environment. The boot environment is mounted *read/write* if the zpool is imported *read/write*.
+  In images with the Rust runtime, ZFSBootMenu's own */etc/resolv.conf*, where it has one, is mounted *read-only* over the boot environment's, so that names resolve in the chroot.
 
 **zkexec** *dataset kernel initramfs*
 

@@ -3966,6 +3966,7 @@ name = "zbm-app"
 version = "0.1.0"
 dependencies = [
  "pretty_assertions",
+ "proptest",
  "serde",
  "serde_json",
  "thiserror",

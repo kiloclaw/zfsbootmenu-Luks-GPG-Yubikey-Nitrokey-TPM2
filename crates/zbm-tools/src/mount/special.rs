@@ -1,12 +1,13 @@
-//! The kernel's file systems a chroot takes, each a [`Mounted`], and
-//! [`HostEfivars`], this system's `efivarfs` in the chroot's mode for as
-//! long as it lives.
+//! The kernel's file systems a chroot takes, each a [`Mounted`]; a file
+//! of this system bound read-only and a `tmpfs`, for the chroot's name
+//! servers; and [`HostEfivars`], this system's `efivarfs` in the chroot's
+//! mode for as long as it lives.
 
 use std::path::Path;
 
 use zbm_platform::Command;
 
-use super::{Mount, Mounted, Shown, shown};
+use super::{Mount, Mounted, Shown, shell_code, shown};
 
 /// Where this system's `efivarfs` is mounted.
 const EFIVARS: &str = "/sys/firmware/efi/efivars";
@@ -28,6 +29,55 @@ impl<'a> Mount<'a> {
     /// start.
     pub fn bind(self, source: &Path, target: &Path) -> Result<Mounted<'a>, i32> {
         self.special(Command::new("mount").arg("-B").arg(source), target)
+    }
+
+    /// Mounts `source` again on `target`, read-only: `mount -B SOURCE
+    /// TARGET`, then `mount -o remount,bind,ro TARGET`, which makes this
+    /// mount read-only and leaves the file system it came from as it is.
+    /// A bind whose remount fails is unmounted at once. Unmounting it is
+    /// quiet, as for [`Mount::bind`].
+    ///
+    /// # Errors
+    ///
+    /// [`NotReadOnly`]: the exit status of the `mount` that failed, 126 when
+    /// it could not start, and the bind itself when it could be neither
+    /// remounted nor unmounted, which is then mounted read/write.
+    pub fn bind_read_only(
+        self,
+        source: &Path,
+        target: &Path,
+    ) -> Result<Mounted<'a>, NotReadOnly<'a>> {
+        let bound = self.bind(source, target).map_err(|code| NotReadOnly {
+            code,
+            writable: None,
+        })?;
+        let remount = Command::new("mount")
+            .args(["-o", "remount,bind,ro"])
+            .arg(target);
+        let code = shell_code(&self.runner.run(&shown(remount, Shown::Console)));
+        if code == 0 {
+            return Ok(bound);
+        }
+        let writable = if self.unmount(target, Shown::Hidden) {
+            let _ = bound.leave();
+            None
+        } else {
+            Some(bound)
+        };
+        Err(NotReadOnly { code, writable })
+    }
+
+    /// Mounts a `tmpfs` on `target`, writable by root alone, with no
+    /// set-user-ID programs and no devices (`mount -t tmpfs -o
+    /// mode=0755,nosuid,nodev tmpfs TARGET`).
+    ///
+    /// # Errors
+    ///
+    /// The exit status of `mount` when it failed, 126 when it could not
+    /// start.
+    pub fn tmpfs(self, target: &Path) -> Result<Mounted<'a>, i32> {
+        let tmpfs = ["-t", "tmpfs", "-o", "mode=0755,nosuid,nodev", "tmpfs"];
+        self.special(Command::new("mount").args(tmpfs), target)
     }
 
     /// Mounts a `proc` on `target` (`mount -t proc proc TARGET`).
@@ -74,6 +124,17 @@ impl<'a> Mount<'a> {
             code => Err(code),
         }
     }
+}
+
+/// Why [`Mount::bind_read_only`] mounted nothing read-only.
+#[must_use = "a bind left writable is unmounted when this is dropped"]
+pub struct NotReadOnly<'a> {
+    /// The exit status of the `mount` that failed, 126 when it could not
+    /// start.
+    pub code: i32,
+    /// The bind, mounted read/write, when its remount failed and it could
+    /// not be unmounted: dropping it tries again.
+    pub writable: Option<Mounted<'a>>,
 }
 
 /// This system's `efivarfs`, mounted or remounted in a chroot's mode,

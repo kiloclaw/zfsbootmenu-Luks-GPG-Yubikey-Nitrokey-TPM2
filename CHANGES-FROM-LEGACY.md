@@ -610,6 +610,20 @@ same commands. The menu also restores files from a snapshot, which the legacy me
 - **Now:** the name reaches `zfs-chroot` as one argument.
 - **Why:** ZFS names may hold spaces, and the chroot is of the filesystem named.
 
+### A chroot resolves names with ZFSBootMenu's name servers
+
+- **Before:** a chroot used the environment's own `/etc/resolv.conf`: often `127.0.0.53`, whose resolver does not run
+  there, or a link into the environment's empty `/run`, so names did not resolve.
+- **Now:** where ZFSBootMenu's image has an `/etc/resolv.conf` (one that the network's setup wrote, not empty), every
+  chroot, the menu's, the shell's `zfs-chroot` and a hook's `zfs_chroot`, mounts it read-only over the environment's,
+  then unmounts it with the rest; a notice says so. A link in the environment is followed inside the chroot's root,
+  never in ZFSBootMenu's: systemd-resolved's link into an empty `/run` gets a `/run` in memory, which the chroot's
+  notices name, with the link's target made there. Nothing is written to the environment. Where the environment's side
+  leads elsewhere, as into `/tmp` or `/dev`, which are ZFSBootMenu's in the chroot, nothing is mounted and a notice
+  says why. In a read/write chroot, `resolv.conf` cannot be changed: a package script that rewrites it fails until the
+  chroot ends.
+- **Why:** a chroot is where packages are repaired, which needs names.
+
 ### Rollback has no safety snapshot
 
 - **Before:** typing `ROLLBACK` confirmed the rollback, which destroys the newer snapshots.

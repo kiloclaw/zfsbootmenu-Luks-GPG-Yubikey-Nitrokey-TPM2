@@ -194,6 +194,32 @@ fn this_process_opens_the_chroot_with_the_image_s_configuration() {
     }
 }
 
+#[test]
+fn zfs_chroot_binds_the_image_s_resolv_conf() {
+    let fake = machine();
+    let target = "/zfsbootmenu/environments/tank/ROOT/be/mnt/etc/resolv.conf";
+    fake.files
+        .file("/etc/resolv.conf", "nameserver 10.0.2.3\n")
+        .file(target, "");
+
+    let (status, _) = open_on(&fake, &Authority::new(Lock::Off));
+
+    assert_eq!(status, 0);
+    let ran = mounts_and_shells(&fake);
+    assert_eq!(
+        ran[1..3],
+        [
+            format!("mount -B /etc/resolv.conf {target}"),
+            format!("mount -o remount,bind,ro {target}"),
+        ]
+    );
+    let shown = zbm_platform::color::decolorize(&fake.console.output_text());
+    assert!(
+        shown.contains("* /etc/resolv.conf is mounted read-only\n"),
+        "{shown}"
+    );
+}
+
 /// The signals that would end it with the chroot mounted are the legacy
 /// script's traps, `SIGABRT` aside, and the default signal of `kill`.
 #[test]

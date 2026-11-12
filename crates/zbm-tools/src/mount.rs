@@ -1,7 +1,7 @@
 //! Mounting and unmounting: [`Mount`], and [`Mounted`], which unmounts
-//! when dropped; the kernel's file systems a chroot takes, and
-//! [`HostEfivars`], which sets this system's `efivarfs` back to read-only
-//! when dropped.
+//! when dropped; the kernel's file systems a chroot takes, a read-only
+//! bind ([`NotReadOnly`] when it is not), and [`HostEfivars`], which sets
+//! this system's `efivarfs` back to read-only when dropped.
 
 #![allow(
     clippy::disallowed_methods,
@@ -18,7 +18,7 @@ use crate::Shown;
 
 mod special;
 
-pub use self::special::HostEfivars;
+pub use self::special::{HostEfivars, NotReadOnly};
 
 /// The longest mounting a block device may take, for a disk or a USB stick
 /// that stopped answering. ZFS mounts have none: their time grows with the

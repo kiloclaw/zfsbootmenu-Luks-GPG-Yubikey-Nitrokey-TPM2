@@ -2050,10 +2050,12 @@ The recovery shell offers the commands below. In images built with the Rust runt
     Usage: zfs-chroot FILESYSTEM
 
     Opens a shell in a chroot of FILESYSTEM, with /tmp, /proc, /sys and /dev
-    mounted in it. On a pool imported read-only it asks first whether to import
-    the pool read/write. It loads the key of a locked encryption root, and in a
-    locked image it asks for the PIN first. The exit status is 0 once a shell
-    ran, or without FILESYSTEM, and 1 when no shell could be opened.
+    mounted in it. Where this system has its own /etc/resolv.conf, it is mounted
+    read-only over the filesystem's, so that names resolve; nothing is written
+    to the filesystem. On a pool imported read-only it asks first whether to
+    import the pool read/write. It loads the key of a locked encryption root,
+    and in a locked image it asks for the PIN first. The exit status is 0 once
+    a shell ran, or without FILESYSTEM, and 1 when no shell could be opened.
 
 **zkexec**
 

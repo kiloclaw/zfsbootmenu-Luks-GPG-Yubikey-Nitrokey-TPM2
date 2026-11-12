@@ -24,8 +24,9 @@ fn each_special_mount_runs_mount_with_its_type_and_options() {
     let efivars = mount
         .efivarfs_in(&below("sys/firmware/efi/efivars"), "ro")
         .unwrap();
+    let run = mount.tmpfs(&below("run")).unwrap();
     assert_eq!(tmp.path(), below("tmp"));
-    for mounted in [tmp, proc, sys, pts, efivars] {
+    for mounted in [tmp, proc, sys, pts, efivars, run] {
         let _ = mounted.leave();
     }
     assert_eq!(
@@ -36,6 +37,7 @@ fn each_special_mount_runs_mount_with_its_type_and_options() {
             format!("mount -t sysfs sys {ROOT}/sys"),
             format!("mount -t devpts pts {ROOT}/dev/pts"),
             format!("mount -t efivarfs efivarfs {ROOT}/sys/firmware/efi/efivars -o ro"),
+            format!("mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs {ROOT}/run"),
         ]
     );
     // Their messages show on the console, as the legacy script's did.
@@ -55,6 +57,7 @@ fn a_failed_mount_returns_its_code_and_mounts_nothing() {
     assert_eq!(mount.proc(&below("proc")).err(), Some(32));
     assert_eq!(mount.sysfs(&below("sys")).err(), Some(32));
     assert_eq!(mount.devpts(&below("dev/pts")).err(), Some(32));
+    assert_eq!(mount.tmpfs(&below("run")).err(), Some(32));
     assert_eq!(
         mount
             .efivarfs_in(&below("sys/firmware/efi/efivars"), "rw")
@@ -65,7 +68,7 @@ fn a_failed_mount_returns_its_code_and_mounts_nothing() {
     assert_eq!(HostEfivars::mount(mount, "rw").err(), Some(32));
     // Nothing was mounted, so nothing is unmounted, nor set back.
     let lines = runner.lines();
-    assert_eq!(lines.len(), 7, "{lines:?}");
+    assert_eq!(lines.len(), 8, "{lines:?}");
     assert!(
         lines.iter().all(|line| line.starts_with("mount ")),
         "{lines:?}"
@@ -168,4 +171,115 @@ fn host_efivars_mounted_where_none_were_stay_mounted_read_only() {
         ]
     );
     assert_eq!(runner.calls()[0].get_stdout(), Stream::Inherit);
+}
+
+/// The image's name servers, and where a chroot's are.
+const RESOLV_CONF: &str = "/etc/resolv.conf";
+
+#[test]
+fn a_tmpfs_is_mounted_with_mode_0755_nosuid_and_nodev() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    let mount = Mount::new(&runner, &files);
+    drop(mount.tmpfs(&below("run")).unwrap());
+    assert_eq!(
+        runner.lines(),
+        [
+            format!("mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs {ROOT}/run"),
+            format!("umount {ROOT}/run"),
+        ]
+    );
+    assert_eq!(runner.calls()[0].get_stdout(), Stream::Inherit);
+    assert_eq!(runner.calls()[1].get_stdout(), Stream::Null);
+}
+
+#[test]
+fn a_read_only_bind_is_bound_then_remounted_read_only() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    let mount = Mount::new(&runner, &files);
+    let target = below("etc/resolv.conf");
+    let Ok(bound) = mount.bind_read_only(Path::new(RESOLV_CONF), &target) else {
+        panic!("not bound: {:?}", runner.lines());
+    };
+    assert_eq!(bound.path(), target);
+    // `remount,bind,ro`: without `bind`, the remount would make the file
+    // system the file is on read-only, this system's own.
+    assert_eq!(
+        runner.lines(),
+        [
+            format!("mount -B /etc/resolv.conf {ROOT}/etc/resolv.conf"),
+            format!("mount -o remount,bind,ro {ROOT}/etc/resolv.conf"),
+        ]
+    );
+    for call in runner.calls() {
+        assert_eq!(call.get_stdout(), Stream::Inherit, "{}", call.display());
+    }
+    drop(bound);
+    assert_eq!(
+        runner.lines()[2..],
+        [format!("umount {ROOT}/etc/resolv.conf")]
+    );
+    assert_eq!(runner.calls()[2].get_stdout(), Stream::Null);
+}
+
+#[test]
+fn a_bind_that_fails_runs_no_remount() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    runner.respond_program("mount", 32, "");
+    let mount = Mount::new(&runner, &files);
+    let Err(error) = mount.bind_read_only(Path::new(RESOLV_CONF), &below("etc/resolv.conf")) else {
+        panic!("bound: {:?}", runner.lines());
+    };
+    assert_eq!(error.code, 32);
+    assert!(error.writable.is_none());
+    assert_eq!(
+        runner.lines(),
+        [format!("mount -B /etc/resolv.conf {ROOT}/etc/resolv.conf")]
+    );
+}
+
+#[test]
+fn a_bind_whose_remount_fails_is_unmounted_and_its_code_returned() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    let target = below("etc/resolv.conf");
+    let remount = format!("mount -o remount,bind,ro {ROOT}/etc/resolv.conf");
+    runner.respond(&remount, 32, "");
+    let mount = Mount::new(&runner, &files);
+    let Err(error) = mount.bind_read_only(Path::new(RESOLV_CONF), &target) else {
+        panic!("bound: {:?}", runner.lines());
+    };
+    assert_eq!(error.code, 32);
+    assert!(error.writable.is_none());
+    drop(error);
+    // Unmounted once, quietly, and not again when the error is dropped.
+    assert_eq!(
+        runner.lines()[1..],
+        [remount, format!("umount {ROOT}/etc/resolv.conf")]
+    );
+    assert_eq!(runner.calls()[2].get_stdout(), Stream::Null);
+}
+
+#[test]
+fn a_bind_that_can_be_neither_remounted_nor_unmounted_is_handed_back_writable() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    let target = below("etc/resolv.conf");
+    let unmount = format!("umount {ROOT}/etc/resolv.conf");
+    runner.respond(
+        &format!("mount -o remount,bind,ro {ROOT}/etc/resolv.conf"),
+        32,
+        "",
+    );
+    runner.respond(&unmount, 1, "");
+    let mount = Mount::new(&runner, &files);
+    let Err(error) = mount.bind_read_only(Path::new(RESOLV_CONF), &target) else {
+        panic!("bound: {:?}", runner.lines());
+    };
+    assert_eq!(error.code, 32);
+    let Some(writable) = error.writable else {
+        panic!("the bind is hidden: {:?}", runner.lines());
+    };
+    assert_eq!(writable.path(), target);
+    assert_eq!(runner.lines().len(), 3);
+    // Dropping it tries again.
+    drop(writable);
+    assert_eq!(runner.lines()[3..], [unmount]);
 }

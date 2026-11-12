@@ -115,3 +115,28 @@ fn the_locked_menu_runs_the_chroot_only_after_the_pin_and_locks_again() {
     assert_eq!(ran_chroot(), 1, "{:?}", fake.runner.lines());
     assert!(app.snapshot().unwrap().menu_locked);
 }
+
+#[test]
+fn the_menu_s_chroot_binds_the_image_s_resolv_conf() {
+    let fake = machine("off");
+    fake.files
+        .file("/etc/resolv.conf", "nameserver 10.0.2.3\n")
+        .file(format!("{MP}/etc/resolv.conf"), "");
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let events = on_console(&app, &fake, "tank/ROOT/be");
+    assert!(
+        matches!(events.last(), Some(Event::Finished(Outcome::Done(_)))),
+        "{events:?}"
+    );
+    let lines = ran(&fake);
+    let target = format!("{MP}/etc/resolv.conf");
+    assert_eq!(
+        lines[1..3],
+        [
+            format!("mount -B /etc/resolv.conf {target}"),
+            format!("mount -o remount,bind,ro {target}"),
+        ]
+    );
+    assert!(lines.contains(&format!("umount {target}")), "{lines:#?}");
+}
