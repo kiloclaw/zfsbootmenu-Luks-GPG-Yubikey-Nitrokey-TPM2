@@ -1,9 +1,9 @@
 //! Mounting and unmounting: [`Mount`], and [`Mounted`], which unmounts
 //! when dropped; the kernel's file systems a chroot takes, a read-only
 //! bind ([`NotReadOnly`] when it is not), and [`HostEfivars`], which sets
-//! this system's `efivarfs` back to read-only when dropped; and, for a
-//! chroot, where a path below its root leads, never through this system's
-//! links ([`inside`]).
+//! this system's `efivarfs` back to read-only when dropped; for a chroot,
+//! where a path below its root leads, never through this system's links
+//! ([`inside`]); and the kernel's table of mounts, read back ([`table`]).
 
 #![allow(
     clippy::disallowed_methods,
@@ -20,6 +20,7 @@ use crate::Shown;
 
 pub mod inside;
 mod special;
+pub mod table;
 
 pub use self::special::{HostEfivars, NotReadOnly};
 

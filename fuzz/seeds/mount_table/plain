@@ -1,0 +1,6 @@
+22 1 0:21 / / rw,relatime shared:1 - rootfs rootfs rw
+23 22 0:22 / /proc rw,nosuid,nodev,noexec,relatime shared:2 - proc proc rw
+24 22 0:23 / /sys rw,nosuid,nodev,noexec,relatime shared:3 - sysfs sysfs rw
+25 22 0:24 / /run rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,mode=755
+61 22 0:51 / /zfsbootmenu/environments/zroot/ROOT/void/mnt ro,relatime shared:30 - zfs zroot/ROOT/void ro,xattr,posixacl
+62 22 0:52 / /zfsbootmenu/environments/bpool/BOOT/debian/mnt ro,relatime shared:31 - zfs bpool/BOOT/debian ro,xattr

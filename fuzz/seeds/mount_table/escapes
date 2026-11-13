@@ -1,0 +1,5 @@
+70 22 0:60 / /zfsbootmenu/environments/tank/a\040b/mnt ro shared:40 - zfs tank/a\040b ro
+71 22 0:61 /dir\011tab /mnt/line\012feed rw - tmpfs back\134slash rw
+72 22 0:62 / /lone\ rw - tmpfs lone\ rw
+73 22 0:63 / /nine\9 rw - tmpfs x rw
+74 22 0:64 / /over\400 rw - tmpfs x rw

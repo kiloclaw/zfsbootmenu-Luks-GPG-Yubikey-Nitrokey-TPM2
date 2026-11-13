@@ -3,12 +3,10 @@
 use pretty_assertions::assert_eq;
 use zbm_platform::KernelLog;
 use zbm_testkit::fakes::FileOperation;
+use zbm_tools::mount::table::{MOUNTINFO, mounts};
 
 use super::*;
-use crate::chroot::root::{check, mounts};
-
-/// The kernel's table of this process's mounts.
-const MOUNTINFO: &str = "/proc/self/mountinfo";
+use crate::chroot::root::check;
 
 /// Where environments are mounted below the state directory.
 const ENVIRONMENTS: &str = "/zfsbootmenu/environments";

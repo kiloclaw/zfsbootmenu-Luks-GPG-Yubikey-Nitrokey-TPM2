@@ -28,6 +28,7 @@ pub const TARGETS: &[&str] = &[
     "messages",
     "menu_names",
     "pe_images",
+    "mount_table",
 ];
 
 /// How long each target runs when no time is given, in seconds.

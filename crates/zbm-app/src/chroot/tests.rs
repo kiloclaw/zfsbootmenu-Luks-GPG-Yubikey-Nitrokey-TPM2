@@ -10,7 +10,6 @@ use crate::auth::Lock;
 
 mod links;
 mod menu;
-mod mountinfo;
 mod resolv;
 mod root;
 

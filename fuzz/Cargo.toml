@@ -138,3 +138,10 @@ path = "fuzz_targets/pe_images.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "mount_table"
+path = "fuzz_targets/mount_table.rs"
+test = false
+doc = false
+bench = false

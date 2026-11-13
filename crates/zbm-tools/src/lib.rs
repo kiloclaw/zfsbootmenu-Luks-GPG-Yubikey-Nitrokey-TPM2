@@ -5,7 +5,8 @@
 //! `Command`.
 //!
 //! The crate also finds, for a chroot, where a path below its root leads,
-//! never through this system's links ([`mount::inside`]); that runs no
+//! never through this system's links ([`mount::inside`]), and reads the
+//! kernel's table of mounts back ([`mount::table`]); neither runs a
 //! program.
 //!
 //! The functions keep the command lines and the streams of the legacy code:
@@ -22,6 +23,7 @@
 //! | [`kexec`] | `kexec` |
 //! | [`modules`] | `modprobe`, `modinfo`, `insmod` |
 //! | [`mount`] | `mount`, `umount`, `mountpoint`; none for [`mount::inside`] |
+//! | [`mount::table`] | none: the kernel's table of mounts, read back |
 //! | [`programs`] | hooks, key scripts, editors, shells, Bash's `=~`, `cp` |
 //! | [`udev`] | `udevadm` |
 
