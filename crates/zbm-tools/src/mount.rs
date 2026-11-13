@@ -1,7 +1,9 @@
 //! Mounting and unmounting: [`Mount`], and [`Mounted`], which unmounts
 //! when dropped; the kernel's file systems a chroot takes, a read-only
 //! bind ([`NotReadOnly`] when it is not), and [`HostEfivars`], which sets
-//! this system's `efivarfs` back to read-only when dropped.
+//! this system's `efivarfs` back to read-only when dropped; and, for a
+//! chroot, where a path below its root leads, never through this system's
+//! links ([`inside`]).
 
 #![allow(
     clippy::disallowed_methods,
@@ -16,6 +18,7 @@ use zbm_platform::{Command, Files, Input, Output, Runner, Stream};
 
 use crate::Shown;
 
+pub mod inside;
 mod special;
 
 pub use self::special::{HostEfivars, NotReadOnly};

@@ -80,7 +80,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-config` | The table of options, the ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, `/etc/zfsbootmenu.conf` and crypttab files. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
 | `zbm-zfs` | `zfs` and `zpool`: properties, listings, pools and datasets, mounts, importing and exporting. | the ZFS parts of `zfsbootmenu-core.sh` |
 | `zbm-crypt` | `cryptsetup` with typed requests and mappings, and the key programs: `tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`. | the program calls of `zfsbootmenu-luks*.sh` |
-| `zbm-tools` | The system's other programs: `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, user scripts; block devices from `/sys`. | `zfsbootmenu-core.sh` helpers |
+| `zbm-tools` | The system's other programs: `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, user scripts; block devices from `/sys`; and, for a chroot, where a path below its root leads, never through this system's links (`mount::inside`). | `zfsbootmenu-core.sh` helpers |
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
 | `zbm-pool` | Pool import: policies, host IDs, the retry loop of the start-up stage, the read-write import before a change. | `init.d/50-import-pools`, `zfsbootmenu-core.sh` |
 | `zbm-bootenv` | Boot environments: their datasets, mounts, kernels, command lines, ZFS encryption keys and hooks. | `zfsbootmenu-core.sh` |

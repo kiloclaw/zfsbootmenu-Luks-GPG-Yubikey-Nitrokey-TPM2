@@ -1,6 +1,8 @@
 //! Where a path leads in a chroot: its symbolic links followed inside the
 //! chroot's root, as the chroot's programs will follow them, never in this
-//! system's namespace, where an absolute link would lead out of the root.
+//! system's namespace, where an absolute link would lead out of the root
+//! ([`resolve`]); and the first link on a path below the root, with nothing
+//! followed ([`InRoot::first_link`]). Nothing here runs a program.
 
 use std::collections::VecDeque;
 use std::ffi::OsString;
@@ -21,12 +23,25 @@ const COVERED: [&str; 4] = ["tmp", "proc", "sys", "dev"];
 /// root directory, no `.` and no `..`, so that it never replaces the root
 /// it is put below.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) struct InRoot(Vec<OsString>);
+pub struct InRoot(Vec<OsString>);
 
 impl InRoot {
+    /// `path`'s names, a root directory and `.` dropped; `None` when it has
+    /// `..`.
+    pub fn new(path: &Path) -> Option<InRoot> {
+        path.components()
+            .filter_map(|component| match component {
+                Component::Normal(name) => Some(Some(name.to_owned())),
+                Component::ParentDir => Some(None),
+                Component::RootDir | Component::CurDir | Component::Prefix(_) => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .map(InRoot)
+    }
+
     /// The path below `root`, where this system finds it: `root` with each
     /// name added, never a path that replaces `root`.
-    pub(super) fn under(&self, root: &Path) -> PathBuf {
+    pub fn under(&self, root: &Path) -> PathBuf {
         let mut path = root.to_path_buf();
         for name in &self.0 {
             path.push(name);
@@ -35,19 +50,58 @@ impl InRoot {
     }
 
     /// The path as the chroot names it, from its root directory.
-    pub(super) fn in_chroot(&self) -> PathBuf {
+    pub fn in_chroot(&self) -> PathBuf {
         self.under(Path::new("/"))
     }
 
     /// The directory of the root the path is in: its first name alone.
-    pub(super) fn top(&self) -> InRoot {
+    #[must_use]
+    pub fn top(&self) -> InRoot {
         InRoot(self.0.first().cloned().into_iter().collect())
     }
 
     /// Whether the path is below the directory `name` of the root, `name`
     /// itself not counted.
-    pub(super) fn is_below(&self, name: &str) -> bool {
+    pub fn is_below(&self, name: &str) -> bool {
         self.0.len() > 1 && self.0.first().is_some_and(|first| first == name)
+    }
+
+    /// The first name of the path, below `root`, that is a symbolic link,
+    /// with its target, read shortest first, nothing followed. `None` when
+    /// there is none, and also when a name is missing (its read's `ENOENT`)
+    /// or is no directory where names follow (the next name's `ENOTDIR`):
+    /// nothing below it can be followed then, and a mount or an unmount of
+    /// the path fails by itself. The last name may be a file.
+    ///
+    /// Each name read is below a path found to be no link, so no read
+    /// looks at a path that a link of the root leads to.
+    ///
+    /// # Errors
+    ///
+    /// A link that could not be read, other than for those two reasons.
+    pub fn first_link(
+        &self,
+        files: &dyn Files,
+        root: &Path,
+    ) -> io::Result<Option<(InRoot, PathBuf)>> {
+        let mut walked = InRoot::default();
+        for name in &self.0 {
+            walked.0.push(name.clone());
+            match files.read_link(&walked.under(root)) {
+                Ok(target) => return Ok(Some((walked, target))),
+                Err(error) if error.kind() == io::ErrorKind::InvalidInput => {}
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                    ) =>
+                {
+                    return Ok(None);
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(None)
     }
 
     /// Whether the chroot covers the path with this system's files: it is
@@ -69,16 +123,16 @@ impl InRoot {
 
 /// Where a path leads in the chroot whose root is mounted at `root`.
 #[derive(Debug, Eq, PartialEq)]
-pub(super) struct Inside {
+pub struct Inside {
     /// The path with no link on the way, the last name included.
-    pub(super) path: InRoot,
+    pub path: InRoot,
     /// Whether a link was followed to get there.
-    pub(super) followed: bool,
+    pub followed: bool,
 }
 
 /// Why a path leads nowhere [`resolve`] can name.
 #[derive(Debug)]
-pub(super) enum Unresolved {
+pub enum Unresolved {
     /// A name on the way does not exist: the path as far as it exists,
     /// with the missing name and, when only names follow it, those names.
     Missing {
@@ -93,7 +147,7 @@ pub(super) enum Unresolved {
     Covered(InRoot),
     /// A name on the way is no directory.
     NotADirectory(InRoot),
-    /// More than [`MAX_LINKS`] links on the way.
+    /// More than 40 links on the way, as Linux allows.
     TooManyLinks,
     /// A link could not be read.
     Io(io::Error),
@@ -131,7 +185,7 @@ fn parts(path: &Path) -> Vec<Part> {
 /// [`Unresolved`]: a name that is missing, covered by this system's, or no
 /// directory where names follow; too many links; or a link that could not
 /// be read.
-pub(super) fn resolve(files: &dyn Files, root: &Path, path: &Path) -> Result<Inside, Unresolved> {
+pub fn resolve(files: &dyn Files, root: &Path, path: &Path) -> Result<Inside, Unresolved> {
     let mut pending: VecDeque<Part> = parts(path).into();
     let mut resolved = InRoot::default();
     let (mut links, mut followed) = (0, false);

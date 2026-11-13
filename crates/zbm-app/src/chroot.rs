@@ -22,7 +22,6 @@ use zbm_types::{Answer, FilesystemName, Printable, RetryDelay};
 
 use crate::auth::{self, Authority};
 
-mod inside;
 mod resolv;
 
 /// How long the question waits, in seconds, before the chroot stays

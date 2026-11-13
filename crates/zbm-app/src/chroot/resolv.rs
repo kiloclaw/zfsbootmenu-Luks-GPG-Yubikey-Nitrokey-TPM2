@@ -9,10 +9,10 @@ use std::path::Path;
 use zbm_platform::Files;
 use zbm_platform::files::FileKind;
 use zbm_tools::console::colorize;
+use zbm_tools::mount::inside::{self, InRoot, Inside, Unresolved};
 use zbm_tools::mount::{Mount, Mounted, NotReadOnly};
 use zbm_types::Printable;
 
-use super::inside::{self, InRoot, Inside, Unresolved};
 use super::notice;
 
 /// Where the name servers are, in this system and in the chroot.

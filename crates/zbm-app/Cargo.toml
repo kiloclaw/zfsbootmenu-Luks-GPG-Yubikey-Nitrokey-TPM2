@@ -29,7 +29,6 @@ zbm-zfs.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
-proptest.workspace = true
 zbm-testkit.workspace = true
 
 [lints]

@@ -235,15 +235,125 @@ fn a_file_on_the_way_is_not_a_directory() {
 #[test]
 fn a_link_that_cannot_be_read_is_an_error() {
     let files = files();
-    files.fail(
-        below("etc/resolv.conf"),
-        std::io::ErrorKind::PermissionDenied,
-    );
+    files.fail(below("etc/resolv.conf"), io::ErrorKind::PermissionDenied);
     let found = resolved(&files, "/etc/resolv.conf");
     let Err(Unresolved::Io(error)) = found else {
         panic!("{found:?}");
     };
-    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+}
+
+/// The first link on `path`, below [`ROOT`], in `files`.
+fn first(files: &dyn Files, path: &str) -> io::Result<Option<(InRoot, PathBuf)>> {
+    InRoot::new(Path::new(path))
+        .unwrap()
+        .first_link(files, Path::new(ROOT))
+}
+
+#[test]
+fn in_root_takes_the_names_and_refuses_dot_dot() {
+    assert_eq!(
+        InRoot::new(Path::new("/sys/./firmware/efi/")),
+        Some(in_root("/sys/firmware/efi"))
+    );
+    assert_eq!(InRoot::new(Path::new("dev/pts")), Some(in_root("/dev/pts")));
+    assert_eq!(InRoot::new(Path::new("/")), Some(InRoot::default()));
+    assert_eq!(InRoot::new(Path::new("tmp/../etc")), None);
+    assert_eq!(InRoot::new(Path::new("../tmp")), None);
+}
+
+#[test]
+fn a_path_with_no_link_has_none_on_its_way() {
+    let files = files();
+    files.dir(below("sys/firmware/efi/efivars"));
+    assert_eq!(first(&files, "/sys/firmware/efi/efivars").unwrap(), None);
+    assert_eq!(first(&files, "/").unwrap(), None);
+}
+
+#[test]
+fn a_link_at_the_last_name_is_the_first_link() {
+    let files = files();
+    files.symlink(below("tmp"), "/etc");
+    assert_eq!(
+        first(&files, "/tmp").unwrap(),
+        Some((in_root("/tmp"), PathBuf::from("/etc")))
+    );
+    files.symlink(below("dev"), "../../../../../../etc");
+    assert_eq!(
+        first(&files, "/dev").unwrap(),
+        Some((in_root("/dev"), PathBuf::from("../../../../../../etc")))
+    );
+}
+
+#[test]
+fn a_link_in_the_middle_is_found_before_the_names_after_it() {
+    let files = files();
+    // The image's `/etc/firmware` is a link too: following `sys` would
+    // find it, and the walk must not.
+    files
+        .symlink(below("sys"), "/etc")
+        .symlink("/etc/firmware", "/run/x");
+    assert_eq!(
+        first(&files, "/sys/firmware/efi/efivars").unwrap(),
+        Some((in_root("/sys"), PathBuf::from("/etc")))
+    );
+    files.dir(below("dev")).symlink(below("dev/pts"), "/etc");
+    assert_eq!(
+        first(&files, "/dev/pts/0").unwrap(),
+        Some((in_root("/dev/pts"), PathBuf::from("/etc")))
+    );
+}
+
+#[test]
+fn a_missing_name_ends_the_walk_with_no_link() {
+    let files = files();
+    assert_eq!(first(&files, "/proc").unwrap(), None);
+    assert_eq!(first(&files, "/sys/firmware/efi/efivars").unwrap(), None);
+}
+
+#[test]
+fn a_file_on_the_way_ends_the_walk_with_no_link() {
+    let files = files();
+    files.file(below("dev"), "");
+    assert_eq!(first(&files, "/dev/pts").unwrap(), None);
+}
+
+#[test]
+fn a_file_at_the_last_name_is_no_link() {
+    let files = files();
+    files.file(below("etc/resolv.conf"), "nameserver 127.0.0.53\n");
+    assert_eq!(first(&files, "/etc/resolv.conf").unwrap(), None);
+}
+
+#[test]
+fn a_name_that_cannot_be_read_is_an_error() {
+    let files = files();
+    files.fail(below("etc"), io::ErrorKind::PermissionDenied);
+    let error = first(&files, "/etc/resolv.conf").unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+}
+
+#[test]
+fn a_real_link_is_found_with_the_real_files() {
+    let dir = zbm_testkit::TempDir::new("zbm-inside");
+    let root = dir.join("root");
+    dir.write("root/etc/file", "");
+    std::os::unix::fs::symlink("/etc", root.join("tmp")).unwrap();
+    let files = zbm_platform::RealFiles;
+    let walk = |path: &str| {
+        InRoot::new(Path::new(path))
+            .unwrap()
+            .first_link(&files, &root)
+    };
+    assert_eq!(
+        walk("/tmp/x").unwrap(),
+        Some((in_root("/tmp"), PathBuf::from("/etc")))
+    );
+    // A directory and a file are no link (`EINVAL`), a missing name ends
+    // the walk (`ENOENT`), and so does a name below a file (`ENOTDIR`).
+    assert_eq!(walk("/etc/file").unwrap(), None);
+    assert_eq!(walk("/etc/missing/x").unwrap(), None);
+    assert_eq!(walk("/etc/file/x").unwrap(), None);
 }
 
 /// The names of the random trees: a few, among them those the chroot
@@ -361,6 +471,34 @@ proptest! {
                 under.parent().unwrap_or(Path::new(ROOT))
             };
             prop_assert!(is_link_free(&files, checked), "{}", under.display());
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn the_first_link_is_the_only_link_read_and_none_means_link_free(
+        inner in proptest::collection::vec((relative(), entry()), 0..12),
+        outer in proptest::collection::vec((relative(), entry()), 0..6),
+        path in relative(),
+    ) {
+        let files = FakeFiles::new();
+        files.dir(ROOT);
+        add(&files, Path::new("/"), &outer);
+        add(&files, Path::new(ROOT), &inner);
+        let names = InRoot::new(Path::new(&path)).unwrap();
+        let under = names.under(Path::new(ROOT));
+        match names.first_link(&files, Path::new(ROOT)) {
+            Ok(None) => prop_assert!(is_link_free(&files, &under), "{}", under.display()),
+            Ok(Some((link, target))) => {
+                let at = link.under(Path::new(ROOT));
+                prop_assert!(under.starts_with(&at), "{}", at.display());
+                prop_assert_eq!(files.read_link(&at).ok(), Some(target));
+                // No shorter prefix is a link.
+                let parent = at.parent().unwrap_or(Path::new(ROOT));
+                prop_assert!(is_link_free(&files, parent), "{}", at.display());
+            }
+            Err(error) => prop_assert!(false, "{error}"),
         }
     }
 }

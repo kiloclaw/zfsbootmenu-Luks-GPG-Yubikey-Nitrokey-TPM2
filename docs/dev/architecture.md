@@ -118,10 +118,11 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `mount` (ZFS mounts and unmounts as system calls where the `Files` port makes them, with a `Mounted` that unmounts
   when dropped), kernel modules, `udevadm`, the terminal, `kexec`, `blkid` and user scripts, and reads block
   devices from `/sys/class/block` and udev's records; its `console` module is the plain console, the
-  `ConsoleInteraction` that shows a service's questions on a terminal without the menu. Adapters are the only code
-  that builds a `Command`: the
-  workspace's `clippy.toml` disallows `Command::new` and `Command::shell`, which the adapters' modules and test builds
-  allow. Each adapter gives the programs that wait on a device a time-out.
+  `ConsoleInteraction` that shows a service's questions on a terminal without the menu; and, for a chroot, its
+  `mount::inside` finds where a path below the root leads, never through this system's links. Adapters are
+  the only code that builds a `Command`: the workspace's `clippy.toml` disallows `Command::new` and
+  `Command::shell`, which the adapters' modules and test builds allow. Each adapter gives the programs that wait on a
+  device a time-out.
 - **domain**: domain crates take a `Context`, which has no console, and ask the person through the `Interaction` they
   are given; `check-deps` refuses `System` and `Console` in their code outside tests (ADR 0015). `zbm-luks` unlocks
   and closes LUKS volumes with every key method, through the LUKS port of `zbm-crypt` (`LuksVolumes`), whose open

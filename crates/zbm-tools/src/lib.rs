@@ -1,7 +1,12 @@
 //! The system programs ZFSBootMenu runs, other than ZFS (`zbm-zfs`) and
-//! encryption (`zbm-crypt`): each function here builds one command line and
-//! runs it through a [`Runner`](zbm_platform::Runner), so that the rest of
-//! the code describes what it wants and never builds a `Command`.
+//! encryption (`zbm-crypt`): each function of a program's module builds one
+//! command line and runs it through a [`Runner`](zbm_platform::Runner), so
+//! that the rest of the code describes what it wants and never builds a
+//! `Command`.
+//!
+//! The crate also finds, for a chroot, where a path below its root leads,
+//! never through this system's links ([`mount::inside`]); that runs no
+//! program.
 //!
 //! The functions keep the command lines and the streams of the legacy code:
 //! where a program's output goes (to the console, nowhere, or back to the
@@ -16,7 +21,7 @@
 //! | [`host`] | the image build's `fzf`, `zfs`, `ldconfig`, `gpg` and more |
 //! | [`kexec`] | `kexec` |
 //! | [`modules`] | `modprobe`, `modinfo`, `insmod` |
-//! | [`mount`] | `mount`, `umount`, `mountpoint` |
+//! | [`mount`] | `mount`, `umount`, `mountpoint`; none for [`mount::inside`] |
 //! | [`programs`] | hooks, key scripts, editors, shells, Bash's `=~`, `cp` |
 //! | [`udev`] | `udevadm` |
 

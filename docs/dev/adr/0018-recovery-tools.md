@@ -535,9 +535,10 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
   no longer ends it at the PIN or the question. After the menu's chroot the menu stays on its Recovery Tools.
 - **Name servers in the chroot,** after the ADR (ROADMAP.md SB15): point 6's mounts gained the name servers, first
   after the filesystem. Where the image has an `/etc/resolv.conf` that is not empty, it is bound read-only over the
-  environment's, whose links are followed inside the chroot's root (`zbm_app::chroot::inside`), with a `/run` in
-  memory for a link into an empty `/run`. Its VM test, `runtime-rust-resolv`, is the maintainer's to run. The other
-  mounts still follow the environment's links in the image's namespace, as `zfs-chroot`'s did (SB16).
+  environment's, whose links are followed inside the chroot's root (`zbm_app::chroot::inside`, moved to
+  `zbm_tools::mount::inside` by SB16), with a `/run` in memory for a link into an empty `/run`. Its VM test,
+  `runtime-rust-resolv`, is the maintainer's to run. The other mounts still follow the environment's links in the
+  image's namespace, as `zfs-chroot`'s did (SB16).
 - **`zkexec`** takes a boot environment and refuses a snapshot; it searches the environment's kernels first, so its
   command line is the menu's.
 - **`mount_esp`** without an argument mounts the EFI system partition the boot loader names, or the only one, not
