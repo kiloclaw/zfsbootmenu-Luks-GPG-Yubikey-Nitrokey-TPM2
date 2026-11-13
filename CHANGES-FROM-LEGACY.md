@@ -1006,6 +1006,22 @@ scripts.
   is a usage error (exit status 2), and `--help` prints the usage, where the script ignored its arguments.
 - **Why:** the recovery shell's tools in Rust (ADR 0018, point 11), with what the menu's power actions do.
 
+### The recovery shell finds `zbm`'s commands first
+
+- **Before:** `/etc/profile` set `PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin`. dracut's shutdown module installs the
+  host's `reboot`, `poweroff` and `halt` where the host has them. Where that is `/usr/sbin` or `/sbin`, which `PATH`
+  searches before `/bin` and `/usr/bin`, as on Ubuntu, `reboot` and `poweroff` in the recovery shell and in hooks
+  were systemd's, which export no pool, not the image's `/bin/reboot`; where it is the directory of `/bin`, the
+  image's links replace them. Legacy images keep that `PATH`.
+- **Now:** Rust images set `PATH=/zbm/bin:/bin:/usr/sbin:/usr/bin:/sbin`: `/bin`, where `zbm`'s commands are linked,
+  comes before the directories where the builder puts other programs of the same names, so `reboot` and `poweroff`
+  are `zbm`'s and export the writable pools. Where `/bin` is a link to `usr/bin`, as dracut makes it on a host whose
+  `/bin` is one, a program in `/usr/bin` is now found before one of the same name in `/usr/sbin`; elsewhere a
+  program in `/bin` before one in `/usr/sbin`, `/usr/bin` or `/sbin`. mkinitcpio puts them all in one directory, so
+  nothing changes there. `halt` stays the host's: `zbm` has no `halt`.
+- **Why:** the recovery shell's commands are `zbm`'s under their names (ADR 0018, points 3 and 11); the VM test
+  `runtime-rust-recovery` found systemd's `reboot` in the shell.
+
 ### `zkexec` is `zbm`, and boots
 
 - **Before:** `/bin/zkexec FILESYSTEM KERNEL INITRAMFS`, a Bash script, joined its three arguments with spaces into the

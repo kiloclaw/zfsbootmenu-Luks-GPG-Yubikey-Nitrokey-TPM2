@@ -1060,7 +1060,7 @@ file	@/etc/zfsbootmenu.conf	/etc/zfsbootmenu.conf	0644
     | export ZBM_SPEAKUP='soft'
     | export ZBM_ESPEAKUP=''
 file	@/etc/profile	/etc/profile	0644
-    | export PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    | export PATH=/zbm/bin:/bin:/usr/sbin:/usr/bin:/sbin
     | [ "${TERM}" = dumb ] || export TERM=linux
     | export HOME=/root
     | export LC_CTYPE=C.UTF-8

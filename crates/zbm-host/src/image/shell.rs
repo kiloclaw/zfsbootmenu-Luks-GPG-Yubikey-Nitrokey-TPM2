@@ -11,11 +11,19 @@ use zbm_types::{Completion, LINKED};
 
 use super::{Builder, Image};
 
-/// `/etc/profile`, around the line that sets `TERM`.
-const PROFILE: [&str; 2] = [
-    "export PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin\n",
-    "export HOME=/root\n",
-];
+/// The legacy runtime's `PATH`, the first line of its `/etc/profile`.
+const PATH_LEGACY: &str = "export PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin\n";
+
+/// The Rust runtime's `PATH`, the first line of its `/etc/profile`: `/bin`,
+/// where the image links `zbm`'s applets ([`LINKED`]), comes before the
+/// directories where the builder puts programs of the same names, such as
+/// the host's `reboot` and `poweroff` that dracut's shutdown module installs
+/// in `/usr/sbin` or `/sbin`. Where `/bin` is a link to `usr/bin`, as dracut
+/// makes it on a host whose `/bin` is one, `/usr/bin` comes first with it.
+const PATH_RUST: &str = "export PATH=/zbm/bin:/bin:/usr/sbin:/usr/bin:/sbin\n";
+
+/// The line of `/etc/profile` after the one that sets `TERM`.
+const HOME: &str = "export HOME=/root\n";
 
 /// The terminal of the legacy profile: always the Linux console.
 const TERM_LINUX: &str = "export TERM=linux\n";
@@ -207,14 +215,15 @@ pub fn conf(image: &mut Image) {
 }
 
 /// `/etc/profile`, `/root/.bashrc`, and `/root/.profile`, a link to it for
-/// `/bin/sh`, which dropbear starts.
+/// `/bin/sh`, which dropbear starts. The profiles differ by runtime in
+/// `PATH` and `TERM`.
 pub fn profiles(image: &mut Image) {
-    let term = if image.is_rust() {
-        TERM_UNLESS_DUMB
+    let (path, term) = if image.is_rust() {
+        (PATH_RUST, TERM_UNLESS_DUMB)
     } else {
-        TERM_LINUX
+        (PATH_LEGACY, TERM_LINUX)
     };
-    let profile = [PROFILE[0], term, PROFILE[1]].concat();
+    let profile = [path, term, HOME].concat();
     image.plan.write("/etc/profile", 0o644, profile);
     image
         .plan

@@ -10,9 +10,10 @@
 //! - the menu's Recovery Tools list no Firmware Setup, which a BIOS cannot
 //!   open, but Reboot and Power Off;
 //! - in the recovery shell, `firmware-setup` says why and exits 1;
-//!   `reboot --help` and `shutdown --help` print the usages of `zbm`'s
-//!   `reboot` and `poweroff`, through the image's links. Neither is run,
-//!   since either would end the machine;
+//!   `reboot --help`, `poweroff --help` and `shutdown --help` print the
+//!   usages of `zbm`'s `reboot` and `poweroff`, through the image's links,
+//!   which the shell finds before the host's programs that dracut
+//!   installs. None is run, since each would end the machine;
 //! - the shell's `logs`, which is `zbm`'s, through a pipe: it needs no
 //!   terminal, exits 0, and prints the warning start-up logged at the
 //!   boot, for the import policy the command line names and start-up does
@@ -218,8 +219,10 @@ fn tools_to_shell(test: &Test, vm: &mut Vm<'_>, pause: Duration) -> Result<()> {
     vm.shell_ready()
 }
 
-/// Runs `firmware-setup`, which must say why it cannot, and asks `reboot`
-/// and `shutdown` for their usages, which `zbm` prints.
+/// Runs `firmware-setup`, which must say why it cannot, and asks `reboot`,
+/// `poweroff` and `shutdown` for their usages, which `zbm` prints: the
+/// shell finds `zbm`'s links before the host's programs of those names,
+/// which dracut installs too.
 fn shell_tools(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     let (code, said) = vm.sh_show("firmware-setup")?;
     test.check(
@@ -230,7 +233,12 @@ fn shell_tools(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
         NO_FIRMWARE_SETUP.iter().all(|line| said.contains(line)),
         "firmware-setup says why the machine cannot reboot into its setup",
     );
-    for (name, usage) in [("reboot", "Usage: reboot"), ("shutdown", "Usage: poweroff")] {
+    let usages = [
+        ("reboot", "Usage: reboot"),
+        ("poweroff", "Usage: poweroff"),
+        ("shutdown", "Usage: poweroff"),
+    ];
+    for (name, usage) in usages {
         let (code, said) = vm.sh_show(&format!("{name} --help"))?;
         test.check(
             code == 0 && said.contains(usage),

@@ -61,6 +61,44 @@ fn bin_zbm_gives_zbm_its_own_options_and_the_menu_the_others() {
     assert_eq!(bin_zbm_runs(&["help", "keys"]), "help keys\n");
 }
 
+/// The directories of the `PATH` that `/etc/profile` of the plan of
+/// `builder` with `settings` sets, in order.
+fn path_of_profile(builder: Builder, settings: &str) -> Vec<String> {
+    let (files, runner) = (host_files(), host_runner());
+    let plan = plan_of(builder, settings, &files, &runner).unwrap();
+    let profile = String::from_utf8_lossy(plan.written(Path::new("/etc/profile")).unwrap());
+    let line = profile
+        .lines()
+        .find_map(|line| line.strip_prefix("export PATH="))
+        .unwrap();
+    line.split(':').map(str::to_owned).collect()
+}
+
+#[test]
+fn the_rust_profile_finds_zbm_s_links_before_the_builder_s_programs() {
+    // dracut's shutdown module installs the host's `reboot` and `poweroff`
+    // in `/usr/sbin` or `/sbin`, where they are not one directory with
+    // `/bin`: `/bin`, where the image links `zbm`'s commands, must come
+    // before each of them.
+    assert!(zbm_types::LINKED.iter().any(|linked| linked.dir == "/bin"));
+    for (builder, settings) in RUST {
+        let path = path_of_profile(builder, settings);
+        let place = |dir: &str| path.iter().position(|entry| entry == dir);
+        let bin = place("/bin").unwrap();
+        for other in ["/usr/sbin", "/usr/bin", "/sbin"] {
+            assert!(
+                place(other).is_some_and(|at| bin < at),
+                "{builder:?}: /bin after {other} in {path:?}"
+            );
+        }
+    }
+    // The legacy runtime keeps its own.
+    assert_eq!(
+        path_of_profile(Builder::Dracut, ""),
+        ["/zbm/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"]
+    );
+}
+
 #[test]
 fn the_rust_profile_keeps_a_dumb_terminal_for_the_line_view() {
     let rust = "zfsbootmenu_runtime\trust\n";

@@ -73,17 +73,37 @@ fn recovery_tools_that_list_firmware_setup_fail_on_a_bios() {
     );
 }
 
+/// What `zbm`'s `reboot --help` prints, and its status.
+const REBOOT_HELP: &str = "Usage: reboot\r\n\r\nExports the pools imported read/write.\r\nRC=0\r\n";
+
+/// What `zbm`'s `poweroff --help` and `shutdown --help` print, and their
+/// status.
+const POWEROFF_HELP: &str = "Usage: poweroff\r\n       shutdown\r\nRC=0\r\n";
+
 /// The shell's answers to [`shell_tools`]: `firmware-setup` says
-/// `firmware`, and ends with `code`.
-fn shell_script(firmware: &'static str) -> Vec<Step> {
+/// `firmware`, `reboot --help` says `reboot`, and `poweroff --help` says
+/// `poweroff`.
+fn shell_script_with(
+    firmware: &'static str,
+    reboot: &'static str,
+    poweroff: &'static str,
+) -> Vec<Step> {
     vec![
         Step::Hear("firmware-setup; echo RC=$?"),
         Step::Say(firmware),
         Step::Hear("reboot --help; echo RC=$?"),
-        Step::Say("Usage: reboot\r\n\r\nExports the pools imported read/write.\r\nRC=0\r\n"),
+        Step::Say(reboot),
+        Step::Hear("poweroff --help; echo RC=$?"),
+        Step::Say(poweroff),
         Step::Hear("shutdown --help; echo RC=$?"),
-        Step::Say("Usage: poweroff\r\n       shutdown\r\nRC=0\r\n"),
+        Step::Say(POWEROFF_HELP),
     ]
+}
+
+/// The shell's answers to [`shell_tools`], where `firmware-setup` says
+/// `firmware` and `reboot` and `poweroff` are `zbm`'s.
+fn shell_script(firmware: &'static str) -> Vec<Step> {
+    shell_script_with(firmware, REBOOT_HELP, POWEROFF_HELP)
 }
 
 /// Plays `script` against [`shell_tools`]; the checks it recorded.
@@ -116,6 +136,36 @@ fn in_the_shell_firmware_setup_says_why_and_exits_1() {
             "ok   - on a BIOS, firmware-setup exits 1 (1)",
             "ok   - firmware-setup says why the machine cannot reboot into its setup",
             "ok   - reboot is zbm's: --help prints \"Usage: reboot\" (0)",
+            "ok   - poweroff is zbm's: --help prints \"Usage: poweroff\" (0)",
+            "ok   - shutdown is zbm's: --help prints \"Usage: poweroff\" (0)",
+        ]
+    );
+}
+
+/// What systemd's `reboot --help`, which dracut installs from the host,
+/// prints, and its status.
+const SYSTEMD_REBOOT_HELP: &str = "reboot [OPTIONS...] [ARG]\r\n\r\nReboot the system.\r\n\r\n\
+    This is a compatibility interface, please use the more powerful \
+    'systemctl reboot' command instead.\r\nRC=0\r\n";
+
+/// What systemd's `poweroff --help`, which dracut installs from the host,
+/// prints, and its status.
+const SYSTEMD_POWEROFF_HELP: &str = "poweroff [OPTIONS...]\r\n\r\nPower off the system.\r\n\r\n\
+    This is a compatibility interface, please use the more powerful \
+    'systemctl poweroff' command instead.\r\nRC=0\r\n";
+
+#[test]
+fn the_host_s_reboot_and_poweroff_in_the_shell_fail() {
+    let found = shell_checks(
+        "runtime-recovery-host-power",
+        shell_script_with("RC=1\r\n", SYSTEMD_REBOOT_HELP, SYSTEMD_POWEROFF_HELP),
+    );
+
+    assert_eq!(
+        found[2..],
+        [
+            "FAIL - reboot is zbm's: --help prints \"Usage: reboot\" (0)",
+            "FAIL - poweroff is zbm's: --help prints \"Usage: poweroff\" (0)",
             "ok   - shutdown is zbm's: --help prints \"Usage: poweroff\" (0)",
         ]
     );

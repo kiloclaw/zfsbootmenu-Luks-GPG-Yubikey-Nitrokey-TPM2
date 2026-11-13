@@ -470,8 +470,9 @@ Following a boot
     ``exit`` is back on the Recovery Tools;
   * the Recovery Tools list Reboot and Power Off but no Firmware Setup, which a BIOS cannot open; Enter opens the
     recovery shell;
-  * ``firmware-setup`` says why it cannot and exits 1; ``reboot --help`` and ``shutdown --help`` print the usages of
-    ``zbm``'s ``reboot`` and ``poweroff`` (neither is run, as either would end the machine);
+  * ``firmware-setup`` says why it cannot and exits 1; ``reboot --help``, ``poweroff --help`` and ``shutdown --help``
+    print the usages of ``zbm``'s ``reboot`` and ``poweroff``, not those of the host's programs that dracut installs
+    too (none is run, as each would end the machine);
   * ``logs | cat`` exits 0 and prints start-up's warning about the import policy;
   * ``zbm help | cat`` exits 0 and lists ``zfs-chroot``; ``zbm --help`` prints ``zbm``'s usage, not the menu's;
     ``help | cat``, the shell's alias, lists ``zfs-chroot`` too; ``help`` on the terminal opens the pager on the
