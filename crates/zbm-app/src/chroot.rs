@@ -2,8 +2,9 @@
 //! legacy `zfs-chroot` opened one: on a pool imported read-only, the
 //! question whether to import it read/write; the key of the filesystem's
 //! encryption root; the filesystem with this system's name servers
-//! (SB15) and the kernel's file systems mounted below it; and the first
-//! shell that runs there, which the shell's gate opens (ADR 0010).
+//! (SB15) and the kernel's file systems mounted below it, never on a path
+//! that passes through a symbolic link of the filesystem (SB16); and the
+//! first shell that runs there, which the shell's gate opens (ADR 0010).
 
 use std::io;
 use std::path::Path;
@@ -12,25 +13,23 @@ use zbm_boot::BootSettings;
 use zbm_bootenv::{BootEnvError, Noise};
 use zbm_platform::console::{Console, Screen};
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject};
-use zbm_platform::{Context, System};
+use zbm_platform::{Context, Files, System};
 use zbm_pool::writable;
 use zbm_state::State;
 use zbm_tools::console::{ConsoleInteraction, colorize};
+use zbm_tools::mount::inside::InRoot;
 use zbm_tools::mount::{HostEfivars, Mount, Mounted};
 use zbm_tools::programs::Chroot;
 use zbm_types::{Answer, FilesystemName, Printable, RetryDelay};
 
 use crate::auth::{self, Authority};
 
+mod kernel;
 mod resolv;
 
 /// How long the question waits, in seconds, before the chroot stays
 /// read-only.
 const QUESTION: u64 = 10;
-
-/// Where this system's EFI variables are, and where a chroot's are below
-/// its root.
-const EFIVARS: &str = "/sys/firmware/efi/efivars";
 
 /// Why no shell opened in a chroot.
 #[derive(Debug, thiserror::Error)]
@@ -56,8 +55,9 @@ pub enum ChrootError {
 }
 
 /// What a chroot has mounted, which dropping it unmounts: the kernel's
-/// file systems and the name servers below the root in reverse, then the
-/// root with everything below it, then the host's `efivarfs`, set back to
+/// file systems and the name servers below the root in reverse, each by
+/// its path where no name on it is a symbolic link now, then the root with
+/// everything below it, then the host's `efivarfs`, set back to
 /// read-only.
 struct Mounts<'a> {
     /// The name servers and the kernel's file systems below the root, in
@@ -67,15 +67,56 @@ struct Mounts<'a> {
     root: Mounted<'a>,
     /// The host's `efivarfs`, in the chroot's mode until dropped.
     host: Option<HostEfivars<'a>>,
-    /// What is mounted how, for the person.
+    /// What is mounted how, or why it is not, for the person.
     notices: Vec<String>,
+    /// Where the paths below the root are looked at.
+    files: &'a dyn Files,
+    /// Whether this system's `/tmp` is mounted below the root.
+    tmp: bool,
 }
 
 impl Drop for Mounts<'_> {
     fn drop(&mut self) {
         while let Some(mounted) = self.below.pop() {
-            drop(mounted);
+            unmount_below(self.files, self.root.path(), mounted);
         }
+    }
+}
+
+/// Unmounts `mounted`, below the root at `at`, by its path where nothing
+/// is in the way ([`obstacle`]); leaves it otherwise, with a warning, to
+/// the root's recursive unmount.
+fn unmount_below(files: &dyn Files, at: &Path, mounted: Mounted<'_>) {
+    match obstacle(files, at, mounted.path()) {
+        None => drop(mounted),
+        Some(why) => {
+            let path = mounted.leave();
+            tracing::warn!(path = %path.display(), why, "left mounted for the root's unmount");
+        }
+    }
+}
+
+/// Why nothing is to be mounted on `path`, or unmounted by it, in the
+/// chroot whose root is mounted at `at`: it is not below `at`, or has
+/// `..`, or a name on its way below `at` is a symbolic link, or could not
+/// be read ([`InRoot::first_link`]). `None` when nothing is in the way: a
+/// missing name, or one that is no directory, makes the mount or the
+/// unmount fail by itself.
+fn obstacle(files: &dyn Files, at: &Path, path: &Path) -> Option<String> {
+    let Some(names) = path.strip_prefix(at).ok().and_then(InRoot::new) else {
+        return Some(format!("{} is not below the root", path.display()));
+    };
+    match names.first_link(files, at) {
+        Ok(None) => None,
+        Ok(Some((link, target))) if link == names => {
+            Some(format!("it is a link to {}", target.display()))
+        }
+        Ok(Some((link, target))) => Some(format!(
+            "{} is a link to {}",
+            link.in_chroot().display(),
+            target.display()
+        )),
+        Err(error) => Some(error.to_string()),
     }
 }
 
@@ -192,12 +233,14 @@ fn ask_and_unlock(
 /// Mounts `fs` on its mount point in the state directory, read/write when
 /// `writable`; this system's `/etc/resolv.conf`, read-only, over the
 /// filesystem's, before anything else is mounted below it
-/// ([`resolv::name_servers`]); then, as `zfs-chroot` did: `/tmp` bound
-/// below it, a `proc`, a `sysfs` and `/dev` bound below it; on EFI, this
-/// system's `efivarfs` remounted in the chroot's mode, or mounted so where
-/// it is not, and one in the chroot; and a `devpts` where the bound `/dev`
-/// has `pts`. A mount below the filesystem that fails is left out, as
-/// `zfs-chroot` left it.
+/// ([`resolv::name_servers`]); then, as `zfs-chroot` did, the kernel's
+/// file systems ([`kernel::mount`]): `/tmp` bound below it, a `proc`, a
+/// `sysfs` and `/dev` bound below it; on EFI, this system's `efivarfs`
+/// remounted in the chroot's mode, or mounted so where it is not, and one
+/// on the chroot's `sysfs`; and a `devpts` where the bound `/dev` has
+/// `pts`. A mount point that is a symbolic link, or passes through one, is
+/// not mounted, with a notice; a mount below the filesystem that fails is
+/// left out, as `zfs-chroot` left it.
 ///
 /// # Errors
 ///
@@ -220,47 +263,21 @@ fn mount<'c>(
         root: root.recursive(),
         host: None,
         notices: vec![notice(&fs.to_string(), writable)],
+        files: context.files(),
+        tmp: false,
     };
     let mount = Mount::new(context.runner(), context.files());
     let names = resolv::name_servers(mount, context.files(), &at);
     mounts.below.extend(names.mounts);
     mounts.notices.extend(names.notices);
-    let kernel = [
-        mount.bind(Path::new("/tmp"), &at.join("tmp")),
-        mount.proc(&at.join("proc")),
-        mount.sysfs(&at.join("sys")),
-        mount.bind(Path::new("/dev"), &at.join("dev")),
-    ];
-    mounts.below.extend(kernel.into_iter().flatten());
-    let files = context.files();
-    let mode = if writable { "rw" } else { "ro" };
-    let host = if !files.is_dir(Path::new("/sys/firmware/efi")) {
-        None
-    } else if zbm_bootenv::is_mount_point(files, EFIVARS) {
-        HostEfivars::remount(mount, mode).ok()
-    } else {
-        HostEfivars::mount(mount, mode).ok()
-    };
-    if let Some(host) = host {
-        mounts.host = Some(host);
-        let inside = at.join(EFIVARS.trim_start_matches('/'));
-        if let Ok(efivarfs) = mount.efivarfs_in(&inside, mode) {
-            mounts.below.push(efivarfs);
-            mounts.notices.push(notice("efivarfs", writable));
-        }
-    }
-    let pts = at.join("dev/pts");
-    if files.is_dir(&pts)
-        && let Ok(devpts) = mount.devpts(&pts)
-    {
-        mounts.below.push(devpts);
-    }
+    kernel::mount(mount, &at, writable, &mut mounts);
     Ok(mounts)
 }
 
 /// Finds the shell that runs in the chroot of `mounts`, as `zfs-chroot`
-/// did ([`Chroot::find`]), then says on `console` what is mounted how,
-/// `/tmp`, which is this system's, last.
+/// did ([`Chroot::find`]), then says on `console` what is mounted how, or
+/// why it is not, and `/tmp`, which is this system's, last, where it is
+/// mounted.
 ///
 /// # Errors
 ///
@@ -279,8 +296,11 @@ fn find_shell<'c>(
         .ok_or_else(|| ChrootError::NoShell(fs.clone()))?;
     let mut said = mounts.notices.join("\n");
     said.push('\n');
-    said.push_str(&notice("/tmp", true));
-    said.push_str("\n\n");
+    if mounts.tmp {
+        said.push_str(&notice("/tmp", true));
+        said.push('\n');
+    }
+    said.push('\n');
     let _ = console.write(said.as_bytes());
     Ok(Prepared {
         chroot,
@@ -301,6 +321,17 @@ fn notice(what: &str, writable: bool) -> String {
         "{} {} is mounted {mode}",
         colorize("white", "*"),
         colorize("orange", &what)
+    )
+}
+
+/// The notice that `what` is not mounted, and `why`, both escaped.
+fn not_mounted(what: &str, why: &str) -> String {
+    let what = Printable(what).to_string();
+    format!(
+        "{} {} is not mounted: {}",
+        colorize("white", "*"),
+        colorize("orange", &what),
+        Printable(why)
     )
 }
 

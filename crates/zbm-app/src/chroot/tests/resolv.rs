@@ -9,11 +9,11 @@ use super::*;
 const SERVERS: &str = "nameserver 10.0.2.3\n";
 
 /// systemd-resolved's file, where the environment's link leads.
-const STUB: &str = "/run/systemd/resolve/stub-resolv.conf";
+pub(super) const STUB: &str = "/run/systemd/resolve/stub-resolv.conf";
 
 /// A writable machine whose image has name servers, its environment with
 /// `/etc` and an empty `/run`, as a dataset's are.
-fn named() -> FakeSystem {
+pub(super) fn named() -> FakeSystem {
     let fake = machine("off");
     fake.files
         .file("/etc/resolv.conf", SERVERS)

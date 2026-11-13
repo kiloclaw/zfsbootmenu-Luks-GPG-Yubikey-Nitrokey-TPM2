@@ -8,12 +8,10 @@ use std::path::Path;
 
 use zbm_platform::Files;
 use zbm_platform::files::FileKind;
-use zbm_tools::console::colorize;
 use zbm_tools::mount::inside::{self, InRoot, Inside, Unresolved};
 use zbm_tools::mount::{Mount, Mounted, NotReadOnly};
-use zbm_types::Printable;
 
-use super::notice;
+use super::{not_mounted, notice};
 
 /// Where the name servers are, in this system and in the chroot.
 const RESOLV_CONF: &str = "/etc/resolv.conf";
@@ -150,14 +148,8 @@ fn bind<'c>(mount: Mount<'c>, at: &Path, inside: &Inside) -> Option<(Mounted<'c>
 /// not mounted, and `why`, escaped.
 fn refused<'c>(why: &str) -> NameServers<'c> {
     tracing::debug!(why, "the chroot's name servers are not mounted");
-    let said = format!(
-        "{} {} is not mounted: {}",
-        colorize("white", "*"),
-        colorize("orange", RESOLV_CONF),
-        Printable(why)
-    );
     NameServers {
         mounts: Vec::new(),
-        notices: vec![said],
+        notices: vec![not_mounted(RESOLV_CONF, why)],
     }
 }

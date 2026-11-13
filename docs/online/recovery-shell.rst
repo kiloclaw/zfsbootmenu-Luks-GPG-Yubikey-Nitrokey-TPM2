@@ -12,6 +12,7 @@ Common Commands
 
   Enter a chroot of the specified boot environment. The boot environment is mounted *read/write* if the zpool is imported *read/write*.
   In images with the Rust runtime, ZFSBootMenu's own */etc/resolv.conf*, where it has one, is mounted *read-only* over the boot environment's, so that names resolve in the chroot.
+  There, a mount point that is a symbolic link, such as a */tmp* that links elsewhere, is not mounted, and a notice says so.
 
 **zkexec** *dataset kernel initramfs*
 

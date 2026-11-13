@@ -624,6 +624,23 @@ same commands. The menu also restores files from a snapshot, which the legacy me
   chroot ends.
 - **Why:** a chroot is where packages are repaired, which needs names.
 
+### A chroot mounts nothing on a link
+
+- **Before:** `zfs-chroot` mounted `/tmp`, `/proc`, `/sys`, `/dev`, efivarfs and devpts where the environment's links
+  led, in ZFSBootMenu, so a `tmp -> /etc` in the environment bound `/tmp` over ZFSBootMenu's `/etc`, and its recursive
+  unmount of the root left that mount in place. `[ -x ]` checked `/bin/sh -> /bin/busybox` against ZFSBootMenu's file,
+  not the environment's. A failed efivarfs in the chroot left ZFSBootMenu's read/write. `/tmp is mounted read/write`
+  was said even when it was not.
+- **Now:** a mount point that is a symbolic link, or passes through one, is not mounted, and a notice says why, as
+  `* /tmp is not mounted: it is a link to /etc`; the chroot opens without it. A missing mount point is still tried, as
+  before. efivarfs is mounted only on a `sysfs` the chroot mounted, and devpts only on a bound `/dev`; ZFSBootMenu's
+  efivarfs is read-only again at once, before the shell, when the chroot gets none. The shell is found inside the
+  environment, its links followed there. Nothing is unmounted through a link left during the chroot: such a mount is
+  left to the recursive unmount of the chroot's root. `/tmp`'s notice is said only when it is mounted. An environment
+  that links `/tmp` on purpose, as to `var/tmp`, has no `/tmp` in the chroot.
+- **Why:** an environment's links are the environment's: followed in ZFSBootMenu, they put ZFSBootMenu's mounts over
+  its own files, where nothing undid them.
+
 ### Rollback has no safety snapshot
 
 - **Before:** typing `ROLLBACK` confirmed the rollback, which destroys the newer snapshots.

@@ -220,6 +220,26 @@ fn zfs_chroot_binds_the_image_s_resolv_conf() {
     );
 }
 
+#[test]
+fn zfs_chroot_refuses_a_tmp_that_links_to_etc() {
+    let fake = machine();
+    fake.files
+        .symlink("/zfsbootmenu/environments/tank/ROOT/be/mnt/tmp", "/etc");
+
+    let (status, stderr) = open_on(&fake, &Authority::new(Lock::Off));
+
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let ran = mounts_and_shells(&fake);
+    assert!(!ran.iter().any(|line| line.contains("/tmp")), "{ran:?}");
+    assert_eq!(ran.last().map(String::as_str), Some("/bin/sh"), "{ran:?}");
+    let shown = zbm_platform::color::decolorize(&fake.console.output_text());
+    assert!(
+        shown.contains("* /tmp is not mounted: it is a link to /etc\n"),
+        "{shown}"
+    );
+    assert!(!shown.contains("/tmp is mounted"), "{shown}");
+}
+
 /// The signals that would end it with the chroot mounted are the legacy
 /// script's traps, `SIGABRT` aside, and the default signal of `kill`.
 #[test]

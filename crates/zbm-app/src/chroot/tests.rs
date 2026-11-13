@@ -8,6 +8,7 @@ use zbm_testkit::fakes::FakeSystem;
 use super::*;
 use crate::auth::Lock;
 
+mod links;
 mod menu;
 mod resolv;
 
@@ -396,7 +397,8 @@ fn on_efi_the_host_efivars_follow_the_mode_and_go_back_to_read_only() {
     }
 
     // The host's set to the mode, but none mounted in the chroot: it is
-    // set back all the same, and no notice says one is mounted.
+    // set back all the same (at once, `links.rs` shows), and no notice says
+    // one is mounted.
     let fake = machine("off");
     efi(&fake);
     let inside = format!("mount -t efivarfs efivarfs {MP}/sys/firmware/efi/efivars -o rw");
@@ -404,9 +406,8 @@ fn on_efi_the_host_efivars_follow_the_mode_and_go_back_to_read_only() {
     open_on(&fake, "tank/ROOT/be").unwrap();
     let lines = ran(&fake);
     assert!(
-        lines
-            .last()
-            .is_some_and(|line| line.ends_with("remount,ro"))
+        lines.iter().any(|line| line.ends_with("remount,ro")),
+        "{lines:#?}"
     );
     assert!(!fake.console.output_text().contains("efivarfs"));
 }

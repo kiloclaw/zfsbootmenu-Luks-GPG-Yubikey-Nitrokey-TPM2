@@ -140,3 +140,28 @@ fn the_menu_s_chroot_binds_the_image_s_resolv_conf() {
     );
     assert!(lines.contains(&format!("umount {target}")), "{lines:#?}");
 }
+
+#[test]
+fn the_menu_s_chroot_refuses_a_tmp_that_links_to_etc() {
+    let fake = machine("off");
+    fake.files.symlink(format!("{MP}/tmp"), "/etc");
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
+    let events = on_console(&app, &fake, "tank/ROOT/be");
+    assert!(
+        matches!(events.last(), Some(Event::Finished(Outcome::Done(_)))),
+        "{events:?}"
+    );
+    let lines = ran(&fake);
+    assert!(
+        !lines.iter().any(|line| line.contains("/tmp")),
+        "{lines:#?}"
+    );
+    assert!(lines.contains(&format!("mount -t proc proc {MP}/proc")));
+    let shown = decolorize(&fake.console.output_text());
+    assert!(
+        shown.contains("* /tmp is not mounted: it is a link to /etc\n"),
+        "{shown}"
+    );
+    assert!(!shown.contains("/tmp is mounted"), "{shown}");
+}
