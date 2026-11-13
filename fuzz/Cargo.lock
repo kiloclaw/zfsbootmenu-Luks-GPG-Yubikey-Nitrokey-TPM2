@@ -2007,6 +2007,7 @@ dependencies = [
  "zbm-state",
  "zbm-sys",
  "zbm-tools",
+ "zbm-trace",
  "zbm-types",
  "zbm-zfs",
 ]

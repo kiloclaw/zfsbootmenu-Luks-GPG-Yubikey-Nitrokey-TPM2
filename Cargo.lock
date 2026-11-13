@@ -3983,6 +3983,7 @@ dependencies = [
  "zbm-sys",
  "zbm-testkit",
  "zbm-tools",
+ "zbm-trace",
  "zbm-types",
  "zbm-zfs",
 ]

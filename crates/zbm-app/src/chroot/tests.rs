@@ -10,7 +10,9 @@ use crate::auth::Lock;
 
 mod links;
 mod menu;
+mod mountinfo;
 mod resolv;
+mod root;
 
 /// Where the environment and its snapshot are mounted.
 const MP: &str = "/zfsbootmenu/environments/tank/ROOT/be/mnt";

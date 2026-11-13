@@ -293,6 +293,22 @@ impl<'a> Mount<'a> {
         let command = Command::new("umount").arg("-R").arg(path);
         shell_code(&self.runner.run(&shown(command, Shown::Hidden))) == 0
     }
+
+    /// Detaches the topmost mount on `path`, with everything on and below
+    /// it, busy or not, quietly (`umount -l PATH`): it leaves the namespace
+    /// at once, and the file system is unmounted once nothing uses it.
+    ///
+    /// # Errors
+    ///
+    /// The exit status of `umount` when it failed, 126 when it could not
+    /// start.
+    pub fn unmount_lazy(self, path: &Path) -> Result<(), i32> {
+        let command = Command::new("umount").arg("-l").arg(path);
+        match shell_code(&self.runner.run(&shown(command, Shown::Hidden))) {
+            0 => Ok(()),
+            code => Err(code),
+        }
+    }
 }
 
 /// A file system mounted on a path, which unmounts it when dropped, so that

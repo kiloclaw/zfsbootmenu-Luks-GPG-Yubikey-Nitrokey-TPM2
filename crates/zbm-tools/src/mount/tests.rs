@@ -204,3 +204,31 @@ fn a_block_device_is_mounted_with_the_type_mount_finds() {
         Some(32)
     );
 }
+
+#[test]
+fn unmount_lazy_runs_umount_l_quietly() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    let mnt = Path::new("/zfsbootmenu/environments/tank/ROOT/be/mnt");
+    assert_eq!(Mount::new(&runner, &files).unmount_lazy(mnt), Ok(()));
+    assert_eq!(
+        runner.lines(),
+        ["umount -l /zfsbootmenu/environments/tank/ROOT/be/mnt"]
+    );
+    let call = &runner.calls()[0];
+    assert_eq!(*call.get_stdin(), Input::Null);
+    assert_eq!(call.get_stdout(), Stream::Null);
+    assert_eq!(call.get_stderr(), Stream::Null);
+
+    // A failure is its exit status, and none of the system calls is tried.
+    let failing = FakeRunner::new();
+    let calls = FakeFiles::new();
+    calls.mount_calls(true);
+    failing.respond(
+        "umount -l /zfsbootmenu/environments/tank/ROOT/be/mnt",
+        32,
+        "",
+    );
+    assert_eq!(Mount::new(&failing, &calls).unmount_lazy(mnt), Err(32));
+    assert_eq!(failing.lines().len(), 1);
+    assert_eq!(calls.mounts_made(), Vec::<String>::new());
+}

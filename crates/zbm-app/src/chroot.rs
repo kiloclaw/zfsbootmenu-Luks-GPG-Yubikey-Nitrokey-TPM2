@@ -3,8 +3,10 @@
 //! question whether to import it read/write; the key of the filesystem's
 //! encryption root; the filesystem with this system's name servers
 //! (SB15) and the kernel's file systems mounted below it, never on a path
-//! that passes through a symbolic link of the filesystem (SB16); and the
-//! first shell that runs there, which the shell's gate opens (ADR 0010).
+//! that passes through a symbolic link of the filesystem, the root itself
+//! on a path that passes through none and through no other mount (SB16);
+//! and the first shell that runs there, which the shell's gate opens
+//! (ADR 0010).
 
 use std::io;
 use std::path::Path;
@@ -26,6 +28,7 @@ use crate::auth::{self, Authority};
 
 mod kernel;
 mod resolv;
+mod root;
 
 /// How long the question waits, in seconds, before the chroot stays
 /// read-only.
@@ -57,14 +60,22 @@ pub enum ChrootError {
 /// What a chroot has mounted, which dropping it unmounts: the kernel's
 /// file systems and the name servers below the root in reverse, each by
 /// its path where no name on it is a symbolic link now, then the root with
-/// everything below it, then the host's `efivarfs`, set back to
-/// read-only.
+/// everything below it, and while its mount ID is still on its path, what
+/// is on it, lazily ([`root::Root::tear_down`]); then the host's
+/// `efivarfs`, set back to read-only. Nothing is unmounted by a path where
+/// a link or a mount has appeared on the root's way since it was mounted,
+/// another root of its filesystem is on it, or it is gone
+/// ([`root::Root::why_left`]): the mounts are left then, with a warning.
 struct Mounts<'a> {
     /// The name servers and the kernel's file systems below the root, in
     /// the order mounted.
     below: Vec<Mounted<'a>>,
-    /// The filesystem, unmounted with everything below it.
-    root: Mounted<'a>,
+    /// Where the filesystem is mounted, and how the teardown finds it.
+    place: root::Root,
+    /// The filesystem, unmounted with everything below it, until dropped.
+    root: Option<Mounted<'a>>,
+    /// How the root is detached where `umount -R` left it.
+    mount: Mount<'a>,
     /// The host's `efivarfs`, in the chroot's mode until dropped.
     host: Option<HostEfivars<'a>>,
     /// What is mounted how, or why it is not, for the person.
@@ -77,8 +88,18 @@ struct Mounts<'a> {
 
 impl Drop for Mounts<'_> {
     fn drop(&mut self) {
+        if let Some(why) = self.place.why_left(self.files) {
+            let left = self.below.drain(..).chain(self.root.take());
+            left.for_each(|mounted| drop(mounted.leave()));
+            let path = self.place.at().display();
+            tracing::warn!(%path, why, "the chroot's mounts are left");
+            return;
+        }
         while let Some(mounted) = self.below.pop() {
-            unmount_below(self.files, self.root.path(), mounted);
+            unmount_below(self.files, self.place.at(), mounted);
+        }
+        if let Some(root) = self.root.take() {
+            self.place.tear_down(self.mount, self.files, root);
         }
     }
 }
@@ -231,26 +252,36 @@ fn ask_and_unlock(
 }
 
 /// Mounts `fs` on its mount point in the state directory, read/write when
-/// `writable`; this system's `/etc/resolv.conf`, read-only, over the
-/// filesystem's, before anything else is mounted below it
-/// ([`resolv::name_servers`]); then, as `zfs-chroot` did, the kernel's
-/// file systems ([`kernel::mount`]): `/tmp` bound below it, a `proc`, a
-/// `sysfs` and `/dev` bound below it; on EFI, this system's `efivarfs`
-/// remounted in the chroot's mode, or mounted so where it is not, and one
-/// on the chroot's `sysfs`; and a `devpts` where the bound `/dev` has
-/// `pts`. A mount point that is a symbolic link, or passes through one, is
-/// not mounted, with a notice; a mount below the filesystem that fails is
-/// left out, as `zfs-chroot` left it.
+/// `writable`, where that path passes through no link and no other mount
+/// ([`root::check`]), and reads its mount ID; this system's
+/// `/etc/resolv.conf`, read-only, over the filesystem's, before anything
+/// else is mounted below it ([`resolv::name_servers`]); then, as
+/// `zfs-chroot` did, the kernel's file systems ([`kernel::mount`]): `/tmp`
+/// bound below it, a `proc`, a `sysfs` and `/dev` bound below it; on EFI,
+/// this system's `efivarfs` remounted in the chroot's mode, or mounted so
+/// where it is not, and one on the chroot's `sysfs`; and a `devpts` where
+/// the bound `/dev` has `pts`. A mount point that is a symbolic link, or
+/// passes through one, is not mounted, with a notice; a mount below the
+/// filesystem that fails is left out, as `zfs-chroot` left it.
 ///
 /// # Errors
 ///
-/// [`ChrootError::Mount`] when the filesystem could not be mounted.
+/// [`ChrootError::Mount`] when the filesystem could not be mounted, or its
+/// mount point is refused, with an error line that says why; nothing is
+/// created or mounted then.
 fn mount<'c>(
     context: &'c Context<'_>,
     state: &State<'_>,
     fs: &FilesystemName,
     writable: bool,
 ) -> Result<Mounts<'c>, ChrootError> {
+    let files = context.files();
+    let at = state.mount_point(&fs.to_string());
+    if let Err(why) = root::check(files, &at, fs) {
+        let why = Printable(&why).to_string();
+        zbm_trace::error!("{fs} is not mounted: {why}"; %fs, %why);
+        return Err(ChrootError::Mount(fs.clone()));
+    }
     let root = if writable {
         zbm_bootenv::mount_zfs_writable(context, state, fs.dataset(), Noise::Shown)
     } else {
@@ -258,16 +289,18 @@ fn mount<'c>(
     };
     let root = root.ok_or_else(|| ChrootError::Mount(fs.clone()))?;
     let at = root.path().to_path_buf();
+    let mount = Mount::new(context.runner(), files);
     let mut mounts = Mounts {
         below: Vec::new(),
-        root: root.recursive(),
+        place: root::Root::new(files, at.clone(), fs.clone()),
+        root: Some(root.recursive()),
+        mount,
         host: None,
         notices: vec![notice(&fs.to_string(), writable)],
-        files: context.files(),
+        files,
         tmp: false,
     };
-    let mount = Mount::new(context.runner(), context.files());
-    let names = resolv::name_servers(mount, context.files(), &at);
+    let names = resolv::name_servers(mount, files, &at);
     mounts.below.extend(names.mounts);
     mounts.notices.extend(names.notices);
     kernel::mount(mount, &at, writable, &mut mounts);
@@ -290,8 +323,7 @@ fn find_shell<'c>(
     mounts: Mounts<'c>,
     fs: &FilesystemName,
 ) -> Result<Prepared<'c>, ChrootError> {
-    let root = mounts.root.path();
-    let chroot = Chroot::find(context.runner(), context.files(), root, fs)
+    let chroot = Chroot::find(context.runner(), context.files(), mounts.place.at(), fs)
         .map_err(ChrootError::Start)?
         .ok_or_else(|| ChrootError::NoShell(fs.clone()))?;
     let mut said = mounts.notices.join("\n");

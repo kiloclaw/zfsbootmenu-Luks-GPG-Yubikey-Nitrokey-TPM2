@@ -637,9 +637,13 @@ same commands. The menu also restores files from a snapshot, which the legacy me
   efivarfs is read-only again at once, before the shell, when the chroot gets none. The shell is found inside the
   environment, its links followed there. Nothing is unmounted through a link left during the chroot: such a mount is
   left to the recursive unmount of the chroot's root. `/tmp`'s notice is said only when it is mounted. An environment
-  that links `/tmp` on purpose, as to `var/tmp`, has no `/tmp` in the chroot.
+  that links `/tmp` on purpose, as to `var/tmp`, has no `/tmp` in the chroot. A dataset whose path in ZFSBootMenu's
+  state runs through a link or another mounted dataset is not mounted. A chroot whose shell mounted over its own `/`,
+  or left a process, no longer leaves its filesystem mounted: what `umount -R` cannot take is detached. Its teardown
+  unmounts nothing, and warns, where a link or a mounted dataset has come onto the root's path since it was mounted,
+  or another mount of the same dataset, such as another chroot's, is over it.
 - **Why:** an environment's links are the environment's: followed in ZFSBootMenu, they put ZFSBootMenu's mounts over
-  its own files, where nothing undid them.
+  its own files, where nothing undid them. `umount -R` takes the topmost mount on a path, not the chroot's.
 
 ### Rollback has no safety snapshot
 
