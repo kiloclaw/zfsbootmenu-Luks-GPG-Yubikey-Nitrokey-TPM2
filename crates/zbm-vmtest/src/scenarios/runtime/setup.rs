@@ -3,7 +3,11 @@
 //! test boot environment as its bootfs, and `tkeys` (d2), whose boot
 //! environment's key comes from a key source (`keysource`). Only `tplain`'s
 //! environment has an `/etc/resolv.conf`: systemd-resolved's link into its
-//! empty `/run` ([`RESOLV_LINK`], for `resolv`).
+//! empty `/run` ([`RESOLV_LINK`], for `resolv`). `tplain` also holds
+//! [`CRAFTED`], a filesystem that is no boot environment, with the
+//! payload's static busybox, copied in, as its `/bin/sh` and its `tmp` and
+//! `dev` links out of it ([`TMP_LINK`], [`DEV_LINK`], for `recovery`'s
+//! chroot of it).
 
 use std::fmt::Write as _;
 
@@ -29,6 +33,22 @@ const POOLS: [&str; 2] = ["tplain", "tforeign"];
 /// Where `tplain`'s environment's `/etc/resolv.conf` leads: the stub of
 /// systemd-resolved, below the environment's `/run`, which is empty.
 pub(crate) const RESOLV_LINK: &str = "../run/systemd/resolve/stub-resolv.conf";
+
+/// A filesystem of `tplain` that is no boot environment, whose mount
+/// point `/crafted` is never mounted by itself (`canmount=noauto`): it
+/// holds `bin/busybox`, `bin/sh`, its link to it, the directories `proc`,
+/// `sys` and `etc`, and the links `tmp` ([`TMP_LINK`]) and `dev`
+/// ([`DEV_LINK`]).
+pub(crate) const CRAFTED: &str = "tplain/crafted";
+
+/// Where [`CRAFTED`]'s `tmp` leads: the image's `/etc`, by an absolute
+/// link.
+pub(crate) const TMP_LINK: &str = "/etc";
+
+/// Where [`CRAFTED`]'s `dev` leads: the image's `/etc/zfs`, by a relative
+/// link that climbs to `/` from the chroot's mount point, followed in the
+/// image.
+pub(crate) const DEV_LINK: &str = "../../../../../../../etc/zfs";
 
 /// The passphrase in the key file of `tkeys`'s boot environment.
 pub(super) const BE_KEY: &str = "tkeys-be-key";
@@ -59,6 +79,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
         ))?;
     }
     vm.must(&resolver_link())?;
+    vm.must(&crafted())?;
     keyed_pool(test, &mut vm)?;
     vm.must("finish")?;
     // tforeign belongs to another host and stays imported, as after a crash
@@ -107,6 +128,19 @@ fn resolver_link() -> String {
     )
 }
 
+/// The command that makes [`CRAFTED`] on `tplain`, mounted on `/c`
+/// meanwhile, with the busybox of the payload, which is static, while the
+/// payload is mounted on `/pl`; it fails when a part cannot be made.
+fn crafted() -> String {
+    format!(
+        "zfs create -o mountpoint=/crafted -o canmount=noauto {CRAFTED} && mkdir -p /c && \
+         mount -t zfs -o zfsutil {CRAFTED} /c && \
+         {{ mkdir -p /c/bin /c/proc /c/sys /c/etc && cp /pl/rootfs/bin/busybox /c/bin/ && \
+         ln -s /bin/busybox /c/bin/sh && ln -s {TMP_LINK} /c/tmp && ln -s {DEV_LINK} /c/dev; \
+         made=$?; umount /c && [ $made -eq 0 ]; }}"
+    )
+}
+
 /// The command that writes the other host's ID and imports `tforeign`.
 pub(crate) fn foreign_import() -> String {
     let hostid = FOREIGN.iter().fold(String::new(), |mut out, byte| {
@@ -128,6 +162,18 @@ mod tests {
             "mount -t zfs -o zfsutil tplain/ROOT/be /be && { ln -s \
              ../run/systemd/resolve/stub-resolv.conf /be/etc/resolv.conf; made=$?; \
              umount /be && [ $made -eq 0 ]; }"
+        );
+    }
+
+    #[test]
+    fn tplain_s_crafted_filesystem_links_tmp_and_dev_out_of_it_made_while_mounted() {
+        assert_eq!(
+            crafted(),
+            "zfs create -o mountpoint=/crafted -o canmount=noauto tplain/crafted && \
+             mkdir -p /c && mount -t zfs -o zfsutil tplain/crafted /c && { mkdir -p /c/bin \
+             /c/proc /c/sys /c/etc && cp /pl/rootfs/bin/busybox /c/bin/ && ln -s /bin/busybox \
+             /c/bin/sh && ln -s /etc /c/tmp && ln -s ../../../../../../../etc/zfs /c/dev; \
+             made=$?; umount /c && [ $made -eq 0 ]; }"
         );
     }
 

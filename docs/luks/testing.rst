@@ -277,7 +277,10 @@ Following a boot
     boot environment is encrypted with a key file kept in its key source ``tkeys/keystore``
     (``org.zfsbootmenu:keysource``), itself encrypted with a passphrase. ``tplain``'s boot environment alone gets an
     ``/etc/resolv.conf``: systemd-resolved's link ``../run/systemd/resolve/stub-resolv.conf``, into its empty
-    ``/run``.
+    ``/run``. ``tplain`` also gets ``tplain/crafted``, a filesystem that is no boot environment (mount point
+    ``/crafted``, ``canmount=noauto``): the payload's static busybox as ``/bin/busybox``, ``/bin/sh`` linked to it,
+    the directories ``/proc``, ``/sys`` and ``/etc``, and two links out of it, ``tmp -> /etc`` and
+    ``dev -> ../../../../../../../etc/zfs``.
   * ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
     start-up program (the Rust supervisor), and hooks see ``BOOTFS``.
   * ``-hostid``: ``tforeign`` alone: host ID matching imports it, and the boot environment gets ``spl_hostid``.
@@ -440,9 +443,9 @@ Following a boot
   toolbar must mark the edit of the command line with the PIN (``Edit PIN``) before any PIN is typed, the
   recovery shell must ask for the PIN, refuse a wrong one, and open with the right one after a delay of a second at
   least; in it, ``zfs-chroot tplain/ROOT/be`` must ask for the PIN again (ADR 0018, point 8), then for a read-only
-  chroot, whose shell must read the environment's ``/etc/os-release``, and end with 0 once that shell ended; once the
-  recovery shell ended, booting ``tauto``'s environment, which is not the default, must ask for the PIN again, on the
-  console, and boot once it is typed.
+  chroot, whose shell must read the environment's ``/etc/os-release`` and be its ``/bin/sh`` (``/proc/$$/cmdline``,
+  SB16), and end with 0 once that shell ended; once the recovery shell ended, booting ``tauto``'s environment, which
+  is not the default, must ask for the PIN again, on the console, and boot once it is typed.
 
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long
@@ -479,8 +482,16 @@ Following a boot
   * ``command -v fzf`` fails: Rust images have no ``fzf``;
   * the ``.bashrc``'s completion, called as Tab calls it after ``zsnapshots tplain/``, offers ``tplain/ROOT/be``
     alone;
-  * ``zfs-chroot tplain/ROOT/be`` asks as the menu's chroot does, Enter keeps it read-only, its shell reads
-    ``/etc/os-release``, and ``exit`` ends it with 0;
+  * ``zfs-chroot tplain/ROOT/be`` asks as the menu's chroot does, Enter keeps it read-only, its shell is the
+    environment's ``/bin/sh`` (``/proc/$$/cmdline``; the link to ``/bin/busybox`` is followed inside the root, SB16)
+    and reads ``/etc/os-release``, and ``exit`` ends it with 0;
+  * ``zfs-chroot tplain/crafted`` (ROADMAP.md SB16), read-only after Enter: its notices say that ``/tmp`` and ``/dev``
+    are not mounted, each a link, and not that ``/tmp`` is mounted; in its shell, the image's ``/proc/1/mountinfo``
+    has nothing mounted on ``/etc`` or ``/etc/zfs``, ``/proc`` and ``/sys`` are mounted, and the shell is
+    ``/bin/sh``; the shell then mounts a ``tmpfs`` over its own ``/``, and ``exit`` ends ``zfs-chroot`` with 0;
+    after it, ``/proc/self/mounts`` has nothing below ``/zfsbootmenu/environments/tplain/crafted`` and nothing on
+    ``/etc`` or ``/etc/zfs``, and the filesystem, mounted read-only on ``/tmp/c`` meanwhile, still has its two
+    links. The notices, the shell's arguments and the mounts go into the test's notes;
   * ``mount_esp /dev/disk/by-id/virtio-esp`` mounts the FAT disk read/write at ``/mnt/virtio-esp`` and prints that,
     and run again prints where it is mounted already;
   * last, ``zkexec tplain/ROOT/be vmlinuz-KVER initramfs-KVER.img`` boots the environment by its kernel's files,
@@ -770,6 +781,11 @@ and to ``menu-display`` each.
 SB15 adds ``runtime-rust-resolv``, not run yet. With KVM, it is expected to take about 3 minutes without building its
 image (a minute to the countdown, 5 to 15 s of DHCP, about a minute for the chroot and its checks); building
 ``auto-net-rust`` adds the installation of NetworkManager to the usual build.
+
+SB16 adds a step to ``runtime-rust-recovery``, not run yet: the chroot of ``tplain/crafted`` and its checks, about a
+minute more, so about 8 minutes in all, and the shell's ``/proc/$$/cmdline`` in the chroot of ``tplain/ROOT/be``, a
+few seconds, there and in ``integrity-locked``. ``runtime-setup`` makes ``tplain/crafted``, a few seconds more, and
+must run again before the ``runtime`` group.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to

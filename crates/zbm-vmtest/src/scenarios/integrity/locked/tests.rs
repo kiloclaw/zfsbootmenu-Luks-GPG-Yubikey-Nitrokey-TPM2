@@ -40,6 +40,8 @@ fn the_shell_and_another_boot_ask_for_the_pin_of_the_locked_menu() {
         ),
         Step::Hear("cat /etc/os-release; echo RC=$?"),
         Step::Say("NAME=\"ZBM test boot environment\"\r\nRC=0\r\n"),
+        Step::Hear(r"busybox tr '\0' ' ' < /proc/$$/cmdline; echo RC=$?"),
+        Step::Say("tplain/ROOT/be / > /bin/sh RC=0\r\n"),
         Step::Hear("exit"),
         Step::Say("ZFS-CHROOT-RC=0\r\nzbm# "),
         Step::Hear("exit"),
@@ -62,7 +64,7 @@ fn the_shell_and_another_boot_ask_for_the_pin_of_the_locked_menu() {
     assert_eq!(guest.finish(), Vec::<String>::new());
     let found = checks(&test);
     cleanup(&settings);
-    assert_eq!(found.len(), 12, "{found:#?}");
+    assert_eq!(found.len(), 13, "{found:#?}");
     assert!(
         found.iter().all(|line| line.starts_with("ok")),
         "{found:#?}"

@@ -221,8 +221,9 @@ fn a_chroot_mounted_read_write_after_enter_fails() {
 }
 
 /// The shell's answers to [`SHELL_CHROOT`] and [`in_the_shell_s_chroot`]:
-/// `zfs-chroot` ends with `status`.
-fn shell_chroot_script(status: &'static str) -> Vec<Step> {
+/// the shell's arguments are `cmdline`, and `zfs-chroot` ends with
+/// `status`.
+fn shell_chroot_script(cmdline: &'static str, status: &'static str) -> Vec<Step> {
     vec![
         Step::Hear(SHELL_CHROOT),
         Step::Say(QUESTION),
@@ -233,6 +234,8 @@ fn shell_chroot_script(status: &'static str) -> Vec<Step> {
         ),
         Step::Hear("cat /etc/os-release; echo RC=$?"),
         Step::Say("NAME=\"ZBM test boot environment\"\r\nRC=0\r\n"),
+        Step::Hear(r"busybox tr '\0' ' ' < /proc/$$/cmdline; echo RC=$?"),
+        Step::Say(cmdline),
         Step::Hear("exit"),
         Step::Say(status),
     ]
@@ -257,7 +260,7 @@ fn shell_chroot_checks(name: &str, script: Vec<Step>) -> Vec<String> {
 fn the_shell_s_zfs_chroot_reads_the_environment_read_only_and_ends_with_0() {
     let found = shell_chroot_checks(
         "runtime-recovery-shell-chroot",
-        shell_chroot_script("ZFS-CHROOT-RC=0\r\nzbm# "),
+        shell_chroot_script(SH, "ZFS-CHROOT-RC=0\r\nzbm# "),
     );
 
     assert_eq!(
@@ -266,8 +269,28 @@ fn the_shell_s_zfs_chroot_reads_the_environment_read_only_and_ends_with_0() {
             "ok   - the shell's zfs-chroot asks first on a pool imported read-only",
             "ok   - the shell's zfs-chroot mounts the environment read-only after Enter",
             "ok   - the shell's chroot reads the environment's os-release (0)",
+            "ok   - the shell's chroot runs the environment's /bin/sh (0)",
             "ok   - zfs-chroot ends with 0 in the recovery shell once its shell ended",
         ]
+    );
+}
+
+/// The arguments of the chroot's shell, `/bin/sh`, after its prompt.
+const SH: &str = "tplain/ROOT/be / > /bin/sh RC=0\r\n";
+
+#[test]
+fn a_shell_s_chroot_that_runs_busybox_sh_fails() {
+    let found = shell_chroot_checks(
+        "runtime-recovery-shell-chroot-busybox",
+        shell_chroot_script(
+            "tplain/ROOT/be / > /bin/busybox sh RC=0\r\n",
+            "ZFS-CHROOT-RC=0\r\nzbm# ",
+        ),
+    );
+
+    assert_eq!(
+        found[3],
+        "FAIL - the shell's chroot runs the environment's /bin/sh (0)"
     );
 }
 
@@ -275,11 +298,11 @@ fn the_shell_s_zfs_chroot_reads_the_environment_read_only_and_ends_with_0() {
 fn a_shell_s_zfs_chroot_that_ends_with_1_fails() {
     let found = shell_chroot_checks(
         "runtime-recovery-shell-chroot-1",
-        shell_chroot_script("ZFS-CHROOT-RC=1\r\nzbm# "),
+        shell_chroot_script(SH, "ZFS-CHROOT-RC=1\r\nzbm# "),
     );
 
     assert_eq!(
-        found[3],
+        found[4],
         "FAIL - zfs-chroot ends with 0 in the recovery shell once its shell ended"
     );
 }

@@ -537,8 +537,20 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
   after the filesystem. Where the image has an `/etc/resolv.conf` that is not empty, it is bound read-only over the
   environment's, whose links are followed inside the chroot's root (`zbm_app::chroot::inside`, moved to
   `zbm_tools::mount::inside` by SB16), with a `/run` in memory for a link into an empty `/run`. Its VM test,
-  `runtime-rust-resolv`, is the maintainer's to run. The other mounts still follow the environment's links in the
-  image's namespace, as `zfs-chroot`'s did (SB16).
+  `runtime-rust-resolv`, is the maintainer's to run. The other mounts followed the environment's links in the
+  image's namespace, as `zfs-chroot`'s did, until SB16.
+- **No mount on a link** (SB16): the chroot's `/tmp`, `/proc`, `/sys` and `/dev`, its `efivarfs` and its `devpts` are
+  mounted only on a path below the root that is no link and passes through none, each walked right before its mount
+  (`InRoot::first_link`); one that is refused (a link, one that passes through a link, or one that cannot be read)
+  gets a notice, one whose mount fails gets none, and the chroot opens without either (the maintainer's
+  answers of 13 November 2026). `efivarfs` follows a `sysfs` the chroot mounted and `devpts` a `/dev` it bound, the
+  image's `efivarfs` is read-only again before the shell when the chroot's fails, and `/tmp`'s notice is said only
+  when it is mounted. `Chroot::find` looks for the shell inside the root. The root is mounted only where its path in
+  ZFSBootMenu's state passes through no link and no other mount; at teardown each mount is walked again, one that a
+  link now passes through is left to the root's, and the root is taken by `umount -R`, then `umount -l` while its
+  mount ID is listed, at most 8 times. The environment's programs still run as root in ZFSBootMenu's namespace once
+  the shell's probe ran (threat model R10; confinement is SB18), and the other callers of the root's mount are SB19.
+  Its VM step, the chroot of `tplain/crafted` in `runtime-rust-recovery`, is the maintainer's to run.
 - **`zkexec`** takes a boot environment and refuses a snapshot; it searches the environment's kernels first, so its
   command line is the menu's.
 - **`mount_esp`** without an argument mounts the EFI system partition the boot loader names, or the only one, not

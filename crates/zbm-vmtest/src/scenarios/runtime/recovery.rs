@@ -38,9 +38,13 @@
 //!   which `zbm complete` lists, so the `.bashrc`'s completions run in the
 //!   image's shell;
 //! - the shell's `zfs-chroot tplain/ROOT/be`, which is `zbm`'s: it asks as
-//!   the menu's chroot does, Enter keeps it read-only, its shell reads the
-//!   environment's `/etc/os-release`, and `exit` is back in the recovery
-//!   shell, `zfs-chroot` ending with 0;
+//!   the menu's chroot does, Enter keeps it read-only, its shell, the
+//!   environment's `/bin/sh` (its link to `/bin/busybox` followed inside
+//!   the root), reads the environment's `/etc/os-release`, and `exit` is
+//!   back in the recovery shell, `zfs-chroot` ending with 0;
+//! - the shell's `zfs-chroot tplain/crafted`, whose `tmp` and `dev` link
+//!   out of it: neither is mounted, and the shell's mount over its own `/`
+//!   leaves nothing mounted once it ended ([`links`]);
 //! - the shell's `mount_esp /dev/disk/by-id/virtio-esp`, which is `zbm`'s:
 //!   it mounts the machine's FAT disk `esp` read/write at
 //!   `/mnt/virtio-esp`, prints that, and leaves it mounted; asked again, it
@@ -61,6 +65,8 @@ use crate::qemu::{Disk, Machine};
 use crate::record::Test;
 use crate::settings::ZbmRuntime;
 use crate::vm::Vm;
+
+mod links;
 
 /// The title of the menu's Recovery Tools.
 const TOOLS: &str = "screen:RECOVERY TOOLS";
@@ -124,6 +130,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     completion(test, &mut vm)?;
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
+    links::crafted_chroot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
     boot_by_files(test, &mut vm, &kver)?;
     vm.kill();
@@ -428,8 +435,9 @@ pub(crate) const SHELL_CHROOT: &str = "zfs-chroot tplain/ROOT/be; echo ZFS-CHROO
 
 /// The recovery shell's chroot, once [`SHELL_CHROOT`] started and, in a
 /// locked image, the PIN was typed: the question, Enter for a read-only
-/// chroot, the environment's `/etc/os-release` read in its shell, and
-/// `exit`, after which `zfs-chroot` ends with 0 in the recovery shell.
+/// chroot, the environment's `/etc/os-release` read in its shell, which
+/// is its `/bin/sh` ([`links::is_sh`]), and `exit`, after which
+/// `zfs-chroot` ends with 0 in the recovery shell.
 ///
 /// # Errors
 ///
@@ -455,6 +463,11 @@ pub(crate) fn in_the_shell_s_chroot(test: &Test, vm: &mut Vm<'_>) -> Result<()> 
     test.check(
         code == 0 && said.contains(TEST_ENVIRONMENT),
         &format!("the shell's chroot reads the environment's os-release ({code})"),
+    );
+    let (code, said) = vm.sh_show(links::SHELL_CMDLINE)?;
+    test.check(
+        code == 0 && links::is_sh(&said),
+        &format!("the shell's chroot runs the environment's /bin/sh ({code})"),
     );
     test.step("exit: back to the recovery shell");
     vm.sendline("exit")?;
