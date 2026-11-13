@@ -528,8 +528,8 @@ Following a boot
   disks; in the recovery shell, ``/libexec/zbm debug saved`` must list one saved boot, with a journal that is not
   empty and the kernel log, and ``/libexec/zbm report`` must write a report. After the machine stops, the host reads
   the disk with ``mtype``: the saved journal must be the first boot's (it holds ``running init stage``) and must have
-  been saved once the kernel was loaded and before the teardown hooks ran (it names ``kexec`` and not
-  ``teardown.d``), the kernel must have been loaded by ``kexec_file_load`` (ROADMAP.md, SB4), and the report's ``report.txt`` must show the
+  been saved once the kernel was loaded and before the teardown hooks ran (it names ``kexec``, and
+  ``teardown.d`` only in the system report that start-up logs, which lists the enabled hooks), the kernel must have been loaded by ``kexec_file_load`` (ROADMAP.md, SB4), and the report's ``report.txt`` must show the
   versions, the pool ``tplain`` and no LUKS volume, beside this boot's journal. In the same recovery shell, the
   reports of ``zbm-debug(8)`` must end with 0 and show this boot's start-up: ``config`` the option
   ``zbm.save_logs=LABEL=ZBMLOGS``, ``state`` the state directory without the journal, ``journal`` the init stages,

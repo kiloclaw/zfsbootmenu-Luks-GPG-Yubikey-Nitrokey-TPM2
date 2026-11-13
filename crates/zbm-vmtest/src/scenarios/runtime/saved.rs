@@ -222,7 +222,7 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
         // Saved once the kernel was loaded, and before the teardown hooks,
         // which may take the partition away.
         test.check(
-            journal.contains("kexec") && !journal.contains("teardown.d"),
+            journal.contains("kexec") && !names_teardown_d(&journal),
             "the journal was saved after loading the kernel, before the teardown hooks",
         );
         // Loaded by the kernel's own call, without `kexec` (ROADMAP.md,
@@ -253,6 +253,25 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
     let journal = mtype(logs, &format!("{dir}/journal.jsonl"))?;
     test.check(!journal.is_empty(), "the report holds this boot's journal");
     Ok(())
+}
+
+/// Whether a line of `journal` names `teardown.d`, the `teardown.d` hooks
+/// having run or been looked for, but for the system report that start-up
+/// logs in its `report` field, which lists the enabled hooks by their
+/// paths.
+fn names_teardown_d(journal: &str) -> bool {
+    journal.lines().any(|line| {
+        let Ok(mut event) = serde_json::from_str::<serde_json::Value>(line) else {
+            return line.contains("teardown.d");
+        };
+        if let Some(fields) = event
+            .get_mut("fields")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            fields.remove("report");
+        }
+        event.to_string().contains("teardown.d")
+    })
 }
 
 /// The kernel log saved on the FAT disk `image`, of its first saved boot;
@@ -310,6 +329,30 @@ mod tests {
 
     use super::*;
     use crate::testing::{checks, cleanup, settings};
+
+    #[test]
+    fn the_system_report_s_list_of_teardown_hooks_is_no_teardown() {
+        let journal = concat!(
+            r#"{"fields":{"report":"System Report\n\n>> Enabled hooks\n"#,
+            r#"* /libexec/hooks/teardown.d/10-zstatus.sh\n"}}"#,
+            "\n",
+            r#"{"fields":{"message":"kexec_file_load loaded the kernel"}}"#,
+            "\n",
+        );
+
+        assert!(!names_teardown_d(journal));
+    }
+
+    #[test]
+    fn a_teardown_hook_in_the_journal_is_named() {
+        for journal in [
+            r#"{"fields":{"message":"processing /libexec/hooks/teardown.d/10-zstatus.sh"}}"#,
+            r#"{"fields":{"report":"-"},"spans":[{"line":"/libexec/hooks/teardown.d/x"}]}"#,
+            "not JSON: /libexec/hooks/teardown.d/10-zstatus.sh",
+        ] {
+            assert!(names_teardown_d(journal), "{journal}");
+        }
+    }
 
     #[test]
     fn the_first_saved_boot_is_the_first_directory_named_by_its_time() {
