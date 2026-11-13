@@ -256,21 +256,16 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
 }
 
 /// Whether a line of `journal` names `teardown.d`, the `teardown.d` hooks
-/// having run or been looked for, but for the system report that start-up
-/// logs in its `report` field, which lists the enabled hooks by their
-/// paths.
+/// having run or been looked for, but for the event of the system report
+/// that start-up logs, whose `report` field and message list the enabled
+/// hooks by their paths. A line that is not JSON is searched whole.
 fn names_teardown_d(journal: &str) -> bool {
     journal.lines().any(|line| {
-        let Ok(mut event) = serde_json::from_str::<serde_json::Value>(line) else {
-            return line.contains("teardown.d");
-        };
-        if let Some(fields) = event
-            .get_mut("fields")
-            .and_then(serde_json::Value::as_object_mut)
-        {
-            fields.remove("report");
-        }
-        event.to_string().contains("teardown.d")
+        let is_the_report = serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .and_then(|event| event.get("fields")?.get("report").cloned())
+            .is_some();
+        !is_the_report && line.contains("teardown.d")
     })
 }
 
@@ -333,8 +328,9 @@ mod tests {
     #[test]
     fn the_system_report_s_list_of_teardown_hooks_is_no_teardown() {
         let journal = concat!(
-            r#"{"fields":{"report":"System Report\n\n>> Enabled hooks\n"#,
-            r#"* /libexec/hooks/teardown.d/10-zstatus.sh\n"}}"#,
+            r#"{"message":"System Report\n* /libexec/hooks/teardown.d/10-zstatus.sh","#,
+            r#""fields":{"report":"System Report\n\n>> Enabled hooks\n"#,
+            r#"* /libexec/hooks/teardown.d/10-zstatus.sh\n","template":"{report}"}}"#,
             "\n",
             r#"{"fields":{"message":"kexec_file_load loaded the kernel"}}"#,
             "\n",
@@ -347,7 +343,8 @@ mod tests {
     fn a_teardown_hook_in_the_journal_is_named() {
         for journal in [
             r#"{"fields":{"message":"processing /libexec/hooks/teardown.d/10-zstatus.sh"}}"#,
-            r#"{"fields":{"report":"-"},"spans":[{"line":"/libexec/hooks/teardown.d/x"}]}"#,
+            r#"{"message":"processing /libexec/hooks/teardown.d/10-zstatus.sh","fields":{}}"#,
+            r#"{"fields":{"line":"-"},"spans":[{"line":"/libexec/hooks/teardown.d/x"}]}"#,
             "not JSON: /libexec/hooks/teardown.d/10-zstatus.sh",
         ] {
             assert!(names_teardown_d(journal), "{journal}");
