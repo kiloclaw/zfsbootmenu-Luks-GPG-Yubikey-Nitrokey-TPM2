@@ -13,6 +13,7 @@
 //! point 17).
 
 use std::io::{self, Write};
+use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
 use zbm_boot::Recovery as _;
@@ -36,7 +37,8 @@ type Native = fn(&System<'_>, &State<'_>, &[String], &mut dyn Write) -> i32;
 
 /// The functions with Rust code; the others run as the legacy runtime ran
 /// them.
-const NATIVE: [(&str, Native); 5] = [
+const NATIVE: [(&str, Native); 6] = [
+    ("be_location", be_location),
     ("emergency_shell", emergency_shell),
     ("is_degraded", is_degraded),
     ("zfs_chroot", zfs_chroot),
@@ -120,6 +122,35 @@ fn legacy(system: &System<'_>, conf: &Conf, function: &str, args: &[String]) -> 
         .map(|(name, value)| (name.as_str(), value.as_str()))
         .collect();
     Outcome::Legacy(programs::legacy_function(legacy, function, args, &env))
+}
+
+/// The directory of the state of the filesystem of `args`, where the
+/// library's functions mount it and keep its kernel list and command line
+/// cache: the legacy function's, but with a piece `mnt`, `kernels` or
+/// `kcl` of the name escaped, as the Rust runtime's own paths are
+/// (`zbm_state`). It is printed first, then made; as the legacy function,
+/// whose `mkdir -p` may fail, the status is 0 even where it cannot be
+/// made. It asks for nothing and checks nothing: it is a path. Without a
+/// filesystem nothing is printed, and the status is 1.
+fn be_location(
+    _system: &System<'_>,
+    state: &State<'_>,
+    args: &[String],
+    out: &mut dyn Write,
+) -> i32 {
+    let fs = args.first().map_or("", String::as_str);
+    if fs.is_empty() {
+        zbm_trace::error!("fs is undefined");
+        return 1;
+    }
+    zbm_trace::debug!("fs set to {fs}"; fs);
+    let mnt = state.mount_point(fs);
+    let location = mnt.parent().unwrap_or(&mnt);
+    let mut line = location.as_os_str().as_bytes().to_vec();
+    line.push(b'\n');
+    let status = printed(out.write_all(&line).and_then(|()| out.flush()));
+    let _ = state.environment(fs);
+    status
 }
 
 /// The emergency shell, with an optional message: the recovery shell of

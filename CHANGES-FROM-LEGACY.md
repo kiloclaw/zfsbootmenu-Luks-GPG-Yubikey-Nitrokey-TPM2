@@ -645,6 +645,20 @@ same commands. The menu also restores files from a snapshot, which the legacy me
 - **Why:** an environment's links are the environment's: followed in ZFSBootMenu, they put ZFSBootMenu's mounts over
   its own files, where nothing undid them. `umount -R` takes the topmost mount on a path, not the chroot's.
 
+### A dataset's state stays in its own directory
+
+- **Before:** a dataset's state was `/zfsbootmenu/environments/<name>`, so that of `pool/a/mnt` was `pool/a`'s mount
+  point: while `pool/a` was mounted, a kernel search of `pool/a/mnt` mounted it, and wrote its kernel list and command
+  line cache, inside `pool/a`'s root, through its links, so that a link `mnt -> /etc` there put it over ZFSBootMenu's
+  `/etc`. A dataset `pool/a/kernels` or `pool/a/kcl` and `pool/a`'s own files took each other's place.
+- **Now:** a piece of the name that is `mnt`, `kernels` or `kcl` gets a `+` before it in these paths: `pool/a/mnt` is
+  mounted on `/zfsbootmenu/environments/pool/a/+mnt/mnt`. Every other name keeps its path. The library's
+  `be_location` runs Rust code and prints the same path, so the legacy `mount_zfs`, `find_be_kernels`, `select_kernel`
+  and `kernel_kcl_cache` that hooks and the recovery shell run use it too; where `zbm` prints nothing, the legacy
+  function answers. A chroot of `pool/a/mnt` opens while `pool/a` is mounted. Images of the legacy runtime keep the
+  old paths.
+- **Why:** a name chosen by whoever made the pool placed ZFSBootMenu's mounts and files over the image's.
+
 ### Rollback has no safety snapshot
 
 - **Before:** typing `ROLLBACK` confirmed the rollback, which destroys the newer snapshots.

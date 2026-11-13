@@ -1,5 +1,6 @@
 //! The functions of the library on a fake machine.
 
+use zbm_platform::Files as _;
 use zbm_platform::console::Screen;
 use zbm_platform::exec::{Input, Stream};
 use zbm_testkit::fakes::FakeSystem;
@@ -265,5 +266,133 @@ fn zfs_chroot_matches_the_legacy_function() {
             .collect();
         let log = stub_lines(&fake.kmsg());
         assert_eq!((code, log, screens), legacy, "{fs:?}");
+    }
+}
+
+/// Runs `function` on `fake` with `args`: its status and what it printed.
+fn printed_by(fake: &FakeSystem, function: &str, args: &[&str]) -> (i32, String) {
+    let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
+    let mut out = Vec::new();
+    let outcome = run(&fake.system(), &Conf::default(), function, &args, &mut out);
+    let Outcome::Status(status) = outcome else {
+        panic!("legacy: {outcome:?}");
+    };
+    (status, String::from_utf8(out).unwrap())
+}
+
+#[test]
+fn be_location_prints_and_makes_the_state_s_directory_of_a_filesystem() {
+    let fake = image();
+    let made = "/zfsbootmenu/environments/tank/ROOT/my be";
+    assert_eq!(
+        printed_by(&fake, "be_location", &["tank/ROOT/my be"]),
+        (0, format!("{made}\n"))
+    );
+    assert!(fake.files.is_dir(Path::new(made)));
+    assert!(fake.runner.lines().is_empty(), "no legacy code ran");
+}
+
+/// SB19: a piece `mnt`, `kernels` or `kcl` of a name is escaped, so that
+/// the library's functions keep that dataset's state apart from its
+/// parent's, as the Rust runtime does.
+#[test]
+fn be_location_escapes_a_child_named_mnt() {
+    let fake = image();
+    assert_eq!(
+        printed_by(&fake, "be_location", &["tank/a/mnt"]),
+        (0, "/zfsbootmenu/environments/tank/a/+mnt\n".to_owned())
+    );
+    assert!(
+        fake.files
+            .is_dir(Path::new("/zfsbootmenu/environments/tank/a/+mnt"))
+    );
+    assert!(
+        !fake
+            .files
+            .exists(Path::new("/zfsbootmenu/environments/tank/a/mnt"))
+    );
+}
+
+#[test]
+fn be_location_prints_the_path_even_where_it_cannot_make_it() {
+    // A legacy `mount_zfs` would mount on the image's `/mnt` were nothing
+    // printed.
+    let fake = image();
+    fake.files.fail(
+        "/zfsbootmenu/environments",
+        std::io::ErrorKind::PermissionDenied,
+    );
+    assert_eq!(
+        printed_by(&fake, "be_location", &["tank/ROOT/be"]),
+        (0, "/zfsbootmenu/environments/tank/ROOT/be\n".to_owned())
+    );
+    assert!(!fake.files.exists(Path::new("/zfsbootmenu/environments")));
+}
+
+#[test]
+fn be_location_without_a_name_fails_as_the_legacy_function() {
+    for args in [&[][..], &[""][..]] {
+        let fake = image();
+        assert_eq!(printed_by(&fake, "be_location", args), (1, String::new()));
+        assert!(fake.kmsg().contains("fs is undefined"), "{}", fake.kmsg());
+        assert!(!fake.files.exists(Path::new("/zfsbootmenu/environments")));
+    }
+}
+
+/// ADR 0017, point 10, and SB19: `be_location` prints, logs and returns
+/// what the legacy function does for every name but one with a piece
+/// `mnt`, `kernels` or `kcl`, which is escaped: the difference is
+/// recorded here.
+#[test]
+fn be_location_matches_the_legacy_function() {
+    use zbm_platform::KernelLog;
+    use zbm_testkit::TempDir;
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path, stub_lines};
+
+    let mut parity = zbm_testkit::parity!("be_location_matches_the_legacy_function");
+    for (fs, escaped) in [
+        ("", ""),
+        ("tank/ROOT/be", "tank/ROOT/be"),
+        ("tank/ROOT/be@old", "tank/ROOT/be@old"),
+        ("rpool/ROOT/my be", "rpool/ROOT/my be"),
+        ("bpool/BOOT/debian", "bpool/BOOT/debian"),
+        ("tank/a/mnt", "tank/a/+mnt"),
+        ("tank/kernels/kcl", "tank/+kernels/+kcl"),
+    ] {
+        let legacy: (i32, String, String) = parity.legacy(format!("fs {fs:?}"), || {
+            let library =
+                std::fs::read_to_string(path("zfsbootmenu/lib/zfsbootmenu-core.sh")).unwrap();
+            let start = library.find("\nbe_location() {\n").unwrap() + 1;
+            let end = start + library[start..].find("\n}\n").unwrap() + 3;
+            let base = TempDir::new("zbm-be-location");
+            let base_text = base.path().to_string_lossy().into_owned();
+            let output = Bash::new()
+                .code(LOG_STUBS)
+                .code(&library[start..end])
+                .env("BASE", &base_text)
+                .call("be_location", &[fs], b"");
+            let printed = output.stdout_text().replace(&base_text, "/zfsbootmenu");
+            let code = output.status.code().unwrap_or(-1);
+            (code, printed, log_lines(&output.stderr_text()))
+        });
+
+        let fake = image();
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+        let mut out = Vec::new();
+        let code = be_location(&fake.system(), &state, &[fs.to_owned()], &mut out);
+        let printed = String::from_utf8(out).unwrap();
+        let log = stub_lines(&fake.kmsg());
+        // The legacy path, with the escape.
+        let expected = if fs.is_empty() {
+            legacy.1.clone()
+        } else {
+            legacy.1.replace(fs, escaped)
+        };
+        assert_eq!(
+            (code, printed, log),
+            (legacy.0, expected, legacy.2),
+            "{fs:?}"
+        );
     }
 }

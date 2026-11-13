@@ -277,7 +277,7 @@ fn mount<'c>(
 ) -> Result<Mounts<'c>, ChrootError> {
     let files = context.files();
     let at = state.mount_point(&fs.to_string());
-    if let Err(why) = root::check(files, &at, fs) {
+    if let Err(why) = root::check(files, state.base(), &at) {
         let why = Printable(&why).to_string();
         zbm_trace::error!("{fs} is not mounted: {why}"; %fs, %why);
         return Err(ChrootError::Mount(fs.clone()));
@@ -292,7 +292,7 @@ fn mount<'c>(
     let mount = Mount::new(context.runner(), files);
     let mut mounts = Mounts {
         below: Vec::new(),
-        place: root::Root::new(files, at.clone(), fs.clone()),
+        place: root::Root::new(files, state.base(), at.clone(), fs.clone()),
         root: Some(root.recursive()),
         mount,
         host: None,

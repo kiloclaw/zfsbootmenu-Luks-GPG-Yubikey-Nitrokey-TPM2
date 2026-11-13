@@ -1,0 +1,61 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "fs \"\"",
+      "result": [
+        1,
+        "",
+        "ERROR: fs is undefined\n"
+      ]
+    },
+    {
+      "input": "fs \"tank/ROOT/be\"",
+      "result": [
+        0,
+        "/zfsbootmenu/environments/tank/ROOT/be\n",
+        "DEBUG: fs set to tank/ROOT/be\n"
+      ]
+    },
+    {
+      "input": "fs \"tank/ROOT/be@old\"",
+      "result": [
+        0,
+        "/zfsbootmenu/environments/tank/ROOT/be@old\n",
+        "DEBUG: fs set to tank/ROOT/be@old\n"
+      ]
+    },
+    {
+      "input": "fs \"rpool/ROOT/my be\"",
+      "result": [
+        0,
+        "/zfsbootmenu/environments/rpool/ROOT/my be\n",
+        "DEBUG: fs set to rpool/ROOT/my be\n"
+      ]
+    },
+    {
+      "input": "fs \"bpool/BOOT/debian\"",
+      "result": [
+        0,
+        "/zfsbootmenu/environments/bpool/BOOT/debian\n",
+        "DEBUG: fs set to bpool/BOOT/debian\n"
+      ]
+    },
+    {
+      "input": "fs \"tank/a/mnt\"",
+      "result": [
+        0,
+        "/zfsbootmenu/environments/tank/a/mnt\n",
+        "DEBUG: fs set to tank/a/mnt\n"
+      ]
+    },
+    {
+      "input": "fs \"tank/kernels/kcl\"",
+      "result": [
+        0,
+        "/zfsbootmenu/environments/tank/kernels/kcl\n",
+        "DEBUG: fs set to tank/kernels/kcl\n"
+      ]
+    }
+  ]
+}

@@ -8,6 +8,8 @@ use zbm_tools::mount::table::{MOUNTINFO, mounts};
 use super::*;
 use crate::chroot::root::check;
 
+/// The state directory.
+const BASE: &str = "/zfsbootmenu";
 /// Where environments are mounted below the state directory.
 const ENVIRONMENTS: &str = "/zfsbootmenu/environments";
 
@@ -121,24 +123,23 @@ fn after_the_shell(fake: &FakeSystem) -> Vec<String> {
 }
 
 #[test]
-fn a_root_path_through_a_link_in_another_dataset_is_refused() {
-    // `tank/a` is mounted on its own path, and its root links `mnt`, where
-    // `tank/a/mnt` would be mounted, to the image's `/etc`.
+fn a_root_path_through_a_link_in_the_state_is_refused() {
+    // A link that root planted on a directory of the state, to the
+    // image's `/etc`.
     let fake = machine("off");
     fake.files
-        .symlink(format!("{ENVIRONMENTS}/tank/a/mnt/mnt"), "/etc\x1b[2J");
+        .symlink(format!("{ENVIRONMENTS}/tank"), "/etc\x1b[2J");
     let before = fake.files.paths();
     let log = kernel_log(&fake);
 
-    let error = open_on(&fake, "tank/a/mnt").unwrap_err();
+    let error = open_on(&fake, "tank/ROOT/be").unwrap_err();
 
     drop(log);
     assert!(matches!(error, ChrootError::Mount(_)), "{error:?}");
-    assert_eq!(error.to_string(), "failed to mount tank/a/mnt");
+    assert_eq!(error.to_string(), "failed to mount tank/ROOT/be");
     // The error line says why, the link's target escaped.
-    let said = format!(
-        "tank/a/mnt is not mounted: {ENVIRONMENTS}/tank/a/mnt/mnt is a link to /etc\\x1b[2J"
-    );
+    let said =
+        format!("tank/ROOT/be is not mounted: {ENVIRONMENTS}/tank is a link to /etc\\x1b[2J");
     assert!(fake.kmsg().contains(&said), "{}", fake.kmsg());
     let lines = ran(&fake);
     assert!(
@@ -167,11 +168,13 @@ fn a_root_path_through_a_link_in_another_dataset_is_refused() {
 }
 
 #[test]
-fn a_root_path_through_another_mounted_dataset_is_refused() {
+fn a_root_path_through_a_mount_in_the_state_is_refused() {
+    // A dataset whose `mountpoint` is a directory of the state, mounted
+    // there by `zfs mount -a` in the recovery shell.
     let fake = machine("off");
-    table(&fake, &[line(40, &format!("{ENVIRONMENTS}/tank/a/mnt"))]);
+    table(&fake, &[line(40, &format!("{ENVIRONMENTS}/tank/ROOT"))]);
 
-    let error = open_on(&fake, "tank/a/mnt").unwrap_err();
+    let error = open_on(&fake, "tank/ROOT/be").unwrap_err();
 
     assert!(matches!(error, ChrootError::Mount(_)), "{error:?}");
     let lines = ran(&fake);
@@ -180,12 +183,35 @@ fn a_root_path_through_another_mounted_dataset_is_refused() {
         "{lines:#?}"
     );
     assert_eq!(fake.files.operations(), []);
-    let at = format!("{ENVIRONMENTS}/tank/a/mnt/mnt");
-    let fs = "tank/a/mnt".parse().unwrap();
     assert_eq!(
-        check(&fake.files, Path::new(&at), &fs),
-        Err(format!("{ENVIRONMENTS}/tank/a/mnt is a mount point"))
+        check(&fake.files, Path::new(BASE), Path::new(MP)),
+        Err(format!("{ENVIRONMENTS}/tank/ROOT is a mount point"))
     );
+    // The directory of the environments is on the way too.
+    table(&fake, &[line(40, ENVIRONMENTS)]);
+    assert_eq!(
+        check(&fake.files, Path::new(BASE), Path::new(MP)),
+        Err(format!("{ENVIRONMENTS} is a mount point"))
+    );
+}
+
+#[test]
+fn a_child_named_mnt_opens_in_a_chroot_while_its_parent_is_mounted() {
+    // `tank/a` is mounted on its own path, where the state of
+    // `tank/a/mnt` was before its piece `mnt` was escaped (SB19).
+    const CHILD: &str = "/zfsbootmenu/environments/tank/a/+mnt/mnt";
+    let fake = machine("off");
+    fake.files
+        .file_with_mode(format!("{CHILD}/bin/sh"), "", 0o755);
+    let parent = format!("40 25 0:50 / {ENVIRONMENTS}/tank/a/mnt rw - zfs tank/a rw");
+    table(&fake, &[parent]);
+
+    assert_eq!(open_on(&fake, "tank/a/mnt").unwrap(), 0);
+
+    let lines = ran(&fake);
+    let mounted = format!("mount -o zfsutil,rw -t zfs tank/a/mnt {CHILD}");
+    assert_eq!(lines[0], mounted, "{lines:#?}");
+    assert!(lines.contains(&"/bin/sh".to_owned()), "{lines:#?}");
 }
 
 #[test]
@@ -201,30 +227,32 @@ fn a_root_path_whose_names_cannot_be_read_is_refused() {
 }
 
 #[test]
-fn a_mount_point_that_is_not_the_filesystem_s_own_is_refused() {
+fn a_mount_point_outside_the_state_directory_is_refused() {
     let fake = machine("off");
-    let fs = "tank/ROOT/be".parse().unwrap();
+    let base = Path::new(BASE);
     for at in [
         "/mnt",
         "/x/y/z/w/v/mnt",
-        "/zfsbootmenu/environments/tank/ROOT/other/mnt",
+        "/zfsbootmenu/../etc/mnt",
+        "tank/ROOT/be/mnt",
     ] {
         assert_eq!(
-            check(&fake.files, Path::new(at), &fs),
-            Err(format!("{at} is not the mount point of tank/ROOT/be")),
+            check(&fake.files, base, Path::new(at)),
+            Err(format!("{at} is not below /zfsbootmenu")),
         );
     }
-    let relative = "tank/ROOT/be/mnt";
-    assert_eq!(
-        check(&fake.files, Path::new(relative), &fs),
-        Err(format!("{relative} is not the mount point of tank/ROOT/be")),
-    );
     // The link's own path, in full, and its target are the reason.
     fake.files
         .symlink(format!("{ENVIRONMENTS}/tank/ROOT"), "/etc");
     assert_eq!(
-        check(&fake.files, Path::new(MP), &fs),
+        check(&fake.files, base, Path::new(MP)),
         Err(format!("{ENVIRONMENTS}/tank/ROOT is a link to /etc"))
+    );
+    // The directory of the environments is walked too.
+    fake.files.symlink(ENVIRONMENTS, "/tmp");
+    assert_eq!(
+        check(&fake.files, base, Path::new(MP)),
+        Err(format!("{ENVIRONMENTS} is a link to /tmp"))
     );
 }
 
@@ -336,15 +364,14 @@ fn without_mountinfo_the_teardown_is_umount_r_alone() {
 
 #[test]
 fn a_link_or_a_mount_on_the_root_s_way_since_it_was_mounted_leaves_its_mounts() {
-    // `tank/a` is mounted on its own path while a chroot of `tank/a/mnt`
-    // is open, from a recovery shell, a hook or a failed boot; or a link
-    // to the image's `/dev` appears on the way.
-    let at = format!("{ENVIRONMENTS}/tank/a/mnt/mnt");
+    // A dataset is mounted on a directory of the state while a chroot of
+    // `tank/ROOT/be` is open, by `zfs mount -a` in a recovery shell or a
+    // hook; or a link to the image's `/dev` appears on the way.
+    let at = MP.to_owned();
     for linked in [false, true] {
         let fake = machine("off");
-        fake.files.file_with_mode(format!("{at}/bin/sh"), "", 0o755);
         let files = fake.files.clone();
-        let (parent, link) = (format!("{ENVIRONMENTS}/tank/a/mnt"), at.clone());
+        let (parent, link) = (format!("{ENVIRONMENTS}/tank/ROOT"), at.clone());
         if linked {
             // No mountinfo either: the link alone leaves the mounts.
             fake.runner.first(move |ran| {
@@ -356,14 +383,15 @@ fn a_link_or_a_mount_on_the_root_s_way_since_it_was_mounted_leaves_its_mounts() 
         } else {
             table(&fake, &[]);
             let point = at.clone();
-            let mounted = format!("mount -o zfsutil,rw -t zfs tank/a/mnt {at}");
-            when(&fake, mounted, move |lines| lines.push(line(40, &point)));
+            when(&fake, root_mount(), move |lines| {
+                lines.push(line(40, &point));
+            });
             when(&fake, "/bin/sh".to_owned(), move |lines| {
                 lines.push(line(41, &parent));
             });
         }
 
-        open_on(&fake, "tank/a/mnt").unwrap();
+        open_on(&fake, "tank/ROOT/be").unwrap();
 
         let after = after_the_shell(&fake);
         assert!(
@@ -522,10 +550,9 @@ fn mountinfo_escapes_are_read_as_the_kernel_writes_them() {
     let fake = machine("off");
     let prefix = "/zfsbootmenu/environments/tank/my\\040be";
     table(&fake, &[line(40, prefix)]);
-    let fs = "tank/my be/x".parse().unwrap();
     let at = Path::new("/zfsbootmenu/environments/tank/my be/x/mnt");
     assert_eq!(
-        check(&fake.files, at, &fs),
+        check(&fake.files, Path::new(BASE), at),
         Err("/zfsbootmenu/environments/tank/my be is a mount point".to_owned())
     );
 }

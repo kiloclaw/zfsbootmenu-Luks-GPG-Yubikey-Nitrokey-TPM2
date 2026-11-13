@@ -1,12 +1,12 @@
 //! The root of a chroot on its own path (SB16): the path is checked
 //! before the filesystem is mounted there ([`check`]), so that it passes
-//! through no link and no other mount; the root's line in the kernel's
-//! table is read right after ([`Root::new`]); and the teardown unmounts by
-//! the path only while that check still holds and the root is there under
-//! no other mount of its filesystem ([`Root::found`]), then makes sure by
-//! the root's mount ID that nothing of it stays mounted
-//! ([`Root::tear_down`]), since `umount -R` takes the topmost mount on a
-//! path, not the chroot's.
+//! through no link and no other mount from the state directory down; the
+//! root's line in the kernel's table is read right after ([`Root::new`]);
+//! and the teardown unmounts by the path only while that check still holds
+//! and the root is there under no other mount of its filesystem
+//! ([`Root::found`]), then makes sure by the root's mount ID that nothing
+//! of it stays mounted ([`Root::tear_down`]), since `umount -R` takes the
+//! topmost mount on a path, not the chroot's.
 
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -20,21 +20,16 @@ use zbm_types::FilesystemName;
 /// The most lazy unmounts of the root's path in one teardown.
 const LAZY_ROUNDS: usize = 8;
 
-/// Why `fs` is not to be mounted on `at`, if it is not: `at` is not
-/// `<fs>/mnt` below a directory, that of the environments; or a name of
-/// `at` below that directory is a symbolic link, or could not be read
-/// ([`InRoot::first_link`]); or a directory on the way, below that
-/// directory and above `at`, is a mount point, so that `at` runs through
-/// another filesystem's root. `at` itself may be one: a filesystem left
-/// mounted there is mounted again over it, as before.
-pub(super) fn check(files: &dyn Files, at: &Path, fs: &FilesystemName) -> Result<(), String> {
-    let names = Path::new(&fs.to_string()).join("mnt");
-    let base = at
-        .ancestors()
-        .nth(names.components().count())
-        .filter(|base| base.is_absolute() && at.ends_with(&names));
-    let (Some(base), Some(walk)) = (base, InRoot::new(&names)) else {
-        return Err(format!("{} is not the mount point of {fs}", at.display()));
+/// Why nothing is to be mounted on `at`, if it is not: `at` is not below
+/// `base`, the state directory; or a name of `at` below `base` is a
+/// symbolic link, or could not be read ([`InRoot::first_link`]); or a
+/// directory on the way, below `base` and above `at`, is a mount point, so
+/// that `at` runs through another filesystem's root. `at` itself may be
+/// one: a filesystem left mounted there is mounted again over it, as
+/// before.
+pub(super) fn check(files: &dyn Files, base: &Path, at: &Path) -> Result<(), String> {
+    let Some(walk) = at.strip_prefix(base).ok().and_then(InRoot::new) else {
+        return Err(format!("{} is not below {}", at.display(), base.display()));
     };
     match walk.first_link(files, base) {
         Ok(None) => {}
@@ -76,10 +71,12 @@ pub(super) enum Found {
     Left(String),
 }
 
-/// The root of a chroot, as its teardown finds it: where it is mounted, the
-/// filesystem, and its line in the kernel's table, read right after the
-/// mount.
+/// The root of a chroot, as its teardown finds it: where it is mounted,
+/// below which state directory, the filesystem, and its line in the
+/// kernel's table, read right after the mount.
 pub(super) struct Root {
+    /// The state directory, from which [`check`] walks.
+    base: PathBuf,
     /// The mount point.
     at: PathBuf,
     /// The filesystem mounted there.
@@ -90,16 +87,21 @@ pub(super) struct Root {
 }
 
 impl Root {
-    /// `fs`, mounted on `at` just now, with its line: the last on `at` in
-    /// the kernel's table, read before anything else is mounted and any
-    /// code of the filesystem runs.
-    pub(super) fn new(files: &dyn Files, at: PathBuf, fs: FilesystemName) -> Root {
+    /// `fs`, mounted on `at` below the state directory `base` just now,
+    /// with its line: the last on `at` in the kernel's table, read before
+    /// anything else is mounted and any code of the filesystem runs.
+    pub(super) fn new(files: &dyn Files, base: &Path, at: PathBuf, fs: FilesystemName) -> Root {
         let point = at.as_os_str().as_bytes();
         let line = files
             .read(Path::new(MOUNTINFO))
             .ok()
             .and_then(|table| mounts(&table).filter(|listed| listed.point == point).last());
-        Root { at, fs, line }
+        Root {
+            base: base.to_path_buf(),
+            at,
+            fs,
+            line,
+        }
     }
 
     /// The mount point.
@@ -113,7 +115,7 @@ impl Root {
     /// it is another root of the filesystem (another chroot's, or the boot
     /// path's), which is not this chroot's to unmount.
     pub(super) fn found(&self, files: &dyn Files) -> Found {
-        if let Err(why) = check(files, &self.at, &self.fs) {
+        if let Err(why) = check(files, &self.base, &self.at) {
             return Found::Left(why);
         }
         let Some(ours) = &self.line else {

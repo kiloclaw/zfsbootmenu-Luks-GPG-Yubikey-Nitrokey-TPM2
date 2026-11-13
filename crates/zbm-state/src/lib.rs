@@ -3,9 +3,13 @@
 //! The processes of the runtime (the start-up program, the menu, the recovery
 //! shell's commands, the hooks) share state only through files in this
 //! directory, with the layout and formats of the legacy runtime, which users,
-//! hooks and the documentation rely on. [`State`] owns that layout: no other
-//! code builds these paths. See "Shared state" in `crates/DESIGN.md` for which
-//! process writes and reads each file.
+//! hooks and the documentation rely on, but for one escape: a piece `mnt`,
+//! `kernels` or `kcl` of a filesystem's name is written with a `+` before it
+//! in its directory below `environments`, so that no name's directory is
+//! another's or lies in another's mount point, kernel list or command line
+//! cache. [`State`] owns that layout: no other code builds
+//! these paths. See "Shared state" in `crates/DESIGN.md` for which process
+//! writes and reads each file.
 //!
 //! Files that other processes may read while they change are replaced
 //! atomically ([`Files::replace`]); the others are written as the legacy code
@@ -19,6 +23,7 @@ use zbm_platform::files::{FileLock, Files, LockWait};
 
 /// The lock of the menu: one menu runs at a time.
 mod console;
+mod environments;
 mod markers;
 
 const ACTIVE_LOCK: &str = "active.lock";
@@ -389,51 +394,6 @@ impl<'a> State<'a> {
     /// (`bootenvs`); the Rust runtime does not write it.
     pub fn boot_environments(&self) -> PathBuf {
         self.path("bootenvs")
-    }
-
-    /// The directory of a boot environment's state,
-    /// `environments/<dataset>`, created if needed.
-    ///
-    /// # Errors
-    ///
-    /// When the directory cannot be created.
-    pub fn environment(&self, dataset: &str) -> Result<PathBuf> {
-        let path = self.path("environments").join(dataset);
-        self.files
-            .create_dir_all(&path)
-            .map_err(|error| Error::io(format!("unable to create {}", path.display()), error))?;
-        Ok(path)
-    }
-
-    /// Where a boot environment is mounted (`environments/<dataset>/mnt`).
-    pub fn mount_point(&self, dataset: &str) -> PathBuf {
-        self.path("environments").join(dataset).join("mnt")
-    }
-
-    /// The kernel list of a boot environment (`environments/<dataset>/kernels`).
-    pub fn kernels(&self, dataset: &str) -> PathBuf {
-        self.path("environments").join(dataset).join("kernels")
-    }
-
-    /// The cached command line of a kernel of a boot environment, named after
-    /// the kernel: the kernel's path without its leading `/`,
-    /// with `:` doubled and `/` replaced by `:`, in
-    /// `environments/<dataset>/kcl/<name>.kcl`. `None` without a kernel.
-    pub fn kcl_cache(&self, dataset: &str, kernel: &str) -> Option<PathBuf> {
-        if kernel.is_empty() {
-            return None;
-        }
-        let flat = kernel
-            .strip_prefix('/')
-            .unwrap_or(kernel)
-            .replace(':', "::")
-            .replace('/', ":");
-        Some(
-            self.path("environments")
-                .join(dataset)
-                .join("kcl")
-                .join(format!("{flat}.kcl")),
-        )
     }
 
     /// The cache of key files from the key source `dataset`

@@ -145,7 +145,6 @@ mod tests {
                 "be_keysource",
                 "cache_key",
                 "load_key",
-                "be_location",
                 "import_zbm_hooks",
                 "is_mountpoint",
                 "is_mounted",

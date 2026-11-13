@@ -301,12 +301,16 @@ port and wakes on input.
 
 ### Shared state: the state directory
 
-The processes share state only through files under `/zfsbootmenu` (`BASE`), with the legacy layout and formats.
-`zbm-state` owns the layout: no other code builds these paths. Keeping the layout has a cost, since files are slower
-than memory, but it is small next to the `zfs` commands the runtime runs, and it buys three things: users and
-documentation rely on some of these paths (remote access ends the menu named in `active`, the GRUB migration guide works in
-`environments/<dataset>/mnt`, `zluks(8)` documents the LUKS files); a hook or a user in the recovery shell sees what
-they see today; and short-lived callback processes need no server to ask.
+The processes share state only through files under `/zfsbootmenu` (`BASE`), with the legacy layout and formats, but for
+one escape (SB19): in a filesystem's directory below `environments`, a piece of its name that is `mnt`, `kernels` or
+`kcl` is written with `+` before it, so that no name's directory is another's or lies in another's mount point, kernel
+list or command line cache (`pool/a/mnt` has `environments/pool/a/+mnt`; a child's directory stays inside its
+parent's). `zbm-state` owns the layout: no other code builds these paths, and the library's
+`be_location` prints them. Keeping the layout has a cost, since files are slower than memory, but it is small next to
+the `zfs` commands the runtime runs, and it buys three things: users and documentation rely on some of these paths
+(remote access ends the menu named in `active`, the GRUB migration guide works in `environments/<dataset>/mnt`, with
+that escape, `zluks(8)` documents the LUKS files); a hook or a user in the recovery shell sees what they see today; and
+short-lived callback processes need no server to ask.
 
 | File | Written by | Read by | Format |
 | --- | --- | --- | --- |
@@ -322,7 +326,7 @@ they see today; and short-lived callback processes need no server to ask.
 | `zbm.cmdline`, `cmdline.d/<key>` | command line parsing | option lookups | tokenized command line; one value per key |
 | `cmdline` | command line editor, `zbm.kcl_override` | command line assembly, main screen header | tokenized command line |
 | `bootenvs` | the legacy menu (not the Rust runtime) | its `fzf` | one boot environment per line |
-| `environments/<dataset>/kernels` | kernel discovery | kernel selection, kernel screen, previews | `dataset<TAB>kernel<TAB>initramfs` lines |
+| `environments/<dataset>/kernels` (`<dataset>` with its pieces `mnt`, `kernels` and `kcl` escaped, as above, here and in the next two rows) | kernel discovery | kernel selection, kernel screen, previews | `dataset<TAB>kernel<TAB>initramfs` lines |
 | `environments/<dataset>/kcl/<kernel>.kcl` | kernel discovery, command line cache | command line assembly | command line |
 | `environments/<dataset>/mnt` | mounting a boot environment | users | mount point |
 | `.keys/<key source>/<path>` | key caching | key loading | copies of ZFS key files, mode 0600; removed before `kexec` |
@@ -331,14 +335,14 @@ they see today; and short-lived callback processes need no server to ask.
 | `have_errors`, `have_warnings`, `errors_since` | logging, error printer (`logs --prompt` in Rust images), the recovery shell's banner, `logs` | the legacy previews, the recovery shell's prompt, `logs` (`zlogtail`) | empty; time stamp, in Rust images the number of a record of the kernel log |
 | `luks-mappings`, `luks-mappings.lock`, `luks-skipped` | LUKS unlocking | the LUKS close (`zluks close`), `zluks`, retries | `name<TAB>device<TAB>auto` lines; a file locked with `flock`; one device per line |
 
-Files that other processes may read while they are rewritten (`bootfs`, `bootenvs`, `kernels`, `.kcl` files) are
-written to a temporary name and renamed, so a reader sees the old or the new contents, never a partial file. The
-legacy code writes them in place; nothing can observe the difference except a reader that would have seen a partial
-file. The locks of the state directory are `flock` locks on files that stay (`luks-mappings.lock`, `active.lock`, a key
-cache's `.lock`), taken through `Files::lock`: the kernel lets go of a lock when its process ends, killed or not, so no
-lock is left behind and none is taken anyway after a wait, as the legacy code's lock directory was after five seconds;
-`active` holds the menu's PID only while `active.lock` is held. `degraded` and `luks-skipped` are appended to without a
-lock, as in the legacy code.
+Of the files that other processes may read while they are rewritten, `bootfs` is written to a temporary name and
+renamed, so a reader sees the old or the new contents, never a partial file; the legacy code writes it in place. The
+kernel lists (`kernels`) and the `.kcl` files are written in place, as the legacy code writes them, and the Rust runtime
+does not write `bootenvs`. The locks of the state directory are `flock` locks on files that stay (`luks-mappings.lock`,
+`active.lock`, a key cache's `.lock`), taken through `Files::lock`: the kernel lets go of a lock when its process ends,
+killed or not, so no lock is left behind and none is taken anyway after a wait, as the legacy code's lock directory was
+after five seconds; `active` holds the menu's PID only while `active.lock` is held. `degraded` and `luks-skipped` are
+appended to without a lock, as in the legacy code.
 
 Within a process, data read from ZFS lives in the data model and is read again at the points where the legacy code
 reads it again (each time a screen is drawn), so the Rust runtime sees changes made from a hook or the recovery shell
@@ -582,25 +586,27 @@ The rules:
 - **Limits.** Each wrapped call is a process; its arguments must be valid UTF-8 (`zbm` refuses others with status 2);
   and a wrapped function does not see the functions its caller defined.
 
-`zbm zfunc FUNCTION [ARGS]` (`zbm_startup::zfunc`) runs a function. Five have Rust code so far: `emergency_shell`,
-the start-up program's recovery shell, through its gate (ADR 0010: a locked image asks for the PIN first);
-`zfs_chroot`, which runs `zbm`'s `zfs-chroot` on the console, the filesystem one argument, as the legacy function ran
-the script on Bash: that applet asks for the PIN in a locked image, as `zbm lock shell` does, and opens the chroot
-through the same gate (ADR 0018, point 8); `is_degraded`; `zreport`, the system report, which the import stage
-also logs at debug level (`zbm_pool::stage` takes it as an argument, since `zbm-pool` cannot reach `zbm-startup`);
-and `zbmcmdline`, on the same code as the report's command line (ADR 0018, point 17). Natives print on the writer
-`zbm zfunc` gives them, its standard output. Any other runs as the legacy `zfunc` ran it: `zbm`
-replaces itself with Bash (`zbm_tools::programs::legacy_function`), which sources the library files the legacy `zfunc`
-sourced, those of the contract from their legacy copies below `/usr/share/zfsbootmenu/legacy/lib` (they source each
-other there, not the generated files of `/lib`, whose wrappers would come back to `zbm`), and runs the function with
-the caller's streams and signals; the configuration's variables are added where the environment does not set them.
-Inside it, `emergency_shell` and `zfs_chroot` are `zbm`'s, so the gate holds whichever legacy function opens a shell.
-The image links `/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool` (`docs/general/grub-migration.rst`) keeps
-working. The legacy `zfunc` also sourced the `fzf` menu's library (`zfsbootmenu-ui.sh`), which Rust images do not have
-(ADR 0018, point 21): its functions are not run.
+`zbm zfunc FUNCTION [ARGS]` (`zbm_startup::zfunc`) runs a function. Six have Rust code so far: `be_location`, which
+prints a filesystem's directory in the state as `zbm_state` builds it (SB19); `emergency_shell`, the start-up program's
+recovery shell, through its gate (ADR 0010: a locked image asks for the PIN first); `zfs_chroot`, which runs `zbm`'s
+`zfs-chroot` on the console, the filesystem one argument, as the legacy function ran the script on Bash: that applet
+asks for the PIN in a locked image, as `zbm lock shell` does, and opens the chroot through the same gate (ADR 0018,
+point 8); `is_degraded`; `zreport`, the system report, which the import stage also logs at debug level
+(`zbm_pool::stage` takes it as an argument, since `zbm-pool` cannot reach `zbm-startup`); and `zbmcmdline`, on the same
+code as the report's command line (ADR 0018, point 17). Natives print on the writer `zbm zfunc` gives them, its standard
+output. Any other runs as the legacy `zfunc` ran it: `zbm` replaces itself with Bash
+(`zbm_tools::programs::legacy_function`), which sources the library files the legacy `zfunc` sourced, those of the
+contract from their legacy copies below `/usr/share/zfsbootmenu/legacy/lib` (they source each other there, not the
+generated files of `/lib`, whose wrappers would come back to `zbm`), and runs the function with the caller's streams and
+signals; the configuration's variables are added where the environment does not set them. Inside it, `emergency_shell`
+and `zfs_chroot` are `zbm`'s, so the gate holds whichever legacy function opens a shell, and so is `be_location`, so the
+legacy functions keep a filesystem's state where the Rust runtime keeps it, with the legacy `be_location` as the answer
+where `zbm` prints nothing (SB19). The image links `/libexec/zfunc` to `zbm`, so `/libexec/zfunc import_pool`
+(`docs/general/grub-migration.rst`) keeps working. The legacy `zfunc` also sourced the `fzf` menu's library
+(`zfsbootmenu-ui.sh`), which Rust images do not have (ADR 0018, point 21): its functions are not run.
 
-A test in `zbm` lists the 51 functions still legacy; SB14 gives them Rust code, and SB7 needs the list empty. ADR
-0017 (point 10) has each function run its Rust code where some exists: only five do so far, because each needs its
+A test in `zbm` lists the 50 functions still legacy; SB14 gives them Rust code, and SB7 needs the list empty. ADR
+0017 (point 10) has each function run its Rust code where some exists: only six do so far, because each needs its
 legacy output, status and log lines bridged, and a parity test (`zfs_chroot`'s was the first of a native; `zreport`'s
 and `zbmcmdline`'s run them on the same machine as the Rust code).
 

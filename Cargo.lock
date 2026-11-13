@@ -4196,6 +4196,7 @@ dependencies = [
 name = "zbm-state"
 version = "0.1.0"
 dependencies = [
+ "proptest",
  "zbm-platform",
  "zbm-testkit",
 ]

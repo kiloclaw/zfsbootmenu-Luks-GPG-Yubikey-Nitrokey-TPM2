@@ -1,7 +1,7 @@
 //! Mounting and unmounting: a boot environment on its mount point in the
 //! state directory, and the recursive unmount of a mount point.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use zbm_platform::{Context, Files};
 use zbm_state::State;
@@ -13,14 +13,12 @@ use zbm_zfs::{Stderr, ZfsText};
 use crate::error::BootEnvError;
 use crate::zfs::locked_root;
 
-/// The state directory of a boot environment, created if needed.
-pub(super) fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
+/// Creates the state directory of a boot environment if needed. Its
+/// paths, the mount point among them, come from [`State`].
+pub(super) fn be_location(state: &State<'_>, fs: &str) {
     zbm_trace::debug!("fs set to {fs}"; %fs);
-    // When `mkdir -p` fails, be_location gives the path all the same.
-    state.environment(fs).unwrap_or_else(|_| {
-        let mnt = state.mount_point(fs);
-        mnt.parent().map_or(mnt.clone(), Path::to_path_buf)
-    })
+    // When `mkdir -p` fails, the paths are used all the same.
+    let _ = state.environment(fs);
 }
 
 /// How the output of `mount` reaches the user.
@@ -88,7 +86,8 @@ fn mount_as<'a>(
         return None;
     }
     let name = fs.to_string();
-    let mnt = be_location(state, &name).join("mnt");
+    be_location(state, &name);
+    let mnt = state.mount_point(&name);
     let _ = context.files().create_dir_all(&mnt);
     let errors = match noise {
         Noise::Shown => Stderr::Console,

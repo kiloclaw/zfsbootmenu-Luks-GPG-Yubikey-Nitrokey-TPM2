@@ -140,7 +140,10 @@ pub fn select_kernel(
 ) -> Option<Kernel> {
     zbm_trace::debug!("zfsbe set to {filesystem}"; %filesystem);
     let fs = &filesystem.to_string();
-    let list = be_location(state, fs).join("kernels");
+    // As the legacy `be_location` logs it; the list is read where it is,
+    // and a missing directory reads as a missing list.
+    zbm_trace::debug!("fs set to {fs}"; %fs);
+    let list = state.kernels(fs);
     let text = context.files().read_to_string(&list).unwrap_or_default();
     if text.is_empty() {
         zbm_trace::error!("kernel list '{list}' missing or empty"; list = %list.display());
@@ -184,3 +187,6 @@ pub fn select_kernel(
     zbm_trace::debug!("using kexec args: {chosen}"; %chosen);
     Some(Kernel::parse(&chosen))
 }
+
+#[cfg(test)]
+mod tests;
