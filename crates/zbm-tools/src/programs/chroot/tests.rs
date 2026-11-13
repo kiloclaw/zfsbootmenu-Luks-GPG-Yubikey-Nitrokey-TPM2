@@ -1,5 +1,5 @@
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use pretty_assertions::assert_eq;
 use zbm_platform::{Input, Output, Signal, Status, Stream};
@@ -87,6 +87,103 @@ fn no_shell_that_runs_is_none_and_a_root_that_cannot_be_entered_is_an_error() {
     assert!(error.to_string().contains("cannot change root"), "{error}");
     // No other shell is tried in a root that cannot be entered.
     assert_eq!(tried(&runner), ["/bin/bash -c exit 0"]);
+}
+
+/// The shell `find` takes on `files`, and the shells it tried, when each
+/// runs.
+fn taken(files: &FakeFiles) -> (Option<PathBuf>, Vec<String>) {
+    let runner = FakeRunner::new();
+    let chroot = found(&runner, files).unwrap();
+    (chroot.map(|chroot| chroot.shell), tried(&runner))
+}
+
+#[test]
+fn an_absolute_link_to_the_shell_is_followed_inside_the_root() {
+    // The VM's layout: this system has no busybox, the root has.
+    let files = FakeFiles::new();
+    files
+        .symlink(format!("{ROOT}/bin/sh"), "/bin/busybox")
+        .file_with_mode(format!("{ROOT}/bin/busybox"), "", 0o755);
+
+    let (shell, tried) = taken(&files);
+
+    // The shell keeps its name, which the chroot resolves.
+    assert_eq!(shell, Some("/bin/sh".into()));
+    assert_eq!(tried, ["/bin/sh -c exit 0"]);
+}
+
+#[test]
+fn a_shell_that_only_the_image_has_is_not_tried() {
+    let files = FakeFiles::new();
+    files
+        .symlink(format!("{ROOT}/bin/bash"), "/usr/bin/bash")
+        .file_with_mode("/usr/bin/bash", "", 0o755);
+
+    assert_eq!(taken(&files), (None, Vec::new()));
+}
+
+#[test]
+fn an_absolute_usr_merge_link_finds_the_environment_s_bash() {
+    let files = FakeFiles::new();
+    files
+        .symlink(format!("{ROOT}/bin"), "/usr/bin")
+        .file_with_mode(format!("{ROOT}/usr/bin/bash"), "", 0o755);
+
+    let (shell, tried) = taken(&files);
+
+    assert_eq!(shell, Some("/bin/bash".into()));
+    assert_eq!(tried, ["/bin/bash -c exit 0"]);
+}
+
+#[test]
+fn a_shell_link_that_climbs_out_stays_inside_the_root() {
+    // From the root's `bin`, eight `..` climb out of the root in this
+    // system, where busybox is not executable; in the chroot they stop at
+    // its root, whose busybox is.
+    let files = FakeFiles::new();
+    files
+        .symlink(
+            format!("{ROOT}/bin/sh"),
+            "../../../../../../../../bin/busybox",
+        )
+        .file_with_mode(format!("{ROOT}/bin/busybox"), "", 0o755)
+        .file_with_mode("/bin/busybox", "", 0o644);
+
+    let (shell, tried) = taken(&files);
+
+    assert_eq!(shell, Some("/bin/sh".into()));
+    assert_eq!(tried, ["/bin/sh -c exit 0"]);
+}
+
+#[test]
+fn a_shell_reached_through_dev_or_tmp_is_not_tried() {
+    // Both are this system's in the chroot, whatever the root has there.
+    let files = FakeFiles::new();
+    files
+        .symlink(format!("{ROOT}/bin/bash"), "/dev/shm/bash")
+        .symlink(format!("{ROOT}/bin/sh"), "../tmp/sh")
+        .file_with_mode(format!("{ROOT}/dev/shm/bash"), "", 0o755)
+        .file_with_mode(format!("{ROOT}/tmp/sh"), "", 0o755)
+        .file_with_mode("/dev/shm/bash", "", 0o755)
+        .file_with_mode("/tmp/sh", "", 0o755);
+
+    assert_eq!(taken(&files), (None, Vec::new()));
+}
+
+#[test]
+fn a_shell_whose_links_loop_is_not_tried() {
+    // In this system, the loop's first link leads to a shell.
+    let files = FakeFiles::new();
+    files
+        .symlink(format!("{ROOT}/bin/sh"), "/bin/sh2")
+        .symlink(format!("{ROOT}/bin/sh2"), "./sh")
+        .file_with_mode("/bin/sh2", "", 0o755)
+        .file_with_mode(format!("{ROOT}/bin/busybox"), "", 0o755);
+
+    let (shell, tried) = taken(&files);
+
+    assert_eq!(shell, Some("/bin/busybox".into()));
+    assert_eq!(tried, ["/bin/busybox sh -c exit 0"]);
 }
 
 #[test]

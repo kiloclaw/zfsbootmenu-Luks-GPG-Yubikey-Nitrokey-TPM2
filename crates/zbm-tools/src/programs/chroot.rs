@@ -4,7 +4,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use zbm_platform::{Command, Files, Input, Runner, Stream};
-use zbm_types::FilesystemName;
+use zbm_types::{FilesystemName, Printable};
+
+use crate::mount::inside;
 
 /// The shells a chroot tries, in order, as `zfs-chroot` tried them: the
 /// program, the arguments it is tried with before `-c "exit 0"`, and those
@@ -34,9 +36,13 @@ pub struct Chroot {
 impl Chroot {
     /// The chroot of `name` mounted on `root`, with the first shell that
     /// runs there, as `zfs-chroot` found it: `/bin/bash`, `/bin/sh`, then
-    /// `/bin/busybox sh`, each where `files` finds it executable below
-    /// `root` and where it ends well with `-c "exit 0"` run in the chroot,
-    /// quietly; `None` when none does.
+    /// `/bin/busybox sh`, each where it is executable in the chroot and
+    /// where it ends well with `-c "exit 0"` run in the chroot, quietly;
+    /// `None` when none does. A shell's links are followed inside `root`
+    /// ([`inside::resolve`]), never through this system's files, so a shell
+    /// that only this system has, or that is reached through `/tmp` or
+    /// `/dev`, is not tried. The shell keeps its name: the chroot's kernel
+    /// resolves it to the file found.
     ///
     /// # Errors
     ///
@@ -49,11 +55,7 @@ impl Chroot {
         name: &FilesystemName,
     ) -> io::Result<Option<Chroot>> {
         for (shell, tried, args) in SHELLS {
-            let inside = root.join(shell.trim_start_matches('/'));
-            if !files
-                .metadata(&inside)
-                .is_ok_and(|metadata| metadata.is_executable())
-            {
+            if !is_executable_inside(files, root, shell) {
                 continue;
             }
             let probe = Command::new(shell)
@@ -86,6 +88,25 @@ impl Chroot {
             .root(&self.root)
             .env("PS1", ps1)
             .env_remove("PROMPT_COMMAND")
+    }
+}
+
+/// Whether `shell` is executable in the chroot whose root is mounted at
+/// `root`: its links followed inside the root, and the file they lead to
+/// looked at there, below the root, with no link left to follow. A shell
+/// that leads nowhere inside the root is logged, with why, escaped.
+fn is_executable_inside(files: &dyn Files, root: &Path, shell: &str) -> bool {
+    match inside::resolve(files, root, Path::new(shell)) {
+        Ok(found) => files
+            .metadata(&found.path.under(root))
+            .is_ok_and(|metadata| metadata.is_executable()),
+        Err(unresolved) => {
+            let why = unresolved.to_string();
+            zbm_trace::debug!(
+                "{shell} is not tried in the chroot: {why}"; shell, why = %Printable(&why)
+            );
+            false
+        }
     }
 }
 

@@ -66,7 +66,7 @@ pub(super) fn name_servers<'c>(mount: Mount<'c>, files: &dyn Files, at: &Path) -
         }) if is_empty_run(files, at, &path) => {
             in_memory(mount, files, at, path).unwrap_or_default()
         }
-        Err(unresolved) => refused(&why(&unresolved)),
+        Err(unresolved) => refused(&unresolved.to_string()),
     }
 }
 
@@ -143,29 +143,6 @@ fn bind<'c>(mount: Mount<'c>, at: &Path, inside: &Inside) -> Option<(Mounted<'c>
             tracing::debug!(code, "the chroot's name servers are not mounted");
             None
         }
-    }
-}
-
-/// Why the environment's side of the name servers is refused.
-fn why(unresolved: &Unresolved) -> String {
-    match unresolved {
-        Unresolved::Missing { path, .. } => {
-            format!(
-                "{} is missing in the environment",
-                path.in_chroot().display()
-            )
-        }
-        Unresolved::Covered(path) => {
-            format!(
-                "it leads into this system's {}",
-                path.top().in_chroot().display()
-            )
-        }
-        Unresolved::NotADirectory(path) => {
-            format!("{} is not a directory", path.in_chroot().display())
-        }
-        Unresolved::TooManyLinks => "too many symbolic links".to_owned(),
-        Unresolved::Io(error) => error.to_string(),
     }
 }
 

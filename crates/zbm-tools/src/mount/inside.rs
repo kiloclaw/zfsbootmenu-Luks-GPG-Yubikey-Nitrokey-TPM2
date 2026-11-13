@@ -6,6 +6,7 @@
 
 use std::collections::VecDeque;
 use std::ffi::OsString;
+use std::fmt;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
@@ -151,6 +152,33 @@ pub enum Unresolved {
     TooManyLinks,
     /// A link could not be read.
     Io(io::Error),
+}
+
+/// Why, in plain words. The names in it are the environment's, shown as
+/// they are, so a caller that shows them escapes them.
+impl fmt::Display for Unresolved {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Unresolved::Missing { path, .. } => {
+                let path = path.in_chroot();
+                write!(
+                    formatter,
+                    "{} is missing in the environment",
+                    path.display()
+                )
+            }
+            Unresolved::Covered(path) => {
+                let top = path.top().in_chroot();
+                write!(formatter, "it leads into this system's {}", top.display())
+            }
+            Unresolved::NotADirectory(path) => {
+                let path = path.in_chroot();
+                write!(formatter, "{} is not a directory", path.display())
+            }
+            Unresolved::TooManyLinks => formatter.write_str("too many symbolic links"),
+            Unresolved::Io(error) => write!(formatter, "{error}"),
+        }
+    }
 }
 
 /// A component of a path, owned, so that a link's target can go before

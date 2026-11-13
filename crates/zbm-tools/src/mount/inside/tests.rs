@@ -243,6 +243,31 @@ fn a_link_that_cannot_be_read_is_an_error() {
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
 
+#[test]
+fn why_a_path_leads_nowhere_reads_as_plain_words() {
+    let missing = Unresolved::Missing {
+        path: in_root("/etc/resolv.conf"),
+        names_only: true,
+    };
+    let denied = io::Error::from(io::ErrorKind::PermissionDenied);
+    let cases = [
+        (missing, "/etc/resolv.conf is missing in the environment"),
+        (
+            Unresolved::Covered(in_root("/dev/shm/x")),
+            "it leads into this system's /dev",
+        ),
+        (
+            Unresolved::NotADirectory(in_root("/etc/file")),
+            "/etc/file is not a directory",
+        ),
+        (Unresolved::TooManyLinks, "too many symbolic links"),
+        (Unresolved::Io(denied), "permission denied"),
+    ];
+    for (unresolved, said) in cases {
+        assert_eq!(unresolved.to_string(), said);
+    }
+}
+
 /// The first link on `path`, below [`ROOT`], in `files`.
 fn first(files: &dyn Files, path: &str) -> io::Result<Option<(InRoot, PathBuf)>> {
     InRoot::new(Path::new(path))
