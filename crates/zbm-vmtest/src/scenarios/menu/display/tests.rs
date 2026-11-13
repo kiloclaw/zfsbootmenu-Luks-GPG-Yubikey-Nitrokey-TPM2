@@ -314,6 +314,37 @@ fn a_reboot_the_kernel_does_not_report_as_a_reset_fails() {
 }
 
 #[test]
+fn a_reset_that_ends_the_machine_before_the_kernel_says_so_passes() {
+    let mut script = started(false);
+    script.extend(shown(steps::REBOOT));
+
+    let found = played("reboot-silent", false, script, Vec::new(), &reboot);
+
+    assert!(all_ok(&found), "{found:#?}");
+    assert!(
+        found
+            .last()
+            .is_some_and(|line| line.contains("Reboot resets")),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn a_power_off_after_the_palette_s_reboot_fails() {
+    let mut script = started(false);
+    script.extend(shown(steps::REBOOT));
+    let said = vec![Play::Say("sysrq: Power Off\r\n")];
+
+    let found = played("reboot-off", false, script, said, &reboot);
+
+    assert_eq!(
+        found.last().map(String::as_str),
+        Some("FAIL - the palette's Reboot resets the machine"),
+        "{found:#?}"
+    );
+}
+
+#[test]
 fn a_panic_of_the_boot_environment_ends_the_wait_for_its_report_and_is_noted() {
     let settings = settings("menu-display-be-panic");
     let test = Test::new(&settings, "menu-display").unwrap();

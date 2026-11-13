@@ -598,7 +598,8 @@ Following a boot
     answers the start-up view's LUKS dialog empty when it shows, which leaves the volume to the menu, then does one
     part: the snapshots and the pools, the export after its dry run, each ending with Power Off; the kernel and the
     edited command line, with a FAT disk; the clone, after its dry run; and the command line's Reboot, which resets the
-    machine (``sysrq: Resetting``). It opens no recovery shell, which runs on the console's pseudo-terminal: it checks
+    machine: QEMU ends, after ``sysrq: Resetting`` or with no line, since the kernel may reset before its console
+    prints one, but not after a line of another ending (a reboot, a power-off or a panic). It opens no recovery shell, which runs on the console's pseudo-terminal: it checks
     what the menu shows after each step, and leaves the disks to the serial tests.
   * ``menu-keys``, in one boot: the menu's keys on the six layouts of ADR 0007's check (UI15), ``us``, ``de``, ``fr``,
     ``gb``, ``ru`` and ``us(dvorak)``, on the console on the display, with the image and the command line of

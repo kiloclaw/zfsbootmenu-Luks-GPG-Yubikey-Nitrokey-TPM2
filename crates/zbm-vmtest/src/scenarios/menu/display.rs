@@ -51,8 +51,15 @@ pub(super) const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.conso
     zbm.console_serial=off zbm.console_mirror=/dev/ttyS1 zbm.timeout=30 zbm.prefer=tmenu!!";
 
 /// What the kernel says as the menu resets the machine with SysRq-b,
-/// which restarts it without the kernel's usual "Restarting system".
+/// which restarts it without the kernel's usual "Restarting system". The
+/// kernel may restart before its console prints it: it prints from a
+/// thread of its own, which the reset does not wait for.
 const RESETTING: &str = "sysrq: Resetting";
+
+/// What the kernel says when the machine ends some other way than SysRq-b:
+/// its own reboot or power-off, SysRq-o, or a panic.
+const NOT_A_RESET: &str =
+    "reboot: Restarting system|reboot: Power down|sysrq: Power Off|Kernel panic";
 
 /// The pace of the display: a key each 200 milliseconds, and the patience
 /// of a boot.
@@ -191,13 +198,21 @@ fn clone(test: &Test, display: &mut Display<'_>, vm: &mut Vm<'_>) -> Result<()> 
     Ok(())
 }
 
-/// The palette's Reboot, which resets the machine: the kernel says so,
-/// then QEMU ends.
+/// The palette's Reboot, which resets the machine: QEMU ends, after the
+/// kernel says so, or with nothing said, where the reset came before the
+/// console printed it; but not after the kernel said that it ended the
+/// machine another way ([`NOT_A_RESET`]).
 fn reboot(test: &Test, display: &mut Display<'_>, vm: &mut Vm<'_>) -> Result<()> {
     start(test, display, vm)?;
     steps::run(test, display, vm, steps::REBOOT)?;
-    let said = vm.expect1(RESETTING, POWER).is_ok();
-    let ended = said && vm.expect_eof(POWER).is_ok();
+    let ended = match vm.expect(&[RESETTING, NOT_A_RESET], POWER) {
+        Ok(0) => vm.expect_eof(POWER).is_ok(),
+        Err(Error::Eof { .. }) => {
+            test.note("the machine ended with no line of the kernel: a reset by SysRq-b");
+            true
+        }
+        Ok(_) | Err(_) => false,
+    };
     test.check(ended, "the palette's Reboot resets the machine");
     if !ended {
         vm.kill();
