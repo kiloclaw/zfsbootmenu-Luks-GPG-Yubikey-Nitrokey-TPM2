@@ -44,7 +44,9 @@ swtpm socket --tpm2 --tpmstate dir="${work}/tpm" \
   --server type=tcp,port=2621 --ctrl type=tcp,port=2622 \
   --flags not-need-init,startup-clear -d --pid file="${work}/swtpm.pid"
 sleep 1
-export SYSTEMD_TPM2_DEVICE="${tcti}" TPM2TOOLS_TCTI="${tcti}"
+# clevis-pin-tpm2 (Fedora), which clevis's tpm2 pin scripts run in their
+# place, reads TCTI, and without it seals to the host's own TPM
+export SYSTEMD_TPM2_DEVICE="${tcti}" TPM2TOOLS_TCTI="${tcti}" TCTI="${tcti}"
 
 # arg1: name, arg2: LUKS type
 # prints: the loop device of a new volume with the passphrase "pw"

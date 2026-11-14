@@ -66,6 +66,15 @@ Virtual-machine tests
   ``tests/luks/vm/old-image.sh`` run their containers without SELinux labels (``--security-opt label=disable``), as
   they mount the checkout and the work directory as they are.
 
+clevis-pin-tpm2
+  Where ``clevis-pin-tpm2`` is installed (Fedora), clevis's ``tpm2`` pin scripts run it in their place, for binding
+  and for decrypting. It reads the TPM to use from ``TCTI``, not ``TPM2TOOLS_TCTI``, and without it takes the host's
+  own TPM (*/dev/tpmrm0*). The device suites and ``keys-setup`` therefore set both variables to the software TPM, and
+  check each clevis binding right after ``clevis luks bind``, so that a binding sealed to another TPM fails where it
+  is made. They decrypt the token's JWE with ``clevis decrypt``, as ZFSBootMenu does, and not with ``clevis luks
+  pass``, which misses a token behind another token where systemd's token plugins are installed (see `Problems found
+  and fixed`_). ZFSBootMenu's ``clevis decrypt`` also sets both, to ``LUKS_TPM2_TCTI``.
+
 Running the Tests
 -----------------
 

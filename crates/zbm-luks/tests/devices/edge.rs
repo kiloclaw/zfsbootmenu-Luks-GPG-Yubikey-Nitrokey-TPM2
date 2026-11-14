@@ -9,8 +9,8 @@ use std::time::Duration;
 mod later;
 
 use crate::harness::{
-    Case, Checks, Dump, Format, Gnupg, Lab, LinesConsole, enabled, has_line, no_leftovers, run,
-    script, try_run,
+    Case, Checks, Dump, Format, Gnupg, Lab, LinesConsole, clevis_decrypt, enabled, has_line,
+    no_leftovers, run, script, try_run,
 };
 
 const CRYPTSETUP: &str = "/usr/sbin/cryptsetup";
@@ -276,14 +276,7 @@ fn edge() {
         b"",
         &[],
     );
-    let jwe = run(
-        "jose",
-        &["fmt", "-j-", "-Og", "jwe", "-o-"],
-        token.as_bytes(),
-        &[],
-    );
-    let compact = run("jose", &["jwe", "fmt", "-i-", "-c"], jwe.as_bytes(), &[]);
-    let clevis_key = try_run("clevis", &["decrypt"], compact.as_bytes(), &tpm).stdout;
+    let clevis_key = clevis_decrypt(&token, &tpm).stdout;
     let clevis_key_file = lab.path("clevis.key");
     std::fs::write(&clevis_key_file, &clevis_key).unwrap();
     let before = key_slots(&hdr);

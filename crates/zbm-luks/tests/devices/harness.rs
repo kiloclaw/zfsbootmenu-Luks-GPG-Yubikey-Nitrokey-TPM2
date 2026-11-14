@@ -136,6 +136,22 @@ pub fn run(program: &str, args: &[&str], stdin: &[u8], env: &[(&str, &str)]) -> 
         .to_owned()
 }
 
+/// What `clevis decrypt` with `env` makes of the clevis `token`, as
+/// `cryptsetup token export` prints it: its JWE goes to it in its compact
+/// form, as ZFSBootMenu decrypts it. `clevis luks pass` and `clevis luks
+/// list` find the token in the `luksDump` text, which, with systemd's token
+/// plugins and cryptsetup 2.8, lacks every token after the first.
+pub fn clevis_decrypt(token: &str, env: &[(&str, &str)]) -> std::process::Output {
+    let jwe = run(
+        "jose",
+        &["fmt", "-j-", "-Og", "jwe", "-o-"],
+        token.as_bytes(),
+        &[],
+    );
+    let compact = run("jose", &["jwe", "fmt", "-i-", "-c"], jwe.as_bytes(), &[]);
+    try_run("clevis", &["decrypt"], compact.as_bytes(), env)
+}
+
 /// Runs `program` and returns what happened, whatever it was.
 pub fn try_run(
     program: &str,
@@ -294,7 +310,10 @@ impl Lab {
         std::thread::sleep(Duration::from_secs(1));
     }
 
-    /// The environment of the TPM tools.
+    /// The environment of the TPM tools: systemd's, tpm2-tools' and
+    /// clevis-pin-tpm2's (`TCTI`), which the clevis scripts run in place of
+    /// their own tpm2 pin where it is installed (Fedora); without it,
+    /// clevis-pin-tpm2 would take the host's own TPM.
     pub fn tpm_env(&self) -> Vec<(&'static str, String)> {
         if self.tcti.is_empty() {
             Vec::new()
@@ -302,6 +321,7 @@ impl Lab {
             vec![
                 ("SYSTEMD_TPM2_DEVICE", self.tcti.clone()),
                 ("TPM2TOOLS_TCTI", self.tcti.clone()),
+                ("TCTI", self.tcti.clone()),
             ]
         }
     }
@@ -450,7 +470,9 @@ impl Lab {
         );
     }
 
-    /// Binds clevis with a TPM2 pin to `device`, whose passphrase is `pw`.
+    /// Binds clevis with a TPM2 pin to `device`, whose passphrase is `pw`,
+    /// and checks that the binding gives its key back from the lab's TPM: a
+    /// binding sealed to another TPM fails here, where it is made.
     pub fn bind_clevis(&self, device: &str) {
         let tpm = self.tpm_env();
         let env: Vec<(&str, &str)> = tpm.iter().map(|(k, v)| (*k, v.as_str())).collect();
@@ -460,6 +482,34 @@ impl Lab {
             b"pw",
             &env,
         );
+        let dump = run(
+            CRYPTSETUP,
+            &["luksDump", "--dump-json-metadata", device],
+            b"",
+            &[],
+        );
+        let tokens = zbm_crypt::token::from_metadata(&dump)
+            .unwrap_or_else(|error| panic!("the tokens of {device}: {error}"));
+        let clevis: Vec<_> = tokens
+            .iter()
+            .filter(|token| token.kind == "clevis")
+            .collect();
+        assert!(!clevis.is_empty(), "no clevis token on {device}: {dump}");
+        for token in clevis {
+            let json = run(
+                CRYPTSETUP,
+                &["token", "export", "--token-id", &token.id, device],
+                b"",
+                &[],
+            );
+            let key = clevis_decrypt(&json, &env);
+            assert!(
+                key.status.success() && !key.stdout.is_empty(),
+                "the clevis token {} of {device} does not open with the lab's TPM: {}",
+                token.id,
+                String::from_utf8_lossy(&key.stderr)
+            );
+        }
     }
 
     /// The UUID of a LUKS volume.

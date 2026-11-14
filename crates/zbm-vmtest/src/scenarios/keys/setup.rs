@@ -114,6 +114,27 @@ fn prepare_volume(test: &Test, tcti: &str, index: usize, loops: &mut Vec<String>
         types == want,
         &format!("zfs{index} tokens: {}", pyfmt::list(&types)),
     );
+    if index == 2 {
+        check_clevis(test, tcti, &part, &dump)?;
+    }
+    Ok(())
+}
+
+/// Checks that the clevis binding of `part`, whose LUKS metadata is
+/// `dump`, gives its key back from the software TPM `tcti`: a binding
+/// sealed to another TPM fails here, where it is made.
+fn check_clevis(test: &Test, tcti: &str, part: &str, dump: &str) -> Result<()> {
+    let Some(id) = clevis_token(dump) else {
+        test.check(false, "zfs2 has a clevis token");
+        return Ok(());
+    };
+    let decrypted = output(&mut clevis_decrypt(part, id, tcti))?;
+    let stderr = String::from_utf8_lossy(&decrypted.stderr);
+    let stderr: String = stderr.trim().chars().take(80).collect();
+    test.check(
+        decrypted.status.success() && !decrypted.stdout.is_empty(),
+        &format!("clevis binding of zfs2 opens with the software TPM {stderr}"),
+    );
     Ok(())
 }
 
@@ -142,7 +163,7 @@ fn enrol(test: &Test, tcti: &str, index: usize, part: &str) -> Result<()> {
                 .arg(format!(
                     "printf '%s' {PW} | clevis luks bind -y -k - -d {part} tpm2 '{{}}'"
                 ))
-                .env("TPM2TOOLS_TCTI", tcti),
+                .envs(clevis_check_env(tcti)),
         )?;
         let stderr = String::from_utf8_lossy(&bound.stderr);
         let stderr: String = stderr.trim().chars().take(80).collect();
@@ -213,4 +234,43 @@ pub(super) fn token_types(dump: &str) -> Result<Vec<String>> {
         .captures_iter(&dump)
         .filter_map(|captures| captures.get(1).map(|kind| kind.as_str().to_owned()))
         .collect())
+}
+
+/// The variables that name the TPM `tcti` to both clevis tpm2 pins: the
+/// shell pin's tpm2-tools read `TPM2TOOLS_TCTI`, and clevis-pin-tpm2,
+/// which the clevis scripts run in its place where it is installed
+/// (Fedora), reads `TCTI` and otherwise takes the host's own TPM.
+pub(super) fn clevis_check_env(tcti: &str) -> [(&'static str, String); 2] {
+    [
+        ("TPM2TOOLS_TCTI", tcti.to_owned()),
+        ("TCTI", tcti.to_owned()),
+    ]
+}
+
+/// `clevis decrypt` of the clevis token `id` of `part`, with the TPM
+/// `tcti` and no other: it prints the binding's key. The token's JWE goes
+/// to it in its compact form, as ZFSBootMenu decrypts it; `clevis luks
+/// pass` finds the token in the `luksDump` text, which, with systemd's
+/// token plugins and cryptsetup 2.8, lacks every token after the first.
+pub(super) fn clevis_decrypt(part: &str, id: u32, tcti: &str) -> Command {
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(format!(
+            "cryptsetup token export --token-id {id} {part} | jose fmt -j- -Og jwe -o- \
+             | jose jwe fmt -i- -c | clevis decrypt"
+        ))
+        .envs(clevis_check_env(tcti));
+    command
+}
+
+/// The ID of the clevis token in the output of `cryptsetup luksDump
+/// --dump-json-metadata`, if it has one.
+pub(super) fn clevis_token(dump: &str) -> Option<u32> {
+    let metadata: serde_json::Value = serde_json::from_str(dump).ok()?;
+    let (id, _) = metadata["tokens"]
+        .as_object()?
+        .iter()
+        .find(|(_, token)| token["type"] == "clevis")?;
+    id.parse().ok()
 }

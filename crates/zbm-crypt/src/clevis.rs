@@ -27,7 +27,8 @@ pub struct Clevis<'a> {
 
 impl<'a> Clevis<'a> {
     /// The programs, run through `runner`; a `tpm2` pin uses the TPM
-    /// `tcti`.
+    /// `tcti`, whichever pin it is: the shell pin's tpm2-tools read
+    /// `TPM2TOOLS_TCTI`, clevis-pin-tpm2 reads `TCTI`.
     pub fn new(runner: &'a dyn Runner, tcti: &'a str) -> Clevis<'a> {
         Clevis { runner, tcti }
     }
@@ -66,6 +67,7 @@ impl<'a> Clevis<'a> {
             .arg("decrypt")
             .timeout(TIMEOUT)
             .env("TPM2TOOLS_TCTI", self.tcti)
+            .env("TCTI", self.tcti)
             .stdin(Input::Bytes(compact))
             .stdout(Stream::CaptureSecret)
             .stderr(Stream::Capture);
@@ -217,6 +219,26 @@ mod tests {
         assert_eq!(
             Clevis::new(&silent, "x").decrypt(&token).err().as_deref(),
             Some("clevis decrypt failed (2)")
+        );
+    }
+
+    #[test]
+    fn clevis_decrypt_names_the_tpm_to_both_pins() {
+        let runner = with_clevis(|| Output::new(Status::exited(1), ""));
+        let token = Token::without_fields("0", "clevis");
+        let _ = Clevis::new(&runner, "swtpm:host=127.0.0.1,port=2321").decrypt(&token);
+        let calls = runner.calls();
+        let decrypt = calls
+            .iter()
+            .find(|call| call.program() == "clevis")
+            .unwrap();
+        let tcti = Some("swtpm:host=127.0.0.1,port=2321".into());
+        assert_eq!(
+            decrypt.get_env(),
+            [
+                ("TPM2TOOLS_TCTI".into(), tcti.clone()),
+                ("TCTI".into(), tcti)
+            ]
         );
     }
 

@@ -719,7 +719,8 @@ images) inherit the terminal.
   programs (`crates/*/tests/fixtures/`, recorded in the VM tests: `zbm-vmtest run runtime-record-fixtures` and `cargo xtask record-zfs`).
 - **Exit statuses** keep their meaning: commands killed by a signal report 128 plus the signal, as a shell does.
 - **Locale and environment:** programs inherit the environment of the process, as now; only the variables the legacy
-  code sets are added (`TPM2TOOLS_TCTI`, `GNUPGHOME` and the hook variables).
+  code sets are added (`TPM2TOOLS_TCTI`, `GNUPGHOME` and the hook variables), and `TCTI` beside `TPM2TOOLS_TCTI`
+  for `clevis decrypt`, which clevis-pin-tpm2 reads.
 
 ## Secrets
 

@@ -224,6 +224,10 @@ last, the serial terminal's centred on the display, and Ctrl+L on the serial ter
 console now starts too when the serial console is the last `console=`, as it often is; before, the menu ran on the
 serial console alone.
 
+`clevis decrypt` now gets the TPM of `LUKS_TPM2_TCTI` in `TCTI` too, beside `TPM2TOOLS_TCTI` (ROADMAP.md SB21). An
+image built on a host with `clevis-pin-tpm2` (Fedora), which clevis's `tpm2` pin scripts run in their place and which
+reads only `TCTI`, decrypted from `/dev/tpmrm0` whatever `LUKS_TPM2_TCTI` named.
+
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 

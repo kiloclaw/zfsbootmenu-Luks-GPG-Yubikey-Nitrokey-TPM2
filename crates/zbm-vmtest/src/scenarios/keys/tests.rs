@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 
-use super::setup::token_types;
+use super::setup::{clevis_decrypt, clevis_token, token_types};
 use super::*;
 use crate::testing::{checks, cleanup, settings};
 
@@ -15,6 +15,42 @@ fn the_tokens_of_a_volume_are_read_from_its_luks_metadata() {
 
     assert_eq!(types, ["systemd-tpm2", "clevis"]);
     assert_eq!(token_types("{}").unwrap(), Vec::<String>::new());
+}
+
+#[test]
+fn the_clevis_binding_is_checked_against_the_software_tpm_from_its_token() {
+    let dump = r#"{"keyslots": {"0": {"type": "luks2"}},
+        "tokens": {"0": {"type": "systemd-tpm2", "keyslots": ["1"]},
+                   "1": {"type": "clevis", "keyslots": ["2"]}}}"#;
+    let tcti = "swtpm:host=127.0.0.1,port=2321";
+
+    let id = clevis_token(dump).unwrap();
+    let decrypt = clevis_decrypt("/dev/loop7p1", id, tcti);
+
+    let args: Vec<_> = decrypt.get_args().collect();
+    assert_eq!(args.len(), 2);
+    let line = args[1].to_string_lossy();
+    assert!(
+        line.starts_with("cryptsetup token export --token-id 1 /dev/loop7p1 | jose fmt"),
+        "{line}"
+    );
+    assert!(
+        line.ends_with("| jose jwe fmt -i- -c | clevis decrypt"),
+        "{line}"
+    );
+    assert!(!line.contains("luks pass"), "{line}");
+    let mut envs: Vec<_> = decrypt.get_envs().collect();
+    envs.sort();
+    let named = Some(std::ffi::OsStr::new(tcti));
+    assert_eq!(
+        envs,
+        [
+            (std::ffi::OsStr::new("TCTI"), named),
+            (std::ffi::OsStr::new("TPM2TOOLS_TCTI"), named)
+        ]
+    );
+    assert_eq!(clevis_token(r#"{"tokens": {}}"#), None);
+    assert_eq!(clevis_token("not json"), None);
 }
 
 #[test]
