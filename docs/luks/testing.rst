@@ -815,12 +815,15 @@ minute more, so about 8 minutes in all, and the shell's ``/proc/$$/cmdline`` in 
 few seconds, there and in ``integrity-locked``. ``runtime-setup`` makes ``tplain/crafted``, a few seconds more, and
 must run again before the ``runtime`` group.
 
-SB19 adds a step to ``runtime-rust-recovery``, not run yet: the kernel searches of ``tplain/crafted/mnt``, about a
+SB19 adds a step to ``runtime-rust-recovery``: the kernel searches of ``tplain/crafted/mnt``, about a
 minute and a half more (``zkexec``'s search, its boot's mount, two failed loads and the prompt, answered at once), so
 about 9.5 minutes in all. ``runtime-setup`` makes ``tplain/crafted/mnt`` and two more links, a few seconds more, and
 must run again before the ``runtime`` group. Every mount of a dataset by the Rust runtime goes through one path check
 since SB19, so the ``menu`` group's ``menu-snapshots`` (the diff and the restore of snapshots) and ``menu-boot`` (the
-boot of a clone) run with the ``runtime`` and ``integrity`` groups after it.
+boot of a clone) run with the ``runtime`` and ``integrity`` groups after it. These three lanes passed twice on 14
+November 2026, with KVM on a Fedora host: ``runtime`` 119 checks (``runtime-rust-recovery`` 61, the new step among
+them), ``integrity`` 33 and ``menu`` 121, none failed. The ``keys``, ``secrets`` and ``firmware`` tests did not run
+then: their images could not be built, as the compiler crashed at random on that host's faulty memory.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to
