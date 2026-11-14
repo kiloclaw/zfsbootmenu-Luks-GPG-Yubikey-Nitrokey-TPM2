@@ -18,6 +18,13 @@ fn token(name: &str) -> Token {
     Token::from_export("0", &fixture(name)).unwrap()
 }
 
+/// The token 0 of the fixture `name`, with the JSON members `fields` added.
+fn token_with(name: &str, fields: &str) -> Token {
+    let json = fixture(name);
+    let json = format!("{},{fields}}}", json.trim_end().strip_suffix('}').unwrap());
+    Token::from_export("0", &json).unwrap()
+}
+
 /// The PIN block of the legacy `luks_tpm2_native_unseal`, which turns the
 /// PIN into the authorization value.
 fn legacy_auth(json: &str, pin: &str) -> String {
@@ -180,7 +187,7 @@ fn unsealing_runs_the_policy_and_keeps_the_secret_off_files() {
 fn tokens_that_need_the_plugin_are_reported() {
     let fake = tpm_machine(None, b"s");
     with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
-        let signed = r#"{"type":"systemd-tpm2","tpm2-pubkey":"AA==","tpm2_srk":"x"}"#;
+        let signed = r#"{"type":"systemd-tpm2","tpm2_pubkey":"AA==","tpm2_srk":"x"}"#;
         assert!(matches!(
             session.tpm2_native_unseal(&crate::keys::tests::token(signed), None),
             Outcome::Unsupported
@@ -373,19 +380,137 @@ fn the_plugin_opens_tokens_with_and_without_a_pin() {
 }
 
 #[test]
-fn without_plugin_or_tools_a_pin_token_is_unsupported() {
-    let fake = FakeSystem::new();
+fn tokens_with_systemd_s_tpm2_pubkey_field_need_the_plugin() {
+    // A token ZFSBootMenu could unseal, but for its signed policy, which
+    // systemd writes as tpm2_pubkey.
+    let signed = token_with("token-tpm2.json", r#""tpm2_pubkey":"AA==""#);
+    let fake = tpm_machine(None, b"s");
+    with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+        assert!(matches!(
+            session.tpm2_native_unseal(&token("token-tpm2.json"), None),
+            Outcome::Key(_)
+        ));
+        assert!(matches!(
+            session.tpm2_native_unseal(&signed, None),
+            Outcome::Unsupported
+        ));
+    });
+    assert!(
+        fake.kmsg()
+            .contains("TPM2 token uses a signed or pcrlock policy")
+    );
+}
+
+/// The result of `token`'s PIN token on `fake`, without the plugin, and
+/// whether a PIN was asked for.
+fn try_without_plugin(fake: &FakeSystem, token: &Token) -> (Result<OpenMapping, LuksError>, bool) {
     fake.console.secret(b"1234");
     let mut settings = Settings::new("/zfsbootmenu");
     settings.tpm2_tcti = "swtpm:port=2321".to_owned();
     let args = [];
     let target = crate::testing::target("v", "/dev/sda", &args);
-    let result = with_session(&fake, &settings, |session| {
-        session.try_tpm2_token(target, &token("token-tpm2-pin.json"))
+    let result = with_session(fake, &settings, |session| {
+        session.try_tpm2_token(target, token)
     });
-    assert!(result.is_err());
+    (result, fake.console.remaining().is_empty())
+}
+
+#[test]
+fn a_token_the_image_cannot_open_asks_no_pin_without_the_plugin() {
+    let unsupported = |result: Result<OpenMapping, LuksError>| {
+        matches!(
+            result,
+            Err(LuksError::Token {
+                failure: TokenFailure::Unsupported,
+                ..
+            })
+        )
+    };
+    // No tools.
+    let fake = FakeSystem::new();
+    let (result, asked) = try_without_plugin(&fake, &token("token-tpm2-pin.json"));
+    assert!(unsupported(result) && !asked);
+    let kmsg = fake.kmsg();
+    assert!(kmsg.contains("native TPM2 unlocking needs tpm2_load"));
+    assert!(kmsg.contains("TPM2 token 0 on /dev/sda needs the systemd-tpm2 cryptsetup plugin"));
+
+    // A signed policy.
+    let signed = token_with("token-tpm2-pin.json", r#""tpm2_pubkey":"AA==""#);
+    let fake = tpm_machine(None, b"s");
+    let (result, asked) = try_without_plugin(&fake, &signed);
+    assert!(unsupported(result) && !asked);
     assert!(
         fake.kmsg()
             .contains("needs the systemd-tpm2 cryptsetup plugin")
     );
+    assert!(
+        !fake
+            .runner
+            .lines()
+            .iter()
+            .any(|line| line.starts_with("tpm2_load"))
+    );
+
+    // A PIN hardened with Argon2id, which only systemd 262's plugin knows.
+    let fake = tpm_machine(None, b"s");
+    let (result, asked) = try_without_plugin(&fake, &token("token-tpm2-argon2id-f45.json"));
+    assert!(unsupported(result) && !asked);
+    let kmsg = fake.kmsg();
+    assert!(
+        kmsg.contains(
+            "TPM2 token uses systemd 262's Argon2id PIN (3256447 KiB, 2 passes, 24 lanes)"
+        )
+    );
+    assert!(kmsg.contains(
+        "TPM2 token 0 on /dev/sda uses systemd 262's Argon2id PIN, which only the \
+         systemd-tpm2 cryptsetup plugin of systemd 262 or later opens"
+    ));
+    assert!(!kmsg.contains("needs the systemd-tpm2 cryptsetup plugin"));
+    assert!(
+        !fake
+            .runner
+            .lines()
+            .iter()
+            .any(|line| line.starts_with("tpm2_") && !line.starts_with("tpm2_getcap"))
+    );
 }
+
+#[test]
+fn a_pin_token_without_a_salt_sends_the_pin_s_own_hash() {
+    let json = fixture("token-tpm2-pin.json");
+    let salt = token("token-tpm2-pin.json")
+        .text("tpm2_salt")
+        .unwrap()
+        .to_owned();
+    let unsalted = json.replace(&salt, "");
+    let unsalted = Token::from_export("0", &unsalted).unwrap();
+    let mut auth = b"hex:".to_vec();
+    auth.extend_from_slice(auth_value(b"1234", None).expose());
+    let fake = tpm_machine(Some(auth), b"secret");
+    with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+        let pin = Secret::copy_from(b"1234");
+        assert!(matches!(
+            session.tpm2_native_unseal(&unsalted, Some(&pin)),
+            Outcome::Key(_)
+        ));
+    });
+}
+
+#[test]
+fn a_token_found_unsupported_after_its_pin_ends_without_asking_again() {
+    // The check before the PIN found the tools; here they are gone.
+    let fake = FakeSystem::new();
+    let args = [];
+    let target = crate::testing::target("v", "/dev/sda", &args);
+    let result = with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+        let pin = Secret::copy_from(b"1234");
+        session.tpm2_open_with_pin(target, "0", &token("token-tpm2-pin.json"), &pin)
+    });
+    assert_eq!(result.err(), Some(TokenFailure::Unsupported));
+    assert!(
+        fake.kmsg()
+            .contains("TPM2 token 0 on /dev/sda needs the systemd-tpm2 cryptsetup plugin")
+    );
+}
+
+mod argon2id;

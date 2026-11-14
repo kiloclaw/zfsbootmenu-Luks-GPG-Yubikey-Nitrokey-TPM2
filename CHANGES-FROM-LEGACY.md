@@ -259,6 +259,21 @@ included. `zluks` in the recovery shell and over SSH is unchanged.
   they run, as hooks do, so they can ask there.
 - **Why:** the dialog says which volume asks, and why it asks again, where the console said it in lines that scrolled.
 
+### A TPM2 token the image cannot open asks for no PIN
+
+- **Before:** in an image without systemd's `systemd-tpm2` cryptsetup plugin, a TPM2 token with a PIN asked for the PIN
+  first, then said it needed the plugin. A token with a signed PCR policy was not recognised at all: the field was read
+  as `tpm2-pubkey`, where systemd writes `tpm2_pubkey`, so the token was unsealed without its signature and every PIN
+  was refused as wrong.
+- **Now:** before any PIN is asked for, the log says that the token needs the plugin, and the next unlock method runs.
+  This holds for a signed or pcrlock policy, a tool missing from the image, a token from before systemd 254, and, until
+  the Rust runtime derives them, PINs that systemd 262 hardened with Argon2id (`--tpm2-with-pin=yes`), which only the
+  plugin of systemd 262 or later opens: an older plugin derives the PIN the old way and the TPM refuses it. With the
+  plugin, such tokens go to it, as before. A token whose Argon2id fields systemd's parser refuses is refused before any
+  PIN, plugin or TPM command, with a PIN or without (`TPM2 token 0 on /dev/sda is malformed: tpm2_argon2id_lanes is
+  0`), as systemd refuses it.
+- **Why:** a PIN typed for a token that cannot open is wasted, and each one the TPM refuses counts towards its lockout.
+
 ### The timed prompts are questions
 
 - **Before:** red lines that counted down, with RETURN and ESCAPE: `Unable to import <pool>, retrying in <n>

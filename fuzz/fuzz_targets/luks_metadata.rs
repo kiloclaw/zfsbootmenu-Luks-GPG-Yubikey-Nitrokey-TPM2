@@ -1,7 +1,8 @@
 //! LUKS headers as `cryptsetup luksDump` prints them, and token JSON (input
 //! I8 of docs/dev/threat-model.md): a tampered disk (A1) or a hostile USB
 //! device (A2) chooses them. The first line is a key to look up; the rest is
-//! the metadata. Parsing must never panic or hang.
+//! the metadata. Parsing, the Argon2id costs of a TPM2 PIN included, must
+//! never panic or hang.
 
 #![no_main]
 
@@ -17,6 +18,7 @@ fuzz_target!(|data: &[u8]| {
         let _ = token.text(key);
         let _ = token.list(key);
         let _ = token.flag(key);
+        let _ = token.argon2id();
         let _ = token.to_json();
     }
 });

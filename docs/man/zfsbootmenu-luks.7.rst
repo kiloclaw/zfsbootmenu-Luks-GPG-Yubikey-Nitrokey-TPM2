@@ -133,7 +133,12 @@ LUKS2 tokens created with **systemd-cryptenroll --tpm2-device**, with or without
 bound to PCRs. When the image contains systemd's *systemd-tpm2* cryptsetup plugin, the plugin unlocks the token.
 Otherwise ZFSBootMenu unseals it with **tpm2-tools**. The native implementation handles tokens created by systemd 254
 or later, with or without a PIN and with or without a PCR policy. Signed PCR policies (**--tpm2-public-key**),
-**--tpm2-pcrlock** and tokens created by older systemd versions need the plugin.
+**--tpm2-pcrlock** and tokens created by older systemd versions need the plugin. PINs that systemd 262 or later hardens
+with Argon2id (**--tpm2-with-pin=yes**; **direct** is not hardened) need the plugin of systemd 262 or later: an older
+plugin derives such a PIN the old way, the TPM refuses it, and each try counts towards its lockout. In an image without
+the plugin, ZFSBootMenu says in the log why it cannot open such a token, asks for no PIN, and moves on to the next
+unlock method. A token whose Argon2id fields systemd would refuse (a zero, an incomplete set, a missing salt) is
+refused the same way, with a PIN or without, and with the plugin too.
 
 When the TPM refuses PINs after too many wrong attempts (dictionary-attack lockout), ZFSBootMenu says so and moves on
 instead of asking for a PIN it cannot use.

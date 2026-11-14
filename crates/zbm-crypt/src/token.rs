@@ -5,6 +5,8 @@
 //! keyed by its ID: a `type` (such as `systemd-tpm2`), the `keyslots` it
 //! opens, and fields of its type (`tpm2-blob`, `fido2-credential`, `jwe`).
 //! [`Token`] keeps those fields and reads them with the JSON types they have.
+//! [`Token::argon2id`] reads the costs of a systemd 262 TPM2 PIN as
+//! systemd's own parser does.
 
 use std::fmt;
 
@@ -19,6 +21,58 @@ pub enum TokenError {
     /// The JSON is not an object, or a token has no type.
     #[error("unexpected token metadata: {0}")]
     Shape(&'static str),
+}
+
+/// The Argon2id costs of a TPM2 PIN that systemd 262 hardened
+/// (`systemd-cryptenroll --tpm2-with-pin=yes`), as the token records them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Argon2idFields {
+    /// `tpm2_argon2id_memcost`: the memory, in bytes.
+    pub memcost_bytes: u64,
+    /// `tpm2_argon2id_iterations`: the passes over the memory.
+    pub iterations: u32,
+    /// `tpm2_argon2id_lanes`: the lanes the memory is split into.
+    pub lanes: u32,
+}
+
+/// Why a token's Argon2id fields are not what systemd's parser accepts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum BadField {
+    /// The field is not an unsigned integer: a string, a negative number,
+    /// a number with a fraction or above 2⁶⁴ − 1. A number written with
+    /// a fraction or an exponent counts when its value is whole (`2.0`), as
+    /// in systemd.
+    #[error("{0} is not an unsigned integer")]
+    NotUnsigned(&'static str),
+    /// The field is 0.
+    #[error("{0} is 0")]
+    Zero(&'static str),
+    /// The field is above 2³² − 1.
+    #[error("{0} is larger than 4294967295")]
+    TooLarge(&'static str),
+    /// Some of the three fields are there, not all.
+    #[error("the Argon2id fields are incomplete")]
+    Incomplete,
+}
+
+/// The field of [`Argon2idFields::memcost_bytes`].
+const MEMCOST: &str = "tpm2_argon2id_memcost";
+/// The field of [`Argon2idFields::iterations`].
+const ITERATIONS: &str = "tpm2_argon2id_iterations";
+/// The field of [`Argon2idFields::lanes`].
+const LANES: &str = "tpm2_argon2id_lanes";
+
+/// A JSON number written with a fraction or an exponent whose value is a
+/// whole number from 0 to 2⁶⁴ − 1 (`2.0`, `3.3e9`, `-0`), which systemd's
+/// parser takes as that unsigned integer.
+fn whole_number(value: &Value) -> Option<u64> {
+    // 2⁶⁴, the first value above the range, exactly.
+    const ABOVE: f64 = 18_446_744_073_709_551_616.0;
+    let number = value.as_f64()?;
+    let whole = number.fract() == 0.0 && (0.0..ABOVE).contains(&number);
+    // The cast is exact: the number is whole and within u64's range.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    whole.then_some(number as u64)
 }
 
 /// A LUKS2 token: its ID, its type and its fields.
@@ -108,6 +162,51 @@ impl Token {
     /// The key slots the token opens.
     pub fn keyslots(&self) -> Vec<String> {
         self.list("keyslots").unwrap_or_default()
+    }
+
+    /// The Argon2id costs of the token's TPM2 PIN, read as systemd 262's
+    /// token parser reads them, for every token: each field must be an
+    /// unsigned integer other than 0, the iterations and the lanes at most
+    /// 2³² − 1, and the three come together. `None` when none of them is
+    /// there: the PIN, if any, is not hardened with Argon2id.
+    ///
+    /// # Errors
+    ///
+    /// [`BadField`] for the first field systemd would refuse, in its order:
+    /// the memory, the iterations, the lanes, then whether all are there.
+    pub fn argon2id(&self) -> Result<Option<Argon2idFields>, BadField> {
+        let memcost = self.positive(MEMCOST)?;
+        let iterations = self.positive_u32(ITERATIONS)?;
+        let lanes = self.positive_u32(LANES)?;
+        match (memcost, iterations, lanes) {
+            (Some(memcost_bytes), Some(iterations), Some(lanes)) => Ok(Some(Argon2idFields {
+                memcost_bytes,
+                iterations,
+                lanes,
+            })),
+            (None, None, None) => Ok(None),
+            _ => Err(BadField::Incomplete),
+        }
+    }
+
+    /// The field `key`, which must be an unsigned integer other than 0
+    /// when it is there.
+    fn positive(&self, key: &'static str) -> Result<Option<u64>, BadField> {
+        let Some(value) = self.fields.get(key) else {
+            return Ok(None);
+        };
+        match value.as_u64().or_else(|| whole_number(value)) {
+            None => Err(BadField::NotUnsigned(key)),
+            Some(0) => Err(BadField::Zero(key)),
+            Some(number) => Ok(Some(number)),
+        }
+    }
+
+    /// The field `key`, as [`Token::positive`] reads it, at most 2³² − 1.
+    fn positive_u32(&self, key: &'static str) -> Result<Option<u32>, BadField> {
+        self.positive(key)?
+            .map(|number| u32::try_from(number).map_err(|_| BadField::TooLarge(key)))
+            .transpose()
     }
 
     /// The token as JSON, as `cryptsetup token export` prints it.
@@ -246,7 +345,7 @@ mod tests {
                 .text("tpm2-blob")
                 .is_some_and(|blob| blob.starts_with("AJ4A"))
         );
-        assert_eq!(token.text("tpm2-pubkey"), None);
+        assert_eq!(token.text("tpm2_pubkey"), None);
         assert_eq!(token.list("tpm2-pcrs"), Some(Vec::new()));
         assert_eq!(token.list("tpm2-blob"), None);
         let again = Token::from_export("0", &token.to_json()).unwrap();
@@ -275,6 +374,108 @@ mod tests {
         assert!(from_metadata(r#"{"keyslots":{}}"#).unwrap().is_empty());
         let ordered = from_metadata(r#"{"tokens":{"10":{"type":"b"},"2":{"type":"a"}}}"#).unwrap();
         assert_eq!(listed(&ordered)[0].0, "2");
+    }
+
+    /// The Argon2id fields of a token with `fields` added to a PIN token.
+    fn argon2id_of(fields: &str) -> Result<Option<Argon2idFields>, BadField> {
+        let json = format!(r#"{{"type":"systemd-tpm2","tpm2-pin":true{fields}}}"#);
+        Token::from_export("0", &json).unwrap().argon2id()
+    }
+
+    #[test]
+    fn argon2id_fields_follow_systemd_s_parser() {
+        let all = |memcost: &str, iterations: &str, lanes: &str| {
+            argon2id_of(&format!(
+                r#","{MEMCOST}":{memcost},"{ITERATIONS}":{iterations},"{LANES}":{lanes}"#
+            ))
+        };
+        assert_eq!(
+            all("3334601937", "2", "24"),
+            Ok(Some(Argon2idFields {
+                memcost_bytes: 3_334_601_937,
+                iterations: 2,
+                lanes: 24,
+            }))
+        );
+        let max = u64::MAX.to_string();
+        assert_eq!(
+            all(&max, "4294967295", "4294967295").map(|fields| fields.map(|f| f.memcost_bytes)),
+            Ok(Some(u64::MAX))
+        );
+        // A whole number written with a fraction or an exponent is that
+        // integer to systemd; -0 is 0.
+        assert_eq!(
+            all("3.3e9", "2.0", "24.000").map(|fields| fields.map(|f| (
+                f.memcost_bytes,
+                f.iterations,
+                f.lanes
+            ))),
+            Ok(Some((3_300_000_000, 2, 24)))
+        );
+        assert_eq!(
+            all("3334601937.0", "2", "24").map(|fields| fields.map(|f| f.memcost_bytes)),
+            Ok(Some(3_334_601_937))
+        );
+        assert_eq!(all("-0", "2", "24"), Err(BadField::Zero(MEMCOST)));
+        assert_eq!(all("0.0", "2", "24"), Err(BadField::Zero(MEMCOST)));
+        assert_eq!(
+            all("1", "4.294967296e9", "24"),
+            Err(BadField::TooLarge(ITERATIONS))
+        );
+        assert_eq!(all("0", "2", "24"), Err(BadField::Zero(MEMCOST)));
+        assert_eq!(all("1", "0", "24"), Err(BadField::Zero(ITERATIONS)));
+        assert_eq!(all("1", "2", "0"), Err(BadField::Zero(LANES)));
+        for bad in [
+            "-1",
+            "1.5",
+            "\"7\"",
+            "18446744073709551616",
+            "1.8446744073709552e19",
+            "1e300",
+            "-1.0",
+            "-2e3",
+            "null",
+            "true",
+            "[1]",
+        ] {
+            assert_eq!(
+                all(bad, "2", "24"),
+                Err(BadField::NotUnsigned(MEMCOST)),
+                "{bad}"
+            );
+            assert_eq!(all("1", bad, "24"), Err(BadField::NotUnsigned(ITERATIONS)));
+            assert_eq!(all("1", "2", bad), Err(BadField::NotUnsigned(LANES)));
+        }
+        assert_eq!(
+            all("1", "4294967296", "24"),
+            Err(BadField::TooLarge(ITERATIONS))
+        );
+        assert_eq!(all("1", "2", "4294967296"), Err(BadField::TooLarge(LANES)));
+        // systemd checks the fields in this order.
+        assert_eq!(all("0", "0", "0"), Err(BadField::Zero(MEMCOST)));
+        assert_eq!(all("1", "-1", "0"), Err(BadField::NotUnsigned(ITERATIONS)));
+
+        let partial = [
+            format!(r#","{MEMCOST}":1"#),
+            format!(r#","{ITERATIONS}":1"#),
+            format!(r#","{LANES}":1"#),
+            format!(r#","{MEMCOST}":1,"{ITERATIONS}":1"#),
+            format!(r#","{MEMCOST}":1,"{LANES}":1"#),
+            format!(r#","{ITERATIONS}":1,"{LANES}":1"#),
+        ];
+        for fields in partial {
+            assert_eq!(argon2id_of(&fields), Err(BadField::Incomplete), "{fields}");
+        }
+        // A bad field is named before the set is found incomplete.
+        assert_eq!(
+            argon2id_of(&format!(r#","{LANES}":0"#)),
+            Err(BadField::Zero(LANES))
+        );
+        assert_eq!(argon2id_of(""), Ok(None));
+        assert_eq!(
+            BadField::Zero(LANES).to_string(),
+            "tpm2_argon2id_lanes is 0"
+        );
     }
 
     #[test]

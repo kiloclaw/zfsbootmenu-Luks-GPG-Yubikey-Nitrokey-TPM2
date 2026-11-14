@@ -9,6 +9,14 @@
 //! `tpm2_unseal`'s output and reaches `cryptsetup` on standard input; the PIN's
 //! authorization value reaches `tpm2_unseal` on standard input as
 //! `hex:<value>`, because tpm2-tools reads it as text.
+//!
+//! The PIN is turned into that value as the token records it. A token
+//! whose Argon2id fields systemd's parser refuses is refused, with a PIN
+//! or without. Without the plugin, a PIN token that only the plugin can
+//! open (a signed or pcrlock policy, a PIN that systemd 262 hardened with
+//! Argon2id) is reported before any PIN is asked for.
+
+mod kdf;
 
 use std::path::Path;
 use std::time::Duration;
@@ -23,6 +31,7 @@ use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha25
 use crate::error::{LuksError, TokenFailure};
 use crate::keys::OpenMapping;
 use crate::unlocker::{Key, Unlocker};
+use kdf::{Argon2idParams, Malformed, PinKdf, check_systemd_rules};
 use zbm_crypt::Token;
 use zbm_platform::interaction::{SecretKind, SecretRequest, Told};
 
@@ -126,39 +135,68 @@ impl Unlocker<'_> {
 
     /// What unsealing `token` needs, or why it cannot be unsealed here.
     fn unseal_plan(&self, token: &Token, pin: Option<&Secret>) -> Result<Unseal, Outcome> {
-        let context = *self.context();
-        if let Some(tool) = TOOLS.iter().find(|tool| !context.command_exists(tool)) {
-            zbm_trace::debug!("native TPM2 unlocking needs {tool}"; %tool);
-            return Err(Outcome::Unsupported);
-        }
-        // Signed PCR policies, pcrlock and pre-254 primary keys need the
-        // plugin.
-        if token.text("tpm2-pubkey").is_some() || token.flag("tpm2_pcrlock") == Some(true) {
-            zbm_trace::debug!("TPM2 token uses a signed or pcrlock policy");
-            return Err(Outcome::Unsupported);
-        }
-        if token.text("tpm2_srk").is_none() {
-            zbm_trace::debug!("TPM2 token predates systemd's persistent SRK");
-            return Err(Outcome::Unsupported);
-        }
-        let blob = token.text("tpm2-blob").ok_or(Outcome::Unsupported)?;
-        let blob = base64_decode(blob).unwrap_or_default();
-        let Some((private, public)) = split_blob(&blob) else {
-            zbm_trace::debug!("TPM2 blob has an unsupported layout");
-            return Err(Outcome::Unsupported);
-        };
-        let auth = pin.map(|pin| {
-            let salt = token
-                .text("tpm2_salt")
-                .map(|salt| base64_decode(salt).unwrap_or_default());
-            auth_value(pin.expose(), salt.as_deref())
-        });
+        let sealed = self
+            .native_support(token, pin.is_some())
+            .map_err(|_| Outcome::Unsupported)?;
+        let auth = pin.map(|pin| auth_value(pin.expose(), sealed.salt.as_deref()));
         Ok(Unseal {
-            private: private.to_vec(),
-            public: public.to_vec(),
+            private: sealed.private,
+            public: sealed.public,
             pcrs: token.list("tpm2-pcrs").unwrap_or_default().join(","),
             bank: token.text("tpm2-pcr-bank").unwrap_or("sha256").to_owned(),
             auth,
+        })
+    }
+
+    /// Whether ZFSBootMenu's own unsealing can open `token`, with its PIN
+    /// when `with_pin`, and the sealed object it would load.
+    fn native_support(&self, token: &Token, with_pin: bool) -> Result<Sealed, NotNative> {
+        let salt = if with_pin {
+            match PinKdf::of(token).map_err(NotNative::Malformed)? {
+                PinKdf::Plain => None,
+                PinKdf::Pbkdf2 { salt } => Some(salt),
+                PinKdf::Argon2id { params, .. } => {
+                    let Argon2idParams {
+                        memory_kib,
+                        iterations,
+                        lanes,
+                    } = params;
+                    zbm_trace::debug!(
+                        "TPM2 token uses systemd 262's Argon2id PIN \
+                         ({memory_kib} KiB, {iterations} passes, {lanes} lanes)";
+                        memory_kib, iterations, lanes
+                    );
+                    return Err(NotNative::Argon2id);
+                }
+            }
+        } else {
+            None
+        };
+        let context = *self.context();
+        if let Some(tool) = TOOLS.iter().find(|tool| !context.command_exists(tool)) {
+            zbm_trace::debug!("native TPM2 unlocking needs {tool}"; %tool);
+            return Err(NotNative::NeedsPlugin);
+        }
+        // Signed PCR policies, pcrlock and pre-254 primary keys need the
+        // plugin.
+        if token.text("tpm2_pubkey").is_some() || token.flag("tpm2_pcrlock") == Some(true) {
+            zbm_trace::debug!("TPM2 token uses a signed or pcrlock policy");
+            return Err(NotNative::NeedsPlugin);
+        }
+        if token.text("tpm2_srk").is_none() {
+            zbm_trace::debug!("TPM2 token predates systemd's persistent SRK");
+            return Err(NotNative::NeedsPlugin);
+        }
+        let blob = token.text("tpm2-blob").ok_or(NotNative::NeedsPlugin)?;
+        let blob = base64_decode(blob).unwrap_or_default();
+        let Some((private, public)) = split_blob(&blob) else {
+            zbm_trace::debug!("TPM2 blob has an unsupported layout");
+            return Err(NotNative::NeedsPlugin);
+        };
+        Ok(Sealed {
+            private: private.to_vec(),
+            public: public.to_vec(),
+            salt,
         })
     }
 
@@ -245,6 +283,13 @@ impl Unlocker<'_> {
             zbm_trace::info!("no TPM2 available for token {id} on {device}"; %id, %device);
             return Err(failed(TokenFailure::NoTpm));
         }
+        // systemd refuses these fields in any token, with a PIN or without.
+        if let Err(why) = check_systemd_rules(token) {
+            zbm_trace::warn!(
+                "TPM2 token {id} on {device} is malformed: {why}"; %id, %device, %why
+            );
+            return Err(failed(TokenFailure::Unsupported));
+        }
         if token.flag("tpm2-pin") != Some(true) {
             return self.try_tpm2_without_pin(target, id, token).map_err(failed);
         }
@@ -256,7 +301,47 @@ impl Unlocker<'_> {
             );
             return Err(failed(TokenFailure::Lockout));
         }
+        // Without the plugin, a token only the plugin could open costs no
+        // PIN.
+        if !self.have_token_plugin("systemd-tpm2") {
+            self.check_native_pin_token(target, token).map_err(failed)?;
+        }
         self.try_tpm2_pins(target, id, token).map_err(failed)
+    }
+
+    /// Whether ZFSBootMenu's own unsealing can open the PIN token `token`,
+    /// checked before any PIN is asked for; the reason it cannot is a
+    /// warning.
+    fn check_native_pin_token(
+        &self,
+        target: Target<'_>,
+        token: &Token,
+    ) -> Result<(), TokenFailure> {
+        let (id, device) = (token.id.as_str(), target.device());
+        match self.native_support(token, true) {
+            Ok(_) => Ok(()),
+            Err(NotNative::Malformed(why)) => {
+                zbm_trace::warn!(
+                    "TPM2 token {id} on {device} is malformed: {why}"; %id, %device, %why
+                );
+                Err(TokenFailure::Unsupported)
+            }
+            Err(NotNative::NeedsPlugin) => {
+                zbm_trace::warn!(
+                    "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin";
+                    %id, %device
+                );
+                Err(TokenFailure::Unsupported)
+            }
+            Err(NotNative::Argon2id) => {
+                zbm_trace::warn!(
+                    "TPM2 token {id} on {device} uses systemd 262's Argon2id PIN, which only \
+                     the systemd-tpm2 cryptsetup plugin of systemd 262 or later opens";
+                    %id, %device
+                );
+                Err(TokenFailure::Unsupported)
+            }
+        }
     }
 
     /// A token without a PIN, which needs no interaction: the plugin, then
@@ -375,6 +460,27 @@ impl Unlocker<'_> {
             Err(_) => Ok(None),
         }
     }
+}
+
+/// Why ZFSBootMenu's own unsealing cannot open a token.
+enum NotNative {
+    /// Only the plugin can: the image lacks a tool, or the token has a
+    /// signed or pcrlock policy, an older primary key or a blob with an
+    /// import seed.
+    NeedsPlugin,
+    /// Only systemd 262's plugin can: the token's PIN is hardened with
+    /// Argon2id.
+    Argon2id,
+    /// The token's Argon2id fields are malformed.
+    Malformed(Malformed),
+}
+
+/// The sealed object of a token that ZFSBootMenu's own unsealing can open,
+/// and the salt of its PIN's PBKDF2.
+struct Sealed {
+    private: Vec<u8>,
+    public: Vec<u8>,
+    salt: Option<Vec<u8>>,
 }
 
 /// What unsealing a token needs: the sealed object, its PCR policy and the
