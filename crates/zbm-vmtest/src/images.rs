@@ -23,8 +23,30 @@ pub fn container(
     entrypoint: &str,
     env: &[(&str, &str)],
 ) -> Result<Output> {
+    let mut command = container_command(settings, args, mounts, entrypoint, env);
+    command.output().map_err(|error| Error::Command {
+        command: format!("{command:?}"),
+        status: "not run".into(),
+        output: error.to_string(),
+    })
+}
+
+/// The command [`container`] runs.
+///
+/// The container runs without SELinux labels: the checkout and the work
+/// directory are mounted as they are, unlabelled, which SELinux in
+/// enforcing mode (Fedora) denies the container, and relabelling them
+/// with `:z` would change the labels of the host's files. Podman and
+/// Docker both take `label=disable`; without SELinux it changes nothing.
+fn container_command(
+    settings: &Settings,
+    args: &[&str],
+    mounts: &[(&Path, &str)],
+    entrypoint: &str,
+    env: &[(&str, &str)],
+) -> Command {
     let mut command = Command::new(&settings.container);
-    command.args(["run", "--rm"]);
+    command.args(["run", "--rm", "--security-opt", "label=disable"]);
     for (host, guest) in mounts {
         command.arg("-v").arg(format!("{}:{guest}", host.display()));
     }
@@ -35,11 +57,7 @@ pub fn container(
         .args(["--entrypoint", entrypoint])
         .arg(&settings.image)
         .args(args);
-    command.output().map_err(|error| Error::Command {
-        command: format!("{command:?}"),
-        status: "not run".into(),
-        output: error.to_string(),
-    })
+    command
 }
 
 /// The host ID file of the test images and boot environment.

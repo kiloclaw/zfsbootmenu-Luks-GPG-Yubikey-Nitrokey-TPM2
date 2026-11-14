@@ -12,7 +12,10 @@
 //!   of the images;
 //! - `ZBMTEST_OLD_KERNEL`, `ZBMTEST_OLD_INITRD`: an image with an older
 //!   ZFS, for the `oldzfs` tests, which are skipped without it;
-//! - `ZBMTEST_REPO`: the checkout to build images from (this crate's).
+//! - `ZBMTEST_REPO`: the checkout to build images from (this crate's);
+//! - `ZBMTEST_OVMF_CODE`, `ZBMTEST_OVMF_VARS`: the UEFI firmware code and
+//!   the template of its variables, set together (the first pair of
+//!   [`OVMF_PAIRS`] whose two files exist).
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -37,11 +40,23 @@ pub const HOSTID: [u8; 4] = [0x0c, 0xb1, 0xba, 0x00];
 /// defaults.
 pub const FAST_PBKDF: &str = "--pbkdf argon2id --pbkdf-memory 65536 --iter-time 500";
 
-/// The firmware code of UEFI boots.
-pub const OVMF_CODE: &str = "/usr/share/OVMF/OVMF_CODE_4M.fd";
-
-/// The template of the firmware variables of UEFI boots.
-pub const OVMF_VARS: &str = "/usr/share/OVMF/OVMF_VARS_4M.fd";
+/// The UEFI firmware the harness looks for, in order, as pairs of the
+/// firmware code and the template of its variables: Debian and Ubuntu,
+/// Fedora, Arch.
+pub const OVMF_PAIRS: [(&str, &str); 3] = [
+    (
+        "/usr/share/OVMF/OVMF_CODE_4M.fd",
+        "/usr/share/OVMF/OVMF_VARS_4M.fd",
+    ),
+    (
+        "/usr/share/edk2/ovmf/OVMF_CODE.fd",
+        "/usr/share/edk2/ovmf/OVMF_VARS.fd",
+    ),
+    (
+        "/usr/share/edk2/x64/OVMF_CODE.4m.fd",
+        "/usr/share/edk2/x64/OVMF_VARS.4m.fd",
+    ),
+];
 
 /// The version of ZFS the images and the boot environment run.
 pub const ZFS_VERSION: &str = "2.4.4";
@@ -65,6 +80,65 @@ impl ZbmRuntime {
     }
 }
 
+/// UEFI firmware: its code and its variables, from one package, as the
+/// variables of one build only fit its own code.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Ovmf {
+    /// The firmware code, which a boot only reads.
+    pub code: PathBuf,
+    /// The firmware variables: in [`Settings`], the template; in a
+    /// machine, its own copy.
+    pub vars: PathBuf,
+}
+
+impl Ovmf {
+    /// The firmware that `ZBMTEST_OVMF_CODE` and `ZBMTEST_OVMF_VARS` name
+    /// when `set` gives either, otherwise the first of [`OVMF_PAIRS`] whose
+    /// two files `exists` finds.
+    ///
+    /// # Errors
+    ///
+    /// The reason a boot that needs UEFI cannot start: one variable set
+    /// without the other, or no pair found, with the paths tried.
+    pub fn find(
+        set: impl Fn(&str) -> Option<String>,
+        exists: impl Fn(&Path) -> bool,
+    ) -> std::result::Result<Ovmf, String> {
+        let variables = "ZBMTEST_OVMF_CODE and ZBMTEST_OVMF_VARS";
+        match (set("ZBMTEST_OVMF_CODE"), set("ZBMTEST_OVMF_VARS")) {
+            (Some(code), Some(vars)) => {
+                return Ok(Ovmf {
+                    code: code.into(),
+                    vars: vars.into(),
+                });
+            }
+            (Some(_), None) | (None, Some(_)) => {
+                return Err(format!(
+                    "{variables} must be set together; only one of them is set"
+                ));
+            }
+            (None, None) => {}
+        }
+        let found = OVMF_PAIRS
+            .iter()
+            .find(|(code, vars)| exists(Path::new(code)) && exists(Path::new(vars)));
+        if let Some((code, vars)) = found {
+            return Ok(Ovmf {
+                code: code.into(),
+                vars: vars.into(),
+            });
+        }
+        let tried: Vec<String> = OVMF_PAIRS
+            .iter()
+            .map(|(code, vars)| format!("{code} and {vars}"))
+            .collect();
+        Err(format!(
+            "no UEFI firmware found (tried {}); install OVMF or set {variables}",
+            tried.join(", ")
+        ))
+    }
+}
+
 /// The settings of a run.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Settings {
@@ -84,6 +158,8 @@ pub struct Settings {
     pub old_image: Option<(PathBuf, PathBuf)>,
     /// The checkout images are built from.
     pub repo: PathBuf,
+    /// The UEFI firmware, or why none was found; see [`Settings::ovmf`].
+    pub firmware: std::result::Result<Ovmf, String>,
 }
 
 impl Settings {
@@ -95,12 +171,18 @@ impl Settings {
                 .write(true)
                 .open("/dev/kvm")
                 .is_ok();
-        Settings::from_vars(|name| env::var(name).ok(), docker, kvm)
+        Settings::from_vars(|name| env::var(name).ok(), docker, kvm, Path::exists)
     }
 
     /// The settings from the variables `var` gives, with `docker` telling
-    /// whether docker is installed and `kvm` whether `/dev/kvm` is usable.
-    pub fn from_vars(var: impl Fn(&str) -> Option<String>, docker: bool, kvm: bool) -> Settings {
+    /// whether docker is installed, `kvm` whether `/dev/kvm` is usable and
+    /// `exists` whether a file of the UEFI firmware exists.
+    pub fn from_vars(
+        var: impl Fn(&str) -> Option<String>,
+        docker: bool,
+        kvm: bool,
+        exists: impl Fn(&Path) -> bool,
+    ) -> Settings {
         let set = |name: &str| var(name).filter(|value| !value.is_empty());
         let default_container = if docker { "docker" } else { "podman" };
         let default_accel = if kvm { "kvm" } else { "tcg" };
@@ -120,7 +202,20 @@ impl Settings {
             },
             old_image,
             repo: set("ZBMTEST_REPO").map_or_else(default_repo, PathBuf::from),
+            firmware: Ovmf::find(set, exists),
         }
+    }
+
+    /// The UEFI firmware of the boots that need it.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Setup`] when none was found or its variables are set
+    /// wrongly; runs that boot no UEFI machine never ask.
+    pub fn ovmf(&self) -> Result<&Ovmf> {
+        self.firmware
+            .as_ref()
+            .map_err(|reason| Error::Setup(reason.clone()))
     }
 
     /// The directory of the files the tests put into images and boot
@@ -180,7 +275,7 @@ mod tests {
 
     #[test]
     fn defaults_follow_the_host() {
-        let settings = Settings::from_vars(|_| None, false, true);
+        let settings = Settings::from_vars(|_| None, false, true, |_| false);
 
         assert_eq!(settings.work, PathBuf::from("/var/tmp/zbm-luks-test"));
         assert_eq!(settings.container, "podman");
@@ -209,7 +304,7 @@ mod tests {
             Some(value.to_owned())
         };
 
-        let settings = Settings::from_vars(var, false, true);
+        let settings = Settings::from_vars(var, false, true, |_| true);
 
         assert_eq!(settings.disks("keys"), PathBuf::from("/w/disks/keys"));
         assert_eq!(
@@ -230,6 +325,95 @@ mod tests {
         assert_eq!(
             found.old_image_files().unwrap(),
             Some((file.as_path(), file.as_path()))
+        );
+    }
+
+    /// The firmware found with the variables `vars` and the files `files`.
+    fn ovmf_with(vars: &[(&str, &str)], files: &[&str]) -> Result<Ovmf> {
+        let var = |name: &str| {
+            vars.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
+        };
+        let exists = |path: &Path| files.iter().any(|file| Path::new(file) == path);
+        Settings::from_vars(var, false, true, exists)
+            .ovmf()
+            .cloned()
+    }
+
+    fn pair(index: usize) -> Ovmf {
+        let (code, vars) = OVMF_PAIRS[index];
+        Ovmf {
+            code: code.into(),
+            vars: vars.into(),
+        }
+    }
+
+    #[test]
+    fn the_variables_name_the_firmware_whatever_is_installed() {
+        let vars = [
+            ("ZBMTEST_OVMF_CODE", "/fw/CODE.fd"),
+            ("ZBMTEST_OVMF_VARS", "/fw/VARS.fd"),
+        ];
+
+        let found = ovmf_with(&vars, &[OVMF_PAIRS[0].0, OVMF_PAIRS[0].1]).unwrap();
+
+        assert_eq!(found.code, PathBuf::from("/fw/CODE.fd"));
+        assert_eq!(found.vars, PathBuf::from("/fw/VARS.fd"));
+    }
+
+    #[test]
+    fn one_firmware_variable_alone_is_an_error_naming_both() {
+        for name in ["ZBMTEST_OVMF_CODE", "ZBMTEST_OVMF_VARS"] {
+            let files = [OVMF_PAIRS[0].0, OVMF_PAIRS[0].1];
+
+            let error = ovmf_with(&[(name, "/fw/one.fd")], &files).unwrap_err();
+
+            assert_eq!(
+                error.to_string(),
+                "ZBMTEST_OVMF_CODE and ZBMTEST_OVMF_VARS must be set together; \
+                 only one of them is set"
+            );
+        }
+    }
+
+    #[test]
+    fn each_distribution_s_firmware_is_found() {
+        for (index, (code, vars)) in OVMF_PAIRS.iter().enumerate() {
+            assert_eq!(ovmf_with(&[], &[code, vars]).unwrap(), pair(index));
+        }
+    }
+
+    #[test]
+    fn debian_s_firmware_is_preferred_and_pairs_are_never_mixed() {
+        let all: Vec<&str> = OVMF_PAIRS
+            .iter()
+            .flat_map(|(code, vars)| [*code, *vars])
+            .collect();
+        let mixed = [
+            OVMF_PAIRS[0].0,
+            OVMF_PAIRS[1].1,
+            OVMF_PAIRS[2].0,
+            OVMF_PAIRS[2].1,
+        ];
+
+        assert_eq!(ovmf_with(&[], &all).unwrap(), pair(0));
+        assert_eq!(ovmf_with(&[], &mixed).unwrap(), pair(2));
+    }
+
+    #[test]
+    fn without_firmware_a_uefi_boot_fails_naming_the_paths_and_variables() {
+        let settings = Settings::from_vars(|_| None, false, true, |_| false);
+
+        let error = settings.ovmf().unwrap_err().to_string();
+
+        assert_eq!(
+            error,
+            "no UEFI firmware found (tried /usr/share/OVMF/OVMF_CODE_4M.fd and \
+             /usr/share/OVMF/OVMF_VARS_4M.fd, /usr/share/edk2/ovmf/OVMF_CODE.fd and \
+             /usr/share/edk2/ovmf/OVMF_VARS.fd, /usr/share/edk2/x64/OVMF_CODE.4m.fd and \
+             /usr/share/edk2/x64/OVMF_VARS.4m.fd); install OVMF or set \
+             ZBMTEST_OVMF_CODE and ZBMTEST_OVMF_VARS"
         );
     }
 }

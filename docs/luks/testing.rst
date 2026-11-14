@@ -39,9 +39,10 @@ Device suites
 
 Virtual-machine tests
   QEMU (``qemu-system-x86_64``) with OVMF firmware, ``swtpm``, ``tpm2-tools``, ``systemd-cryptenroll`` (in the
-  ``systemd-cryptsetup`` package on Ubuntu 24.04 and Debian 13 or later), clevis and GnuPG (for the key-management
-  setup), ``sgdisk``, ``sfdisk``, ``mkfs.ext4``, ``mkfs.vfat``, mtools, the Rust toolchain (to build the harness), and Docker or
-  Podman with the build container image (``localhost/zbm-builder``, see :doc:`/general/container-building`).
+  ``systemd-cryptsetup`` package on Ubuntu 24.04 and Debian 13 or later), ``cryptsetup``, clevis and GnuPG (for the
+  key-management setup), ``sgdisk``, ``sfdisk``, ``mkfs.ext4``, ``mkfs.vfat``, mtools, the Rust toolchain and a C
+  compiler (``gcc``, Rust's linker) to build the harness, and Docker or Podman with the build container image
+  (``localhost/zbm-builder``, see :doc:`/general/container-building`).
   ``runtime-rust-crash`` also runs ``cargo xtask symbolize`` on the host, which needs the Rust toolchain and
   ``addr2line`` (binutils); started with ``sudo``, it runs as the user who started it, with their
   *~/.cargo/bin*. ``runtime-rust-resolv``'s image installs ``network-manager`` in the build container each time it is
@@ -51,6 +52,19 @@ Virtual-machine tests
   an hour; with software emulation (TCG), several hours. The harness writes partition tables for 4 KiB sectors itself
   and maps partitions of disk images to loop devices by offset, so it needs neither util-linux 2.40 nor a kernel that
   scans partitions on loop devices.
+
+  The harness takes OVMF's firmware code and the template of its variables from one package: the first pair whose two
+  files exist of */usr/share/OVMF/OVMF_CODE_4M.fd* and *OVMF_VARS_4M.fd* (Debian, Ubuntu),
+  */usr/share/edk2/ovmf/OVMF_CODE.fd* and *OVMF_VARS.fd* (Fedora), and */usr/share/edk2/x64/OVMF_CODE.4m.fd* and
+  *OVMF_VARS.4m.fd* (Arch), unless ``ZBMTEST_OVMF_CODE`` and ``ZBMTEST_OVMF_VARS`` name another pair. Only the
+  ``firmware`` tests that boot (``firmware-boot``, ``-usbkey``, ``-usblate`` and ``-nostick``) use UEFI; without the
+  firmware, or with only one of the two variables set, their boots fail and say why.
+
+  On Fedora, the packages are ``qemu-system-x86``, ``edk2-ovmf``, ``swtpm``, ``swtpm-tools``, ``tpm2-tools``,
+  ``cryptsetup``, ``clevis``, ``clevis-luks``, ``gnupg2``, ``gdisk``, ``mtools``, ``dosfstools``, ``e2fsprogs``,
+  ``binutils``, ``gcc``, ``podman`` and ``rustup``. SELinux needs no setting: the harness and
+  ``tests/luks/vm/old-image.sh`` run their containers without SELinux labels (``--security-opt label=disable``), as
+  they mount the checkout and the work directory as they are.
 
 Running the Tests
 -----------------
@@ -94,6 +108,9 @@ Variable                 Meaning
 ``ZBMTEST_ZBM_RUNTIME``  ``rust`` (the default) or ``legacy``: the runtime of the ZFSBootMenu images. With ``rust``,
                          image and result names end in ``-rust`` (``complex-healthy-rust``); the ``runtime`` tests
                          choose their runtime themselves, and only the Rust runtime's run in the suite
+``ZBMTEST_OVMF_CODE``,   UEFI firmware code and the template of its variables, from one package, for the
+``ZBMTEST_OVMF_VARS``    ``firmware`` boot tests; set both or neither. By default, the first installed pair of Debian's,
+                         Fedora's and Arch's (see Requirements)
 =======================  ===========================================================================================
 
 Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:

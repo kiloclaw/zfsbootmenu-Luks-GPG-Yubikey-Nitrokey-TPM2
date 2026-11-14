@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn disks_are_sparse_and_kept_unless_fresh() {
-        let mut settings = Settings::from_vars(|_| None, false, false);
+        let mut settings = Settings::from_vars(|_| None, false, false, |_| false);
         settings.work =
             std::env::temp_dir().join(format!("zbm-vmtest-disks-{}", std::process::id()));
 

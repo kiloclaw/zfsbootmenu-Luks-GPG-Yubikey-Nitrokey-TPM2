@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn results_of_rust_images_are_named_apart() {
-        let mut settings = Settings::from_vars(|_| None, false, false);
+        let mut settings = Settings::from_vars(|_| None, false, false, |_| false);
         settings.runtime = ZbmRuntime::Rust;
 
         assert_eq!(

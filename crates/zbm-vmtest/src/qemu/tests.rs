@@ -44,7 +44,10 @@ fn a_uefi_boot_has_the_firmware_an_nvme_disk_usb_sticks_and_a_tpm() {
     let machine = Machine {
         nvme: Some(("/d/nvme.img".into(), 4096)),
         usb: vec![("/d/usb.img".into(), "usb0".into())],
-        ovmf_vars: Some("/d/OVMF_VARS.fd".into()),
+        ovmf: Some(Ovmf {
+            code: "/fw/OVMF_CODE.fd".into(),
+            vars: "/d/OVMF_VARS.fd".into(),
+        }),
         net: Some("hostfwd=tcp::2222-:22".into()),
         extra: vec!["-snapshot".into()],
         ..Machine::default()
@@ -59,7 +62,7 @@ fn a_uefi_boot_has_the_firmware_an_nvme_disk_usb_sticks_and_a_tpm() {
     assert!(after("-machine", "q35"));
     assert!(after(
         "-drive",
-        "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd"
+        "if=pflash,format=raw,readonly=on,file=/fw/OVMF_CODE.fd"
     ));
     assert!(after("-drive", "if=pflash,format=raw,file=/d/OVMF_VARS.fd"));
     assert!(after(

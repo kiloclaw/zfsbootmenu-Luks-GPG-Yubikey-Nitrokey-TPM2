@@ -6,7 +6,7 @@ use super::*;
 fn settings(name: &str) -> Settings {
     let work = std::env::temp_dir().join(format!("zbm-vmtest-{name}-{}", std::process::id()));
     fs::remove_dir_all(&work).ok();
-    let mut settings = Settings::from_vars(|_| None, false, false);
+    let mut settings = Settings::from_vars(|_| None, false, false, |_| false);
     settings.work = work;
     settings
 }

@@ -10,7 +10,7 @@ fn settings(name: &str) -> Settings {
     let hooks = root.join("repo/tests/luks/vm/hooks/teardown.d");
     fs::create_dir_all(&hooks).unwrap();
     fs::write(hooks.join("99-report.sh"), "#!/bin/sh\n").unwrap();
-    let mut settings = Settings::from_vars(|_| None, false, false);
+    let mut settings = Settings::from_vars(|_| None, false, false, |_| false);
     settings.work = root.join("work");
     settings.repo = root.join("repo");
     // A container runtime that fails at once.
@@ -37,6 +37,62 @@ fn spec() -> ImageSpec {
         rc: Some("cp /build/keys/tank.key.gpg /etc/".into()),
         ..ImageSpec::new("keys-native")
     }
+}
+
+#[test]
+fn the_container_runs_without_selinux_labels_on_its_mounts() {
+    let settings = settings("command");
+    let work = settings.work.clone();
+
+    let command = container_command(
+        &settings,
+        &["/out"],
+        &[(&work, "/out"), (Path::new("/be"), "/be:ro")],
+        "/be/build-be.sh",
+        &[("KEY", "value")],
+    );
+
+    let args: Vec<String> = command
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    let work = format!("{}:/out", work.display());
+    let expected = [
+        "run",
+        "--rm",
+        "--security-opt",
+        "label=disable",
+        "-v",
+        &work,
+        "-v",
+        "/be:/be:ro",
+        "-e",
+        "KEY=value",
+        "--entrypoint",
+        "/be/build-be.sh",
+        "localhost/zbm-builder",
+        "/out",
+    ];
+    assert_eq!(command.get_program(), "false");
+    assert_eq!(args, expected);
+    cleanup(&settings);
+}
+
+#[test]
+fn the_old_image_script_runs_its_container_without_selinux_labels() {
+    let script = include_str!("../../../../tests/luks/vm/old-image.sh");
+
+    let runs: Vec<&str> = script
+        .lines()
+        .filter(|line| line.contains(" run "))
+        .collect();
+
+    assert_eq!(runs.len(), 1, "{runs:?}");
+    assert!(
+        runs[0].contains(" run --rm --security-opt label=disable "),
+        "{}",
+        runs[0]
+    );
 }
 
 #[test]

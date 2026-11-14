@@ -35,7 +35,7 @@ use crate::gpt::{self, Partition};
 use crate::images::{ImageSpec, zbm_image};
 use crate::qemu::Machine;
 use crate::record::Test;
-use crate::settings::{FAST_PBKDF, OVMF_VARS, PW, Settings, ZbmRuntime};
+use crate::settings::{FAST_PBKDF, Ovmf, PW, Settings, ZbmRuntime};
 use crate::vm::Vm;
 
 use super::payload;
@@ -173,11 +173,17 @@ fn write_esp(files: &Files, efi: &Path) -> Result<()> {
     fs::remove_file(&esp).map_err(Error::io(format!("removing {}", esp.display())))
 }
 
-/// A copy of the firmware variables' template, for one boot.
-fn ovmf(files: &Files) -> Result<PathBuf> {
-    let path = files.dir.join("OVMF_VARS.fd");
-    fs::copy(OVMF_VARS, &path).map_err(Error::io(format!("copying {OVMF_VARS}")))?;
-    Ok(path)
+/// The firmware of one boot: the code the harness found and a copy of
+/// the template of its variables.
+fn ovmf(settings: &Settings, files: &Files) -> Result<Ovmf> {
+    let found = settings.ovmf()?;
+    let vars = files.dir.join("OVMF_VARS.fd");
+    let template = found.vars.display();
+    fs::copy(&found.vars, &vars).map_err(Error::io(format!("copying {template}")))?;
+    Ok(Ovmf {
+        code: found.code.clone(),
+        vars,
+    })
 }
 
 /// Partitions the NVMe disk on the host, then creates the LUKS volume and
@@ -300,7 +306,7 @@ fn boot(test: &Test, files: &Files, scenario: &str, uuid: &str) -> Result<Boot> 
     };
     let machine = Machine {
         nvme: Some((files.nvme(), NVME_BLOCK)),
-        ovmf_vars: Some(ovmf(files)?),
+        ovmf: Some(ovmf(test.settings(), files)?),
         usb: sticks,
         mem: 4096,
         ..Machine::default()

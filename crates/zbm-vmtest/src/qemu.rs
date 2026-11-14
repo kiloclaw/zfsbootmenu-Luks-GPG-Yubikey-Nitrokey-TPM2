@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::error::{Error, Result};
 use crate::images::Image;
-use crate::settings::OVMF_CODE;
+use crate::settings::Ovmf;
 
 /// A disk attached as a virtio block device with a serial number, which
 /// the guest sees as `/dev/disk/by-id/virtio-<serial>`.
@@ -49,8 +49,9 @@ pub struct Machine {
     pub nvme: Option<(PathBuf, u32)>,
     /// USB sticks: image and drive name.
     pub usb: Vec<(PathBuf, String)>,
-    /// UEFI firmware variables; `None`: BIOS.
-    pub ovmf_vars: Option<PathBuf>,
+    /// UEFI firmware, with this machine's own copy of its variables;
+    /// `None`: BIOS.
+    pub ovmf: Option<Ovmf>,
     /// Options of a user network, if any.
     pub net: Option<String>,
     /// The state directory of a software TPM, if any.
@@ -68,7 +69,7 @@ impl Default for Machine {
             disks: Vec::new(),
             nvme: None,
             usb: Vec::new(),
-            ovmf_vars: None,
+            ovmf: None,
             net: None,
             tpm: None,
             extra: Vec::new(),
@@ -155,15 +156,8 @@ pub fn args(machine: &Machine, accel: &str, sockets: &Sockets) -> Vec<String> {
         "-monitor".into(),
         format!("unix:{},server,nowait", sockets.monitor.display()),
     ];
-    if let Some(vars) = &machine.ovmf_vars {
-        args.extend([
-            "-machine".into(),
-            "q35".into(),
-            "-drive".into(),
-            format!("if=pflash,format=raw,readonly=on,file={OVMF_CODE}"),
-            "-drive".into(),
-            format!("if=pflash,format=raw,file={}", vars.display()),
-        ]);
+    if let Some(ovmf) = &machine.ovmf {
+        args.extend(uefi_args(ovmf));
     }
     if let Some((kernel, initrd, append)) = &machine.kernel {
         args.extend(["-kernel".into(), kernel.display().to_string()]);
@@ -190,6 +184,21 @@ pub fn args(machine: &Machine, accel: &str, sockets: &Sockets) -> Vec<String> {
         ]);
     }
     args
+}
+
+/// The machine type and the firmware's flash drives of a UEFI machine.
+fn uefi_args(ovmf: &Ovmf) -> [String; 6] {
+    [
+        "-machine".into(),
+        "q35".into(),
+        "-drive".into(),
+        format!(
+            "if=pflash,format=raw,readonly=on,file={}",
+            ovmf.code.display()
+        ),
+        "-drive".into(),
+        format!("if=pflash,format=raw,file={}", ovmf.vars.display()),
+    ]
 }
 
 /// The NVMe disk, the USB controller and the USB sticks.

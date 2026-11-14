@@ -32,7 +32,9 @@ if [ "${1:-}" != "--inside" ]; then
   mkdir -p "${out}"
   out="$(cd "${out}" && pwd)"
   checkout="$(git -C "${repo}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-  exec "${runtime}" run --rm -v "${repo}:/zbm:ro" -v "${out}:/out" \
+  # Without SELinux labels, as the harness runs the build container: the
+  # mounts stay readable under SELinux enforcing (Fedora).
+  exec "${runtime}" run --rm --security-opt label=disable -v "${repo}:/zbm:ro" -v "${out}:/out" \
     -e "ZBM_CHECKOUT=${checkout}" --entrypoint /bin/bash "ubuntu:${RELEASE}" /zbm/tests/luks/vm/old-image.sh --inside
 fi
 
