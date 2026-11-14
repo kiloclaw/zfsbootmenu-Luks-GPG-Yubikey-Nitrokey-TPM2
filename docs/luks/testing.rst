@@ -279,8 +279,10 @@ Following a boot
     ``/etc/resolv.conf``: systemd-resolved's link ``../run/systemd/resolve/stub-resolv.conf``, into its empty
     ``/run``. ``tplain`` also gets ``tplain/crafted``, a filesystem that is no boot environment (mount point
     ``/crafted``, ``canmount=noauto``): the payload's static busybox as ``/bin/busybox``, ``/bin/sh`` linked to it,
-    the directories ``/proc``, ``/sys`` and ``/etc``, and two links out of it, ``tmp -> /etc`` and
-    ``dev -> ../../../../../../../etc/zfs``.
+    the directories ``/proc``, ``/sys`` and ``/etc``, and four links out of it, ``tmp -> /etc``,
+    ``dev -> ../../../../../../../etc/zfs``, ``mnt -> /etc`` and ``kernels -> /tmp/crafted-kernels``; and its child
+    ``tplain/crafted/mnt`` (``canmount=noauto``, no ``/boot``), whose name, in the legacy layout of ZFSBootMenu's
+    state, puts its mount point and kernel list on those last two links.
   * ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
     start-up program (the Rust supervisor), and hooks see ``BOOTFS``.
   * ``-hostid``: ``tforeign`` alone: host ID matching imports it, and the boot environment gets ``spl_hostid``.
@@ -491,8 +493,15 @@ Following a boot
     has nothing mounted on ``/etc`` or ``/etc/zfs``, ``/proc`` and ``/sys`` are mounted, and the shell is
     ``/bin/sh``; the shell then mounts a ``tmpfs`` over its own ``/``, and ``exit`` ends ``zfs-chroot`` with 0;
     after it, ``/proc/self/mounts`` has nothing below ``/zfsbootmenu/environments/tplain/crafted`` and nothing on
-    ``/etc`` or ``/etc/zfs``, and the filesystem, mounted read-only on ``/tmp/c`` meanwhile, still has its two
-    links. The notices, the shell's arguments and the mounts go into the test's notes;
+    ``/etc`` or ``/etc/zfs``, and the filesystem, mounted read-only on ``/tmp/c`` meanwhile, still has its links
+    ``tmp`` and ``dev``. The notices, the shell's arguments and the mounts go into the test's notes;
+  * the kernel searches of ``tplain/crafted/mnt`` while ``tplain/crafted`` is mounted (ROADMAP.md SB19):
+    ``mount_zfs tplain/crafted`` prints ``/zfsbootmenu/environments/tplain/crafted/mnt``;
+    ``find_be_kernels tplain/crafted/mnt`` (the library's, on the native ``be_location``) finds no kernel and ends
+    with 1; ``zkexec tplain/crafted/mnt x x`` searches the child, mounts it for its boot and fails at loading ``x``:
+    Enter answers the failed boot's prompt, and it ends with 1. Then ``/tmp/crafted-kernels`` does not exist,
+    ``/zfsbootmenu/environments/tplain/crafted/+mnt`` is a directory, nothing is mounted on ``/etc``, and once
+    ``tplain/crafted`` is unmounted nothing is left below its path in the state;
   * ``mount_esp /dev/disk/by-id/virtio-esp`` mounts the FAT disk read/write at ``/mnt/virtio-esp`` and prints that,
     and run again prints where it is mounted already;
   * last, ``zkexec tplain/ROOT/be vmlinuz-KVER initramfs-KVER.img`` boots the environment by its kernel's files,
@@ -788,6 +797,13 @@ SB16 adds a step to ``runtime-rust-recovery``, not run yet: the chroot of ``tpla
 minute more, so about 8 minutes in all, and the shell's ``/proc/$$/cmdline`` in the chroot of ``tplain/ROOT/be``, a
 few seconds, there and in ``integrity-locked``. ``runtime-setup`` makes ``tplain/crafted``, a few seconds more, and
 must run again before the ``runtime`` group.
+
+SB19 adds a step to ``runtime-rust-recovery``, not run yet: the kernel searches of ``tplain/crafted/mnt``, about a
+minute and a half more (``zkexec``'s search, its boot's mount, two failed loads and the prompt, answered at once), so
+about 9.5 minutes in all. ``runtime-setup`` makes ``tplain/crafted/mnt`` and two more links, a few seconds more, and
+must run again before the ``runtime`` group. Every mount of a dataset by the Rust runtime goes through one path check
+since SB19, so the ``menu`` group's ``menu-snapshots`` (the diff and the restore of snapshots) and ``menu-boot`` (the
+boot of a clone) run with the ``runtime`` and ``integrity`` groups after it.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to

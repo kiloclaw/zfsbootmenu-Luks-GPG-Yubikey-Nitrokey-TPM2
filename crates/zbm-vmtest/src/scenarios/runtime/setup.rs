@@ -7,7 +7,9 @@
 //! [`CRAFTED`], a filesystem that is no boot environment, with the
 //! payload's static busybox, copied in, as its `/bin/sh` and its `tmp` and
 //! `dev` links out of it ([`TMP_LINK`], [`DEV_LINK`], for `recovery`'s
-//! chroot of it).
+//! chroot of it), and its `mnt` and `kernels` links out of it
+//! ([`MNT_LINK`], [`KERNELS_LINK`]) beside its child [`CRAFTED_MNT`], for
+//! `recovery`'s kernel searches of that child.
 
 use std::fmt::Write as _;
 
@@ -37,9 +39,15 @@ pub(crate) const RESOLV_LINK: &str = "../run/systemd/resolve/stub-resolv.conf";
 /// A filesystem of `tplain` that is no boot environment, whose mount
 /// point `/crafted` is never mounted by itself (`canmount=noauto`): it
 /// holds `bin/busybox`, `bin/sh`, its link to it, the directories `proc`,
-/// `sys` and `etc`, and the links `tmp` ([`TMP_LINK`]) and `dev`
-/// ([`DEV_LINK`]).
+/// `sys` and `etc`, and the links `tmp` ([`TMP_LINK`]), `dev`
+/// ([`DEV_LINK`]), `mnt` ([`MNT_LINK`]) and `kernels` ([`KERNELS_LINK`]).
 pub(crate) const CRAFTED: &str = "tplain/crafted";
+
+/// The child of [`CRAFTED`] named `mnt`, no boot environment either, with
+/// no `/boot`, never mounted by itself (`canmount=noauto`): its name puts
+/// its mount point and kernel list, in the legacy layout, on [`CRAFTED`]'s
+/// links `mnt` and `kernels` while [`CRAFTED`] is mounted.
+pub(crate) const CRAFTED_MNT: &str = "tplain/crafted/mnt";
 
 /// Where [`CRAFTED`]'s `tmp` leads: the image's `/etc`, by an absolute
 /// link.
@@ -49,6 +57,14 @@ pub(crate) const TMP_LINK: &str = "/etc";
 /// link that climbs to `/` from the chroot's mount point, followed in the
 /// image.
 pub(crate) const DEV_LINK: &str = "../../../../../../../etc/zfs";
+
+/// Where [`CRAFTED`]'s `mnt` leads: the image's `/etc`, by an absolute
+/// link.
+pub(crate) const MNT_LINK: &str = "/etc";
+
+/// Where [`CRAFTED`]'s `kernels` leads: a file of the image that does not
+/// exist, by an absolute link; a kernel list written through it makes it.
+pub(crate) const KERNELS_LINK: &str = "/tmp/crafted-kernels";
 
 /// The passphrase in the key file of `tkeys`'s boot environment.
 pub(super) const BE_KEY: &str = "tkeys-be-key";
@@ -130,14 +146,17 @@ fn resolver_link() -> String {
 
 /// The command that makes [`CRAFTED`] on `tplain`, mounted on `/c`
 /// meanwhile, with the busybox of the payload, which is static, while the
-/// payload is mounted on `/pl`; it fails when a part cannot be made.
+/// payload is mounted on `/pl`, then its child [`CRAFTED_MNT`]; it fails
+/// when a part cannot be made.
 fn crafted() -> String {
     format!(
         "zfs create -o mountpoint=/crafted -o canmount=noauto {CRAFTED} && mkdir -p /c && \
          mount -t zfs -o zfsutil {CRAFTED} /c && \
          {{ mkdir -p /c/bin /c/proc /c/sys /c/etc && cp /pl/rootfs/bin/busybox /c/bin/ && \
-         ln -s /bin/busybox /c/bin/sh && ln -s {TMP_LINK} /c/tmp && ln -s {DEV_LINK} /c/dev; \
-         made=$?; umount /c && [ $made -eq 0 ]; }}"
+         ln -s /bin/busybox /c/bin/sh && ln -s {TMP_LINK} /c/tmp && ln -s {DEV_LINK} /c/dev && \
+         ln -s {MNT_LINK} /c/mnt && ln -s {KERNELS_LINK} /c/kernels; \
+         made=$?; umount /c && [ $made -eq 0 ]; }} && \
+         zfs create -o canmount=noauto {CRAFTED_MNT}"
     )
 }
 
@@ -166,14 +185,16 @@ mod tests {
     }
 
     #[test]
-    fn tplain_s_crafted_filesystem_links_tmp_and_dev_out_of_it_made_while_mounted() {
+    fn tplain_s_crafted_filesystem_links_out_of_it_made_while_mounted_then_its_child_mnt() {
         assert_eq!(
             crafted(),
             "zfs create -o mountpoint=/crafted -o canmount=noauto tplain/crafted && \
              mkdir -p /c && mount -t zfs -o zfsutil tplain/crafted /c && { mkdir -p /c/bin \
              /c/proc /c/sys /c/etc && cp /pl/rootfs/bin/busybox /c/bin/ && ln -s /bin/busybox \
-             /c/bin/sh && ln -s /etc /c/tmp && ln -s ../../../../../../../etc/zfs /c/dev; \
-             made=$?; umount /c && [ $made -eq 0 ]; }"
+             /c/bin/sh && ln -s /etc /c/tmp && ln -s ../../../../../../../etc/zfs /c/dev && \
+             ln -s /etc /c/mnt && ln -s /tmp/crafted-kernels /c/kernels; \
+             made=$?; umount /c && [ $made -eq 0 ]; } && \
+             zfs create -o canmount=noauto tplain/crafted/mnt"
         );
     }
 

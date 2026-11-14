@@ -46,6 +46,12 @@
 //! - the shell's `zfs-chroot tplain/crafted`, whose `tmp` and `dev` link
 //!   out of it: neither is mounted, and the shell's mount over its own `/`
 //!   leaves nothing mounted once it ended ([`links`]);
+//! - the kernel searches of its child `tplain/crafted/mnt` while the
+//!   hook library's mount of it is up: the library's search and `zkexec`'s,
+//!   whose boot fails at loading the files it names and whose prompt Enter
+//!   answers, mount the child on a directory of its own, and neither
+//!   mounts on the image's `/etc` nor writes a kernel list through the
+//!   parent's `kernels` link ([`links`]);
 //! - the shell's `mount_esp /dev/disk/by-id/virtio-esp`, which is `zbm`'s:
 //!   it mounts the machine's FAT disk `esp` read/write at
 //!   `/mnt/virtio-esp`, prints that, and leaves it mounted; asked again, it
@@ -132,6 +138,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     vm.sendline(SHELL_CHROOT)?;
     in_the_shell_s_chroot(test, &mut vm)?;
     links::crafted_chroot(test, &mut vm)?;
+    links::crafted_mnt(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
     boot_by_files(test, &mut vm, &kver)?;
     vm.kill();

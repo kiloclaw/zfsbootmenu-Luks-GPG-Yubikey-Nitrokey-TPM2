@@ -321,3 +321,243 @@ fn an_answer_is_a_whole_line_after_the_prompt() {
     assert!(!has_answer("tplain/crafted / > 12", "2"));
     assert!(!has_answer("tplain/crafted / > ", "2"));
 }
+
+/// The failed boot's prompt, once `zkexec` could not load `x`.
+const NOT_LOADED_PROMPT: &str = "\x1b[H\x1b[2J\x1b[0;31mUnable to load kernel or initramfs into \
+    memory\x1b[0m\r\n/zfsbootmenu/environments/tplain/crafted/+mnt/mnt/boot/x\r\n\
+    Press [RETURN] to continue or wait 10 seconds";
+
+/// What the recovery shell answers in and after the searches of
+/// `tplain/crafted/mnt`.
+#[derive(Clone, Copy)]
+struct Searched {
+    /// `mount_zfs tplain/crafted`.
+    mounted: &'static str,
+    /// `find_be_kernels tplain/crafted/mnt`.
+    found: &'static str,
+    /// `zkexec`, up to its prompt if it shows one.
+    booted: &'static str,
+    /// Whether `zkexec` shows the prompt of a failed load.
+    prompted: bool,
+    /// `zkexec` once its prompt was answered.
+    ended: &'static str,
+    /// `test -e /tmp/crafted-kernels`.
+    kernels: &'static str,
+    /// `test -d` of the child's own directory.
+    own: &'static str,
+    /// The mounts on the image's `/etc` counted.
+    on_etc: &'static str,
+    /// What is left mounted below the parent's path once it is unmounted.
+    left: &'static str,
+}
+
+/// The answers of searches that stay in the child's own directory.
+const OWN: Searched = Searched {
+    mounted: "/zfsbootmenu/environments/tplain/crafted/mnt\r\nRC=0\r\n",
+    found: "RC=1\r\n",
+    booted: NOT_LOADED_PROMPT,
+    prompted: true,
+    ended: "zkexec: unable to boot tplain/crafted/mnt: the kernel could not be executed\r\n\
+            ZKEXEC-RC=1\r\nzbm# ",
+    kernels: "RC=1\r\n",
+    own: "RC=0\r\n",
+    on_etc: "0\r\nRC=1\r\n",
+    left: "RC=1\r\n",
+};
+
+/// The script of [`crafted_mnt`] with `answers`.
+fn mnt_script(answers: Searched) -> Vec<Step> {
+    let mut script = vec![
+        Step::Hear("mount_zfs tplain/crafted; echo RC=$?"),
+        Step::Say(answers.mounted),
+        Step::Hear("find_be_kernels tplain/crafted/mnt; echo RC=$?"),
+        Step::Say(answers.found),
+        Step::Hear("zkexec tplain/crafted/mnt x x; echo ZKEXEC-RC=$?"),
+        Step::Say(answers.booted),
+    ];
+    if answers.prompted {
+        script.extend([Step::Keys("\r"), Step::Say(answers.ended)]);
+    }
+    script.extend([
+        Step::Hear("test -e /tmp/crafted-kernels; echo RC=$?"),
+        Step::Say(answers.kernels),
+        Step::Hear("test -d '/zfsbootmenu/environments/tplain/crafted/+mnt'; echo RC=$?"),
+        Step::Say(answers.own),
+        Step::Hear("grep -c ' /etc ' /proc/self/mounts; echo RC=$?"),
+        Step::Say(answers.on_etc),
+        Step::Hear("umount /zfsbootmenu/environments/tplain/crafted/mnt; echo RC=$?"),
+        Step::Say("RC=0\r\n"),
+        Step::Hear(
+            "grep ' /zfsbootmenu/environments/tplain/crafted/' /proc/self/mounts; echo RC=$?",
+        ),
+        Step::Say(answers.left),
+    ]);
+    script
+}
+
+/// Plays `script` against [`crafted_mnt`]; the checks it recorded.
+fn mnt_checks(name: &str, script: Vec<Step>) -> Vec<String> {
+    let settings = settings(name);
+    let test = Test::new(&settings, "runtime-rust-recovery").unwrap();
+    let (mut vm, guest) = scripted(&test, script);
+
+    crafted_mnt(&test, &mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let found = checks(&test);
+    cleanup(&settings);
+    found
+}
+
+#[test]
+fn the_searches_of_a_child_named_mnt_stay_in_its_own_directory() {
+    let found = mnt_checks("runtime-recovery-crafted-mnt", mnt_script(OWN));
+
+    assert_eq!(
+        found,
+        [
+            "ok   - mount_zfs tplain/crafted mounts it and prints \
+             /zfsbootmenu/environments/tplain/crafted/mnt (0)",
+            "ok   - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (1)",
+            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+            "ok   - zkexec tplain/crafted/mnt ends with 1 (1)",
+            "ok   - no kernel list went through tplain/crafted's kernels: \
+             /tmp/crafted-kernels is absent (1)",
+            "ok   - tplain/crafted/mnt has its own directory, \
+             /zfsbootmenu/environments/tplain/crafted/+mnt (0)",
+            "ok   - after the searches, nothing is mounted on the image's /etc (1)",
+            "ok   - once tplain/crafted is unmounted, nothing is mounted below \
+             /zfsbootmenu/environments/tplain/crafted (1)",
+        ]
+    );
+}
+
+#[test]
+fn searches_that_follow_the_parent_s_links_fail() {
+    let answers = Searched {
+        kernels: "RC=0\r\n",
+        own: "RC=1\r\n",
+        on_etc: "1\r\nRC=0\r\n",
+        left: "tplain/crafted/mnt /zfsbootmenu/environments/tplain/crafted/mnt/mnt zfs ro 0 0\r\n\
+               RC=0\r\n",
+        ..OWN
+    };
+
+    let found = mnt_checks("runtime-recovery-crafted-mnt-followed", mnt_script(answers));
+
+    assert_eq!(
+        found,
+        [
+            "ok   - mount_zfs tplain/crafted mounts it and prints \
+             /zfsbootmenu/environments/tplain/crafted/mnt (0)",
+            "ok   - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (1)",
+            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+            "ok   - zkexec tplain/crafted/mnt ends with 1 (1)",
+            "FAIL - no kernel list went through tplain/crafted's kernels: \
+             /tmp/crafted-kernels is absent (0)",
+            "FAIL - tplain/crafted/mnt has its own directory, \
+             /zfsbootmenu/environments/tplain/crafted/+mnt (1)",
+            "FAIL - after the searches, nothing is mounted on the image's /etc (0)",
+            "FAIL - once tplain/crafted is unmounted, nothing is mounted below \
+             /zfsbootmenu/environments/tplain/crafted (0)",
+        ]
+    );
+}
+
+#[test]
+fn a_parent_not_mounted_kernels_found_or_a_boot_refused_before_loading_fails() {
+    let answers = Searched {
+        mounted: "zfsbootmenu: tplain/crafted is locked\r\nRC=1\r\n",
+        found: "RC=0\r\n",
+        booted: "zkexec: unable to mount tplain/crafted/mnt\r\nZKEXEC-RC=2\r\nzbm# ",
+        prompted: false,
+        on_etc: "busybox: /proc/self/mounts: No such file or directory\r\nRC=2\r\n",
+        ..OWN
+    };
+
+    let found = mnt_checks("runtime-recovery-crafted-mnt-refused", mnt_script(answers));
+
+    assert_eq!(
+        found,
+        [
+            "FAIL - mount_zfs tplain/crafted mounts it and prints \
+             /zfsbootmenu/environments/tplain/crafted/mnt (1)",
+            "FAIL - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (0)",
+            "FAIL - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+            "FAIL - zkexec tplain/crafted/mnt ends with 1 (2)",
+            "ok   - no kernel list went through tplain/crafted's kernels: \
+             /tmp/crafted-kernels is absent (1)",
+            "ok   - tplain/crafted/mnt has its own directory, \
+             /zfsbootmenu/environments/tplain/crafted/+mnt (0)",
+            "FAIL - after the searches, nothing is mounted on the image's /etc (2)",
+            "ok   - once tplain/crafted is unmounted, nothing is mounted below \
+             /zfsbootmenu/environments/tplain/crafted (1)",
+        ]
+    );
+}
+
+#[test]
+fn a_zkexec_that_does_not_end_after_its_prompt_ends_the_run() {
+    let settings = settings("runtime-recovery-crafted-mnt-stuck");
+    let test = Test::new(&settings, "runtime-rust-recovery").unwrap();
+    let (mut vm, guest) = scripted(
+        &test,
+        vec![
+            Step::Hear("mount_zfs tplain/crafted; echo RC=$?"),
+            Step::Say(OWN.mounted),
+            Step::Hear("find_be_kernels tplain/crafted/mnt; echo RC=$?"),
+            Step::Say(OWN.found),
+            Step::Hear("zkexec tplain/crafted/mnt x x; echo ZKEXEC-RC=$?"),
+            Step::Say(NOT_LOADED_PROMPT),
+            Step::Keys("\r"),
+            Step::Say("\x1b[H\x1b[2J"),
+        ],
+    );
+
+    let ended = crafted_mnt(&test, &mut vm);
+
+    assert!(ended.is_err());
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert_eq!(
+        checks(&test),
+        [
+            "ok   - mount_zfs tplain/crafted mounts it and prints \
+             /zfsbootmenu/environments/tplain/crafted/mnt (0)",
+            "ok   - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (1)",
+            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+        ]
+    );
+    cleanup(&settings);
+}
+
+#[test]
+fn only_an_exit_status_shows_that_zkexec_ended() {
+    let ended = regex(ZKEXEC_ENDED).unwrap();
+
+    assert!(ended.is_match("ZKEXEC-RC=1\r\nzbm# "));
+    assert!(!ended.is_match(ZKEXEC_MNT));
+}
+
+#[test]
+fn an_exit_status_is_read_whole_only_once_its_line_has_ended() {
+    let ended = regex(ZKEXEC_ENDED).unwrap();
+
+    assert!(!ended.is_match("ZKEXEC-RC=1"));
+    let status = ended.captures("ZKEXEC-RC=139\r\n").unwrap();
+    assert_eq!(&status[1], "139");
+    assert!(!regex(NOT_LOADED).unwrap().is_match(ZKEXEC_MNT));
+}
+
+#[test]
+fn the_searches_name_the_crafted_child_and_its_parent_s_paths() {
+    assert_eq!(MOUNT_CRAFTED, format!("mount_zfs {CRAFTED}"));
+    assert_eq!(CRAFTED_MOUNTED, format!("{CRAFTED_STATE}/mnt"));
+    assert_eq!(FIND_MNT, format!("find_be_kernels {CRAFTED_MNT}"));
+    assert_eq!(
+        ZKEXEC_MNT,
+        format!("zkexec {CRAFTED_MNT} x x; echo ZKEXEC-RC=$?")
+    );
+    assert_eq!(CRAFTED_MNT, format!("{CRAFTED}/mnt"));
+    assert_eq!(MNT_STATE, format!("{CRAFTED_STATE}/+mnt"));
+    assert_eq!(KERNELS_LINK, "/tmp/crafted-kernels");
+}
