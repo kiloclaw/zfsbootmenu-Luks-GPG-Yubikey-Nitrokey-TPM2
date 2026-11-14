@@ -457,3 +457,28 @@ fn a_key_source_that_unlocks_the_root_itself_is_enough() {
     );
     assert!(machine.load_fs("tank/keys", BootPath::Menu).is_ok());
 }
+
+#[test]
+fn a_key_source_whose_state_path_runs_through_a_link_is_not_mounted_and_the_key_is_asked_for() {
+    // A link that root planted on a directory of the state, to the image's
+    // `/etc`, where a file waits at the key's path (SB19).
+    let machine = Machine::new("file:///etc/zfs/keys/tank.key", "passphrase", "tank/keys");
+    machine
+        .loads("prompt", "tank/keys")
+        .loads("prompt", "tank/ROOT");
+    let files = &machine.fake.files;
+    files
+        .file("/etc/keys/mnt/etc/zfs/keys/tank.key", "planted")
+        .symlink("/zfsbootmenu/environments/tank", "/etc");
+
+    assert_eq!(machine.load(BootPath::Menu), Ok(()));
+
+    assert!(!machine.ran_program("mount"));
+    let kmsg = machine.fake.kmsg();
+    let why = "tank/keys is not mounted: /zfsbootmenu/environments/tank is a link to /etc";
+    assert!(kmsg.contains(why), "{kmsg}");
+    assert!(kmsg.contains("failed to mount tank/keys"), "{kmsg}");
+    assert_eq!(machine.typed_loads("tank/ROOT"), 1);
+    let cached = "/zfsbootmenu/.keys/tank/keys/etc/zfs/keys/tank.key";
+    assert_eq!(files.text(cached), None);
+}

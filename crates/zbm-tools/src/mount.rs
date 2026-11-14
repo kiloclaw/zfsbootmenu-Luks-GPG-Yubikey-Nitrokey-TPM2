@@ -2,7 +2,8 @@
 //! when dropped; the kernel's file systems a chroot takes, a read-only
 //! bind ([`NotReadOnly`] when it is not), and [`HostEfivars`], which sets
 //! this system's `efivarfs` back to read-only when dropped; for a chroot,
-//! where a path below its root leads, never through this system's links
+//! where a path below its root leads, never through this system's links,
+//! and the first link or mount point on the way to a mount point
 //! ([`inside`]); and the kernel's table of mounts, read back ([`table`]).
 
 #![allow(

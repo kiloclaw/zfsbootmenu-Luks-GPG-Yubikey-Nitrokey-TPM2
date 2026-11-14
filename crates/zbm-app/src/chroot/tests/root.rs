@@ -6,10 +6,7 @@ use zbm_testkit::fakes::FileOperation;
 use zbm_tools::mount::table::{MOUNTINFO, mounts};
 
 use super::*;
-use crate::chroot::root::check;
 
-/// The state directory.
-const BASE: &str = "/zfsbootmenu";
 /// Where environments are mounted below the state directory.
 const ENVIRONMENTS: &str = "/zfsbootmenu/environments";
 
@@ -31,6 +28,40 @@ fn kernel_log(fake: &FakeSystem) -> zbm_platform::Installed {
     KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
         .without_journal()
         .install()
+}
+
+/// The error lines of a chroot of `fs` on `fake`, which is refused
+/// before anything is mounted.
+fn refused(fake: &FakeSystem, fs: &str) -> String {
+    let log = kernel_log(fake);
+    let error = open_on(fake, fs).unwrap_err();
+    drop(log);
+    assert!(matches!(error, ChrootError::Mount(_)), "{error:?}");
+    let lines = ran(fake);
+    assert!(
+        !lines.iter().any(|line| line.contains("mount")),
+        "{lines:#?}"
+    );
+    fake.kmsg()
+}
+
+/// The mark the kernel log leaves for an error line.
+const HAVE_ERRORS: &str = "/zfsbootmenu/have_errors";
+
+/// Asserts that nothing was written, created or removed on `fake` but the
+/// error line and the mark the kernel log leaves for it.
+fn only_logged(fake: &FakeSystem) {
+    let logged = [Path::new("/dev/kmsg"), Path::new(HAVE_ERRORS)];
+    let operations = fake.files.operations();
+    assert!(
+        operations.iter().all(|operation| match operation {
+            FileOperation::Append(path, _) | FileOperation::Write(path, _) => {
+                logged.contains(&path.as_path())
+            }
+            _ => false,
+        }),
+        "{operations:#?}"
+    );
 }
 
 /// Sets `fake`'s mountinfo to `lines`, the image's root first.
@@ -148,22 +179,9 @@ fn a_root_path_through_a_link_in_the_state_is_refused() {
     );
     // Nothing is written, created or removed but the error line and the
     // mark the kernel log leaves for it.
-    let logged = [
-        Path::new("/dev/kmsg"),
-        Path::new("/zfsbootmenu/have_errors"),
-    ];
-    let operations = fake.files.operations();
-    assert!(
-        operations.iter().all(|operation| match operation {
-            FileOperation::Append(path, _) | FileOperation::Write(path, _) => {
-                logged.contains(&path.as_path())
-            }
-            _ => false,
-        }),
-        "{operations:#?}"
-    );
+    only_logged(&fake);
     let mut paths = fake.files.paths();
-    paths.retain(|path| *path != logged[1]);
+    paths.retain(|path| *path != Path::new(HAVE_ERRORS));
     assert_eq!(paths, before);
 }
 
@@ -173,26 +191,16 @@ fn a_root_path_through_a_mount_in_the_state_is_refused() {
     // there by `zfs mount -a` in the recovery shell.
     let fake = machine("off");
     table(&fake, &[line(40, &format!("{ENVIRONMENTS}/tank/ROOT"))]);
-
-    let error = open_on(&fake, "tank/ROOT/be").unwrap_err();
-
-    assert!(matches!(error, ChrootError::Mount(_)), "{error:?}");
-    let lines = ran(&fake);
-    assert!(
-        !lines.iter().any(|line| line.contains("mount")),
-        "{lines:#?}"
-    );
-    assert_eq!(fake.files.operations(), []);
-    assert_eq!(
-        check(&fake.files, Path::new(BASE), Path::new(MP)),
-        Err(format!("{ENVIRONMENTS}/tank/ROOT is a mount point"))
-    );
+    let said = refused(&fake, "tank/ROOT/be");
+    let why = format!("tank/ROOT/be is not mounted: {ENVIRONMENTS}/tank/ROOT is a mount point");
+    assert!(said.contains(&why), "{said}");
+    only_logged(&fake);
     // The directory of the environments is on the way too.
+    let fake = machine("off");
     table(&fake, &[line(40, ENVIRONMENTS)]);
-    assert_eq!(
-        check(&fake.files, Path::new(BASE), Path::new(MP)),
-        Err(format!("{ENVIRONMENTS} is a mount point"))
-    );
+    let said = refused(&fake, "tank/ROOT/be");
+    let why = format!("tank/ROOT/be is not mounted: {ENVIRONMENTS} is a mount point");
+    assert!(said.contains(&why), "{said}");
 }
 
 #[test]
@@ -227,33 +235,20 @@ fn a_root_path_whose_names_cannot_be_read_is_refused() {
 }
 
 #[test]
-fn a_mount_point_outside_the_state_directory_is_refused() {
-    let fake = machine("off");
-    let base = Path::new(BASE);
-    for at in [
-        "/mnt",
-        "/x/y/z/w/v/mnt",
-        "/zfsbootmenu/../etc/mnt",
-        "tank/ROOT/be/mnt",
-    ] {
-        assert_eq!(
-            check(&fake.files, base, Path::new(at)),
-            Err(format!("{at} is not below /zfsbootmenu")),
-        );
-    }
+fn a_link_on_the_root_s_way_is_named_in_full() {
     // The link's own path, in full, and its target are the reason.
+    let fake = machine("off");
     fake.files
         .symlink(format!("{ENVIRONMENTS}/tank/ROOT"), "/etc");
-    assert_eq!(
-        check(&fake.files, base, Path::new(MP)),
-        Err(format!("{ENVIRONMENTS}/tank/ROOT is a link to /etc"))
-    );
+    let said = refused(&fake, "tank/ROOT/be");
+    let why = format!("tank/ROOT/be is not mounted: {ENVIRONMENTS}/tank/ROOT is a link to /etc");
+    assert!(said.contains(&why), "{said}");
     // The directory of the environments is walked too.
+    let fake = machine("off");
     fake.files.symlink(ENVIRONMENTS, "/tmp");
-    assert_eq!(
-        check(&fake.files, base, Path::new(MP)),
-        Err(format!("{ENVIRONMENTS} is a link to /tmp"))
-    );
+    let said = refused(&fake, "tank/ROOT/be");
+    let why = format!("tank/ROOT/be is not mounted: {ENVIRONMENTS} is a link to /tmp");
+    assert!(said.contains(&why), "{said}");
 }
 
 #[test]
@@ -550,9 +545,7 @@ fn mountinfo_escapes_are_read_as_the_kernel_writes_them() {
     let fake = machine("off");
     let prefix = "/zfsbootmenu/environments/tank/my\\040be";
     table(&fake, &[line(40, prefix)]);
-    let at = Path::new("/zfsbootmenu/environments/tank/my be/x/mnt");
-    assert_eq!(
-        check(&fake.files, Path::new(BASE), at),
-        Err("/zfsbootmenu/environments/tank/my be is a mount point".to_owned())
-    );
+    let said = refused(&fake, "tank/my be/x");
+    let why = "tank/my be/x is not mounted: /zfsbootmenu/environments/tank/my be is a mount point";
+    assert!(said.contains(why), "{said}");
 }

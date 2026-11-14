@@ -226,3 +226,44 @@ fn the_teardown_hooks_learn_what_was_loaded_and_by_what() {
         }
     }
 }
+
+#[test]
+fn a_boot_whose_state_path_runs_through_a_link_opens_the_emergency_shell_and_runs_no_hook() {
+    // A link that root planted on a directory of the state (SB19).
+    let _secrets = crate::testing::booting();
+    let fake = FakeSystem::new();
+    let _log = fake_log(&fake);
+    fake.files
+        .dir("/etc")
+        .symlink("/zfsbootmenu/environments/tank", "/etc")
+        .file_with_mode("/libexec/hooks/boot-sel.d/10-look", "#!/bin/sh\n", 0o755);
+    fake.kernel.answer(Loads::Accepted);
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "-\n");
+    fake.runner.respond_program("mount", 0, "");
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
+    let shells = Shells::default();
+
+    kexec_kernel(
+        &fake.context(),
+        &ConsoleInteraction::new(fake.system()),
+        &state,
+        &BootSettings::default(),
+        &selected,
+        &shells,
+    );
+
+    let lines = fake.runner.lines();
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.starts_with("mount") || line.contains("hooks")),
+        "{lines:#?}"
+    );
+    assert!(fake.kernel.loaded().is_empty());
+    let messages = shells.messages.lock().unwrap().concat();
+    assert!(messages.contains("unable to mount"), "{messages}");
+    let why = "tank/ROOT/void is not mounted: /zfsbootmenu/environments/tank is a link to /etc";
+    assert!(fake.kmsg().contains(why), "{}", fake.kmsg());
+}

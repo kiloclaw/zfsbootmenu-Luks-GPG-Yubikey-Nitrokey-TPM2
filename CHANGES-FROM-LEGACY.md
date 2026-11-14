@@ -650,14 +650,30 @@ same commands. The menu also restores files from a snapshot, which the legacy me
 - **Before:** a dataset's state was `/zfsbootmenu/environments/<name>`, so that of `pool/a/mnt` was `pool/a`'s mount
   point: while `pool/a` was mounted, a kernel search of `pool/a/mnt` mounted it, and wrote its kernel list and command
   line cache, inside `pool/a`'s root, through its links, so that a link `mnt -> /etc` there put it over ZFSBootMenu's
-  `/etc`. A dataset `pool/a/kernels` or `pool/a/kcl` and `pool/a`'s own files took each other's place.
+  `/etc`. A dataset `pool/a/kernels` or `pool/a/kcl` and `pool/a`'s own files took each other's place. Every mount
+  but the chroot's followed the links and mounts on its path. When `umount -R` failed, the recursive unmount's
+  fallback matched `^<path>` in `/proc/self/mounts`, so unmounting `pool/a`'s `mnt` also took `mnt@s/mnt` (the
+  snapshot of a child `pool/a/mnt`) and `mnt x/mnt` (a child `pool/a/mnt x`), and never found a path with a space.
 - **Now:** a piece of the name that is `mnt`, `kernels` or `kcl` gets a `+` before it in these paths: `pool/a/mnt` is
   mounted on `/zfsbootmenu/environments/pool/a/+mnt/mnt`. Every other name keeps its path. The library's
   `be_location` runs Rust code and prints the same path, so the legacy `mount_zfs`, `find_be_kernels`, `select_kernel`
   and `kernel_kcl_cache` that hooks and the recovery shell run use it too; where `zbm` prints nothing, the legacy
   function answers. A chroot of `pool/a/mnt` opens while `pool/a` is mounted. Images of the legacy runtime keep the
-  old paths.
-- **Why:** a name chosen by whoever made the pool placed ZFSBootMenu's mounts and files over the image's.
+  old paths. Every mount the Rust runtime makes of a dataset, not only the chroot's (the boot, the kernel search of an
+  environment or a snapshot, a key source, the menu's changes), is refused where its path in ZFSBootMenu's state
+  passes through a link or a mount point, `/zfsbootmenu` itself included, where another filesystem is mounted on the
+  path itself, or where `/proc/self/mountinfo` cannot be read. An error line says why, as
+  `pool/a is not mounted: /zfsbootmenu/environments/pool is a link to /etc`, and each caller fails as when the dataset
+  cannot be mounted: the boot opens the emergency shell and runs no `boot-sel.d` hook, the environment shows no
+  kernels, the key source's key is asked for. The same dataset left mounted on its own path is mounted again over it,
+  as before. The legacy `mount_zfs` and `find_be_kernels` of the hook library mount without this check until they run
+  Rust code (SB14). In an addition to this change, when `umount -R` fails, the recursive unmount's fallback takes the
+  mount points at or below the path from `/proc/self/mountinfo`, comparing whole names, so it takes no other
+  dataset's mount and finds a path with a space.
+- **Why:** a name chosen by whoever made the pool placed ZFSBootMenu's mounts and files over the image's. A link that
+  root planted in the state, or a dataset whose `mountpoint` is `/zfsbootmenu` or a directory in it (mounted by
+  `zfs mount -a` in the recovery shell), would carry every later mount there elsewhere. The legacy fallback's string
+  match unmounted other datasets that a front end may be using.
 
 ### Rollback has no safety snapshot
 

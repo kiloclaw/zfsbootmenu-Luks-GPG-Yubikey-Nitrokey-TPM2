@@ -1,12 +1,12 @@
-//! The root of a chroot on its own path (SB16): the path is checked
-//! before the filesystem is mounted there ([`check`]), so that it passes
-//! through no link and no other mount from the state directory down; the
-//! root's line in the kernel's table is read right after ([`Root::new`]);
-//! and the teardown unmounts by the path only while that check still holds
-//! and the root is there under no other mount of its filesystem
-//! ([`Root::found`]), then makes sure by the root's mount ID that nothing
-//! of it stays mounted ([`Root::tear_down`]), since `umount -R` takes the
-//! topmost mount on a path, not the chroot's.
+//! The root of a chroot on its own path (SB16): `zbm_bootenv` mounts it
+//! only where the path passes through no link and no other mount from the
+//! state directory down (SB19); the root's line in the kernel's table is
+//! read right after ([`Root::new`]); and the teardown unmounts by the path
+//! only while no link or mount has appeared on its way
+//! ([`InRoot::first_obstacle`]) and the root is there under no other mount
+//! of its filesystem ([`Root::found`]), then makes sure by the root's mount
+//! ID that nothing of it stays mounted ([`Root::tear_down`]), since
+//! `umount -R` takes the topmost mount on a path, not the chroot's.
 
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -19,40 +19,6 @@ use zbm_types::FilesystemName;
 
 /// The most lazy unmounts of the root's path in one teardown.
 const LAZY_ROUNDS: usize = 8;
-
-/// Why nothing is to be mounted on `at`, if it is not: `at` is not below
-/// `base`, the state directory; or a name of `at` below `base` is a
-/// symbolic link, or could not be read ([`InRoot::first_link`]); or a
-/// directory on the way, below `base` and above `at`, is a mount point, so
-/// that `at` runs through another filesystem's root. `at` itself may be
-/// one: a filesystem left mounted there is mounted again over it, as
-/// before.
-pub(super) fn check(files: &dyn Files, base: &Path, at: &Path) -> Result<(), String> {
-    let Some(walk) = at.strip_prefix(base).ok().and_then(InRoot::new) else {
-        return Err(format!("{} is not below {}", at.display(), base.display()));
-    };
-    match walk.first_link(files, base) {
-        Ok(None) => {}
-        Ok(Some((link, target))) => {
-            let link = link.under(base);
-            return Err(format!(
-                "{} is a link to {}",
-                link.display(),
-                target.display()
-            ));
-        }
-        Err(error) => return Err(error.to_string()),
-    }
-    let table = files.read(Path::new(MOUNTINFO)).unwrap_or_default();
-    let on_the_way = at.ancestors().skip(1).take_while(|path| *path != base);
-    let mounted = on_the_way
-        .filter(|path| mounts(&table).any(|listed| listed.point == path.as_os_str().as_bytes()))
-        .last();
-    match mounted {
-        Some(path) => Err(format!("{} is a mount point", path.display())),
-        None => Ok(()),
-    }
-}
 
 /// What the teardown finds on the root's path.
 #[derive(Debug, Eq, PartialEq)]
@@ -75,7 +41,7 @@ pub(super) enum Found {
 /// below which state directory, the filesystem, and its line in the
 /// kernel's table, read right after the mount.
 pub(super) struct Root {
-    /// The state directory, from which [`check`] walks.
+    /// The state directory, from which the teardown walks to the root.
     base: PathBuf,
     /// The mount point.
     at: PathBuf,
@@ -109,19 +75,27 @@ impl Root {
         &self.at
     }
 
-    /// What is on the root's path now: [`Found::Left`] where [`check`]
-    /// refuses the path now, since a mount or a link on its way has
-    /// appeared since the root was mounted, or where the topmost mount on
-    /// it is another root of the filesystem (another chroot's, or the boot
-    /// path's), which is not this chroot's to unmount.
+    /// What is on the root's path now: [`Found::Left`] where the path is
+    /// not below the state directory, or a link or a mount on its way has
+    /// appeared since the root was mounted ([`InRoot::first_obstacle`]),
+    /// or where the topmost mount on it is another root of the filesystem
+    /// (another chroot's, or the boot path's), which is not this chroot's
+    /// to unmount. The links are walked where the kernel's table could not
+    /// be read too; it is [`Found::Unread`] then.
     pub(super) fn found(&self, files: &dyn Files) -> Found {
-        if let Err(why) = check(files, &self.base, &self.at) {
-            return Found::Left(why);
+        let table = files.read(Path::new(MOUNTINFO));
+        let Some(walk) = self.at.strip_prefix(&self.base).ok().and_then(InRoot::new) else {
+            let (at, base) = (self.at.display(), self.base.display());
+            return Found::Left(format!("{at} is not below {base}"));
+        };
+        let listed = table.as_deref().unwrap_or_default();
+        if let Some(obstacle) = walk.first_obstacle(files, &self.base, listed) {
+            return Found::Left(obstacle.to_string());
         }
         let Some(ours) = &self.line else {
             return Found::Unread;
         };
-        let Ok(table) = files.read(Path::new(MOUNTINFO)) else {
+        let Ok(table) = table else {
             return Found::Unread;
         };
         let point = self.at.as_os_str().as_bytes();

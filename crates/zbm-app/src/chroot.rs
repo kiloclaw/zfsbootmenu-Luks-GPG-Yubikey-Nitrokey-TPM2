@@ -253,7 +253,8 @@ fn ask_and_unlock(
 
 /// Mounts `fs` on its mount point in the state directory, read/write when
 /// `writable`, where that path passes through no link and no other mount
-/// ([`root::check`]), and reads its mount ID; this system's
+/// and holds no other filesystem, as `zbm_bootenv::mount_zfs` checks for
+/// every mount of a filesystem, and reads its mount ID; this system's
 /// `/etc/resolv.conf`, read-only, over the filesystem's, before anything
 /// else is mounted below it ([`resolv::name_servers`]); then, as
 /// `zfs-chroot` did, the kernel's file systems ([`kernel::mount`]): `/tmp`
@@ -276,12 +277,6 @@ fn mount<'c>(
     writable: bool,
 ) -> Result<Mounts<'c>, ChrootError> {
     let files = context.files();
-    let at = state.mount_point(&fs.to_string());
-    if let Err(why) = root::check(files, state.base(), &at) {
-        let why = Printable(&why).to_string();
-        zbm_trace::error!("{fs} is not mounted: {why}"; %fs, %why);
-        return Err(ChrootError::Mount(fs.clone()));
-    }
     let root = if writable {
         zbm_bootenv::mount_zfs_writable(context, state, fs.dataset(), Noise::Shown)
     } else {

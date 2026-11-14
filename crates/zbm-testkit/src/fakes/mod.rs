@@ -38,7 +38,8 @@ use crate::FakeRunner;
 pub struct FakeSystem {
     /// External programs.
     pub runner: FakeRunner,
-    /// Files: an empty root, `/dev/kmsg`, and nothing else.
+    /// Files: an empty root, `/dev/kmsg`, an empty
+    /// `/proc/self/mountinfo` (nothing mounted), and nothing else.
     pub files: FakeFiles,
     /// The clock, shared with the console.
     pub clock: FakeClock,
@@ -76,6 +77,9 @@ impl FakeSystem {
         let clock = FakeClock::new();
         let files = FakeFiles::new();
         files.device("/dev/kmsg");
+        // Code that mounts reads the table first, and refuses where it
+        // cannot (SB19).
+        files.file("/proc/self/mountinfo", "");
         FakeSystem {
             runner: FakeRunner::new(),
             files,

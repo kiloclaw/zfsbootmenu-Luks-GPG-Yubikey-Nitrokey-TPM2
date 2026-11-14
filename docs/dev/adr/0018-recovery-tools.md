@@ -530,9 +530,10 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
 - **The chroot** needed five mounts, not four (`bind`, `proc`, `sysfs`, `devpts` and the chroot's `efivarfs`), and
   `mount_esp` a sixth, `Mount::block` (point 10); `devpts` is tested after the bind of `/dev`, as the script did; the
   root's guard unmounts recursively, as `recursive_umount` took what the user mounted inside; the filesystem mounts
-  through `zbm_bootenv::mount_zfs`; the authority is proven before anything is imported or mounted. `zfs-chroot` blocks
-  `SIGHUP`, `SIGINT`, `SIGQUIT` and `SIGTERM` until it has unmounted, as the script's trap undid the mounts, so Ctrl-C
-  no longer ends it at the PIN or the question. After the menu's chroot the menu stays on its Recovery Tools.
+  through `zbm_bootenv::mount_zfs`, which checks its path (SB19); the authority is proven before anything is imported
+  or mounted. `zfs-chroot` blocks `SIGHUP`, `SIGINT`, `SIGQUIT` and `SIGTERM` until it has unmounted, as the script's
+  trap undid the mounts, so Ctrl-C no longer ends it at the PIN or the question. After the menu's chroot the menu
+  stays on its Recovery Tools.
 - **Name servers in the chroot,** after the ADR (ROADMAP.md SB15): point 6's mounts gained the name servers, first
   after the filesystem. Where the image has an `/etc/resolv.conf` that is not empty, it is bound read-only over the
   environment's, whose links are followed inside the chroot's root (`zbm_app::chroot::inside`, moved to
@@ -549,7 +550,8 @@ shell's `zfs-chroot` and a hook's `zfs_chroot` alike.
   ZFSBootMenu's state passes through no link and no other mount; at teardown each mount is walked again, one that a
   link now passes through is left to the root's, and the root is taken by `umount -R`, then `umount -l` while its
   mount ID is listed, at most 8 times. The environment's programs still run as root in ZFSBootMenu's namespace once
-  the shell's probe ran (threat model R10; confinement is SB18), and the other callers of the root's mount are SB19.
+  the shell's probe ran (threat model R10; confinement is SB18); the other callers check the same path since SB19
+  (`mount_as`); the two races of the root's mount ID are SB18's.
   Its VM step, the chroot of `tplain/crafted` in `runtime-rust-recovery`, is the maintainer's to run.
 - **`zkexec`** takes a boot environment and refuses a snapshot; it searches the environment's kernels first, so its
   command line is the menu's.

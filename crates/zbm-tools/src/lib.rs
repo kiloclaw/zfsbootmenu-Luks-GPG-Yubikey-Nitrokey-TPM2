@@ -5,9 +5,10 @@
 //! `Command`.
 //!
 //! The crate also finds, for a chroot, where a path below its root leads,
-//! never through this system's links ([`mount::inside`]), and reads the
-//! kernel's table of mounts back ([`mount::table`]); neither runs a
-//! program.
+//! never through this system's links, and what on the way to a mount
+//! point would put a filesystem in another's root ([`mount::inside`]), and
+//! reads the kernel's table of mounts back ([`mount::table`]); neither
+//! runs a program.
 //!
 //! The functions keep the command lines and the streams of the legacy code:
 //! where a program's output goes (to the console, nowhere, or back to the

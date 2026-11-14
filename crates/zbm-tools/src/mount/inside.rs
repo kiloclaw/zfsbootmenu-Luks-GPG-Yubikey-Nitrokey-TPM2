@@ -1,16 +1,22 @@
 //! Where a path leads in a chroot: its symbolic links followed inside the
 //! chroot's root, as the chroot's programs will follow them, never in this
 //! system's namespace, where an absolute link would lead out of the root
-//! ([`resolve`]); and the first link on a path below the root, with nothing
-//! followed ([`InRoot::first_link`]). Nothing here runs a program.
+//! ([`resolve`]); the first link on a path below the root, with nothing
+//! followed ([`InRoot::first_link`]); and the first link or mount point on
+//! the way to a path below a base, where a filesystem mounted on the path
+//! would be in another's root ([`InRoot::first_obstacle`]). Nothing here
+//! runs a program.
 
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fmt;
 use std::io;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 
 use zbm_platform::Files;
+
+use super::table::mounts;
 
 /// The symbolic links followed in one walk before it gives up, as Linux
 /// does.
@@ -105,6 +111,33 @@ impl InRoot {
         Ok(None)
     }
 
+    /// The first obstacle on the way from `base` to the path below it: a
+    /// name that is a symbolic link, or that could not be read
+    /// ([`InRoot::first_link`]); then the first directory below `base` and
+    /// above the path that `table`, the kernel's mountinfo, lists as a
+    /// mount point, so that the path runs through another filesystem's
+    /// root. `base` itself, and the path itself, are not looked up in the
+    /// table: the caller, which reads it, decides what the table means
+    /// for them, and what a table that could not be read means.
+    pub fn first_obstacle(&self, files: &dyn Files, base: &Path, table: &[u8]) -> Option<Obstacle> {
+        match self.first_link(files, base) {
+            Ok(None) => {}
+            Ok(Some((link, target))) => return Some(Obstacle::Link(link.under(base), target)),
+            Err(error) => return Some(Obstacle::Unread(error)),
+        }
+        let mut walked = InRoot::default();
+        let above = self.0.len().saturating_sub(1);
+        for name in self.0.iter().take(above) {
+            walked.0.push(name.clone());
+            let path = walked.under(base);
+            let point = path.as_os_str().as_bytes();
+            if mounts(table).any(|listed| listed.point == point) {
+                return Some(Obstacle::Mount(path));
+            }
+        }
+        None
+    }
+
     /// Whether the chroot covers the path with this system's files: it is
     /// one of the [`COVERED`] directories, or below one. Names are compared
     /// whole, so `/devices` is not covered.
@@ -177,6 +210,40 @@ impl fmt::Display for Unresolved {
             }
             Unresolved::TooManyLinks => formatter.write_str("too many symbolic links"),
             Unresolved::Io(error) => write!(formatter, "{error}"),
+        }
+    }
+}
+
+/// Why a filesystem mounted on a path below a base would not be there,
+/// on its own path ([`InRoot::first_obstacle`] for the names below the
+/// base; the caller for the base and the path itself).
+#[derive(Debug)]
+pub enum Obstacle {
+    /// A name on the way, the base or one below it, is a symbolic link:
+    /// the name and its target.
+    Link(PathBuf, PathBuf),
+    /// A directory on the way is a mount point: the base, a proper prefix
+    /// of the path below it, or the path itself with another filesystem
+    /// on it.
+    Mount(PathBuf),
+    /// A name on the way, or the kernel's table of mounts, could not be
+    /// read.
+    Unread(io::Error),
+}
+
+/// Why, in plain words. A link's target is bytes from outside, so a
+/// caller that shows it escapes it.
+impl fmt::Display for Obstacle {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Obstacle::Link(link, target) => write!(
+                formatter,
+                "{} is a link to {}",
+                link.display(),
+                target.display()
+            ),
+            Obstacle::Mount(path) => write!(formatter, "{} is a mount point", path.display()),
+            Obstacle::Unread(error) => write!(formatter, "{error}"),
         }
     }
 }

@@ -328,7 +328,11 @@ fn a_reset_exports_the_writable_pools_of_the_names_it_is_given() {
         Some(Event::Finished(Outcome::Failed { .. }))
     ));
 
+    // No `/proc/sysrq-trigger`, though the fakes have `/proc/self`.
     let no_proc = FakeSystem::new();
+    no_proc
+        .files
+        .fail("/proc/sysrq-trigger", std::io::ErrorKind::NotFound);
     let events = reset(&no_proc.system(), &[], "b");
     assert!(matches!(
         events.last(),
@@ -555,3 +559,4 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
 }
 
 mod files;
+mod mounts;

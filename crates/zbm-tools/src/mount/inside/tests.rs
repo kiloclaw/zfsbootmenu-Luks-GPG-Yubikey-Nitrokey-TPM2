@@ -527,3 +527,5 @@ proptest! {
         }
     }
 }
+
+mod obstacle;

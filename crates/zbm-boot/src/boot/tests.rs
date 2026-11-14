@@ -25,7 +25,8 @@ use crate::testing::{LINE_LOG_STUBS, Redirect, name, stub_lines};
 use zbm_bootenv::commandline::{ETC_HOSTID, SPL_HOSTID};
 use zbm_bootenv::hooks::Variables;
 use zbm_bootenv::kernels::Kernel;
-use zbm_bootenv::{encryption_root, find_kernels, locked_root, recursive_umount, select_kernel};
+use zbm_bootenv::{encryption_root, find_kernels, locked_root, select_kernel};
+use zbm_tools::mount::table::MOUNTINFO;
 
 /// A fake for every program the boot runs: it records each call and
 /// answers from `answers`, whose lines are `status<TAB>glob<TAB>output`
@@ -204,6 +205,7 @@ impl Machine {
         F: FnOnce(&System<'_>, &State<'_>, &mut Shells, &Path) -> String,
     {
         let dir = self.dir();
+        std::fs::write(dir.join("mountinfo"), "").expect("an empty table of mounts");
         let fake = FakeSystem::new();
         let bin = dir.join("bin");
         fake.runner.on(move |command| {
@@ -243,6 +245,9 @@ impl Machine {
             ("/dev/tpm0", &dir.join("no-tpm")),
             // The hooks' context files, which the legacy runtime has not.
             ("/run/zbm", &dir.join("run-zbm")),
+            // An empty table of mounts, whatever the host has mounted, so
+            // that each run checks the state's paths alike (SB19).
+            (MOUNTINFO, &dir.join("mountinfo")),
         ]);
         let system = System {
             files: &files,
@@ -458,47 +463,6 @@ fn boots_as_the_legacy_function_boots() {
 fn fake_log(fake: &FakeSystem) -> Installed {
     fake.files.dir("/zfsbootmenu");
     KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
-}
-
-#[test]
-fn recursive_unmounts_go_deepest_first() {
-    let fake = FakeSystem::new();
-    let _log = fake_log(&fake);
-    fake.files.file(
-        "/proc/self/mounts",
-        "tank/a /mnt/be zfs ro 0 0\n\
-             tank/a/b /mnt/be/usr zfs ro 0 0\n\
-             tank/a/c /mnt/be/usr/local zfs ro 0 0\n\
-             tank/d /mnt/other zfs ro 0 0\n\
-             tank/e /mnt/bee zfs ro 0 0\n",
-    );
-    fake.runner.respond("umount -R /mnt/be", 32, "");
-    fake.runner.respond("umount /mnt/be/usr", 32, "");
-    fake.runner.on(|command| {
-        (command.program() == "bash")
-            .then(|| Some(SystemRunner.run(command)))
-            .flatten()
-    });
-    let ok = recursive_umount(&fake.context(), Path::new("/mnt/be"));
-    assert!(ok.is_err());
-    let umounts: Vec<String> = fake
-        .runner
-        .lines()
-        .into_iter()
-        .filter(|line| line.starts_with("umount"))
-        .collect();
-    // `^/mnt/be` is a pattern, so /mnt/bee matches too, as in the legacy code.
-    assert_eq!(
-        umounts,
-        [
-            "umount -R /mnt/be",
-            "umount /mnt/be/usr/local",
-            "umount /mnt/be/usr",
-            "umount /mnt/bee",
-            "umount /mnt/be",
-        ]
-    );
-    assert!(fake.kmsg().contains("unable to unmount /mnt/be/usr"));
 }
 
 #[test]

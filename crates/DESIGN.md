@@ -328,7 +328,7 @@ short-lived callback processes need no server to ask.
 | `bootenvs` | the legacy menu (not the Rust runtime) | its `fzf` | one boot environment per line |
 | `environments/<dataset>/kernels` (`<dataset>` with its pieces `mnt`, `kernels` and `kcl` escaped, as above, here and in the next two rows) | kernel discovery | kernel selection, kernel screen, previews | `dataset<TAB>kernel<TAB>initramfs` lines |
 | `environments/<dataset>/kcl/<kernel>.kcl` | kernel discovery, command line cache | command line assembly | command line |
-| `environments/<dataset>/mnt` | mounting a boot environment | users | mount point |
+| `environments/<dataset>/mnt` | mounting a boot environment, only where no link or mount point is on the way from `BASE` down, `BASE` included, and no other filesystem is on it (SB19) | users | mount point |
 | `.keys/<key source>/<path>` | key caching | key loading | copies of ZFS key files, mode 0600; removed before `kexec` |
 | `.keys/<key source>/.lock` | key caching, while it runs | key caching | empty; locked with `flock` |
 | `.external_hooks` | external hook root | hook import | mount point |

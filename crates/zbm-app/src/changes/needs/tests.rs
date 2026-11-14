@@ -1,6 +1,7 @@
 //! Tests of the machine's needs, on a fake machine.
 
 use zbm_testkit::fakes::FakeSystem;
+use zbm_tools::mount::table::MOUNTINFO;
 
 use super::*;
 
@@ -154,9 +155,10 @@ fn keys_mounts_and_kernels_on_the_console() {
     );
 
     let unmountable = FakeSystem::new();
-    unmountable
-        .files
-        .file("/proc/self/mounts", "tank/ROOT/void /nowhere zfs ro 0 0\n");
+    unmountable.files.file(
+        MOUNTINFO,
+        "40 25 0:50 / /nowhere ro - zfs tank/ROOT/void ro\n",
+    );
     unmountable.runner.respond_program("mount", 32, "");
     unmountable.runner.respond_program("umount", 1, "");
     with_needs(&unmountable, true, |needs| {
@@ -166,6 +168,58 @@ fn keys_mounts_and_kernels_on_the_console() {
         );
         needs.unmount("/nowhere");
     });
+}
+
+/// A link that root planted on a directory of the state, which every
+/// mount of a filesystem below it would follow (SB19).
+fn planted() -> FakeSystem {
+    let fake = FakeSystem::new();
+    fake.files
+        .dir("/etc")
+        .symlink("/zfsbootmenu/environments/tank", "/etc");
+    fake.runner
+        .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+    fake
+}
+
+/// Whether anything ran on `fake` that mounts.
+fn has_mounted(fake: &FakeSystem) -> bool {
+    fake.runner
+        .lines()
+        .iter()
+        .any(|line| line.starts_with("mount"))
+}
+
+#[test]
+fn a_change_whose_state_path_runs_through_a_link_mounts_nothing() {
+    let fake = planted();
+    with_needs(&fake, true, |needs| {
+        assert_eq!(
+            needs.mount(&dataset("tank/ROOT/void")),
+            Err(vec!["tank/ROOT/void could not be mounted".to_owned()])
+        );
+        assert_eq!(
+            needs.mount_writable(&dataset("tank/ROOT/void")),
+            Err(vec![
+                "tank/ROOT/void could not be mounted read/write".to_owned()
+            ])
+        );
+    });
+    assert!(!has_mounted(&fake), "{:#?}", fake.runner.lines());
+}
+
+#[test]
+fn a_snapshot_whose_state_path_runs_through_a_link_has_no_kernels() {
+    let fake = planted();
+    fake.files
+        .file("/etc/ROOT/void@first/mnt/boot/vmlinuz-1", "")
+        .file("/etc/ROOT/void@first/mnt/boot/initramfs-1.img", "");
+    with_needs(&fake, true, |needs| {
+        let snapshot: SnapshotName = "tank/ROOT/void@first".parse().unwrap();
+        assert!(!needs.has_kernels(&snapshot));
+    });
+    assert!(!has_mounted(&fake), "{:#?}", fake.runner.lines());
+    assert!(fake.files.text("/etc/ROOT/void@first/kernels").is_none());
 }
 
 /// A new default is recorded in the state directory, and the key hooks of
