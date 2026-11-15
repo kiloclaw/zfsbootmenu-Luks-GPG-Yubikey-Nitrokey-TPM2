@@ -38,10 +38,11 @@ predicts the values for a boot environment.**
    environment, the command line, or the separator. It starts with a record `start` for PCR 8 and one for PCR 9,
    which hold what the PCRs held before ZFSBootMenu's first extension: on a UEFI machine the firmware or the EFI stub
    of ZFSBootMenu's own kernel may have extended PCR 9 already, so a replay from zeros would be wrong. It is written:
-   - into the initramfs the kernel loads, at `/.extra/zfsbootmenu/tpm-measure.json`, in a cpio archive appended to
-     the copy of the initramfs; the initramfs is freed at `switch_root`, and `/run` is a tmpfs over the initramfs's
-     own, so the host packages' dracut module and mkinitcpio hook `zfsbootmenu-measured`, in the boot environment's
-     initramfs, copy it to `/run/log/zfsbootmenu/tpm-measure.json`, which the booted system keeps; and
+   - into the initramfs the kernel loads, at `/.extra/zfsbootmenu/tpm-measure.json`, in a cpio archive put in front
+     of the copy of the initramfs (first appended to it; see the note under *Decision*); the initramfs is freed at
+     `switch_root`, and `/run` is a tmpfs over the initramfs's own, so the host packages' dracut module and
+     mkinitcpio hook `zfsbootmenu-measured`, in the boot environment's initramfs, copy it to
+     `/run/log/zfsbootmenu/tpm-measure.json`, which the booted system keeps; and
    - to the saved logs on the ESP (`EFI/zfsbootmenu/logs/<boot>/`, ROADMAP.md #9) when they are saved.
 
    The log is not measured: it cannot hold its own digest, and the prediction needs the initramfs as it is on the
@@ -109,8 +110,11 @@ cannot see (point 3); the starts were added for UEFI machines.
 Accepted as proposed, on 30 October 2026:
 
 1. **The PCRs:** 8 for the command line and 9 for the kernel and the initramfs, as GRUB.
-2. **The event log:** CEL-JSON, in a cpio appended to the initramfs, at `/run/log/zfsbootmenu/tpm-measure.json` in
-   the booted system, and in the saved logs on the ESP when they are saved.
+2. **The event log:** CEL-JSON, in a cpio in front of the initramfs, at `/run/log/zfsbootmenu/tpm-measure.json` in
+   the booted system, and in the saved logs on the ESP when they are saved. (Changed on 15 November 2026: the
+   archive was appended to the initramfs at first, and the Ubuntu 26.10 test boot environment's kernel, 7.3, did not
+   unpack it after its compressed initramfs, so the log was lost. An uncompressed archive in front of a compressed
+   one is the layout of early microcode, which every kernel unpacks.)
 3. **The separator:** PCR 9 is extended with `zbm-unsealed` after the last unseal, and the documentation advises
    binding ZFSBootMenu's TPM2 tokens to PCR 9 (with 7).
 4. **The prediction:** `zbm measure predict` and `zbm measure log`, applets of `zbm`, shipped to the booted system by

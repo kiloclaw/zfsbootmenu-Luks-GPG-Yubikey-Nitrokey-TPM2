@@ -118,11 +118,11 @@ fn the_files_and_the_command_line_go_into_the_tpm_and_the_copies_hold_the_log() 
         .find(|line| line.starts_with("tpm2_pcrextend"));
     let kernel_sha256 = hex(events[0].digests.get(Bank::Sha256).unwrap());
     assert!(first.unwrap().contains(&format!("sha256={kernel_sha256}")));
-    // The kernel loads the bytes measured; the initramfs has the log after.
+    // The kernel loads the bytes measured; the initramfs has the log before.
     assert_eq!(fake.files.contents(&copies.kernel).unwrap(), b"KERNEL");
     let initramfs = fake.files.contents(&copies.initramfs).unwrap();
     let archive = measure::cpio(measure::LOG_PATH, log.as_bytes());
-    assert_eq!(initramfs, [b"INITRD".as_slice(), &archive].concat());
+    assert_eq!(initramfs, [archive.as_slice(), b"INITRD"].concat());
     assert!(copies.kernel.starts_with("/zfsbootmenu/measured"));
 
     copies.remove(&fake.context());

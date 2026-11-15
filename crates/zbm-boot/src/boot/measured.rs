@@ -7,9 +7,9 @@
 //!
 //! The kernel loads copies of the files, in the state directory: the bytes
 //! measured are the bytes loaded, whatever happens to the boot
-//! environment's files after; and the initramfs's copy has the log
-//! appended, in a cpio archive (`zbm_crypt::measure::cpio`), for the
-//! booted system. Without a TPM nothing is measured, and the boot goes on;
+//! environment's files after; and the initramfs's copy has the log in
+//! front, in a cpio archive (`zbm_crypt::measure::cpio`), for the booted
+//! system. Without a TPM nothing is measured, and the boot goes on;
 //! with one that refuses an extension, the boot goes on too, and the log
 //! leaves the event out (measured boot is evidence for the booted system,
 //! not a gate of ZFSBootMenu's).
@@ -45,7 +45,7 @@ const DEVICES: [&str; 2] = ["/dev/tpmrm0", "/dev/tpm0"];
 pub struct Copies {
     /// The kernel's copy.
     pub kernel: PathBuf,
-    /// The initramfs's copy, with the event log appended.
+    /// The initramfs's copy, behind the event log's archive.
     pub initramfs: PathBuf,
 }
 
@@ -247,12 +247,15 @@ fn append(context: &Context<'_>, (event, banks): (&Event, &[Bank]), log: &Path) 
 }
 
 /// Writes the copies of the kernel and the initramfs in `state`, the
-/// event log `log` appended to the initramfs's.
+/// initramfs's behind an archive of the event log `log`: an uncompressed
+/// archive before a compressed one is the layout every kernel unpacks
+/// (that of early microcode), where one after it is lost when the kernel
+/// cannot tell where the compressed archive ends.
 fn write_copies(
     context: &Context<'_>,
     state: &State<'_>,
     log: &Path,
-    (kernel, mut initramfs): (Vec<u8>, Vec<u8>),
+    (kernel, initramfs): (Vec<u8>, Vec<u8>),
 ) -> Option<Copies> {
     let dir = state.base().join(COPIES);
     let copies = Copies {
@@ -260,12 +263,13 @@ fn write_copies(
         initramfs: dir.join("initramfs"),
     };
     let text = context.files().read(log).unwrap_or_default();
-    initramfs.extend_from_slice(&measure::cpio(measure::LOG_PATH, &text));
+    let mut loaded = measure::cpio(measure::LOG_PATH, &text);
+    loaded.extend_from_slice(&initramfs);
     let written = context
         .files()
         .create_dir_all(&dir)
         .and_then(|()| context.files().write(&copies.kernel, &kernel))
-        .and_then(|()| context.files().write(&copies.initramfs, &initramfs));
+        .and_then(|()| context.files().write(&copies.initramfs, &loaded));
     match written {
         Ok(()) => Some(copies),
         Err(error) => {

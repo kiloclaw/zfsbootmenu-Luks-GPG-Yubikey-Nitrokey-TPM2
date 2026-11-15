@@ -22,7 +22,7 @@
 //! own initramfs, so a replay from zeros would not give what the TPM holds.
 //!
 //! The log is not measured: it is evidence, which the PCRs check. It goes
-//! to the boot environment in a cpio archive appended to its initramfs
+//! to the boot environment in a cpio archive put in front of its initramfs
 //! ([`cpio`]), at [`LOG_PATH`].
 
 use std::fmt::Write as _;
@@ -389,8 +389,8 @@ fn parse_record(record: &str) -> Option<Event> {
 }
 
 /// A cpio archive (`newc`) holding `contents` at `path`, relative to the
-/// root, with its parent directories, ended by its trailer: the kernel
-/// unpacks it after the initramfs it is appended to.
+/// root, with its parent directories, ended by its trailer and padded to
+/// 512 bytes: the kernel unpacks it, then the initramfs that follows it.
 pub fn cpio(path: &str, contents: &[u8]) -> Vec<u8> {
     let mut archive = Vec::new();
     let mut number = 1;

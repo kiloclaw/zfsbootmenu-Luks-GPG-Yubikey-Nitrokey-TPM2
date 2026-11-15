@@ -2,7 +2,7 @@
 # vim: softtabstop=2 shiftwidth=2 expandtab
 #
 # The boot environment's side of measured boot (ROADMAP.md SE10, ADR 0008):
-# ZFSBootMenu appends its TPM event log to the initramfs it boots, at
+# ZFSBootMenu puts its TPM event log in front of the initramfs it boots, at
 # /.extra/zfsbootmenu/tpm-measure.json, which the initramfs frees at
 # switch_root; this module's hook copies it to /run/log/zfsbootmenu/,
 # which the booted system keeps. A boot that ZFSBootMenu did not measure has

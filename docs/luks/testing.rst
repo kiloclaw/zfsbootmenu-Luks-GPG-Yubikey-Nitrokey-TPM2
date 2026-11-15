@@ -932,6 +932,11 @@ Each fix of ZFSBootMenu's code has a regression test that fails without it.
   binding to the host's own TPM. ``keys-setup``, the device suites and ZFSBootMenu's ``clevis decrypt`` now set both
   variables, and each binding is checked against the software TPM right after ``clevis luks bind``. The serial log
   said nothing of either failure; the teardown hook ``15-journal.sh`` now prints the runtime's journal there.
+* On the same host, ``integrity-measured-rust`` found no event log in the boot environment, so none of its replays
+  could be checked. ZFSBootMenu appended the log's cpio archive to the boot environment's initramfs, and the kernel
+  of the Ubuntu 26.10 test boot environment, 7.3, said *Initramfs unpacking failed: invalid magic at start of
+  compressed archive* and dropped it. The archive now goes in front of the initramfs, the layout of early microcode,
+  which every kernel unpacks whatever the initramfs's compression (``integrity-measured``, ``measured::tests``).
 * Two sessions unlocking at the same time, such as the console and an SSH session, could record one volume
   twice, so ``zluks status`` listed it twice (15 of 200 rounds of the race test). Recording is now serialized
   (``edge.sh``).
