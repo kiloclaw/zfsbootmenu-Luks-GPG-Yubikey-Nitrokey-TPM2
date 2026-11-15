@@ -491,3 +491,4 @@ fn a_token_found_unsupported_after_its_pin_ends_without_asking_again() {
 }
 
 mod argon2id;
+mod legacy;

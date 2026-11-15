@@ -73,7 +73,7 @@ clevis-pin-tpm2
   check each clevis binding right after ``clevis luks bind``, so that a binding sealed to another TPM fails where it
   is made. They decrypt the token's JWE with ``clevis decrypt``, as ZFSBootMenu does, and not with ``clevis luks
   pass``, which misses a token behind another token where systemd's token plugins are installed (see `Problems found
-  and fixed`_). ZFSBootMenu's ``clevis decrypt`` also sets both, to ``LUKS_TPM2_TCTI``.
+  and fixed`_). ZFSBootMenu's ``clevis decrypt`` also sets both, to ``LUKS_TPM2_TCTI``, in either runtime.
 
 Running the Tests
 -----------------

@@ -125,6 +125,26 @@ off, and so that a change to the runtime adds its entry in the same commit.
   runtime's `zbm` without Bash.
   **Rust:** done; the plan is Rust, with golden plans of both runtimes (`crates/zbm-host/src/image/snapshots/`) and
   `crates/zbm/tests/image_shims.rs` for the shims.
+- [x] `SB21f`: a TPM2 PIN token that systemd 262 hardened with Argon2id (`--tpm2-with-pin=yes`; any
+  `tpm2_argon2id_*` field) went to the plugin, or to `luks_tpm2_native_unseal`, which derived the PIN the old way;
+  the TPM refused the right PIN, and each try counted towards its lockout. `luks_try_tpm2_token` now refuses such a
+  token before any PIN, plugin or TPM command, with the warning `TPM2 token <id> on <device> uses systemd 262's
+  Argon2id PIN, which this runtime does not support`, and returns 2. Tokens without a PIN are unchanged: without a
+  PIN, systemd checks the fields but derives nothing with them, and the legacy runtime does not look at them.
+  **Rust:** nothing to port: the Rust runtime derives the PIN with Argon2id and the passphrase with HKDF (`a8679252`,
+  `zbm_luks::keys::tpm2`). The difference is in `CHANGES-FROM-LEGACY.md`; the parity test
+  `legacy_refuses_argon2id_pin_tokens_before_the_plugin` covers the legacy side.
+- [x] `SB21f`: `luks_tpm2_native_unseal` read a signed PCR policy's public key as `tpm2-pubkey`, where systemd writes
+  `tpm2_pubkey`, so a signed-policy token was unsealed without its signature and every PIN was refused as wrong. It
+  now reads `tpm2_pubkey`, and such a token needs the plugin, as the comment above the check says.
+  **Rust:** done (`a3fff2c9`); `zbm_luks::keys::tpm2` reads `tpm2_pubkey`, and the parity test
+  `legacy_reads_systemd_s_tpm2_pubkey_field` checks that both runtimes refuse such a token for the plugin.
+- [x] `SB21f`: `luks_try_clevis_token` named the TPM to `clevis decrypt` in `TPM2TOOLS_TCTI` only.
+  `clevis-pin-tpm2`, which clevis 21 and later runs in place of its `tpm2` pin when it is installed (Fedora), reads
+  `TCTI`, and without it takes `/dev/tpmrm0`, so an image built on such a host ignored `LUKS_TPM2_TCTI`. `TCTI` is now
+  set beside `TPM2TOOLS_TCTI`.
+  **Rust:** done (`384ed1b3`); `zbm_crypt::clevis` sets both, and the parity test
+  `legacy_clevis_names_the_tpm_to_both_pins` checks that both runtimes name the same TPM in both variables.
 
 ## Legacy limitations the Rust runtime must not copy
 

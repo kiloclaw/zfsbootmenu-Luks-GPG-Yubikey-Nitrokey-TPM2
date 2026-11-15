@@ -262,9 +262,9 @@ included. `zluks` in the recovery shell and over SSH is unchanged.
 ### A TPM2 token the image cannot open asks for no PIN
 
 - **Before:** in an image without systemd's `systemd-tpm2` cryptsetup plugin, a TPM2 token with a PIN asked for the PIN
-  first, then said it needed the plugin. A token with a signed PCR policy was not recognised at all: the field was read
-  as `tpm2-pubkey`, where systemd writes `tpm2_pubkey`, so the token was unsealed without its signature and every PIN
-  was refused as wrong.
+  first, then said it needed the plugin. So did a token with a signed PCR policy; until SB21f, the legacy runtime did
+  not recognise one at all: it read the field as `tpm2-pubkey`, where systemd writes `tpm2_pubkey`, so the token was
+  unsealed without its signature and every PIN was refused as wrong.
 - **Now:** before any PIN is asked for, the log says that the token needs the plugin, and the next unlock method runs.
   This holds for a signed or pcrlock policy, a tool missing from the image and a token from before systemd 254. With the
   plugin, such tokens go to it, as before. A token whose Argon2id fields systemd's parser refuses is refused before any
@@ -275,9 +275,11 @@ included. `zluks` in the recovery shell and over SSH is unchanged.
 ### TPM2 PINs hardened with Argon2id unlock, within bounds of memory and work
 
 - **Before:** a TPM2 PIN token that systemd 262 enrolled with `--tpm2-with-pin=yes`, whose PIN is hardened with Argon2id
-  (the token's `tpm2_argon2id_memcost`, `_iterations` and `_lanes`) and whose passphrase is derived with HKDF, was
-  unsealed with the PIN derived the old way, by ZFSBootMenu or by the image's plugin of systemd 261. The TPM refused the
-  right PIN, each try counted towards its lockout, and the passphrase was asked for in the end.
+  (the token's `tpm2_argon2id_memcost`, `_iterations` and `_lanes`) and whose passphrase is derived with HKDF, is
+  refused by the legacy runtime before any PIN, plugin or TPM command, with the warning `TPM2 token <id> on <device>
+  uses systemd 262's Argon2id PIN, which this runtime does not support`; the next unlock method runs, in the end the
+  passphrase. Until SB21f it was unsealed with the PIN derived the old way, by the legacy code or by the image's plugin
+  of systemd 261: the TPM refused the right PIN, and each try counted towards its lockout.
 - **Now:** the Rust runtime derives the PIN with Argon2id, on one core, after the sealed object is loaded, and the
   passphrase with HKDF-SHA256, as systemd 262 does. Such a token never goes to a plugin, whatever the image holds; one
   that needs it (a signed or pcrlock policy, tpm2-tools missing) is refused before any PIN. Before each PIN is asked for,
@@ -292,7 +294,9 @@ included. `zluks` in the recovery shell and over SSH is unchanged.
   instead of asking for the PIN again.
 - **Why:** systemd 262 makes Argon2id the default for PIN tokens. The bounds keep a header written by someone with the
   disk from making ZFSBootMenu allocate terabytes or derive for hours, and the plugin before systemd 262 cannot open
-  these tokens at all.
+  these tokens at all. The legacy runtime refuses them rather than derive them: it would have to give the PIN to
+  `openssl kdf` as an argument, which any process can read in `/proc` (threat model P1), as it already does for the
+  salted PIN of older tokens; refusing at least spends no try of the TPM's lockout.
 
 ### A clevis or TPM2 token that does not open says why
 

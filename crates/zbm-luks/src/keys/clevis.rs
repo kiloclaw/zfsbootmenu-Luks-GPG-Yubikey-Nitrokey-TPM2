@@ -84,6 +84,8 @@ mod tests {
     use zbm_platform::exec::{Output, Status};
     use zbm_platform::secret::Secret;
     use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::shell_quote;
+    use zbm_testkit::parity;
 
     fn clevis_machine(key: &'static [u8]) -> FakeSystem {
         let fake = FakeSystem::new();
@@ -214,5 +216,76 @@ mod tests {
         assert!(fake.kmsg().contains(
             "<4>ZFSBootMenu: clevis token 0 on /dev/sda needs clevis and jose in the image"
         ));
+    }
+
+    /// The TPM the legacy `luks_try_clevis_token` names to `clevis decrypt`
+    /// with `LUKS_TPM2_TCTI` set to `tcti`, as a fake `clevis` sees it:
+    /// `TCTI=... TPM2TOOLS_TCTI=...`, with `unset` for a variable not set.
+    fn legacy_clevis_tcti(tcti: &str) -> String {
+        let dir = zbm_testkit::TempDir::new("zbm-luks-legacy-clevis");
+        let seen = dir.write("seen", "");
+        dir.write_executable("bin/jose", "#!/bin/sh\ncat >/dev/null\necho a.b.c.d.e\n");
+        dir.write_executable(
+            "bin/clevis",
+            "#!/bin/sh\ncat >/dev/null\n\
+             echo \"TCTI=${TCTI-unset} TPM2TOOLS_TCTI=${TPM2TOOLS_TCTI-unset}\" >> \"$SEEN\"\n\
+             printf key\n",
+        );
+        dir.write_executable("bin/cryptsetup", "#!/bin/sh\ncat >/dev/null\n");
+        let prelude = format!(
+            "unset TCTI TPM2TOOLS_TCTI\nexport SEEN={} PATH={}:\"$PATH\" LUKS_TPM2_TCTI={}",
+            shell_quote(&seen.to_string_lossy()),
+            shell_quote(&dir.join("bin").to_string_lossy()),
+            shell_quote(tcti),
+        );
+        let json = r#"{"type":"clevis","keyslots":["3"],"jwe":{"protected":"x"}}"#;
+        let output = crate::testing::legacy_luks().code(&prelude).call(
+            "luks_try_clevis_token",
+            &["v", "/dev/sda", "0", json],
+            b"",
+        );
+        assert!(output.status.is_success(), "{}", output.stderr_text());
+        std::fs::read_to_string(seen).unwrap()
+    }
+
+    #[test]
+    fn legacy_clevis_names_the_tpm_to_both_pins() {
+        // clevis-pin-tpm2, which clevis runs in place of its tpm2 pin when it
+        // is installed, reads TCTI; tpm2-tools read TPM2TOOLS_TCTI.
+        let tcti = "swtpm:host=127.0.0.1,port=2321";
+        let mut parity = parity!("legacy_clevis_names_the_tpm_to_both_pins");
+        let legacy: String = parity.legacy(tcti, || legacy_clevis_tcti(tcti));
+        assert_eq!(legacy, format!("TCTI={tcti} TPM2TOOLS_TCTI={tcti}\n"));
+
+        let fake = clevis_machine(b"clevis-key");
+        let mut settings = Settings::new("/zfsbootmenu");
+        settings.tpm2_tcti = tcti.to_owned();
+        let args = [];
+        let target = crate::testing::target("v", "/dev/sda", &args);
+        with_session(&fake, &settings, |session| {
+            let token = crate::keys::tests::token(r#"{"keyslots":["3"]}"#);
+            assert!(session.try_clevis_token(target, &token).is_ok());
+        });
+        let calls = fake.runner.calls();
+        let decrypt = calls
+            .iter()
+            .find(|call| call.program() == "clevis")
+            .unwrap();
+        let named = |name: &str| {
+            decrypt
+                .get_env()
+                .iter()
+                .find(|(key, _)| key == name)
+                .and_then(|(_, value)| value.as_ref())
+                .map_or("unset".to_owned(), |value| {
+                    value.to_string_lossy().into_owned()
+                })
+        };
+        let rust = format!(
+            "TCTI={} TPM2TOOLS_TCTI={}\n",
+            named("TCTI"),
+            named("TPM2TOOLS_TCTI")
+        );
+        assert_eq!(rust, legacy);
     }
 }

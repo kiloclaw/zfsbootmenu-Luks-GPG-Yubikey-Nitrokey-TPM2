@@ -1,0 +1,9 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "swtpm:host=127.0.0.1,port=2321",
+      "result": "TCTI=swtpm:host=127.0.0.1,port=2321 TPM2TOOLS_TCTI=swtpm:host=127.0.0.1,port=2321\n"
+    }
+  ]
+}

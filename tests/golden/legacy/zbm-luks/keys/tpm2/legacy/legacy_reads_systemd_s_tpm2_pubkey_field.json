@@ -1,0 +1,23 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "plain",
+      "result": [
+        0,
+        "",
+        "",
+        "tpm2_load\ntpm2_startauthsession\ntpm2_unseal\ntpm2_flushcontext\ntpm2_flushcontext\n"
+      ]
+    },
+    {
+      "input": "signed",
+      "result": [
+        2,
+        "",
+        "DEBUG: TPM2 token uses a signed or pcrlock policy\n",
+        ""
+      ]
+    }
+  ]
+}

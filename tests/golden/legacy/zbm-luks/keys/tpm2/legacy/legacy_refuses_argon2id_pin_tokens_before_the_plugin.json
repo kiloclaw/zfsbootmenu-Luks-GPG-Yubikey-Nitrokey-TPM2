@@ -1,0 +1,59 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "token-tpm2-argon2id.json plugin=true",
+      "result": [
+        2,
+        "",
+        "WARN: TPM2 token 0 on /dev/sda uses systemd 262's Argon2id PIN, which this runtime does not support\n",
+        ""
+      ]
+    },
+    {
+      "input": "token-tpm2-argon2id.json plugin=false",
+      "result": [
+        2,
+        "",
+        "WARN: TPM2 token 0 on /dev/sda uses systemd 262's Argon2id PIN, which this runtime does not support\n",
+        ""
+      ]
+    },
+    {
+      "input": "token-tpm2-argon2id-f45.json plugin=true",
+      "result": [
+        2,
+        "",
+        "WARN: TPM2 token 0 on /dev/sda uses systemd 262's Argon2id PIN, which this runtime does not support\n",
+        ""
+      ]
+    },
+    {
+      "input": "token-tpm2-argon2id-f45.json plugin=false",
+      "result": [
+        2,
+        "",
+        "WARN: TPM2 token 0 on /dev/sda uses systemd 262's Argon2id PIN, which this runtime does not support\n",
+        ""
+      ]
+    },
+    {
+      "input": "token-tpm2-pin.json plugin=true",
+      "result": [
+        1,
+        "\nUnlock /dev/sda with the TPM\nTPM2 PIN (leave empty to use another method): \nThe TPM did not release the key (wrong PIN or changed PCRs).\n\nUnlock /dev/sda with the TPM\nTPM2 PIN (leave empty to use another method): \n",
+        "DEBUG: token 0 on /dev/sda failed (1): \n",
+        "tpm2_getcap\ncryptsetup open --type luks --token-only --token-id 0 /dev/sda v\ntpm2_getcap\n"
+      ]
+    },
+    {
+      "input": "token-tpm2.json with Argon2id fields plugin=true",
+      "result": [
+        1,
+        "",
+        "DEBUG: token 0 on /dev/sda failed (1): \n",
+        "cryptsetup open --type luks --token-only --token-id 0 /dev/sda v\ntpm2_load\ntpm2_flushcontext\n"
+      ]
+    }
+  ]
+}

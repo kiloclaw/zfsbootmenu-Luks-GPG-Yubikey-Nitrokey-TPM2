@@ -154,7 +154,10 @@ the TPM's lockout; the dialog says why, such as "This volume's TPM2 PIN needs 3.
 free.", and the next unlock method runs. While the PIN is derived, the dialog shows "Checking the PIN (Argon2id, 3.1
 GiB) ...". A token whose key the TPM released but which opens no key slot is not asked for again: the log says so.
 When a **tpm2-tools** command fails, the last lines it printed, with the TPM's response code, are in the journal at
-the debug level (**zbm debug journal --level debug**), without the authorization value.
+the debug level (**zbm debug journal --level debug**), without the authorization value. Images with the legacy runtime
+do not derive Argon2id PINs: they refuse such a token before any PIN, plugin or TPM command, with a warning in the log
+("TPM2 token 0 on /dev/sda uses systemd 262's Argon2id PIN, which this runtime does not support"), and move on to the
+next unlock method.
 
 When the TPM refuses PINs after too many wrong attempts (dictionary-attack lockout), ZFSBootMenu says so and moves on
 instead of asking for a PIN it cannot use.

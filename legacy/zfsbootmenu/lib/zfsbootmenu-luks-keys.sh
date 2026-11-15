@@ -309,7 +309,7 @@ luks_tpm2_native_unseal() {
   done
 
   # Signed PCR policies, pcrlock and pre-254 primary keys need the plugin
-  if [ -n "$( luks_json_str "${json}" tpm2-pubkey )" ] \
+  if [ -n "$( luks_json_str "${json}" tpm2_pubkey )" ] \
       || [ "$( luks_json_bool "${json}" tpm2_pcrlock )" = "true" ]; then
     zdebug "TPM2 token uses a signed or pcrlock policy"
     return 2
@@ -457,7 +457,7 @@ luks_fido2_native() {
 # arg4: token JSON
 # args: additional arguments for cryptsetup open
 # prints: prompts on the console
-# returns: 0 if the volume was opened
+# returns: 0 if the volume was opened, 2 if the token is unsupported
 
 luks_try_tpm2_token() {
   local name dev id json pin tries attempt ret secret cached work
@@ -490,6 +490,16 @@ luks_try_tpm2_token() {
     rm -f "${work}"
     [ "${ret}" -eq 0 ] && zinfo "unlocked ${dev} with TPM2"
     return "${ret}"
+  fi
+
+  # systemd 262 hardens the PIN with Argon2id (--tpm2-with-pin=yes) and derives
+  # the passphrase with HKDF. This runtime does neither: openssl would take the
+  # PIN as an argument, readable in /proc, and an older plugin derives the PIN
+  # the old way, which the TPM refuses and counts towards its lockout. So such
+  # a token is refused before any PIN, plugin or TPM command
+  if [[ "${json}" =~ \"tpm2_argon2id_[a-z_]*\"[[:space:]]*: ]]; then
+    zwarn "TPM2 token ${id} on ${dev} uses systemd 262's Argon2id PIN, which this runtime does not support"
+    return 2
   fi
 
   # PIN-protected: a PIN that already worked is tried once, then prompts.
@@ -663,10 +673,13 @@ luks_try_clevis_token() {
   # JSON exported above: clevis finds the token of a key slot by parsing
   # 'cryptsetup luksDump' text, which lacks every token after the first with
   # systemd's token plugins (cryptsetup 2.8, systemd 261), and it cannot
-  # read a detached header.
+  # read a detached header. The TPM is named twice: tpm2-tools read
+  # TPM2TOOLS_TCTI, and clevis-pin-tpm2, which clevis 21 and later runs in
+  # place of its tpm2 pin when it is installed, reads TCTI.
   work="$( mktemp /run/zbm-key.XXXXXX 2>/dev/null || mktemp /tmp/zbm-key.XXXXXX )" || return 1
   if jose fmt -j- -Og jwe -o- <<< "${json}" 2>/dev/null | jose jwe fmt -i- -c 2>/dev/null \
-      | TPM2TOOLS_TCTI="${LUKS_TPM2_TCTI}" clevis decrypt > "${work}" 2>/dev/null && [ -s "${work}" ]; then
+      | TPM2TOOLS_TCTI="${LUKS_TPM2_TCTI}" TCTI="${LUKS_TPM2_TCTI}" clevis decrypt > "${work}" 2>/dev/null \
+      && [ -s "${work}" ]; then
     luks_cryptsetup_open "${name}" "${dev}" - "$@" < "${work}"
     ret=$?
   else
