@@ -18,7 +18,7 @@ use crate::swtpm;
 use crate::vm::Vm;
 
 use super::super::payload;
-use super::{GROUP, disks, gpg_file, tpm_dir};
+use super::{GROUP, HARDENING, disks, gpg_file, tpm_dir, zfs0_uuid};
 
 /// Prepares the volumes on the host, then creates the pools and the boot
 /// environment in the recovery shell.
@@ -63,8 +63,15 @@ pub(super) fn setup(test: &Test) -> Result<()> {
 
 /// Formats and enrols the four volumes on loop devices, with a software
 /// TPM on TCP; the loop devices and the TPM are released on every path.
+/// The `hardening` file goes first, so that a setup that fails leaves none,
+/// and is written, with zfs0's LUKS UUID, when every volume is enrolled.
 fn host_prepare(test: &Test) -> Result<()> {
     let settings = test.settings();
+    let hardening = settings.disks(GROUP).join(HARDENING);
+    if hardening.exists() {
+        fs::remove_file(&hardening)
+            .map_err(Error::io(format!("removing {}", hardening.display())))?;
+    }
     let tpm = tpm_dir(settings);
     if tpm.exists() {
         run(Command::new("rm").arg("-rf").arg(&tpm))?;
@@ -77,18 +84,41 @@ fn host_prepare(test: &Test) -> Result<()> {
     let pid_file = settings.disks(GROUP).join("swtpm.pid");
     let port = swtpm::start_tcp(&tpm, &pid_file, "not-need-init,startup-clear")?;
     let tcti = swtpm::tcti(port);
+    let help = cryptenroll_help();
     let mut loops = Vec::new();
-    let result = (0..4).try_for_each(|index| prepare_volume(test, &tcti, index, &mut loops));
+    let result: Result<Vec<String>> = (0..4)
+        .map(|index| prepare_volume(test, &tcti, &help, index, &mut loops))
+        .collect();
     for device in &loops {
         Command::new("losetup").arg("-d").arg(device).output().ok();
     }
     swtpm::stop_pid_file(&pid_file);
-    result
+    let mut lines = result?;
+    lines.push(format!("zfs0 UUID: {}", zfs0_uuid(settings)?));
+    fs::write(&hardening, lines.join("\n") + "\n")
+        .map_err(Error::io(format!("writing {}", hardening.display())))
+}
+
+/// The help of `systemd-cryptenroll`, empty when it does not run: it says
+/// whether it can harden a TPM2 PIN with Argon2id (systemd 262 and later).
+fn cryptenroll_help() -> String {
+    Command::new("systemd-cryptenroll")
+        .arg("--help")
+        .output()
+        .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+        .unwrap_or_default()
 }
 
 /// Formats and enrols the volume of disk `index` on a loop device, which
-/// is added to `loops`.
-fn prepare_volume(test: &Test, tcti: &str, index: usize, loops: &mut Vec<String>) -> Result<()> {
+/// is added to `loops`, with the options `help` offers; returns the line of
+/// the volume in the `hardening` file.
+fn prepare_volume(
+    test: &Test,
+    tcti: &str,
+    help: &str,
+    index: usize,
+    loops: &mut Vec<String>,
+) -> Result<String> {
     let disk = crate::disks::disk(test.settings(), GROUP, index, "384M", true)?;
     partition(&disk, &[(&format!("zfs{index}"), None)])?;
     let part = loop_partition(&disk, 1)?;
@@ -97,7 +127,8 @@ fn prepare_volume(test: &Test, tcti: &str, index: usize, loops: &mut Vec<String>
     run_shell(&format!(
         "printf '%s' {PW} | cryptsetup luksFormat -q --type luks2 {FAST_PBKDF} --key-file=- {part}"
     ))?;
-    enrol(test, tcti, index, &part)?;
+    let options = pin_options(help, index);
+    enrol(test, tcti, index, &part, &options)?;
     if index == 3 {
         gpg_key(test, &part)?;
     }
@@ -117,7 +148,10 @@ fn prepare_volume(test: &Test, tcti: &str, index: usize, loops: &mut Vec<String>
     if index == 2 {
         check_clevis(test, tcti, &part, &dump)?;
     }
-    Ok(())
+    let kdf = pin_kdf(&dump);
+    let line = format!("zfs{index} PIN: {kdf}");
+    test.check(is_hardened_as_enrolled(index, &options, &kdf), &line);
+    Ok(line)
 }
 
 /// Checks that the clevis binding of `part`, whose LUKS metadata is
@@ -139,21 +173,26 @@ fn check_clevis(test: &Test, tcti: &str, part: &str, dump: &str) -> Result<()> {
 }
 
 /// Enrols the volume `part` of disk `index`: TPM2 with a PIN on zfs0-zfs2,
-/// and a clevis TPM2 binding as the second token of zfs2.
-fn enrol(test: &Test, tcti: &str, index: usize, part: &str) -> Result<()> {
+/// with the PIN `options`, and a clevis TPM2 binding as the second token of
+/// zfs2.
+fn enrol(test: &Test, tcti: &str, index: usize, part: &str, options: &[String]) -> Result<()> {
     if index < 3 {
         let pin = if index == 2 { "5678" } else { "1234" };
         let enrolled = output(
             Command::new("systemd-cryptenroll")
                 .arg(format!("--tpm2-device={tcti}"))
-                .args(["--tpm2-pcrs=", "--tpm2-with-pin=yes"])
+                .arg("--tpm2-pcrs=")
+                .args(options)
                 .arg(part)
                 .env("PASSWORD", PW)
                 .env("NEWPIN", pin),
         )?;
         test.check(
             enrolled.status.success(),
-            &format!("systemd-cryptenroll TPM2 + PIN on zfs{index}"),
+            &format!(
+                "systemd-cryptenroll TPM2 + PIN on zfs{index} ({})",
+                options.join(" ")
+            ),
         );
     }
     if index == 2 {
@@ -273,4 +312,135 @@ pub(super) fn clevis_token(dump: &str) -> Option<u32> {
         .iter()
         .find(|(_, token)| token["type"] == "clevis")?;
     id.parse().ok()
+}
+
+/// The option of `systemd-cryptenroll` that systemd 262 added with the
+/// Argon2id hardening of TPM2 PINs.
+const ARGON2ID_OPTION: &str = "--tpm2-argon2id-memory";
+
+/// The PIN option of zfs1 where systemd can harden PINs with Argon2id: the
+/// PBKDF2 of systemd 255 to 261, with a salt.
+const PIN_DIRECT: &str = "--tpm2-with-pin=direct";
+
+/// The fixed Argon2id parameters of the test's PINs, which systemd uses as
+/// given, without its benchmark: 64 MiB, 2 passes, 4 lanes. A token sized
+/// on the host by the benchmark could take gigabytes, more than the VM
+/// has.
+const SMALL_ARGON2ID: [&str; 3] = [
+    "--tpm2-argon2id-memory=64M",
+    "--tpm2-argon2id-iterations=2",
+    "--tpm2-argon2id-parallelism=4",
+];
+
+/// The hardening that [`SMALL_ARGON2ID`] asks for.
+const SMALL_KDF: PinKdf = PinKdf::Argon2id {
+    memory: 64 << 20,
+    passes: 2,
+    lanes: 4,
+};
+
+/// The PIN options of `systemd-cryptenroll` for the volume of disk `index`,
+/// by its `help`. Where it can harden a PIN with Argon2id (systemd 262),
+/// zfs0 and zfs2 are, with [`SMALL_ARGON2ID`], and zfs1 keeps the PBKDF2
+/// of `direct`; before, `yes` is PBKDF2 (systemd 255 to 261) everywhere.
+pub(super) fn pin_options(help: &str, index: usize) -> Vec<String> {
+    let argon2id = help.contains(ARGON2ID_OPTION);
+    let mut options = vec![if argon2id && index == 1 {
+        PIN_DIRECT.to_owned()
+    } else {
+        "--tpm2-with-pin=yes".to_owned()
+    }];
+    if argon2id && index != 1 {
+        options.extend(SMALL_ARGON2ID.map(str::to_owned));
+    }
+    options
+}
+
+/// How the TPM2 PIN of a volume is hardened, as its token records it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum PinKdf {
+    /// Argon2id (systemd 262 `yes`).
+    Argon2id {
+        /// The memory, in bytes.
+        memory: u64,
+        /// The passes over it.
+        passes: u64,
+        /// The lanes.
+        lanes: u64,
+    },
+    /// PBKDF2 with the token's salt (systemd 255 to 261, or 262 `direct`).
+    Pbkdf2,
+    /// No PIN token, or a PIN without salt (systemd before 255).
+    None,
+}
+
+impl std::fmt::Display for PinKdf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            PinKdf::Argon2id {
+                memory,
+                passes,
+                lanes,
+            } if memory % (1 << 20) == 0 => {
+                write!(f, "argon2id ({} MiB, {passes}, {lanes})", memory >> 20)
+            }
+            PinKdf::Argon2id {
+                memory,
+                passes,
+                lanes,
+            } => {
+                write!(f, "argon2id ({memory} bytes, {passes}, {lanes})")
+            }
+            PinKdf::Pbkdf2 => f.write_str("pbkdf2"),
+            PinKdf::None => f.write_str("none"),
+        }
+    }
+}
+
+/// How the first systemd-tpm2 token with a PIN is hardened, in the output
+/// of `cryptsetup luksDump --dump-json-metadata` or of `cryptsetup token
+/// export`. What was enrolled is read here, not from the options: systemd
+/// 262 without Argon2id in its libcrypto falls back from `yes` to `direct`.
+pub(super) fn pin_kdf(dump: &str) -> PinKdf {
+    let Ok(metadata) = serde_json::from_str::<serde_json::Value>(dump) else {
+        return PinKdf::None;
+    };
+    let tokens: Vec<&serde_json::Value> = match metadata["tokens"].as_object() {
+        Some(tokens) => tokens.values().collect(),
+        None => vec![&metadata],
+    };
+    let Some(token) = tokens
+        .into_iter()
+        .find(|token| token["type"] == "systemd-tpm2" && token["tpm2-pin"] == true)
+    else {
+        return PinKdf::None;
+    };
+    let field = |name: &str| token[format!("tpm2_argon2id_{name}")].as_u64();
+    match (field("memcost"), field("iterations"), field("lanes")) {
+        (Some(memory), Some(passes), Some(lanes)) => PinKdf::Argon2id {
+            memory,
+            passes,
+            lanes,
+        },
+        _ if token["tpm2_salt"].is_string() => PinKdf::Pbkdf2,
+        _ => PinKdf::None,
+    }
+}
+
+/// Whether the volume of disk `index`, enrolled with the PIN `options`, is
+/// hardened as `kdf`: as [`SMALL_ARGON2ID`] asked, or with PBKDF2 where
+/// systemd fell back to it; zfs1 with PBKDF2; zfs3 without a PIN. A PIN
+/// without salt passes only before systemd 255, where the options are
+/// `yes` alone: systemd 262's `direct` always salts it.
+pub(super) fn is_hardened_as_enrolled(index: usize, options: &[String], kdf: &PinKdf) -> bool {
+    let argon2id = options
+        .iter()
+        .any(|option| option.starts_with(ARGON2ID_OPTION));
+    let systemd_262 = argon2id || options.iter().any(|option| option == PIN_DIRECT);
+    match kdf {
+        _ if index == 3 => *kdf == PinKdf::None,
+        PinKdf::Argon2id { .. } => argon2id && *kdf == SMALL_KDF,
+        PinKdf::Pbkdf2 => true,
+        PinKdf::None => !systemd_262,
+    }
 }

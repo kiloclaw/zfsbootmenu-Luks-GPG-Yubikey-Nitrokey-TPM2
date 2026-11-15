@@ -2,7 +2,7 @@
 //! with and without a PIN, clevis, GnuPG key files, YubiKey
 //! challenge-response and FIDO2 tokens.
 
-use crate::harness::{Case, Checks, Format, Lab, enabled, run};
+use crate::harness::{Case, Checks, Format, Lab, TpmPin, enabled, run};
 
 /// The HMAC-SHA1 of `data` with the YubiKey stand-in's secret, in hex.
 fn yubikey_response(data: &[u8]) -> String {
@@ -34,11 +34,11 @@ fn tokens() {
     }
     let lab = Lab::new("tokens", Some(2421));
     let t0 = lab.luks("tpm", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&t0, "", None);
+    lab.enroll_tpm(&t0, "", TpmPin::No);
     let t1 = lab.luks("tpmpin", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&t1, "", Some("1234"));
+    lab.enroll_tpm(&t1, "", TpmPin::Yes("1234"));
     let t2 = lab.luks("tpmpcr", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&t2, "16", None);
+    lab.enroll_tpm(&t2, "16", TpmPin::No);
     let cl = lab.luks("clevis", b"pw", Format::Luks2, true);
     lab.bind_clevis(&cl);
 
@@ -193,6 +193,14 @@ fn tokens() {
     lab.import_token(&f2, &lab.fido.token("1", false));
 
     let mut checks = Checks::new("tokens");
+    // The PIN cases below run on what `yes` enrols here: Argon2id at small
+    // costs with systemd 262 and later, PBKDF2 before.
+    let hardening = Lab::pin_kdf(&t1);
+    checks.case("TPM2 PIN token enrolled as this host's systemd hardens PINs");
+    checks.check(
+        &format!("hardened with {hardening}"),
+        hardening.is_what_yes_enrols(),
+    );
     let case = || {
         let case = lab.case();
         case.cmdline("zbm.luks_token_wait", "0\n");
@@ -501,7 +509,8 @@ fn tokens() {
         c.prompts("YubiKey challenge-response") == 1,
     );
 
-    // The Bash suite's 55, and the two checks of the salted, encrypted TPM
-    // session (SE8), which the legacy runtime does not use.
-    checks.finish(55 + 2);
+    // The Bash suite's 55, the two checks of the salted, encrypted TPM
+    // session (SE8), which the legacy runtime does not use, and the PIN's
+    // hardening (SB21).
+    checks.finish(55 + 2 + 1);
 }

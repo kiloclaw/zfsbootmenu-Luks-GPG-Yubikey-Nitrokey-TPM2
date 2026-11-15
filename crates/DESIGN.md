@@ -748,6 +748,16 @@ Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and d
   secret yet; it moves to the same reader before it does (R5 step 6, LUKS volumes from the menu).
 - **Derived values** (the SHA-256 authorization value of a TPM2 PIN, systemd's PBKDF2-salted PIN) are computed in the
   process instead of by `sha256sum` and `openssl`.
+- **Argon2's work memory.** A TPM2 PIN that systemd 262 hardened with Argon2id is derived in the keyholder
+  (`zbm_luks::crypto::kdf`), in memory that holds state derived from the PIN, as much as the token names, up to
+  gigabytes. That memory is the caller's `WorkMemory`, not `argon2`'s own allocation, which is freed without being
+  wiped: it is reserved for each derivation without aborting when the memory is short, and wiped with
+  `zbm_sys::wipe_values` as soon as the derivation ends, before it is freed. The Blake2b states that absorb the PIN are
+  wiped through `blake2`'s `zeroize` feature, and the 64 bytes derived and the HKDF key in between are wiped when
+  dropped. What stays are the copies the crates leave on the stack until it is reused (a 1 KiB block derived from the
+  PIN at the start of each lane, HMAC's padded key); they live in the keyholder, which holds the PIN itself for the run
+  and ends with it. The memory and work are checked before any PIN is asked for (`zfsbootmenu-luks(7)`, *SECURITY*), and
+  the keyholder raises its `oom_score_adj` first, so that memory running out ends it rather than the menu.
 - **Lifetime:** secrets that unlock several volumes are kept for one unlocking run and dropped at its end. The run is
   a process of its own, the keyholder (`zbm unlock serve`, ROADMAP.md SB10, zone Z1 of ADR 0002): `zluks` and the
   start-up program start one for each run on a socket pair, send it the action, and answer what it asks

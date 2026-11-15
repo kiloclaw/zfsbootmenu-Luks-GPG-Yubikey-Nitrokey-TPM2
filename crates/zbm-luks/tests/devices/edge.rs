@@ -9,8 +9,8 @@ use std::time::Duration;
 mod later;
 
 use crate::harness::{
-    Case, Checks, Dump, Format, Gnupg, Lab, LinesConsole, clevis_decrypt, enabled, has_line,
-    no_leftovers, run, script, try_run,
+    Case, Checks, Dump, Format, Gnupg, Lab, LinesConsole, TpmPin, clevis_decrypt, enabled,
+    has_line, no_leftovers, run, script, try_run,
 };
 
 const CRYPTSETUP: &str = "/usr/sbin/cryptsetup";
@@ -98,7 +98,7 @@ fn edge() {
     }
     let lab = Lab::new("edge", Some(2721));
     let stale = lab.luks("stale", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&stale, "", None);
+    lab.enroll_tpm(&stale, "", TpmPin::No);
     run(
         CRYPTSETUP,
         &["luksKillSlot", "-q", "--key-file=-", &stale, "1"],
@@ -106,7 +106,7 @@ fn edge() {
         &[],
     );
     let multi = lab.luks("multi", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&multi, "", None);
+    lab.enroll_tpm(&multi, "", TpmPin::No);
     let fp = lab.path("fp");
     std::fs::write(&fp, &lab.fido.hmac).unwrap();
     Lab::add_key(&multi, &fp);
@@ -115,7 +115,7 @@ fn edge() {
     Lab::add_key(&fido_only, &fp);
     lab.import_token(&fido_only, &lab.fido.token("1", false));
     let tok = lab.luks("tok", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&tok, "", None);
+    lab.enroll_tpm(&tok, "", TpmPin::No);
     let l1 = lab.luks("one", b"pw", Format::Luks1, false);
     let plain = lab.luks("plain", b"pw", Format::Luks2, true);
     let hdrdata_image = lab.image("hdrdata.img", 32);
@@ -199,7 +199,7 @@ fn edge() {
 
     // three token types, then a gap in the token ids, and a detached header
     let three = lab.luks("three", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&three, "", None);
+    lab.enroll_tpm(&three, "", TpmPin::No);
     Lab::add_key(&three, &fp);
     lab.import_token(&three, &lab.fido.token("2", false));
     lab.bind_clevis(&three);
@@ -248,7 +248,7 @@ fn edge() {
     // clevis as the second token, behind a TPM2 token with a PIN, with the
     // luksDump text lacking later tokens (systemd 261's token plugins)
     let clv2 = lab.luks("clev2", b"pw", Format::Luks2, true);
-    lab.enroll_tpm(&clv2, "", Some("1234"));
+    lab.enroll_tpm(&clv2, "", TpmPin::Yes("1234"));
     lab.bind_clevis(&clv2);
     zfs.push(clv2.clone());
     checks.case("clevis as second token, luksDump prints it to stderr (systemd 261 plugins)");

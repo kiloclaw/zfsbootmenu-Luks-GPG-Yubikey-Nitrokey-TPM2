@@ -8,6 +8,17 @@
 //! passphrase pw. The crypttab names the mappings zroot-a, zroot-b (mirror
 //! zroot, root of the boot environment), tank-a and tank-b (mirror tank).
 //!
+//! The PINs are hardened as the host's systemd enrols them. With systemd
+//! 262 and later, zfs0 and zfs2 have Argon2id PINs, at fixed small costs
+//! (64 MiB, 2 passes, 4 lanes), and zfs1 the PBKDF2 of `direct`: zfs0
+//! covers Argon2id, a wrong PIN then the right one, and zfs1 the PIN cached
+//! from it on a PBKDF2 token. With systemd 255 to 261, every PIN is PBKDF2.
+//! `setup` reads what was enrolled from the tokens and writes it, with
+//! zfs0's LUKS UUID, to `disks/keys/hardening`, from which the tests of
+//! those disks take their expectations:
+//! the legacy runtime refuses Argon2id PINs, so with it zfs0 asks for its
+//! passphrase.
+//!
 //! Scenarios:
 //!
 //! - `setup`: LUKS formatting and enrolment on the host (loop devices,
@@ -39,7 +50,7 @@ use crate::error::{Error, Result};
 use crate::images::{Image, ImageSpec, zbm_image};
 use crate::qemu::Machine;
 use crate::record::Test;
-use crate::settings::{PW, Settings};
+use crate::settings::{PW, Settings, ZbmRuntime};
 use crate::swtpm::{self, Swtpm};
 use crate::vm::Vm;
 
@@ -49,6 +60,10 @@ mod tests;
 
 /// The disk group.
 const GROUP: &str = "keys";
+
+/// The file of the disk group in which `setup` records how each volume's
+/// TPM2 PIN is hardened, one line per volume.
+const HARDENING: &str = "hardening";
 
 /// The crypttab of the images.
 const CRYPTTAB: &str = "\
@@ -94,10 +109,13 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         test.check(false, "run keys-setup first");
         return Ok(());
     }
+    let Some(hardening) = hardening(test) else {
+        return Ok(());
+    };
     let tpm = Swtpm::new(&tpm_dir(settings))?;
     tpm.clear_lockout()?;
     match scenario {
-        "plugin" | "native" => tokens(test, scenario),
+        "plugin" | "native" => tokens(test, scenario, &hardening),
         "lockout" => lockout(test, &tpm),
         "notpm" => notpm(test),
         _ => {
@@ -149,9 +167,72 @@ fn boot_checks(test: &Test, boot: &Boot) {
     check_be(test, boot, "zroot", &["zroot", "tank"], &[]);
 }
 
+/// The LUKS UUID of zfs0, on the first disk.
+///
+/// # Errors
+///
+/// When the disk has no partition with a LUKS header.
+fn zfs0_uuid(settings: &Settings) -> Result<String> {
+    let disk = crate::disks::disk(settings, GROUP, 0, "384M", false)?;
+    crate::disks::luks_uuid(&disk, Some(1))
+}
+
+/// What `setup` recorded of the hardening of the volumes' PINs.
+fn hardening(test: &Test) -> Option<String> {
+    hardening_of(test, zfs0_uuid(test.settings()).ok().as_deref())
+}
+
+/// What `setup` recorded of the hardening of the volumes' PINs, for the
+/// disks whose zfs0 has the LUKS UUID `uuid`; `None`, and a failed check,
+/// when a `setup` from before it was recorded made the disks, or another
+/// `setup`, which left the file of an earlier one, made them since.
+fn hardening_of(test: &Test, uuid: Option<&str>) -> Option<String> {
+    let path = test.settings().disks(GROUP).join(HARDENING);
+    let Ok(text) = fs::read_to_string(&path) else {
+        test.check(
+            false,
+            &format!(
+                "run keys-setup again: it records how the PINs are hardened in {}",
+                path.display()
+            ),
+        );
+        return None;
+    };
+    let line = uuid.map(|uuid| format!("zfs0 UUID: {uuid}"));
+    if !line.is_some_and(|line| text.lines().any(|recorded| recorded == line)) {
+        test.check(
+            false,
+            &format!(
+                "run keys-setup again: {} describes other disks than zfs0 ({})",
+                path.display(),
+                uuid.unwrap_or("no LUKS volume")
+            ),
+        );
+        return None;
+    }
+    Some(text)
+}
+
+/// The prompts of a `plugin` or `native` boot with `runtime`, by the
+/// `hardening` that `setup` recorded: a wrong PIN, the right PIN (reused
+/// for zfs1), none for zfs2, the GnuPG passphrase. The legacy runtime
+/// refuses an Argon2id PIN: zfs0 then asks for its passphrase, and zfs1
+/// for its PIN, wrong then right, with nothing to reuse.
+fn expected_prompts(runtime: ZbmRuntime, hardening: &str) -> &'static [&'static str] {
+    let argon2id = hardening
+        .lines()
+        .any(|line| line.starts_with("zfs0 PIN: argon2id"));
+    if runtime == ZbmRuntime::Legacy && argon2id {
+        &["luks", "tpm2pin", "tpm2pin", "gpg"]
+    } else {
+        &["tpm2pin", "tpm2pin", "gpg"]
+    }
+}
+
 /// `plugin` and `native`: a wrong PIN, the right PIN, zfs2 unlocked by its
-/// second token, the GnuPG passphrase.
-fn tokens(test: &Test, scenario: &str) -> Result<()> {
+/// second token, the GnuPG passphrase; with the legacy runtime and an
+/// Argon2id PIN on zfs0, its passphrase first.
+fn tokens(test: &Test, scenario: &str, hardening: &str) -> Result<()> {
     let image = image(test.settings(), scenario == "native")?;
     let mut vm = start(test, scenario, &image, true)?;
     let follow = Follow::default()
@@ -159,19 +240,35 @@ fn tokens(test: &Test, scenario: &str) -> Result<()> {
         .answer(Kind::Gpg, &["gpgpass"]);
     let boot = follow_boot(&mut vm, follow)?;
     record_journal(test, &read_log(&vm.serial_log())?);
-    test.check(
-        boot.prompts == ["tpm2pin", "tpm2pin", "gpg"],
-        &format!(
-            "wrong PIN, right PIN (reused for zfs1), no prompt for zfs2, GnuPG passphrase: {}",
-            boot.prompts_text()
-        ),
-    );
-    test.check(
-        !boot.has_prompt("luks"),
-        "no fallback to the LUKS passphrase: zfs2 was unlocked by its second token (clevis)",
+    check_prompts(
+        test,
+        &boot,
+        expected_prompts(test.settings().runtime, hardening),
     );
     boot_checks(test, &boot);
     Ok(())
+}
+
+/// The checks of the prompts of [`tokens`], which `expected` names.
+fn check_prompts(test: &Test, boot: &Boot, expected: &[&str]) {
+    let pins = if expected.first() == Some(&"luks") {
+        "zfs0's passphrase (its Argon2id PIN refused), wrong PIN, right PIN for zfs1"
+    } else {
+        "wrong PIN, right PIN (reused for zfs1)"
+    };
+    test.check(
+        boot.prompts == expected,
+        &format!(
+            "{pins}, no prompt for zfs2, GnuPG passphrase: {}",
+            boot.prompts_text()
+        ),
+    );
+    let luks = |prompts: &[&str]| prompts.iter().filter(|prompt| **prompt == "luks").count();
+    let shown: Vec<&str> = boot.prompts.iter().map(String::as_str).collect();
+    test.check(
+        luks(&shown) == luks(expected),
+        "no fallback to the LUKS passphrase: zfs2 was unlocked by its second token (clevis)",
+    );
 }
 
 /// Sets the TPM's dictionary-attack parameters: `tries` wrong PINs before

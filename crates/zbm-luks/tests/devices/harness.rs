@@ -23,15 +23,18 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, MutexGuard};
-use std::time::Duration;
 
 mod case;
 mod gnupg;
 mod runner;
+mod tpm2;
 
 pub use case::{Case, LinesConsole};
 pub use gnupg::Gnupg;
 pub use runner::{DeviceRunner, Dump};
+pub use tpm2::{
+    PinKdf, SEALED_ATTRIBUTES, TpmPin, V3_PIN, clevis_decrypt, cryptenroll_has_argon2id,
+};
 
 /// The real `cryptsetup`.
 const CRYPTSETUP: &str = "/usr/sbin/cryptsetup";
@@ -134,22 +137,6 @@ pub fn run(program: &str, args: &[&str], stdin: &[u8], env: &[(&str, &str)]) -> 
     String::from_utf8_lossy(&output.stdout)
         .trim_end()
         .to_owned()
-}
-
-/// What `clevis decrypt` with `env` makes of the clevis `token`, as
-/// `cryptsetup token export` prints it: its JWE goes to it in its compact
-/// form, as ZFSBootMenu decrypts it. `clevis luks pass` and `clevis luks
-/// list` find the token in the `luksDump` text, which, with systemd's token
-/// plugins and cryptsetup 2.8, lacks every token after the first.
-pub fn clevis_decrypt(token: &str, env: &[(&str, &str)]) -> std::process::Output {
-    let jwe = run(
-        "jose",
-        &["fmt", "-j-", "-Og", "jwe", "-o-"],
-        token.as_bytes(),
-        &[],
-    );
-    let compact = run("jose", &["jwe", "fmt", "-i-", "-c"], jwe.as_bytes(), &[]);
-    try_run("clevis", &["decrypt"], compact.as_bytes(), env)
 }
 
 /// Runs `program` and returns what happened, whatever it was.
@@ -278,67 +265,6 @@ impl Lab {
         lab
     }
 
-    fn start_tpm(&mut self, port: u16) {
-        let state = self.dir.join("tpm");
-        std::fs::create_dir_all(&state).unwrap();
-        let state_text = state.display().to_string();
-        let _ = try_run(
-            "swtpm_setup",
-            &["--tpm2", "--tpmstate", &state_text, "--overwrite"],
-            b"",
-            &[],
-        );
-        let server = format!("type=tcp,port={port}");
-        let control = format!("type=tcp,port={}", port + 1);
-        let tpmstate = format!("dir={state_text}");
-        let child = std::process::Command::new("swtpm")
-            .args([
-                "socket",
-                "--tpm2",
-                "--tpmstate",
-                &tpmstate,
-                "--server",
-                &server,
-            ])
-            .args(["--ctrl", &control, "--flags", "not-need-init,startup-clear"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        self.swtpm = Some(child);
-        self.tcti = format!("swtpm:host=127.0.0.1,port={port}");
-        std::thread::sleep(Duration::from_secs(1));
-    }
-
-    /// The environment of the TPM tools: systemd's, tpm2-tools' and
-    /// clevis-pin-tpm2's (`TCTI`), which the clevis scripts run in place of
-    /// their own tpm2 pin where it is installed (Fedora); without it,
-    /// clevis-pin-tpm2 would take the host's own TPM.
-    pub fn tpm_env(&self) -> Vec<(&'static str, String)> {
-        if self.tcti.is_empty() {
-            Vec::new()
-        } else {
-            vec![
-                ("SYSTEMD_TPM2_DEVICE", self.tcti.clone()),
-                ("TPM2TOOLS_TCTI", self.tcti.clone()),
-                ("TCTI", self.tcti.clone()),
-            ]
-        }
-    }
-
-    /// Runs a TPM tool or `systemd-cryptenroll` with the TPM's environment.
-    pub fn with_tpm(
-        &self,
-        program: &str,
-        args: &[&str],
-        env: &[(&str, &str)],
-    ) -> std::process::Output {
-        let tpm = self.tpm_env();
-        let mut all: Vec<(&str, &str)> = tpm.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        all.extend_from_slice(env);
-        try_run(program, args, b"", &all)
-    }
-
     /// A file of the lab.
     pub fn path(&self, name: &str) -> PathBuf {
         self.dir.join(name)
@@ -448,68 +374,6 @@ impl Lab {
             b"",
             &[],
         );
-    }
-
-    /// Enrolls the TPM in `device` (passphrase `pw`), bound to `pcrs`, with
-    /// `pin` if one is given.
-    pub fn enroll_tpm(&self, device: &str, pcrs: &str, pin: Option<&str>) {
-        let tpm = format!("--tpm2-device={}", self.tcti);
-        let pcrs = format!("--tpm2-pcrs={pcrs}");
-        let mut args = vec![tpm.as_str(), pcrs.as_str()];
-        let mut env = vec![("PASSWORD", "pw")];
-        if let Some(pin) = pin {
-            args.push("--tpm2-with-pin=yes");
-            env.push(("NEWPIN", pin));
-        }
-        args.push(device);
-        let output = self.with_tpm("systemd-cryptenroll", &args, &env);
-        assert!(
-            output.status.success(),
-            "systemd-cryptenroll: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-
-    /// Binds clevis with a TPM2 pin to `device`, whose passphrase is `pw`,
-    /// and checks that the binding gives its key back from the lab's TPM: a
-    /// binding sealed to another TPM fails here, where it is made.
-    pub fn bind_clevis(&self, device: &str) {
-        let tpm = self.tpm_env();
-        let env: Vec<(&str, &str)> = tpm.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        run(
-            "clevis",
-            &["luks", "bind", "-y", "-k", "-", "-d", device, "tpm2", "{}"],
-            b"pw",
-            &env,
-        );
-        let dump = run(
-            CRYPTSETUP,
-            &["luksDump", "--dump-json-metadata", device],
-            b"",
-            &[],
-        );
-        let tokens = zbm_crypt::token::from_metadata(&dump)
-            .unwrap_or_else(|error| panic!("the tokens of {device}: {error}"));
-        let clevis: Vec<_> = tokens
-            .iter()
-            .filter(|token| token.kind == "clevis")
-            .collect();
-        assert!(!clevis.is_empty(), "no clevis token on {device}: {dump}");
-        for token in clevis {
-            let json = run(
-                CRYPTSETUP,
-                &["token", "export", "--token-id", &token.id, device],
-                b"",
-                &[],
-            );
-            let key = clevis_decrypt(&json, &env);
-            assert!(
-                key.status.success() && !key.stdout.is_empty(),
-                "the clevis token {} of {device} does not open with the lab's TPM: {}",
-                token.id,
-                String::from_utf8_lossy(&key.stderr)
-            );
-        }
     }
 
     /// The UUID of a LUKS volume.

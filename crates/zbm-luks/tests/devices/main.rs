@@ -34,4 +34,5 @@ mod config;
 mod edge;
 mod harness;
 mod tokens;
+mod tpm2_tokens;
 mod unlock;

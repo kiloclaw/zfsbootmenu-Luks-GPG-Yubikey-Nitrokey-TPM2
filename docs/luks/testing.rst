@@ -35,14 +35,19 @@ Device suites
   ``cryptsetup`` 2.4 or later, ``systemd-cryptenroll``, ``tpm2-tools``, ``swtpm`` and ``swtpm_setup``, clevis with
   its TPM2 pin, GnuPG, ``e2fsprogs``, ``dosfstools``, ``sfdisk`` and ``unshare`` (util-linux), and the Rust toolchain;
   the build container has them. They detach only the loop devices they created, so they do not touch the host's
-  device-mapper devices.
+  device-mapper devices. Where ``systemd-cryptenroll`` hardens TPM2 PINs with Argon2id (systemd 262 and later, which
+  its ``--help`` shows by ``--tpm2-argon2id-memory``), the suites enrol ``--tpm2-with-pin=yes`` at small fixed costs
+  (64 MiB, 2 passes, 4 lanes) and add a case for ``--tpm2-with-pin=direct``; with systemd 255 to 261, ``yes`` is
+  PBKDF2. Each case reads from the token what was enrolled, as systemd 262 without Argon2id in its libcrypto enrols
+  ``direct`` for ``yes``.
 
 Virtual-machine tests
   QEMU (``qemu-system-x86_64``) with OVMF firmware, ``swtpm``, ``tpm2-tools``, ``systemd-cryptenroll`` (in the
-  ``systemd-cryptsetup`` package on Ubuntu 24.04 and Debian 13 or later), ``cryptsetup``, clevis and GnuPG (for the
-  key-management setup), ``sgdisk``, ``sfdisk``, ``mkfs.ext4``, ``mkfs.vfat``, mtools, the Rust toolchain and a C
-  compiler (``gcc``, Rust's linker) to build the harness, and Docker or Podman with the build container image
-  (``localhost/zbm-builder``, see :doc:`/general/container-building`).
+  ``systemd-cryptsetup`` package on Ubuntu 24.04 and Debian 13 or later; with systemd 262 or later, the ``keys`` tests
+  also cover Argon2id PINs), ``cryptsetup``, clevis and GnuPG (for the key-management setup), ``sgdisk``, ``sfdisk``,
+  ``mkfs.ext4``, ``mkfs.vfat``, mtools, the Rust toolchain and a C compiler (``gcc``, Rust's linker) to build the
+  harness, and Docker or Podman with the build container image (``localhost/zbm-builder``, see
+  :doc:`/general/container-building`).
   ``runtime-rust-crash`` also runs ``cargo xtask symbolize`` on the host, which needs the Rust toolchain and
   ``addr2line`` (binutils); started with ``sudo``, it runs as the user who started it, with their
   *~/.cargo/bin*. ``runtime-rust-resolv``'s image installs ``network-manager`` in the build container each time it is
@@ -173,7 +178,18 @@ Device Suites
   code, wrong and empty PINs, PCR policies after the PCR changed, the TPM dictionary-attack lockout, clevis TPM2,
   disabling tokens; GnuPG key files encrypted symmetrically and to a public key, with the secret key or card absent;
   YubiKey challenge-response in both modes; FIDO2 tokens with and without a PIN, and with the key absent; secrets
-  shared by several volumes.
+  shared by several volumes. The PIN cases run on what ``--tpm2-with-pin=yes`` enrols on the host: Argon2id with
+  systemd 262 and later, PBKDF2 before.
+
+``tpm2_tokens.rs``
+  systemd 262's TPM2 PIN tokens. On every host, a token whose PIN is hardened with Argon2id, made by hand from the
+  SB21 plan's known-answer vector V3 (which OpenSSL computed, not the code under test): V3's sealed secret sealed to
+  the software TPM below systemd's storage root key (made from systemd's template when missing) behind a
+  ``PolicyAuthValue`` with V3's authorization value, with systemd's attributes (no ``userwithauth``, so that only the
+  policy opens it), and V3's passphrase in a key slot; a wrong PIN, then V3's PIN, opens it through ZFSBootMenu's
+  own unsealing, not the plugin. Where ``systemd-cryptenroll`` hardens PINs with Argon2id, a token enrolled with
+  ``--tpm2-with-pin=direct`` opens with its PIN. Only a real systemd 262 enrolment (the ``keys`` tests and the PIN
+  cases of ``tokens.rs`` on such a host) checks the format end to end.
 
 ``edge.rs``
   Failure paths and races: a TPM2 token whose key slot was removed; TPM2 and FIDO2 tokens on one volume without a TPM;
@@ -269,8 +285,21 @@ Following a boot
   on the third a TPM2 token with another PIN plus a clevis TPM2 binding as second token) and a GnuPG-encrypted key
   file on the fourth; pools created with ZFS 2.4.4.
 
+  The PINs are hardened as the host's systemd enrols them. With systemd 262 and later, the first and third volumes get
+  Argon2id PINs at fixed small costs (``--tpm2-argon2id-memory=64M --tpm2-argon2id-iterations=2
+  --tpm2-argon2id-parallelism=4``), which skip systemd's benchmark and fit the 4 GiB machine, and the second volume
+  ``--tpm2-with-pin=direct`` (PBKDF2): the first volume then covers an Argon2id PIN, wrong then right, and the second
+  the PIN cached from it on a PBKDF2 token. With systemd 255 to 261, every PIN is PBKDF2. ``keys-setup`` reads from each
+  token what was enrolled (``zfs0 PIN: argon2id (64 MiB, 2, 4)``, ``pbkdf2`` or ``none``), records it as a check and
+  writes it, with the first volume's LUKS UUID, to *disks/keys/hardening*, from which the other tests take their
+  expectations; without that file (a setup from before SB21), or when it names another volume (a setup from before SB21
+  run since), they fail and ask for ``keys-setup`` again. The legacy runtime refuses Argon2id PINs, so with it, on such
+  a host, the first volume asks for its passphrase.
+
   * ``keys-plugin``: systemd's token plugin; a wrong PIN, the right PIN (reused for the second volume), the third
-    volume opened silently by its second token, the GnuPG passphrase; boot into the boot environment.
+    volume opened silently by its second token, the GnuPG passphrase; boot into the boot environment. An Argon2id
+    PIN never goes to the plugin: the Rust runtime unseals it itself. With the legacy runtime and an Argon2id PIN on
+    the first volume, its passphrase comes first.
   * ``keys-native``: the same with ``zfsbootmenu_luks_token_plugins="no"`` (``tpm2-tools``).
   * ``keys-lockout``: the TPM allows one wrong PIN; ZFSBootMenu explains the lockout and falls back to the passphrase.
   * ``keys-notpm``: no TPM; the TPM2 volumes fall back to the passphrase without a PIN prompt.
@@ -666,14 +695,19 @@ Results
 Latest run of every test with the legacy runtime: 20 October 2026, with software emulation (TCG); with the Rust
 runtime, see below. The build container image was Ubuntu 26.10 with
 Linux 7.3.0-9-generic, OpenZFS 2.4.4 (``zfs-2.4.4-1ubuntu4``), cryptsetup 2.8.7, systemd 261 and dracut 112. The
-``oldzfs`` tests used a ZFSBootMenu image built on Ubuntu 24.04 with OpenZFS 2.2.2 and Linux 6.8.
+``oldzfs`` tests used a ZFSBootMenu image built on Ubuntu 24.04 with OpenZFS 2.2.2 and Linux 6.8. The image's
+systemd 261 token plugin does not know systemd 262's Argon2id PINs; the Rust runtime unseals those itself, whatever
+plugin the image has.
 
 Device suites
 ~~~~~~~~~~~~~
 
-The device suites run 252 checks, as the Bash suites they were ported from did against the Rust runtime
-(``unlock``, ``tokens``, ``edge`` and ``config``); the three checks of the Bash suites that reached inside the legacy
-code are unit tests. ``cargo xtask test devices`` runs them on the host and in the build container.
+The device suites run the 252 checks of the Bash suites they were ported from, against the Rust runtime (``unlock``,
+``tokens``, ``edge`` and ``config``); the three checks of the Bash suites that reached inside the legacy code are unit
+tests. Beside them run the two checks of the salted, encrypted TPM session, the check of the PIN's hardening in
+``tokens``, and ``tpm2_tokens``'s 8 checks, 12 where ``systemd-cryptenroll`` hardens PINs with Argon2id: 263 checks with
+systemd 255 (15 November 2026, in a container with systemd 255, all passed). ``cargo xtask test devices`` runs them on
+the host and in the build container.
 
 Virtual-machine tests
 ~~~~~~~~~~~~~~~~~~~~~

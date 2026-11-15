@@ -119,6 +119,22 @@ as well; use the same PIN everywhere so that ZFSBootMenu asks once:
 The volumes then unlock at boot without a prompt. ZFSBootMenu uses systemd's plugin if the image contains it, and
 otherwise its own implementation; see :doc:`/general/luks` for the PCR choices and their trade-offs.
 
+With systemd 262 and later, ``--tpm2-with-pin=yes`` hardens the PIN with Argon2id, sized to take about 2 seconds on
+the machine that enrols it, with up to half its memory. ZFSBootMenu derives it itself at every boot, once for each
+volume, on one core, and then the boot environment's initramfs does again; a token above ZFSBootMenu's bounds is
+refused before the PIN is asked for. To keep the derivation short, fix its costs on every volume:
+
+.. code-block:: bash
+
+  # for dev in $( pool_luks_devices zroot ); do
+      systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --tpm2-with-pin=yes \
+        --tpm2-argon2id-memory=1G --tpm2-argon2id-iterations=3 "${dev}"
+    done
+
+``--tpm2-with-pin=direct`` keeps the PBKDF2 of systemd 255 to 261: use it when a boot environment's initramfs with
+systemd older than 262, or ZFSBootMenu's legacy runtime, must open the volume, as they cannot read Argon2id tokens.
+ZFSBootMenu's Rust runtime opens them itself, whatever systemd its image holds.
+
 .. warning::
 
   Without a PIN, anyone who can start the computer gets the pools unlocked, and ZFSBootMenu offers a recovery shell.

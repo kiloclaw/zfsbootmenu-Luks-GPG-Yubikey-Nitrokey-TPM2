@@ -481,6 +481,14 @@ TPM2 (see :doc:`luks`, *TPM2*, for the choice of PCRs):
   # or, to also require a PIN:
   systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --tpm2-with-pin=yes /dev/disk/by-partlabel/zfs0
 
+With systemd 262 and later, ``--tpm2-with-pin=yes`` hardens the PIN with Argon2id, sized to take about 2 seconds on
+the enrolling machine, with up to half its memory. ZFSBootMenu derives it at every boot, once for each volume, on one
+core, and then the boot environment's initramfs does again; a token above ZFSBootMenu's bounds is refused. To keep it
+short, fix the costs, for example ``--tpm2-argon2id-memory=1G --tpm2-argon2id-iterations=3``.
+``--tpm2-with-pin=direct`` keeps the PBKDF2 of systemd 255 to 261, for a boot environment's initramfs with systemd
+older than 262 or for the legacy runtime, which cannot read Argon2id tokens; the Rust runtime opens them itself,
+whatever systemd the image holds (see :doc:`luks`, *TPM2*).
+
 FIDO2 security key (YubiKey 5, Nitrokey 3, or another key with ``hmac-secret``). Each volume needs its own touch at
 boot:
 

@@ -237,6 +237,20 @@ Without a PIN the volume unlocks with no interaction. With a PIN, ZFSBootMenu as
 tried once on further PIN-protected volumes. Wrong PINs count towards the TPM's dictionary-attack protection. When the
 TPM locks up, ZFSBootMenu says so and moves on to other methods instead of asking again.
 
+With systemd 262 and later, ``--tpm2-with-pin=yes`` hardens the PIN with Argon2id, sized by a benchmark to take about
+2 seconds on the enrolling machine, with up to half its memory. ZFSBootMenu derives it at every boot, once for each
+volume, on one core: a token sized on a machine with many cores takes several times longer there, and the boot
+environment's initramfs then derives it again. A token whose memory or work is above ZFSBootMenu's bounds is refused
+before the PIN is asked for (see **zfsbootmenu-luks**\ (7), *SECURITY*). To keep the derivation short, fix the costs
+when enrolling::
+
+  systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --tpm2-with-pin=yes \
+    --tpm2-argon2id-memory=1G --tpm2-argon2id-iterations=3 /dev/disk/by-partlabel/zfs0
+
+``--tpm2-with-pin=direct`` keeps the PBKDF2 hardening of systemd 255 to 261. Use it when a boot environment's
+initramfs with systemd older than 262, or ZFSBootMenu's legacy runtime, must open the token: they cannot read Argon2id
+tokens. ZFSBootMenu's Rust runtime opens them itself, whatever systemd its image holds.
+
 Choosing PCRs matters, because ZFSBootMenu itself is part of the boot chain:
 
 * **PCR 7** (Secure Boot state) is stable across ZFSBootMenu, kernel and initramfs updates, and is the usual choice.
