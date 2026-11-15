@@ -22,6 +22,12 @@
 //! - `lockout`: the TPM allows one wrong PIN: after it, ZFSBootMenu
 //!   explains the lockout and falls back to the passphrase;
 //! - `notpm`: no TPM device: the TPM2 volumes fall back to the passphrase.
+//!
+//! Each scenario copies into its record the lines that the test hook
+//! `15-journal.sh` prints from the runtime's journal at teardown: its
+//! warnings (`ZW|`), the debug lines of tpm2-tools, clevis and cryptsetup
+//! (`ZD|`), and the key programs run, with their statuses (`ZC|`). A token
+//! that did not open then says why in `steps.log`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -152,6 +158,7 @@ fn tokens(test: &Test, scenario: &str) -> Result<()> {
         .answer(Kind::Tpm2Pin, &["0000", "1234", ""])
         .answer(Kind::Gpg, &["gpgpass"]);
     let boot = follow_boot(&mut vm, follow)?;
+    record_journal(test, &read_log(&vm.serial_log())?);
     test.check(
         boot.prompts == ["tpm2pin", "tpm2pin", "gpg"],
         &format!(
@@ -210,6 +217,7 @@ fn lockout_boot(test: &Test) -> Result<()> {
         .answer(Kind::Gpg, &["gpgpass"]);
     let boot = follow_boot(&mut vm, follow)?;
     let log = read_log(&vm.serial_log())?;
+    record_journal(test, &log);
     // The start-up view says it in the dialog that asks next.
     let lockout = "locked against PIN guessing";
     test.check(
@@ -233,6 +241,32 @@ fn read_log(path: &Path) -> Result<String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
+/// The tags of the lines that the test hook `15-journal.sh` prints.
+const JOURNAL_TAGS: [&str; 3] = ["ZW| ", "ZD| ", "ZC| "];
+
+/// The lines of the serial log `log` that the test hook `15-journal.sh`
+/// printed, in order, each from its tag on.
+fn journal_lines(log: &str) -> Vec<&str> {
+    log.lines()
+        .filter_map(|line| {
+            let at = JOURNAL_TAGS.iter().filter_map(|tag| line.find(tag)).min()?;
+            line.get(at..).map(str::trim_end)
+        })
+        .collect()
+}
+
+/// Copies the lines of the runtime's journal in the serial log `log` into
+/// the record of `test`.
+fn record_journal(test: &Test, log: &str) {
+    let lines = journal_lines(log);
+    if lines.is_empty() {
+        test.note("the serial log has no line of the runtime's journal");
+        return;
+    }
+    test.note("the runtime's journal at teardown (warnings, key programs):");
+    test.show(&lines.join("\n"));
+}
+
 /// No TPM device: the TPM2 volumes fall back to the passphrase.
 fn notpm(test: &Test) -> Result<()> {
     let image = image(test.settings(), false)?;
@@ -241,6 +275,7 @@ fn notpm(test: &Test) -> Result<()> {
         .answer(Kind::Luks, &[PW, PW, PW])
         .answer(Kind::Gpg, &["gpgpass"]);
     let boot = follow_boot(&mut vm, follow)?;
+    record_journal(test, &read_log(&vm.serial_log())?);
     test.check(
         !boot.has_prompt("tpm2pin"),
         "no TPM2 PIN prompt without a TPM",

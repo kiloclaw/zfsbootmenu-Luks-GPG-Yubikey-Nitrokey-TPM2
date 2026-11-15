@@ -55,6 +55,7 @@ mod mapping;
 pub mod measure;
 pub mod pin;
 mod port;
+mod stderr;
 pub mod token;
 pub mod tpm2;
 pub mod yubikey;

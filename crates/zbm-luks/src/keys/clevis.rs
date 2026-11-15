@@ -22,7 +22,8 @@ impl Unlocker<'_> {
     ///
     /// [`LuksError::Token`] when the image lacks clevis, the token names no
     /// key slot or clevis does not recover the key; [`LuksError::Open`] when
-    /// the key it recovered does not open the volume.
+    /// the key it recovered does not open the volume, which the log says as
+    /// a warning.
     pub fn try_clevis_token(
         &mut self,
         target: Target<'_>,
@@ -58,7 +59,17 @@ impl Unlocker<'_> {
                 return Err(failed(TokenFailure::NotReleased));
             }
         };
-        let open = self.cryptsetup_open(target, Key::Stdin(&key))?;
+        let open = self
+            .cryptsetup_open(target, Key::Stdin(&key))
+            .inspect_err(|error| {
+                // A warning, as clevis's own failure is: the binding
+                // released a key, which says the TPM or Tang server took
+                // part, and the volume falls back to a prompt.
+                zbm_trace::warn!(
+                    "clevis token {id} on {device}: clevis released the key, but it opened no \
+                     key slot ({error})"; %id, %device, %error
+                );
+            })?;
         zbm_trace::info!("unlocked {device} with clevis"; %device);
         Ok(open)
     }
@@ -123,6 +134,33 @@ mod tests {
             ]
         );
         assert!(fake.kmsg().contains("unlocked /dev/sda with clevis"));
+        fake.assert_no_leak(b"clevis-key");
+    }
+
+    #[test]
+    fn a_key_released_by_clevis_that_does_not_open_is_a_warning() {
+        let fake = clevis_machine(b"clevis-key");
+        fake.runner.respond(
+            "cryptsetup open --type luks --key-file=- /dev/sda v",
+            2,
+            "No key available with this passphrase.\n",
+        );
+        let args = [];
+        let target = crate::testing::target("v", "/dev/sda", &args);
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+            let token = crate::keys::tests::token(r#"{"keyslots":["3"]}"#);
+            let failed = session.try_clevis_token(target, &token);
+            assert!(matches!(failed, Err(LuksError::Open { .. })), "{failed:?}");
+        });
+        let kmsg = fake.kmsg();
+        assert!(
+            kmsg.contains(
+                "<4>ZFSBootMenu: clevis token 0 on /dev/sda: clevis released the key, but it \
+                 opened no key slot ("
+            ),
+            "{kmsg}"
+        );
+        assert!(!kmsg.contains("unlocked /dev/sda with clevis"), "{kmsg}");
         fake.assert_no_leak(b"clevis-key");
     }
 

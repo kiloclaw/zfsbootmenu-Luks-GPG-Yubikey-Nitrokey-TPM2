@@ -243,6 +243,13 @@ checked: the token's memory cost within the machine's memory, the memory Argon2 
 A token that fails a check costs no PIN and no lockout try, and the dialog says why. A TPM2 key that the TPM released
 but that opens no key slot ends the token instead of asking for the PIN again.
 
+A clevis or TPM2 token that does not open now says why in the log (ROADMAP.md SB21). The warning of a clevis failure
+keeps the last four lines clevis printed, such as tpm2-tools' `ERROR:` line with the TPM's response code before
+clevis's own message, where it kept only the last; a key that clevis released but that opens no key slot is a warning
+too. A tpm2-tools command of the native TPM2 code that fails leaves the last lines it printed in the journal at the
+debug level (`zbm debug journal --level debug`), with the authorization value it was given replaced by `<auth>`;
+before, its standard error was discarded.
+
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 

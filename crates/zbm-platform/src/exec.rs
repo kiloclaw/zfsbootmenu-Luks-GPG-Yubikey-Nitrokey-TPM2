@@ -8,7 +8,8 @@
 //!
 //! Secrets travel only through pipes: [`Input::Secret`] writes one to a
 //! command's standard input, and [`Stream::CaptureSecret`] reads a command's
-//! standard output into a [`Secret`].
+//! standard output into a [`Secret`], or its standard error, which could echo
+//! one, without leaving copies behind.
 
 #![allow(
     clippy::disallowed_methods,
@@ -48,9 +49,11 @@ pub enum Stream {
     Inherit,
     /// A pipe whose contents end up in [`Output`].
     Capture,
-    /// For standard output only: a pipe whose contents end up in
-    /// [`Output::secret`], never in a plain buffer. On standard error it acts as
-    /// [`Stream::Capture`].
+    /// On standard output, a pipe whose contents end up in
+    /// [`Output::secret`], never in a plain buffer. On standard error, a pipe
+    /// read as a secret is, whose contents end up in [`Output::stderr`] in
+    /// one allocation that [`Secret::from_vec`] can take without leaving a
+    /// copy behind: for a program that may echo a secret it was given.
     CaptureSecret,
     /// `/dev/null`.
     Null,
@@ -344,11 +347,11 @@ fn not_found(command: &Command, inherited: Inherited<'_>) -> io::Result<Output> 
     };
     match target {
         Stream::Inherit => inherited.write_error(message.as_bytes())?,
-        Stream::CaptureSecret => {
+        Stream::CaptureSecret if command.merge_stderr => {
             output.secret = Some(Arc::new(Secret::from_vec(message.into_bytes())));
         }
         Stream::Capture if command.merge_stderr => output.stdout = message.into_bytes(),
-        Stream::Capture => output.stderr = message.into_bytes(),
+        Stream::Capture | Stream::CaptureSecret => output.stderr = message.into_bytes(),
         Stream::Null => {}
     }
     Ok(output)

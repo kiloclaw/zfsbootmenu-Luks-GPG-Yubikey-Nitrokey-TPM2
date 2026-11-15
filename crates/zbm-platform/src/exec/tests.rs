@@ -142,6 +142,25 @@ fn secrets_travel_through_pipes() {
 }
 
 #[test]
+fn standard_error_read_as_a_secret_ends_up_in_its_own_buffer() {
+    let echo = |limit: usize| {
+        SystemRunner.run(
+            &Command::new("sh")
+                .args(["-c", "cat >&2; echo out"])
+                .stdin(Input::secret(Secret::copy_from(b"hunter2")))
+                .stdout(Stream::Capture)
+                .stderr(Stream::CaptureSecret)
+                .output_limit(limit),
+        )
+    };
+    let output = echo(100).unwrap();
+    assert_eq!(output.stderr, b"hunter2");
+    assert_eq!(output.stdout, b"out\n");
+    assert!(output.secret.is_none());
+    assert!(echo(3).is_err());
+}
+
+#[test]
 #[allow(
     clippy::large_stack_arrays,
     reason = "vec! builds the input on the heap"
@@ -199,10 +218,10 @@ fn a_missing_program_is_reported_where_standard_error_goes() {
     let discarded = missing(Stream::Null);
     let shown = missing(Stream::Inherit);
 
-    let message = secret.secret.unwrap();
+    assert!(secret.secret.is_none());
     assert_eq!(
-        message.expose(),
-        b"zbm-no-such-program: command not found\n"
+        secret.stderr_text(),
+        "zbm-no-such-program: command not found\n"
     );
     assert_eq!(discarded.stderr_text(), "");
     assert_eq!(shown.status.code(), Some(127));

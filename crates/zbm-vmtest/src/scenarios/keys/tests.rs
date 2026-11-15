@@ -102,3 +102,48 @@ fn the_crypttab_names_the_mappings_and_the_key_file() {
         "mkdir -p /etc/zfsbootmenu/keys && cp /build/keys/tank.key.gpg /etc/zfsbootmenu/keys/"
     );
 }
+
+#[test]
+fn journal_lines_in_the_serial_log_are_copied_to_the_record() {
+    let log = "\x1b[0mZBMTEST-STATUS-END\r\n\
+        ZW|    412 WARN  zbm: clevis token 1 on /dev/vdc1 did not recover the key of slot 2: \
+        clevis decrypt failed (1): ERROR: Unable to run tpm2_load | Unable to load TPM2 object\r\n\
+        \x1b[1;1HZD|    412 DEBUG zbm: tpm2_load failed (1): ErrorCode (0x000001df)\r\n\
+        not a journal line: ZX| other\r\n\
+        ZC|    1      38 ms  clevis decrypt\r\n\
+        ZBMTEST-TEARDOWN dm=[] pools=[] state=[]\r\n";
+
+    let lines = journal_lines(log);
+
+    assert_eq!(
+        lines,
+        [
+            "ZW|    412 WARN  zbm: clevis token 1 on /dev/vdc1 did not recover the key of slot \
+             2: clevis decrypt failed (1): ERROR: Unable to run tpm2_load | Unable to load TPM2 \
+             object",
+            "ZD|    412 DEBUG zbm: tpm2_load failed (1): ErrorCode (0x000001df)",
+            "ZC|    1      38 ms  clevis decrypt",
+        ]
+    );
+    let settings = settings("keys-journal");
+    let test = Test::new(&settings, "keys-native").unwrap();
+    record_journal(&test, log);
+    record_journal(&test, "ZBMTEST-STATUS-END\r\n");
+    let steps = std::fs::read_to_string(test.dir().join("steps.log")).unwrap();
+    let recorded: Vec<&str> = steps
+        .lines()
+        .map(|line| line.get(11..).unwrap_or_default())
+        .filter(|line| line.starts_with("note - ") || line.starts_with("      "))
+        .collect();
+    assert_eq!(
+        recorded,
+        [
+            "note - the runtime's journal at teardown (warnings, key programs):",
+            &format!("      {}", lines[0]),
+            &format!("      {}", lines[1]),
+            &format!("      {}", lines[2]),
+            "note - the serial log has no line of the runtime's journal",
+        ]
+    );
+    cleanup(&settings);
+}

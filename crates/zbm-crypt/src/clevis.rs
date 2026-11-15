@@ -12,6 +12,7 @@
 use std::time::Duration;
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 
+use crate::stderr;
 use crate::token::Token;
 
 /// The longest `clevis decrypt` may run: a Tang server over the network, or
@@ -55,8 +56,8 @@ impl<'a> Clevis<'a> {
     ///
     /// # Errors
     ///
-    /// Why it could not: what the program that failed said, its last line
-    /// first, so that the log can say it.
+    /// Why it could not: the last lines that the program that failed
+    /// printed on standard error, so that the log can say it.
     pub fn decrypt(&self, token: &Token) -> Result<Secret, String> {
         let jwe = self.filter(
             Command::new("jose").args(["fmt", "-j-", "-Og", "jwe", "-o-"]),
@@ -85,14 +86,15 @@ impl<'a> Clevis<'a> {
     }
 }
 
-/// What `program` said when it failed: the last line of its standard
-/// error, where scripts put the reason, and its exit status.
+/// What `program` said when it failed, with its exit status: the last
+/// lines of its standard error, where clevis's pins put the step that
+/// failed last, and before it the lines of the tools they ran, such as
+/// tpm2-tools' `ERROR:` lines with the TPM's response code. clevis prints
+/// the key on standard output, never here.
 fn failure(program: &str, output: &zbm_platform::Output) -> String {
-    let text = output.stderr_text();
-    let said = text.lines().rev().find(|line| !line.trim().is_empty());
     let status = output.status.shell_code();
-    match said {
-        Some(line) => format!("{program} failed ({status}): {}", line.trim()),
+    match stderr::last_lines(&output.stderr_text()) {
+        Some(lines) => format!("{program} failed ({status}): {lines}"),
         None => format!("{program} failed ({status})"),
     }
 }
@@ -161,7 +163,7 @@ mod tests {
         });
         assert_eq!(
             Clevis::new(&failing, "x").decrypt(&token).err().as_deref(),
-            Some("clevis decrypt failed (1): ERROR: tpm2")
+            Some("clevis decrypt failed (1): Creating TPM2 primary key failed! | ERROR: tpm2")
         );
         let empty = with_clevis(|| Output::with_secret(Status::exited(0), Secret::copy_from(b"")));
         assert_eq!(
@@ -240,6 +242,48 @@ mod tests {
                 ("TCTI".into(), tcti)
             ]
         );
+    }
+
+    /// The answer of a `clevis decrypt` that failed with `stderr`.
+    fn failed_with(stderr: &str) -> Option<String> {
+        let stderr = stderr.as_bytes().to_vec();
+        let runner = with_clevis(move || {
+            let mut output = Output::new(Status::exited(1), "");
+            output.stderr.clone_from(&stderr);
+            output
+        });
+        let token = Token::without_fields("0", "clevis");
+        Clevis::new(&runner, "x").decrypt(&token).err()
+    }
+
+    #[test]
+    fn a_clevis_failure_keeps_the_tool_lines_before_its_message() {
+        let said = failed_with(
+            "WARNING:esys:src/tss2-esys/api/Esys_Load.c:324:Esys_Load_Finish() Received TPM \
+             Error\nERROR:esys:src/tss2-esys/api/Esys_Load.c:112:Esys_Load() Esys Finish \
+             ErrorCode (0x000001df)\nERROR: Unable to run tpm2_load\nUnable to load TPM2 \
+             object\nUnsealing jwk from TPM failed!\n",
+        );
+        assert_eq!(
+            said.as_deref(),
+            Some(
+                "clevis decrypt failed (1): ERROR:esys:src/tss2-esys/api/Esys_Load.c:112:\
+                 Esys_Load() Esys Finish ErrorCode (0x000001df) | ERROR: Unable to run tpm2_load \
+                 | Unable to load TPM2 object | Unsealing jwk from TPM failed!"
+            )
+        );
+    }
+
+    #[test]
+    fn long_or_many_stderr_lines_are_cut() {
+        let long = format!("{}\n", "E".repeat(1000));
+        let many = (0..100).fold(String::new(), |text, line| text + &format!("line {line}\n"));
+        let said = failed_with(&format!("{many}{long}")).unwrap();
+        let kept = format!(
+            "clevis decrypt failed (1): line 97 | line 98 | line 99 | {}...",
+            "E".repeat(stderr::WIDTH)
+        );
+        assert_eq!(said, kept);
     }
 
     #[test]

@@ -294,6 +294,19 @@ included. `zluks` in the recovery shell and over SSH is unchanged.
   disk from making ZFSBootMenu allocate terabytes or derive for hours, and the plugin before systemd 262 cannot open
   these tokens at all.
 
+### A clevis or TPM2 token that does not open says why
+
+- **Before:** `clevis decrypt` and the native code's tpm2-tools ran with their standard error discarded. A clevis
+  token that did not open left a debug line, `clevis could not recover the key for slot <slot> on <device>`, and a key
+  clevis recovered that opened no key slot left only `cryptsetup`'s.
+- **Now:** a clevis failure is a warning that keeps the last four lines clevis printed, each cut to 200 characters:
+  the tools' lines, such as tpm2-tools' `ERROR:` line with the TPM's response code, before clevis's own message. A key
+  clevis released that opens no key slot is a warning: `clevis token <id> on <device>: clevis released the key, but it
+  opened no key slot (...)`. A tpm2-tools command that fails leaves its last lines in the journal at the debug level,
+  with every form of the authorization value it was given replaced by `<auth>`.
+- **Why:** a TPM failure in the initramfs left no reason anywhere: a wrong PIN, a binding sealed to another TPM and a
+  refused session all read the same.
+
 ### The timed prompts are questions
 
 - **Before:** red lines that counted down, with RETURN and ESCAPE: `Unable to import <pool>, retrying in <n>

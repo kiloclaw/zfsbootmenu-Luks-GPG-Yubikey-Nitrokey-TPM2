@@ -32,6 +32,32 @@ pub(super) fn read_secret(mut pipe: impl Read, limit: usize) -> io::Result<Captu
     Ok(Captured { data: secret, over })
 }
 
+/// Reads a pipe as [`read_secret`] does, into plain bytes in one allocation
+/// of their own size: growing leaves no copy behind, so a
+/// [`Secret::from_vec`] of them leaves none either. Past `limit` nothing is
+/// kept, as running the command is then an error.
+pub(super) fn read_wiped(pipe: impl Read, limit: usize) -> io::Result<Captured<Vec<u8>>> {
+    let captured = read_secret(pipe, limit)?;
+    let data = if captured.over {
+        Vec::new()
+    } else {
+        captured.data.expose().to_vec()
+    };
+    Ok(Captured {
+        data,
+        over: captured.over,
+    })
+}
+
+/// Reads standard error, captured as `stream`, up to `limit` bytes.
+fn read_stderr(pipe: impl Read, stream: Stream, limit: usize) -> io::Result<Captured<Vec<u8>>> {
+    if stream == Stream::CaptureSecret {
+        read_wiped(pipe, limit)
+    } else {
+        read_pipe(pipe, limit)
+    }
+}
+
 /// What was read of a pipe, and whether it held more than was taken.
 pub(super) struct Captured<T> {
     /// What was read.
@@ -90,9 +116,9 @@ pub(super) fn communicate(
                 let _ = pipe.write_all(bytes);
             });
         }
-        let stderr_limit = command.get_output_limit(Stream::Capture);
+        let (stream, limit) = (command.stderr, command.get_output_limit(command.stderr));
         let stderr = stderr.map(|pipe| {
-            crate::event::spawn_scoped_traced(scope, move || read_pipe(pipe, stderr_limit))
+            crate::event::spawn_scoped_traced(scope, move || read_stderr(pipe, stream, limit))
         });
         let stdout = stdout.map(|pipe| {
             let pipe: Box<dyn Read> = match supervisor {

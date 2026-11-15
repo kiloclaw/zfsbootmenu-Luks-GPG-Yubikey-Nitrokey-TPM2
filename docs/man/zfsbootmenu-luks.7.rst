@@ -153,6 +153,8 @@ refused; so it is when the process is in a cgroup below the root and the cgroup2
 the TPM's lockout; the dialog says why, such as "This volume's TPM2 PIN needs 3.1 GiB of memory to check; 2.6 GiB is
 free.", and the next unlock method runs. While the PIN is derived, the dialog shows "Checking the PIN (Argon2id, 3.1
 GiB) ...". A token whose key the TPM released but which opens no key slot is not asked for again: the log says so.
+When a **tpm2-tools** command fails, the last lines it printed, with the TPM's response code, are in the journal at
+the debug level (**zbm debug journal --level debug**), without the authorization value.
 
 When the TPM refuses PINs after too many wrong attempts (dictionary-attack lockout), ZFSBootMenu says so and moves on
 instead of asking for a PIN it cannot use.
@@ -168,7 +170,8 @@ clevis
 ------
 
 LUKS2 tokens created with **clevis luks bind**. TPM2 policies work in every image that contains clevis. Tang policies
-need networking in ZFSBootMenu.
+need networking in ZFSBootMenu. When clevis cannot recover the key, the warning in the log carries the last lines it
+printed, such as the TPM's error from **tpm2-tools**; a key it recovered that opens no key slot is a warning too.
 
 GnuPG-encrypted key files
 -------------------------

@@ -10,6 +10,10 @@
 //! encrypted under a session key that only the TPM and this process know,
 //! so a device on the bus of a discrete TPM reads nothing of it.
 //!
+//! A tool that fails leaves its last lines of standard error, which carry
+//! the TPM's response code, in the log at debug, with every form of the
+//! authorization value it was given replaced by `<auth>`.
+//!
 //! ```
 //! use std::path::Path;
 //! use zbm_crypt::tpm2::Tpm2;
@@ -36,9 +40,10 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use zbm_platform::{Command, Input, Runner, Secret, Stream};
+use zbm_platform::{Command, Input, Output, Runner, Secret, Stream};
 
 use crate::measure::{self, Bank, Digests};
+use crate::stderr;
 
 /// The longest a `tpm2_*` command may run, for a TPM that stopped
 /// answering; its commands take seconds at most.
@@ -94,6 +99,69 @@ pub struct Tpm2<'a> {
     tcti: &'a str,
 }
 
+/// What stands in the log for the authorization value.
+const AUTH: &[u8] = b"<auth>";
+
+/// `text` with each `needle` in it replaced by `with`, in a secret: what
+/// is not yet replaced may be the authorization value.
+fn replace(text: &[u8], needle: &[u8], with: &[u8]) -> Secret {
+    let mut replaced = Secret::new();
+    let mut rest = text;
+    while let Some(at) = (!needle.is_empty())
+        .then(|| {
+            rest.windows(needle.len())
+                .position(|window| window == needle)
+        })
+        .flatten()
+    {
+        let (before, after) = rest.split_at(at);
+        replaced.push_bytes(before);
+        replaced.push_bytes(with);
+        rest = after.get(needle.len()..).unwrap_or_default();
+    }
+    replaced.push_bytes(rest);
+    replaced
+}
+
+/// The bytes that the hexadecimal digits `hex` stand for, if they are
+/// digits.
+fn unhex(hex: &[u8]) -> Option<Secret> {
+    if !hex.len().is_multiple_of(2) {
+        return None;
+    }
+    let mut bytes = Secret::new();
+    for pair in hex.chunks_exact(2) {
+        let digits = std::str::from_utf8(pair).ok()?;
+        bytes.push(u8::from_str_radix(digits, 16).ok()?);
+    }
+    Some(bytes)
+}
+
+/// `said` with every form in which the authorization value `auth` (its
+/// hexadecimal digits) reaches a tool replaced by `<auth>`: the text on
+/// standard input that `file:-` reads, `hex:` and the digits; the digits
+/// alone, in either case; and the bytes they stand for. tpm2-tools do not
+/// print it, but nothing here relies on that. Every step is a secret, wiped
+/// when dropped.
+fn scrub(said: &[u8], auth: Option<&Secret>) -> Secret {
+    let Some(auth) = auth.filter(|auth| !auth.is_empty()) else {
+        return Secret::copy_from(said);
+    };
+    let mut given = Secret::copy_from(b"hex:");
+    given.push_bytes(auth.expose());
+    let (mut lower, mut upper) = (Secret::new(), Secret::new());
+    for &byte in auth.expose() {
+        lower.push(byte.to_ascii_lowercase());
+        upper.push(byte.to_ascii_uppercase());
+    }
+    let raw = unhex(auth.expose()).unwrap_or_default();
+    [given, lower, upper, raw]
+        .iter()
+        .fold(Secret::copy_from(said), |text, form| {
+            replace(text.expose(), form.expose(), AUTH)
+        })
+}
+
 /// The text of a path for a tool's argument.
 fn text(path: &Path) -> String {
     path.display().to_string()
@@ -105,23 +173,51 @@ impl<'a> Tpm2<'a> {
         Tpm2 { runner, tcti }
     }
 
-    /// A command of `program` for this TPM, quiet and with no input, ended
-    /// after [`TIMEOUT`].
+    /// A command of `program` for this TPM, with no input and its standard
+    /// output left out, ended after [`TIMEOUT`]. Its standard error is
+    /// kept, for the log when it fails, and read as a secret is: a tool
+    /// could echo the authorization value it was given.
     fn command(&self, program: &str) -> Command {
         Command::new(program)
             .env("TPM2TOOLS_TCTI", self.tcti)
             .timeout(TIMEOUT)
             .stdin(Input::Null)
             .stdout(Stream::Null)
-            .stderr(Stream::Null)
+            .stderr(Stream::CaptureSecret)
+    }
+
+    /// The output of the `tool` command `command` when it succeeds. When it
+    /// does not, the log says why at debug: the last lines of its standard
+    /// error, without the authorization value `auth` it was given.
+    fn output(&self, tool: &str, command: &Command, auth: Option<&Secret>) -> Option<Output> {
+        let mut output = self
+            .runner
+            .run(command)
+            .inspect_err(|error| {
+                zbm_trace::debug!("{program} did not start: {error}"; program = tool, %error);
+            })
+            .ok()?;
+        // Wiped when dropped: a tool that echoed its input left it here, in
+        // the only copy the runner made (`Stream::CaptureSecret`).
+        let said = Secret::from_vec(std::mem::take(&mut output.stderr));
+        if output.status.is_success() {
+            return Some(output);
+        }
+        let status = output.status.shell_code();
+        let text = String::from_utf8_lossy(scrub(said.expose(), auth).expose()).into_owned();
+        if let Some(said) = stderr::last_lines(&text) {
+            zbm_trace::debug!("{program} failed ({status}): {said}"; program = tool, status, %said);
+        } else {
+            zbm_trace::debug!("{program} failed ({status})"; program = tool, status);
+        }
+        None
     }
 
     /// Runs the `tool` command `command`.
     fn run(&self, tool: &'static str, command: &Command) -> Result<(), ToolFailed> {
-        match self.runner.run(command) {
-            Ok(output) if output.status.is_success() => Ok(()),
-            _ => Err(ToolFailed(tool)),
-        }
+        self.output(tool, command, None)
+            .map(drop)
+            .ok_or(ToolFailed(tool))
     }
 
     /// Whether the TPM refuses PIN-protected objects after too many wrong
@@ -131,7 +227,7 @@ impl<'a> Tpm2<'a> {
             .command("tpm2_getcap")
             .arg("properties-variable")
             .stdout(Stream::Capture);
-        let Ok(output) = self.runner.run(&getcap) else {
+        let Some(output) = self.output("tpm2_getcap", &getcap, None) else {
             return false;
         };
         output.stdout_text().lines().any(|line| {
@@ -148,10 +244,7 @@ impl<'a> Tpm2<'a> {
             .command("tpm2_getcap")
             .arg("pcrs")
             .stdout(Stream::Capture);
-        let output = self.runner.run(&getcap).ok()?;
-        if !output.status.is_success() {
-            return None;
-        }
+        let output = self.output("tpm2_getcap", &getcap, None)?;
         let banks = output
             .stdout_text()
             .lines()
@@ -177,10 +270,7 @@ impl<'a> Tpm2<'a> {
             .command("tpm2_pcrread")
             .arg(selection.join("+"))
             .stdout(Stream::Capture);
-        let output = self.runner.run(&read).ok()?;
-        if !output.status.is_success() {
-            return None;
-        }
+        let output = self.output("tpm2_pcrread", &read, None)?;
         let values = pcr_values(&output.stdout_text());
         pcrs.iter()
             .map(|&pcr| {
@@ -269,9 +359,8 @@ impl<'a> Tpm2<'a> {
 
     /// Flushes every transient object (`tpm2_flushcontext -t`).
     pub fn flush_transient(&self) {
-        let _ = self
-            .runner
-            .run(&self.command("tpm2_flushcontext").arg("-t"));
+        let flush = self.command("tpm2_flushcontext").arg("-t");
+        let _ = self.output("tpm2_flushcontext", &flush, None);
     }
 }
 
@@ -328,11 +417,8 @@ impl PolicySession<'_, '_> {
             .args(["-c", &text(object), "-p", &policy])
             .stdin(stdin)
             .stdout(Stream::CaptureSecret);
-        let output = self.tpm.runner.run(&unseal).ok()?;
-        output
-            .status
-            .is_success()
-            .then(|| output.into_secret().unwrap_or_default())
+        let output = self.tpm.output("tpm2_unseal", &unseal, auth)?;
+        Some(output.into_secret().unwrap_or_default())
     }
 }
 
@@ -342,207 +428,9 @@ impl Drop for PolicySession<'_, '_> {
             .tpm
             .command("tpm2_flushcontext")
             .arg(text(&self.context));
-        let _ = self.tpm.runner.run(&flush);
+        let _ = self.tpm.output("tpm2_flushcontext", &flush, None);
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-    use zbm_platform::{Output, Status};
-    use zbm_testkit::FakeRunner;
-
-    #[test]
-    fn a_session_is_flushed_on_every_path() {
-        let runner = FakeRunner::new();
-        runner.respond_program("tpm2_unseal", 1, "");
-        let tpm = Tpm2::new(&runner, "swtpm:port=2321");
-        let work = Path::new("/w");
-        {
-            let session = tpm.policy_session(&work.join("s.ctx")).unwrap();
-            session.auth_value().unwrap();
-            assert!(session.unseal(&work.join("o.ctx"), None).is_none());
-        }
-        tpm.flush_transient();
-
-        assert_eq!(
-            runner.lines(),
-            [
-                "tpm2_startauthsession --policy-session -c 0x81000001 -S /w/s.ctx",
-                "tpm2_sessionconfig /w/s.ctx --enable-encrypt",
-                "tpm2_policyauthvalue -S /w/s.ctx",
-                "tpm2_unseal -c /w/o.ctx -p session:/w/s.ctx",
-                "tpm2_flushcontext /w/s.ctx",
-                "tpm2_flushcontext -t",
-            ]
-        );
-        assert!(runner.calls().iter().all(|command| {
-            command.get_env().iter().any(|(key, value)| {
-                key == "TPM2TOOLS_TCTI" && value.as_deref() == Some("swtpm:port=2321".as_ref())
-            })
-        }));
-    }
-
-    #[test]
-    fn the_authorization_value_goes_to_standard_input() {
-        let runner = FakeRunner::new();
-        runner.on(|command| {
-            (command.program() == "tpm2_unseal").then(|| {
-                let given = matches!(
-                    command.get_stdin(),
-                    Input::Secret(secret) if secret.expose() == b"hex:abcd"
-                );
-                Ok(if given {
-                    Output::with_secret(Status::exited(0), Secret::copy_from(b"key"))
-                } else {
-                    Output::new(Status::exited(1), "")
-                })
-            })
-        });
-        let tpm = Tpm2::new(&runner, "device:/dev/tpmrm0");
-        let session = tpm.policy_session(Path::new("/s")).unwrap();
-
-        let key = session.unseal(Path::new("/o"), Some(&Secret::copy_from(b"abcd")));
-        assert_eq!(key.unwrap().expose(), b"key");
-        assert!(runner.lines()[2].ends_with("-p session:/s+file:-"));
-        assert!(
-            session
-                .unseal(Path::new("/o"), Some(&Secret::copy_from(b"0000")))
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn a_session_that_cannot_encrypt_is_flushed_and_refused() {
-        let runner = FakeRunner::new();
-        runner.respond_program("tpm2_sessionconfig", 1, "");
-        let tpm = Tpm2::new(&runner, "x");
-
-        let refused = tpm.policy_session(Path::new("/s")).err();
-
-        assert_eq!(refused, Some(ToolFailed("tpm2_sessionconfig")));
-        assert_eq!(
-            runner.lines().last().map(String::as_str),
-            Some("tpm2_flushcontext /s")
-        );
-    }
-
-    #[test]
-    fn lockout_is_read_from_the_variable_properties() {
-        let runner = FakeRunner::new();
-        runner.respond(
-            "tpm2_getcap properties-variable",
-            0,
-            "TPM2_PT_PERMANENT:\n  inLockout:                 1\n",
-        );
-        assert!(Tpm2::new(&runner, "x").in_lockout());
-        let clear = FakeRunner::new();
-        clear.respond("tpm2_getcap properties-variable", 0, "  inLockout: 0\n");
-        assert!(!Tpm2::new(&clear, "x").in_lockout());
-        let failing = FakeRunner::new();
-        failing.on(|_| Some(Err(std::io::Error::other("no tool"))));
-        let tpm = Tpm2::new(&failing, "x");
-        assert!(!tpm.in_lockout());
-        assert_eq!(
-            tpm.policy_session(Path::new("/s")).err(),
-            Some(ToolFailed("tpm2_startauthsession"))
-        );
-        assert_eq!(
-            tpm.load(Path::new("/p"), Path::new("/r"), Path::new("/c")),
-            Err(ToolFailed("tpm2_load"))
-        );
-    }
-
-    #[test]
-    fn the_active_banks_are_those_with_pcrs_selected() {
-        let runner = FakeRunner::new();
-        runner.respond(
-            "tpm2_getcap pcrs",
-            0,
-            "selected-pcrs:\n  - sha1: [ 0, 1, 2 ]\n  - sha256: [ 0, 1, 2 ]\n  - sha384: [ ]\n",
-        );
-        let banks = Tpm2::new(&runner, "x").active_banks();
-        assert_eq!(banks, Some(vec![Bank::Sha1, Bank::Sha256]));
-        let refusing = FakeRunner::new();
-        refusing.respond("tpm2_getcap pcrs", 1, "");
-        assert_eq!(Tpm2::new(&refusing, "x").active_banks(), None);
-        let failing = FakeRunner::new();
-        failing.on(|_| Some(Err(std::io::Error::other("no tool"))));
-        assert_eq!(Tpm2::new(&failing, "x").active_banks(), None);
-    }
-
-    #[test]
-    fn the_values_of_pcrs_are_read_in_each_bank() {
-        let runner = FakeRunner::new();
-        let sha1 = "0x00000000000000000000000000000000000000AB";
-        let sha256 = format!("0x{}", "11".repeat(32));
-        runner.respond(
-            "tpm2_pcrread sha1:8,9+sha256:8,9",
-            0,
-            &format!(
-                "  sha1:\n    8 : {sha1}\n    9 : {sha1}\n  sha256:\n    8 : {sha256}\n    \
-                 9 : {sha256}\n"
-            ),
-        );
-        let tpm = Tpm2::new(&runner, "x");
-
-        let values = tpm.read_pcrs(&[8, 9], &[Bank::Sha1, Bank::Sha256]).unwrap();
-
-        assert_eq!(values.len(), 2);
-        assert_eq!(values[1].0, 9);
-        let mut expected = vec![0; 20];
-        expected[19] = 0xab;
-        assert_eq!(values[1].1.get(Bank::Sha1), Some(expected.as_slice()));
-        assert_eq!(values[0].1.get(Bank::Sha256), Some([0x11; 32].as_slice()));
-        // A bank it left out, or a TPM that refuses, gives nothing.
-        assert_eq!(tpm.read_pcrs(&[8], &[Bank::Sha384]), None);
-        let refusing = FakeRunner::new();
-        refusing.respond_program("tpm2_pcrread", 1, "");
-        assert_eq!(
-            Tpm2::new(&refusing, "x").read_pcrs(&[8], &[Bank::Sha1]),
-            None
-        );
-        let failing = FakeRunner::new();
-        failing.on(|_| Some(Err(std::io::Error::other("no tool"))));
-        assert_eq!(
-            Tpm2::new(&failing, "x").read_pcrs(&[8], &[Bank::Sha1]),
-            None
-        );
-        // A value of the wrong length, or no number, is no value.
-        let values = pcr_values("  sha1:\n    8 : 0x00\n    x : 0x00\n  md5:\n    8 : 0x00\n");
-        assert!(values.is_empty());
-    }
-
-    #[test]
-    fn a_pcr_is_extended_in_each_bank_given() {
-        let runner = FakeRunner::new();
-        let tpm = Tpm2::new(&runner, "x");
-        let digests = Digests::of_bytes(b"quiet");
-
-        tpm.extend(8, &digests, &[Bank::Sha1, Bank::Sha256])
-            .unwrap();
-
-        let line = &runner.lines()[0];
-        let sha1 = measure::hex(digests.get(Bank::Sha1).unwrap());
-        let sha256 = measure::hex(digests.get(Bank::Sha256).unwrap());
-        assert_eq!(
-            line,
-            &format!("tpm2_pcrextend 8:sha1={sha1},sha256={sha256}")
-        );
-        runner.respond_program("tpm2_pcrextend", 1, "");
-        assert_eq!(
-            tpm.extend(9, &digests, &[Bank::Sha256]),
-            Err(ToolFailed("tpm2_pcrextend"))
-        );
-    }
-
-    #[test]
-    fn every_command_ends_after_its_time_out() {
-        let runner = FakeRunner::new();
-        let _ = Tpm2::new(&runner, "device:/dev/tpmrm0").in_lockout();
-        let calls = runner.calls();
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].get_timeout(), Some(TIMEOUT));
-    }
-}
+mod tests;

@@ -132,6 +132,14 @@ Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 A test that did not run, such as an ``oldzfs`` test without an older image, is ``SKIP`` in the summary, not
 ``PASS``; one that ran without making a check fails.
 
+To find why a volume did not unlock, read the serial log of the Rust runtime's boots: at teardown, the test hook
+``15-journal.sh`` prints the runtime's journal there, as ``zbm debug journal`` and ``zbm debug commands`` print it.
+``ZW|`` lines are its warnings, such as a clevis failure with the last lines that clevis and tpm2-tools printed;
+``ZD|`` lines its debug lines that name ``tpm2_``, ``clevis`` or ``cryptsetup``, such as a tpm2-tools command that
+failed, with the TPM's response code and without the authorization value; ``ZC|`` lines the ``clevis``, ``jose``,
+``tpm2_*`` and ``cryptsetup`` commands it ran, with their exit statuses. The ``keys`` tests copy these lines into
+``steps.log``.
+
 The harness is built as yourself and run as root; ``cargo xtask test vm [<test>...]`` does both, running the harness
 with ``sudo env ZBMTEST_...=...`` unless it already runs as root, so that the ``ZBMTEST_`` settings reach it with
 either sudo (``sudo-rs`` ignores ``sudo -E``). ``zbm-vmtest list`` lists the tests in the order ``run`` runs them. ``zbm-vmtest compare <work>
@@ -191,13 +199,13 @@ Virtual-Machine Tests
 
 Images and boot environment
   The ZFSBootMenu images are built by the build container from the source tree, with test hooks that print
-  ``zpool status``, ``zluks status`` and the state at teardown (devices still mapped, pools still imported). The test
-  boot environment is built by the container too, again whenever ``tests/luks/vm/be/`` or the build container
-  changes (``payload-inputs.txt`` in the work directory records what it was built from): the Ubuntu kernel, a dracut
-  initramfs with the ZFS 2.4.4 ``zfs`` module and systemd-cryptsetup, which unlocks the volumes with key files and
-  ``rd.luks.uuid=``/``rd.luks.key=`` or ``luks.*`` parameters (no crypttab), and a minimal root file system whose
-  ``/sbin/init`` reports the kernel, the ZFS version, the root file system, the device-mapper table, every pool's
-  status and feature states, writes to the root dataset, scrubs every pool and powers off.
+  ``zpool status``, ``zluks status``, the runtime's journal and the state at teardown (devices still mapped, pools still
+  imported). The test boot environment is built by the container too, again whenever ``tests/luks/vm/be/`` or the build
+  container changes (``payload-inputs.txt`` in the work directory records what it was built from): the Ubuntu kernel, a
+  dracut initramfs with the ZFS 2.4.4 ``zfs`` module and systemd-cryptsetup, which unlocks the volumes with key files
+  and ``rd.luks.uuid=``/``rd.luks.key=`` or ``luks.*`` parameters (no crypttab), and a minimal root file system whose
+  ``/sbin/init`` reports the kernel, the ZFS version, the root file system, the device-mapper table, every pool's status
+  and feature states, writes to the root dataset, scrubs every pool and powers off.
 
 Following a boot
   The harness answers prompts (LUKS passphrases, ZFS keys, TPM2 PINs, GnuPG passphrases) and records them, so tests
@@ -866,6 +874,15 @@ Each fix of ZFSBootMenu's code has a regression test that fails without it.
   become importable, so ZFSBootMenu found no boot environment again, although **zluks**\ (8) says that it retries the
   import. ``zfsbootmenu-init`` now imports them, read-only as at start-up, before it shows the menu again
   (``complex-skip-recover``).
+* On a Fedora 45 host (systemd 262, clevis 24), ``keys-native-rust`` failed on every run. systemd 262's
+  ``--tpm2-with-pin=yes`` hardens the PIN with Argon2id and derives the passphrase with HKDF, which neither the native
+  code nor the image's systemd 261 plugin knew: the TPM refused the right PIN, and each try counted towards its lockout.
+  The Rust runtime now derives such PINs itself, within bounds of memory and work, and never hands such a token to a
+  plugin. The third volume's clevis binding did not open either: Fedora's ``clevis-pin-tpm2``, which clevis's ``tpm2``
+  pin scripts run in their place, reads the TPM from ``TCTI``, not ``TPM2TOOLS_TCTI``, so ``keys-setup`` had sealed the
+  binding to the host's own TPM. ``keys-setup``, the device suites and ZFSBootMenu's ``clevis decrypt`` now set both
+  variables, and each binding is checked against the software TPM right after ``clevis luks bind``. The serial log
+  said nothing of either failure; the teardown hook ``15-journal.sh`` now prints the runtime's journal there.
 * Two sessions unlocking at the same time, such as the console and an SSH session, could record one volume
   twice, so ``zluks status`` listed it twice (15 of 200 rounds of the race test). Recording is now serialized
   (``edge.sh``).
