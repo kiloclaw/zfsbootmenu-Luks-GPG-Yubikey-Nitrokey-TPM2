@@ -450,29 +450,6 @@ fn a_token_the_image_cannot_open_asks_no_pin_without_the_plugin() {
             .iter()
             .any(|line| line.starts_with("tpm2_load"))
     );
-
-    // A PIN hardened with Argon2id, which only systemd 262's plugin knows.
-    let fake = tpm_machine(None, b"s");
-    let (result, asked) = try_without_plugin(&fake, &token("token-tpm2-argon2id-f45.json"));
-    assert!(unsupported(result) && !asked);
-    let kmsg = fake.kmsg();
-    assert!(
-        kmsg.contains(
-            "TPM2 token uses systemd 262's Argon2id PIN (3256447 KiB, 2 passes, 24 lanes)"
-        )
-    );
-    assert!(kmsg.contains(
-        "TPM2 token 0 on /dev/sda uses systemd 262's Argon2id PIN, which only the \
-         systemd-tpm2 cryptsetup plugin of systemd 262 or later opens"
-    ));
-    assert!(!kmsg.contains("needs the systemd-tpm2 cryptsetup plugin"));
-    assert!(
-        !fake
-            .runner
-            .lines()
-            .iter()
-            .any(|line| line.starts_with("tpm2_") && !line.starts_with("tpm2_getcap"))
-    );
 }
 
 #[test]

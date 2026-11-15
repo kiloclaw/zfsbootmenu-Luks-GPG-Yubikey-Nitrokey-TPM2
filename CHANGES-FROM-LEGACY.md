@@ -266,13 +266,33 @@ included. `zluks` in the recovery shell and over SSH is unchanged.
   as `tpm2-pubkey`, where systemd writes `tpm2_pubkey`, so the token was unsealed without its signature and every PIN
   was refused as wrong.
 - **Now:** before any PIN is asked for, the log says that the token needs the plugin, and the next unlock method runs.
-  This holds for a signed or pcrlock policy, a tool missing from the image, a token from before systemd 254, and, until
-  the Rust runtime derives them, PINs that systemd 262 hardened with Argon2id (`--tpm2-with-pin=yes`), which only the
-  plugin of systemd 262 or later opens: an older plugin derives the PIN the old way and the TPM refuses it. With the
+  This holds for a signed or pcrlock policy, a tool missing from the image and a token from before systemd 254. With the
   plugin, such tokens go to it, as before. A token whose Argon2id fields systemd's parser refuses is refused before any
   PIN, plugin or TPM command, with a PIN or without (`TPM2 token 0 on /dev/sda is malformed: tpm2_argon2id_lanes is
-  0`), as systemd refuses it.
+  0`), as systemd refuses it; when it has a PIN, the dialog says so too.
 - **Why:** a PIN typed for a token that cannot open is wasted, and each one the TPM refuses counts towards its lockout.
+
+### TPM2 PINs hardened with Argon2id unlock, within bounds of memory and work
+
+- **Before:** a TPM2 PIN token that systemd 262 enrolled with `--tpm2-with-pin=yes`, whose PIN is hardened with Argon2id
+  (the token's `tpm2_argon2id_memcost`, `_iterations` and `_lanes`) and whose passphrase is derived with HKDF, was
+  unsealed with the PIN derived the old way, by ZFSBootMenu or by the image's plugin of systemd 261. The TPM refused the
+  right PIN, each try counted towards its lockout, and the passphrase was asked for in the end.
+- **Now:** the Rust runtime derives the PIN with Argon2id, on one core, after the sealed object is loaded, and the
+  passphrase with HKDF-SHA256, as systemd 262 does. Such a token never goes to a plugin, whatever the image holds; one
+  that needs it (a signed or pcrlock policy, tpm2-tools missing) is refused before any PIN. Before each PIN is asked for,
+  and again before each derivation, the token's memory cost must be within the machine's memory, the memory Argon2
+  works in plus a sixteenth of `MemTotal` (at least 64 MiB) within what `/proc/meminfo` and the cgroup say is available
+  (refused when the cgroup cannot be read),
+  the derivation within 32 GiB-passes, and the run's derivations within 64 GiB-passes; a token that fails is refused
+  with no PIN and no lockout try, and the dialog says why (`This volume's TPM2 PIN needs 3.1 GiB of memory to check; 2.6
+  GiB is free.`). Cached PINs are tried without a prompt on the first such token of a volume only. While a PIN is
+  derived, the dialog says `Checking the PIN (Argon2id, 3.1 GiB) ...`, and the keyholder raises its `oom_score_adj` to
+  1000 (start-up or the menu, unlocking itself when no keyholder starts, leaves its own alone). A key the TPM released that opens no key slot ends the token with a warning, for every native TPM2 token,
+  instead of asking for the PIN again.
+- **Why:** systemd 262 makes Argon2id the default for PIN tokens. The bounds keep a header written by someone with the
+  disk from making ZFSBootMenu allocate terabytes or derive for hours, and the plugin before systemd 262 cannot open
+  these tokens at all.
 
 ### The timed prompts are questions
 

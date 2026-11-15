@@ -154,6 +154,7 @@ impl Unlocker<'_> {
             match self.fido2_native(token) {
                 Outcome::Key(key) => self.cryptsetup_open(target, Key::Stdin(&key))?,
                 Outcome::Failed => return Err(failed(TokenFailure::NotReleased)),
+                Outcome::TooCostly => return Err(failed(TokenFailure::TooCostly)),
                 Outcome::Unsupported => {
                     zbm_trace::warn!(
                         "FIDO2 token {id} on {device} needs fido2-tools or the systemd-fido2 \

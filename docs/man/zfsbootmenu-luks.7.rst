@@ -133,12 +133,26 @@ LUKS2 tokens created with **systemd-cryptenroll --tpm2-device**, with or without
 bound to PCRs. When the image contains systemd's *systemd-tpm2* cryptsetup plugin, the plugin unlocks the token.
 Otherwise ZFSBootMenu unseals it with **tpm2-tools**. The native implementation handles tokens created by systemd 254
 or later, with or without a PIN and with or without a PCR policy. Signed PCR policies (**--tpm2-public-key**),
-**--tpm2-pcrlock** and tokens created by older systemd versions need the plugin. PINs that systemd 262 or later hardens
-with Argon2id (**--tpm2-with-pin=yes**; **direct** is not hardened) need the plugin of systemd 262 or later: an older
-plugin derives such a PIN the old way, the TPM refuses it, and each try counts towards its lockout. In an image without
-the plugin, ZFSBootMenu says in the log why it cannot open such a token, asks for no PIN, and moves on to the next
-unlock method. A token whose Argon2id fields systemd would refuse (a zero, an incomplete set, a missing salt) is
-refused the same way, with a PIN or without, and with the plugin too.
+**--tpm2-pcrlock** and tokens created by older systemd versions need the plugin. In an image without the plugin,
+ZFSBootMenu says in the log why it cannot open such a token, asks for no PIN, and moves on to the next unlock method. A
+token whose Argon2id fields systemd would refuse (a zero, an incomplete set, a missing salt) is refused the same way,
+with a PIN or without, and with the plugin too.
+
+PINs that systemd 262 or later hardens with Argon2id (**--tpm2-with-pin=yes**; **direct** is not hardened) are always
+unsealed by ZFSBootMenu's own code, never by the plugin, whatever the image holds: a plugin older than systemd 262
+derives such a PIN the old way, the TPM refuses it, and each try counts towards its lockout. Such a token needs
+**tpm2-tools** in the image and no signed or pcrlock policy; otherwise it is refused before any PIN is asked for. The
+derivation takes the memory the token names (systemd sizes it on the enrolling machine, up to half its memory) and
+runs on one core, at each boot, for each volume and each PIN typed: some seconds per GiB. Before the PIN is asked
+for, before each further PIN, and again before each derivation, ZFSBootMenu checks that the token's memory cost is no
+more than the machine's memory, that the memory Argon2 works in, plus a sixteenth of the machine's memory (at least 64
+MiB) kept for the rest of the system, is available, both capped by the limits of its cgroup and of the cgroups above
+it, and that the work is within its bounds (see **SECURITY**). When the free memory cannot be read, the token is
+refused; so it is when the process is in a cgroup below the root and the cgroup2 file system is not mounted at
+*/sys/fs/cgroup*. A refused token costs no PIN and no try of
+the TPM's lockout; the dialog says why, such as "This volume's TPM2 PIN needs 3.1 GiB of memory to check; 2.6 GiB is
+free.", and the next unlock method runs. While the PIN is derived, the dialog shows "Checking the PIN (Argon2id, 3.1
+GiB) ...". A token whose key the TPM released but which opens no key slot is not asked for again: the log says so.
 
 When the TPM refuses PINs after too many wrong attempts (dictionary-attack lockout), ZFSBootMenu says so and moves on
 instead of asking for a PIN it cannot use.
@@ -251,7 +265,8 @@ These options are set in a dracut configuration file in the directory named by *
 
 **zfsbootmenu_luks_token_plugins=no**
 
-  Leave out systemd's cryptsetup token plugins; ZFSBootMenu's own TPM2 and FIDO2 code is used instead.
+  Leave out systemd's cryptsetup token plugins; ZFSBootMenu's own TPM2 and FIDO2 code is used instead. TPM2 PINs
+  hardened with Argon2id ignore this option: ZFSBootMenu's own code always unseals them.
 
 **zfsbootmenu_luks_clevis=no**
 
@@ -326,6 +341,16 @@ SECURITY
   anyone with the image, and the build warns about them.
 * A TPM2 token without a PIN unlocks the pools for anyone who can start the computer, and ZFSBootMenu offers a
   recovery shell. Bind such tokens to PCR 7 with Secure Boot enabled, or require a PIN.
+* A TPM2 PIN hardened with Argon2id takes the memory and the time its token, which anyone with the disk can write,
+  names. ZFSBootMenu refuses, before asking for the PIN, a derivation whose memory times passes is above 32 GiB-passes
+  (some 40 seconds on one core of a fast machine), and one that would take an unlocking run's derivations together
+  above 64 GiB-passes; cached PINs are tried without asking on the first such token of a volume only. A refused token
+  says to enrol it again with fixed **--tpm2-argon2id-memory=** and **--tpm2-argon2id-iterations=**. The start-up
+  dialog cannot stop a derivation, so these bounds are what bounds its wait; the menu's unlock actions stop it when
+  they are cancelled, and no client gives up on the unlocking process after a time. The unlocking process makes itself
+  the first that the kernel ends when memory runs out, and the unlock then ends as unable to unlock, with the volumes
+  opened before still open. When no unlocking process can start, start-up or the menu unlocks itself, within the same
+  bounds, and leaves its own standing with the kernel as it was.
 * Every vdev that stores pool data must be encrypted: data, special, dedup, log and cache vdevs, and spares. An
   unencrypted log or cache device holds plaintext data.
 * Decrypted key material exists only in RAM, below */run*, and is removed when unlocking ends; the Rust runtime

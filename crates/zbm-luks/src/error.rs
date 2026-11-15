@@ -24,6 +24,16 @@ pub enum TokenFailure {
     /// The token needs a cryptsetup plugin, or tools, that the image lacks.
     #[error("the image has no support for it")]
     Unsupported,
+    /// Checking the PIN needs more memory or work than ZFSBootMenu allows
+    /// now, so the token was not asked.
+    #[error("checking its PIN needs more memory or time than ZFSBootMenu allows")]
+    TooCostly,
+    /// The token's fields are not as systemd writes them.
+    #[error("the token is malformed")]
+    Malformed,
+    /// The token released a key that opened no key slot.
+    #[error("the key it released opened no key slot")]
+    Mismatch,
 }
 
 /// Why a LUKS operation of this crate did not succeed.

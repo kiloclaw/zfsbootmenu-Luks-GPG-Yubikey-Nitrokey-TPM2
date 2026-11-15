@@ -168,6 +168,7 @@ fn keep(connection: &Connection, options: &Options) -> io::Result<()> {
     let unlock = |interaction: &dyn Interaction, request: &UnlockRequest| {
         let mut settings = settings.clone();
         settings.retry = request.retry;
+        settings.keyholder = true;
         settings.presence = if request.remote {
             Presence::Remote
         } else {

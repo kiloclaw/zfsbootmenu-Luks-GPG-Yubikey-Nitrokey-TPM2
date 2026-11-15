@@ -78,6 +78,9 @@ pub enum Outcome {
     Failed,
     /// The token needs something ZFSBootMenu's own implementation lacks.
     Unsupported,
+    /// The PIN's derivation needs more memory or work than allowed now, so
+    /// the token was not asked.
+    TooCostly,
 }
 
 /// Where cryptsetup's token plugins may be.

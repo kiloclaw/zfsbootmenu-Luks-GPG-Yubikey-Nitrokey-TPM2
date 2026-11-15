@@ -24,6 +24,7 @@ use zbm_types::RetryDelay;
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
 use crate::device::OpenCheck;
 use crate::error::LuksError;
+use crate::keys::tpm2::Argon2idRun;
 use crate::keys::{OpenMapping, Target};
 use crate::unlock::methods::{Attempt, Registry};
 use zbm_platform::interaction::{
@@ -70,6 +71,10 @@ impl Presence {
 
 /// The settings of the LUKS code, with the names of the legacy variables that
 /// set them.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "four independent settings, each an option of its own"
+)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Settings {
     /// The state directory (`BASE`), whose `cmdline.d` holds the options.
@@ -103,6 +108,12 @@ pub struct Settings {
     pub colors: bool,
     /// The device-mapper directory.
     pub mapper: PathBuf,
+    /// Whether the run is a keyholder's (`zbm unlock serve`), a process of
+    /// its own that ends with the run: it raises its OOM score before an
+    /// Argon2id derivation, so that the kernel ends it, not its client,
+    /// when memory runs out. A client that unlocks itself, as no keyholder
+    /// could start, leaves its own score alone.
+    pub keyholder: bool,
 }
 
 impl Settings {
@@ -124,6 +135,7 @@ impl Settings {
             open_check: OpenCheck::Sysfs,
             colors: true,
             mapper: PathBuf::from("/dev/mapper"),
+            keyholder: false,
         }
     }
 
@@ -200,6 +212,9 @@ pub struct Unlocker<'a> {
     pub(crate) passphrases: Vec<Secret>,
     /// TPM2 PINs that unsealed a volume's key.
     pub(crate) tpm2_pins: Vec<Secret>,
+    /// The work of the run's Argon2id derivations of TPM2 PINs, and which
+    /// cached PINs were tried on Argon2id tokens.
+    pub(crate) argon2id: Argon2idRun,
     /// Decrypted GnuPG key files, by key file specification.
     pub(crate) gpg_plain: BTreeMap<String, Secret>,
     /// Key devices that did not appear in this run.
@@ -225,6 +240,7 @@ impl<'a> Unlocker<'a> {
             luks,
             passphrases: Vec::new(),
             tpm2_pins: Vec::new(),
+            argon2id: Argon2idRun::default(),
             gpg_plain: BTreeMap::new(),
             keydev_absent: BTreeSet::new(),
             tpm2_probed: false,
@@ -292,6 +308,7 @@ impl<'a> Unlocker<'a> {
         self.gpg_plain.clear();
         self.passphrases.clear();
         self.tpm2_pins.clear();
+        self.argon2id.forget_pins();
         self.keydev_absent.clear();
     }
 

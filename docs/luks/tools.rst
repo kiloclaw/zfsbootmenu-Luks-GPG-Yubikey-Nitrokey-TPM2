@@ -139,7 +139,8 @@ Option                                  Default                      Effect
 ``zfsbootmenu_luks``                    ``yes``                      LUKS support as a whole
 ``zfsbootmenu_luks_crypttab``           */etc/zfsbootmenu/crypttab*  crypttab to embed (not in release builds)
 ``zfsbootmenu_luks_tokens``             ``yes``                      TPM2, FIDO2 and clevis support
-``zfsbootmenu_luks_token_plugins``      ``yes``                      systemd's cryptsetup token plugins
+``zfsbootmenu_luks_token_plugins``      ``yes``                      systemd's cryptsetup token plugins (not for
+                                                                     TPM2 PINs hardened with Argon2id)
 ``zfsbootmenu_luks_clevis``             ``yes``                      clevis
 ``zfsbootmenu_luks_gpg``                ``yes``                      GnuPG and ``scdaemon``
 ``zfsbootmenu_luks_gpg_keys``           (none)                       public keys to export from the host keyring

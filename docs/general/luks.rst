@@ -487,7 +487,9 @@ Options for ``dracut.conf.d`` or the ZFSBootMenu ``mkinitcpio.conf``:
   Leave out TPM2, FIDO2 and clevis support.
 
 ``zfsbootmenu_luks_token_plugins=no``
-  Leave out systemd's cryptsetup token plugins and always use ZFSBootMenu's own TPM2 and FIDO2 code.
+  Leave out systemd's cryptsetup token plugins and always use ZFSBootMenu's own TPM2 and FIDO2 code. A TPM2 PIN that
+  systemd 262 hardened with Argon2id (``--tpm2-with-pin=yes``) is always unsealed by ZFSBootMenu's own code, with or
+  without the plugins.
 
 ``zfsbootmenu_luks_clevis=no``
   Leave out clevis, even if it is installed.

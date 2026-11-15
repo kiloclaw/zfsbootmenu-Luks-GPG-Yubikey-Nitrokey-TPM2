@@ -39,6 +39,7 @@ fn three_argon2id_fields_select_argon2id_with_kib_rounded_down() {
         PinKdf::Argon2id {
             salt: sha256(b"salt").to_vec(),
             params: Argon2idParams {
+                memcost_bytes: 1_049_599,
                 memory_kib: 1024,
                 iterations: 3,
                 lanes: 1,
@@ -125,6 +126,7 @@ fn the_fedora_45_token_reads_as_3256447_kib_2_passes_24_lanes() {
     assert_eq!(
         params,
         Argon2idParams {
+            memcost_bytes: 3_334_601_937,
             memory_kib: 3_256_447,
             iterations: 2,
             lanes: 24,
@@ -178,4 +180,216 @@ fn systemd_s_rules_alone_hold_for_every_token() {
     let short = format!(r#","tpm2_salt":"AAAAAA=="{}"#, costs("16777216"));
     assert_eq!(check_systemd_rules(&token(&short)), Ok(()));
     assert!(PinKdf::of(&token(&short)).is_err());
+}
+
+/// Costs of `memory_kib` KiB, `iterations` passes and `lanes` lanes, with a
+/// memory cost of exactly that many KiB.
+fn params(memory_kib: u32, iterations: u32, lanes: u32) -> Argon2idParams {
+    Argon2idParams {
+        memcost_bytes: u64::from(memory_kib) * 1024,
+        memory_kib,
+        iterations,
+        lanes,
+    }
+}
+
+#[test]
+fn argon2_uses_whole_groups_of_four_blocks_a_lane() {
+    // Fedora 45's token: 3256447 KiB in 24 lanes, of which 3256416 are used.
+    let f45 = Argon2idParams {
+        memcost_bytes: 3_334_601_937,
+        ..params(3_256_447, 2, 24)
+    };
+    assert_eq!(f45.need(), 3_334_569_984);
+    assert_eq!(f45.work(), 2 * 3_334_569_984);
+    assert_eq!(params(1024, 3, 1).need(), 1 << 20);
+    // The largest costs a token can have do not overflow.
+    let largest = params(u32::MAX, u32::MAX, 1);
+    assert_eq!(largest.need(), (u64::from(u32::MAX) - 3) * 1024);
+    assert_eq!(
+        largest.work(),
+        u128::from(largest.need()) * u128::from(u32::MAX)
+    );
+}
+
+#[test]
+fn meminfo_gives_the_total_and_the_available_memory() {
+    let meminfo = "MemTotal:        4028248 kB\nMemFree:          123456 kB\n\
+                   MemAvailable:    3500000 kB\nBuffers:            1000 kB\n";
+    assert_eq!(
+        parse_meminfo(meminfo),
+        Some(Memory {
+            machine: 4_028_248 * 1024,
+            total: 4_028_248 * 1024,
+            available: 3_500_000 * 1024,
+        })
+    );
+    for broken in [
+        "",
+        "MemTotal: 1 kB\n",
+        "MemTotal: 1 kB\nMemAvailable: lots kB\n",
+        "MemTotal: 1 MB\nMemAvailable: 1 kB\n",
+        "MemTotal 1 kB\nMemAvailable: 1 kB\n",
+        "MemTotal: 18446744073709551615 kB\nMemAvailable: 1 kB\n",
+    ] {
+        assert_eq!(parse_meminfo(broken), None, "{broken:?}");
+    }
+}
+
+#[test]
+fn the_cgroup_path_gives_each_group_up_to_the_root() {
+    let dirs = cgroup_dirs("1:name=systemd:/x\n0::/system.slice/zbm.service\n").unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from("/sys/fs/cgroup/system.slice/zbm.service"),
+            PathBuf::from("/sys/fs/cgroup/system.slice"),
+            PathBuf::from("/sys/fs/cgroup"),
+        ]
+    );
+    // The root, which a cgroup namespace may limit.
+    assert_eq!(
+        cgroup_dirs("0::/\n"),
+        Some(vec![PathBuf::from("/sys/fs/cgroup")])
+    );
+    // Only cgroup v1: nothing caps the memory.
+    assert_eq!(cgroup_dirs("4:memory:/x\n"), Some(Vec::new()));
+    for broken in ["0::relative\n", "0::/a/../b\n", "0::/a/./b\n", "0::\n"] {
+        assert_eq!(cgroup_dirs(broken), None, "{broken:?}");
+    }
+}
+
+#[test]
+fn a_cgroup_s_limit_is_read_or_refused() {
+    let files = zbm_testkit::fakes::FakeFiles::new();
+    let dir = Path::new("/sys/fs/cgroup/a");
+    // No group there: cgroup2 is mounted elsewhere, or not at all.
+    assert_eq!(cgroup_limit(&files, dir), Some(Limit::Unmounted));
+    // A group without the memory controller.
+    files.file(dir.join("cgroup.controllers"), "cpu io\n");
+    assert_eq!(cgroup_limit(&files, dir), Some(Limit::Unlimited));
+    files.file(dir.join("memory.max"), "max\n");
+    assert_eq!(cgroup_limit(&files, dir), Some(Limit::Unlimited));
+    files.file(dir.join("memory.max"), "1048576\n");
+    assert_eq!(cgroup_limit(&files, dir), None);
+    files.file(dir.join("memory.current"), "4096\n");
+    assert_eq!(
+        cgroup_limit(&files, dir),
+        Some(Limit::Max {
+            max: 1_048_576,
+            current: 4096
+        })
+    );
+    files.file(dir.join("memory.max"), "-1\n");
+    assert_eq!(cgroup_limit(&files, dir), None);
+    let denied = Path::new("/sys/fs/cgroup/b");
+    files.fail(
+        denied.join("memory.max"),
+        std::io::ErrorKind::PermissionDenied,
+    );
+    assert_eq!(cgroup_limit(&files, denied), None);
+    let hidden = Path::new("/sys/fs/cgroup/c");
+    files.fail(
+        hidden.join("cgroup.controllers"),
+        std::io::ErrorKind::PermissionDenied,
+    );
+    assert_eq!(cgroup_limit(&files, hidden), None);
+}
+
+#[test]
+fn the_margin_is_a_sixteenth_of_memtotal_and_at_least_64_mib() {
+    let memory = |machine, total| Memory {
+        machine,
+        total,
+        available: total,
+    };
+    assert_eq!(memory(4 << 30, 4 << 30).margin(), 256 << 20);
+    assert_eq!(memory(512 << 20, 512 << 20).margin(), 64 << 20);
+    // A cgroup's limit caps what is available, not the margin.
+    assert_eq!(memory(64 << 30, 4 << 30).margin(), 4 << 30);
+}
+
+#[test]
+fn a_derivation_must_fit_the_cap_the_budget_and_the_memory() {
+    let roomy = Some(Memory {
+        machine: 8 << 30,
+        total: 8 << 30,
+        available: 6 << 30,
+    });
+    // 1 GiB, 32 passes: the cap exactly.
+    let at_cap = params(1 << 20, 32, 4);
+    assert_eq!(check_cost(&at_cap, roomy, 0, RUN_BUDGET), Ok(()));
+    let above = params(1 << 20, 33, 4);
+    assert_eq!(
+        check_cost(&above, roomy, 0, RUN_BUDGET),
+        Err(TooCostly::Work { work: 33 << 30 })
+    );
+    // The budget: two at the cap, not three.
+    assert_eq!(check_cost(&at_cap, roomy, 32 << 30, RUN_BUDGET), Ok(()));
+    assert_eq!(
+        check_cost(&at_cap, roomy, 64 << 30, RUN_BUDGET),
+        Err(TooCostly::Budget {
+            spent: 64 << 30,
+            budget: RUN_BUDGET,
+            work: 32 << 30,
+        })
+    );
+    assert_eq!(
+        check_cost(&at_cap, None, 0, RUN_BUDGET),
+        Err(TooCostly::Unknown)
+    );
+    // The memory available, with 512 MiB kept for the system.
+    let tight = |available| {
+        Some(Memory {
+            machine: 8 << 30,
+            total: 8 << 30,
+            available,
+        })
+    };
+    let one_gib = params(1 << 20, 1, 4);
+    assert_eq!(
+        check_cost(&one_gib, tight((1 << 30) + (512 << 20)), 0, RUN_BUDGET),
+        Ok(())
+    );
+    assert_eq!(
+        check_cost(&one_gib, tight((1 << 30) + (511 << 20)), 0, RUN_BUDGET),
+        Err(TooCostly::Memory {
+            need: 1 << 30,
+            margin: 512 << 20,
+            available: (1 << 30) + (511 << 20),
+        })
+    );
+}
+
+#[test]
+fn sizes_and_refusals_read_as_a_person_would_say_them() {
+    assert_eq!(size(3_334_569_984), "3.1 GiB");
+    assert_eq!(size(1 << 30), "1.0 GiB");
+    assert_eq!(size(2_791_728_742), "2.6 GiB");
+    assert_eq!(size(240 << 20), "240 MiB");
+    assert_eq!(size(0), "0 MiB");
+    let memory = TooCostly::Memory {
+        need: 3_334_569_984,
+        margin: 256 << 20,
+        available: 2_791_728_742 + (256 << 20),
+    };
+    assert_eq!(
+        memory.told(),
+        "This volume's TPM2 PIN needs 3.1 GiB of memory to check; 2.6 GiB is free."
+    );
+    let failed = TooCostly::Failed(KdfError::OutOfMemory { blocks: 4 });
+    assert_eq!(
+        failed.told(),
+        "The memory to check this volume's TPM2 PIN could not be reserved."
+    );
+    assert_eq!(
+        failed.to_string(),
+        "4 KiB of work memory could not be reserved"
+    );
+    assert_eq!(
+        TooCostly::Work { work: 70 << 30 }.told(),
+        "This volume's TPM2 PIN needs more work to check than ZFSBootMenu allows (70 \
+         GiB-passes). Enrol it again with fixed --tpm2-argon2id-memory= and \
+         --tpm2-argon2id-iterations=."
+    );
 }

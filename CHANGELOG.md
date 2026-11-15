@@ -231,8 +231,17 @@ reads only `TCTI`, decrypted from `/dev/tpmrm0` whatever `LUKS_TPM2_TCTI` named.
 In an image without systemd's `systemd-tpm2` cryptsetup plugin, a TPM2 PIN token that only the plugin can open is
 reported before any PIN is asked for (ROADMAP.md SB21): a signed PCR policy, which the native code looked for under
 `tpm2-pubkey` instead of systemd's `tpm2_pubkey` and so tried, asking for PINs the TPM refused as wrong; pcrlock; a
-missing tool; and a PIN that systemd 262 hardened with Argon2id, which only the plugin of systemd 262 or later opens. A
-TPM2 token whose Argon2id fields systemd's parser refuses is refused, with a PIN or without, before any PIN or plugin.
+missing tool. A TPM2 token whose Argon2id fields systemd's parser refuses is refused, with a PIN or without, before any
+PIN or plugin.
+
+TPM2 PIN tokens that systemd 262 enrolled with `--tpm2-with-pin=yes`, which hardens the PIN with Argon2id and derives
+the passphrase with HKDF, unlock in the Rust runtime (ROADMAP.md SB21). They were refused as a wrong PIN, each try
+counting towards the TPM's lockout. ZFSBootMenu's own code unseals them, never the plugin, which before systemd 262
+derives them the old way. Before each PIN is asked for, and again before each derivation, the memory and the work are
+checked: the token's memory cost within the machine's memory, the memory Argon2 works in plus a margin within what
+`/proc/meminfo` and the cgroup say is available, at most 32 GiB-passes a derivation and 64 GiB-passes an unlocking run.
+A token that fails a check costs no PIN and no lockout try, and the dialog says why. A TPM2 key that the TPM released
+but that opens no key slot ends the token instead of asking for the PIN again.
 
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
