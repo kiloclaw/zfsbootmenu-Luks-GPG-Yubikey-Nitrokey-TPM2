@@ -33,9 +33,21 @@ Both levels run as root on a Linux host.
 
 Device suites
   ``cryptsetup`` 2.4 or later, ``systemd-cryptenroll``, ``tpm2-tools``, ``swtpm`` and ``swtpm_setup``, clevis with
-  its TPM2 pin, GnuPG, ``e2fsprogs``, ``dosfstools``, ``sfdisk`` and ``unshare`` (util-linux), and the Rust toolchain;
-  the build container has them. They detach only the loop devices they created, so they do not touch the host's
-  device-mapper devices. Where ``systemd-cryptenroll`` hardens TPM2 PINs with Argon2id (systemd 262 and later, which
+  its TPM2 pin and ``jose``, GnuPG, OpenSSL, ``e2fsprogs``, ``losetup``, ``blkid``, ``mount`` and ``sfdisk``
+  (util-linux), and the Rust toolchain; the build container has them. They need neither ``fido2-tools`` nor ``ykpers``:
+  the stand-ins of ``fido2-assert``, ``fido2-token``, ``ykchalresp`` and ``ykinfo`` are on the cases' ``PATH``
+  whether or not the host has these programs. The kernel needs loop devices. ``zbm-crypt``'s suite also needs
+  device-mapper, and the two ``PARTUUID=`` cases of ``config.rs`` need a kernel that reads the GPT of a loop device
+  (``losetup -P``, ``CONFIG_EFI_PARTITION``); without them, they are skipped and say so.
+
+  The LUKS suites create no device-mapper devices and detach only the loop devices they attached. Their cases see
+  only the lab's devices: ``blkid``'s searches, and so the discovery of LUKS volumes, find only the lab's loop devices,
+  not the host's LUKS volumes; ZFSBootMenu's security-key code sees only the lab's ``/dev/hidraw99``, not the
+  keyboards, mice and security keys of the host in ``/dev`` and ``/sys/class/hidraw``; and it sees no TPM device in
+  ``/dev`` or ``/sys/class/tpm``, and loads no TPM driver, as the lab's TPM is ``swtpm`` on a socket. ``cryptsetup``'s
+  token plugins, which two cases of ``edge.rs`` leave on, run outside that view: the ``systemd-fido2`` plugin may ask a
+  security key plugged into the host whether it holds the lab's credential, which it does not, and no check depends on
+  the answer. Where ``systemd-cryptenroll`` hardens TPM2 PINs with Argon2id (systemd 262 and later, which
   its ``--help`` shows by ``--tpm2-argon2id-memory``), the suites enrol ``--tpm2-with-pin=yes`` at small fixed costs
   (64 MiB, 2 passes, 4 lanes) and add a case for ``--tpm2-with-pin=direct``; with systemd 255 to 261, ``yes`` is
   PBKDF2. Each case reads from the token what was enrolled, as systemd 262 without Argon2id in its libcrypto enrols
@@ -702,12 +714,15 @@ plugin the image has.
 Device suites
 ~~~~~~~~~~~~~
 
-The device suites run the 252 checks of the Bash suites they were ported from, against the Rust runtime (``unlock``,
-``tokens``, ``edge`` and ``config``); the three checks of the Bash suites that reached inside the legacy code are unit
-tests. Beside them run the two checks of the salted, encrypted TPM session, the check of the PIN's hardening in
-``tokens``, and ``tpm2_tokens``'s 8 checks, 12 where ``systemd-cryptenroll`` hardens PINs with Argon2id: 263 checks with
-systemd 255 (15 November 2026, in a container with systemd 255, all passed). ``cargo xtask test devices`` runs them on
-the host and in the build container.
+The device suites run the 252 checks of the Bash suites they were ported from, against the Rust runtime (``unlock``
+52, ``tokens`` 55, ``edge`` 81 and ``config`` 64), 254 where the kernel reads the GPT of a loop device: ``config``'s
+two ``PARTUUID=`` cases then run too (66). The three checks of the Bash suites that reached inside the legacy code are
+unit tests. Beside them run the two checks of the salted, encrypted TPM session, the check of the PIN's hardening in
+``tokens`` (58 in all), and ``tpm2_tokens``'s 8 checks, 12 where ``systemd-cryptenroll`` hardens PINs with Argon2id:
+263 checks in a container with systemd 255 whose kernel has no GPT support (15 November 2026, all passed, also with
+``fido2-tools`` and ``ykpers`` removed, a LUKS volume of the host's own on a loop device and a ``hidraw`` device of
+its own), and 269 on a host with systemd 262 whose kernel reads the GPT, such as Fedora 45. ``cargo xtask test
+devices`` runs them on the host and in the build container.
 
 Virtual-machine tests
 ~~~~~~~~~~~~~~~~~~~~~
@@ -953,6 +968,15 @@ Each fix of ZFSBootMenu's code has a regression test that fails without it.
   ``zbm.import_policy=force`` and checks the boot environment ZFSBootMenu boots, and its marker of a failed check is
   no longer in the line it types; ``runtime-rust-signals`` waits for the shell's prompt after the menu that the
   session serves, which dropped the keys typed before it ended.
+* On a Fedora 45 host the device suites failed 18 checks that passed in the build container. Without ``fido2-tools``
+  and ``ykpers`` on the host, ZFSBootMenu found no ``fido2-assert`` or ``ykchalresp`` to run, so the stand-ins that
+  answer for them were never asked (every YubiKey case and the native FIDO2 cases of ``tokens.rs``, the FIDO2 cases of
+  ``edge.rs``); the host's own ``hidraw`` devices stood for a FIDO2 key where the cases had removed the lab's (the
+  missing key not logged, no wait for the key); and the discovery found the host's own LUKS volume, and asked for its
+  passphrase too (``unlock.rs``). This was a fault of the suites' harness, not of ZFSBootMenu's code: the stand-ins
+  are now on the cases' ``PATH``, and the cases see neither the host's ``hidraw`` devices, TPMs nor LUKS volumes. The
+  harness's own tests (``harness::host``, ``harness::runner``) check what the cases see; the build container and CI
+  have none of these devices, so the suites alone would pass there without the fix.
 
 Observations
 ~~~~~~~~~~~~

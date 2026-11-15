@@ -158,7 +158,7 @@ fn config() {
         c.unlock(&["pw"]);
         checks.check("mapped", c.mapped("v"));
     } else {
-        println!("  skip - PARTUUID cases: loop partitions are not available here");
+        println!("  skip - PARTUUID cases: this kernel reads no partition table of a loop device");
     }
 
     checks.case("zbm.luks=luks-<UUID>");

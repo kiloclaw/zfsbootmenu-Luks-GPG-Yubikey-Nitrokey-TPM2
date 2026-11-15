@@ -11,7 +11,9 @@
 //! ```
 //!
 //! The suites run one after another (they share `/dev/hidraw99`), each
-//! printing its cases and checks as the Bash suites do.
+//! printing its cases and checks as the Bash suites do. Their cases see only
+//! the lab's loop devices and security key, not the host's (see [`harness`]),
+//! so that they pass on any host as in the build container.
 
 #![allow(
     clippy::disallowed_macros,

@@ -13,19 +13,29 @@
 //!   device-mapper, so no mount namespace is needed;
 //! - `blkid` of a mapping reports the content the case gives the volume;
 //! - `zpool` sees the pools the case writes;
-//! - `tput` and `udevadm` do nothing;
-//! - security keys (FIDO2, YubiKey challenge-response) are the stand-ins of
-//!   `tests/luks/unit/kstubs`.
+//! - `tput`, `udevadm` and `modprobe` do nothing;
+//! - security keys (FIDO2, YubiKey challenge-response): in a lab with a TPM,
+//!   the device runner answers for their programs, whose stand-ins in the
+//!   lab's `kstubs` are on the case's `PATH`, so that the LUKS code finds
+//!   them whether or not the host has `fido2-tools` and `ykpers`.
+//!
+//! The cases are kept from what the host has of its own: they see only the
+//! lab's security key among the `hidraw` devices, and no TPM device
+//! (`harness/host.rs`), and `blkid`'s searches find only the lab's loop
+//! devices, not the host's LUKS volumes. `cryptsetup`'s token plugins, which
+//! some cases leave on, run outside the cases' view and may ask the host's
+//! security keys whether they hold a lab credential.
 //!
 //! Every command the LUKS code runs is recorded, in the order it ran.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 mod case;
 mod gnupg;
+mod host;
 mod runner;
 mod tpm2;
 
@@ -38,6 +48,10 @@ pub use tpm2::{
 
 /// The real `cryptsetup`.
 const CRYPTSETUP: &str = "/usr/sbin/cryptsetup";
+
+/// The programs of the security keys, which the device runner answers for
+/// by name.
+const KEY_PROGRAMS: [&str; 4] = ["fido2-assert", "fido2-token", "ykchalresp", "ykinfo"];
 
 /// One suite at a time: they share `/dev/hidraw99`, which some cases move
 /// away, and the loop devices.
@@ -231,7 +245,11 @@ pub struct Lab {
     pub tcti: String,
     /// The FIDO2 credential of the stand-in security key.
     pub fido: Fido,
-    loops: Mutex<Vec<String>>,
+    /// The directory of the security keys' stand-ins, in a lab with a TPM.
+    key_stubs: Option<PathBuf>,
+    /// The loop devices the lab attached, which the device runner's `blkid`
+    /// searches keep to.
+    loops: Arc<Mutex<Vec<String>>>,
     swtpm: Option<std::process::Child>,
     cases: AtomicU32,
     _one: MutexGuard<'static, ()>,
@@ -251,18 +269,33 @@ impl Lab {
             dir,
             tcti: String::new(),
             fido: Fido::new(),
-            loops: Mutex::new(Vec::new()),
+            key_stubs: None,
+            loops: Arc::new(Mutex::new(Vec::new())),
             swtpm: None,
             cases: AtomicU32::new(0),
             _one: one,
         };
         if let Some(port) = tpm_port {
             lab.start_tpm(port);
+            lab.key_stubs = Some(lab.write_key_stubs());
         }
         if !Path::new("/dev/hidraw99").exists() {
             run("mknod", &["/dev/hidraw99", "c", "1", "3"], b"", &[]);
         }
         lab
+    }
+
+    /// Writes the security keys' stand-ins: executables named as their
+    /// programs, for the LUKS code to find on `PATH`. They never run, as the
+    /// device runner answers for these programs by name.
+    fn write_key_stubs(&self) -> PathBuf {
+        let dir = self.path("kstubs");
+        std::fs::create_dir_all(&dir).unwrap();
+        for program in KEY_PROGRAMS {
+            let text = format!("echo '{program}: the device runner answers' >&2\nexit 127\n");
+            script(&dir.join(program), &format!("#!/bin/sh\n{text}"));
+        }
+        dir
     }
 
     /// A file of the lab.

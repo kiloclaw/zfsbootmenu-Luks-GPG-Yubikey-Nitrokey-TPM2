@@ -3,11 +3,13 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
 use zbm_platform::Secret;
-use zbm_platform::exec::{Command, Input, Output, Runner, Status, SystemRunner};
+use zbm_platform::exec::{
+    Command, Input, OUTPUT_LIMIT, Output, Runner, Status, Stream, SystemRunner,
+};
 
 use super::{CRYPTSETUP, Fido, record_name, run, try_run};
 
@@ -36,6 +38,8 @@ pub struct DeviceRunner {
     pub dump: Mutex<Dump>,
     /// Whether the FIDO2 and YubiKey stand-ins answer (`kstubs` on `PATH`).
     pub key_stubs: bool,
+    /// The lab's loop devices, to which `blkid`'s searches keep.
+    pub(super) loops: Arc<Mutex<Vec<String>>>,
 }
 
 impl DeviceRunner {
@@ -190,7 +194,11 @@ impl DeviceRunner {
     }
 
     fn blkid(&self, command: &Command) -> io::Result<Output> {
-        for arg in Self::args(command) {
+        let args = Self::args(command);
+        if Self::is_search(&args) {
+            return self.blkid_search(command, &args);
+        }
+        for arg in args {
             if let Ok(name) = Path::new(&arg).strip_prefix(&self.mapper) {
                 let Ok(device) = std::fs::read_to_string(self.fake.join("maps").join(name)) else {
                     return Self::output(2, "", "");
@@ -202,6 +210,43 @@ impl DeviceRunner {
             }
         }
         self.real(command)
+    }
+
+    /// Whether `blkid` is asked to search the machine's devices (`-o device`
+    /// with no device named) rather than to probe the devices named.
+    fn is_search(args: &[String]) -> bool {
+        let mut rest = args.iter();
+        let mut lists_devices = false;
+        while let Some(arg) = rest.next() {
+            match arg.as_str() {
+                "-o" => lists_devices = rest.next().is_some_and(|format| format == "device"),
+                "-c" | "-s" | "-t" | "-n" | "-u" => {
+                    rest.next();
+                }
+                option if option.starts_with('-') => {}
+                _ => return false,
+            }
+        }
+        lists_devices
+    }
+
+    /// A search of `blkid`, which finds only the lab's loop devices and
+    /// their partitions, not the host's own volumes: without `-l`, whose one
+    /// device could be the host's, then the first of the lab's where `-l`
+    /// asked for one. The search keeps the rest of `command`: its time-out,
+    /// and where its input and errors go.
+    fn blkid_search(&self, command: &Command, args: &[String]) -> io::Result<Output> {
+        let first_only = args.iter().any(|arg| arg == "-l");
+        let all = with_args(command, args.iter().filter(|arg| *arg != "-l"));
+        let mut output = self.real(&all)?;
+        let text = output.stdout_text();
+        let found = lab_devices(&text, &self.loops.lock().unwrap(), first_only);
+        if found.is_empty() && output.status.is_success() {
+            return Self::output(2, "", "");
+        }
+        let devices: String = found.iter().map(|device| format!("{device}\n")).collect();
+        output.stdout = devices.into_bytes();
+        Ok(output)
     }
 
     fn zpool(&self, command: &Command) -> io::Result<Output> {
@@ -319,7 +364,7 @@ impl Runner for DeviceRunner {
             "cryptsetup" => self.cryptsetup(command),
             "blkid" => self.blkid(command),
             "zpool" => self.zpool(command),
-            "tput" | "udevadm" => Self::output(0, "", ""),
+            "tput" | "udevadm" | "modprobe" => Self::output(0, "", ""),
             "fido2-token" if self.key_stubs => {
                 let listed = Self::args(command).first().map(String::as_str) == Some("-L");
                 Self::output(
@@ -342,3 +387,59 @@ impl Runner for DeviceRunner {
         }
     }
 }
+
+/// `command` with `args` in place of its own arguments, and all else of it
+/// kept.
+fn with_args<'a>(command: &Command, args: impl IntoIterator<Item = &'a String>) -> Command {
+    let mut new = Command::new(command.program())
+        .args(args)
+        .stdin(command.get_stdin().clone())
+        .stdout(command.get_stdout())
+        .stderr(command.get_stderr());
+    if command.merges_stderr() {
+        new = new.merge_stderr();
+    }
+    for (key, value) in command.get_env() {
+        new = match value {
+            Some(value) => new.env(key, value),
+            None => new.env_remove(key),
+        };
+    }
+    for signal in command.get_default_signals() {
+        new = new.default_signal(*signal);
+    }
+    if let Some(timeout) = command.get_timeout() {
+        new = new.timeout(timeout);
+    }
+    if let Some(token) = command.get_cancel() {
+        new = new.cancel(token);
+    }
+    if let Some(root) = command.get_root() {
+        new = new.root(root);
+    }
+    let limit = command.get_output_limit(Stream::Capture);
+    if limit != OUTPUT_LIMIT {
+        new = new.output_limit(limit);
+    }
+    new
+}
+
+/// The devices of `blkid`'s list `text` that are the lab's loop devices
+/// `loops` or their partitions; only the first where `first_only`.
+fn lab_devices<'t>(text: &'t str, loops: &[String], first_only: bool) -> Vec<&'t str> {
+    let is_lab = |device: &str| {
+        loops.iter().any(|lab| {
+            device
+                .strip_prefix(lab.as_str())
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with('p'))
+        })
+    };
+    let mut found: Vec<&str> = text.lines().filter(|device| is_lab(device)).collect();
+    if first_only {
+        found.truncate(1);
+    }
+    found
+}
+
+#[cfg(test)]
+mod tests;

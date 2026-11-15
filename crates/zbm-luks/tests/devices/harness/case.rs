@@ -20,7 +20,12 @@ use zbm_platform::interaction::{
 use zbm_platform::{Context, KernelLog, Secret, System, SystemClock, SystemProcesses};
 use zbm_tools::console::ConsoleInteraction;
 
+use super::host::LabFiles;
 use super::{DeviceRunner, Dump, Lab, record_name};
+
+/// The case's `PATH`, after the security keys' stand-ins where the lab has
+/// them.
+const PATH: &str = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
 /// The environment of the LUKS code in a case, which several sessions of the
 /// case may read at once.
@@ -223,7 +228,10 @@ impl<'l> Case<'l> {
         }
         env.set(
             "PATH",
-            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            lab.key_stubs.as_ref().map_or_else(
+                || PATH.to_owned(),
+                |stubs| format!("{}:{PATH}", stubs.display()),
+            ),
         );
         let runner = DeviceRunner {
             fake: fake.to_owned(),
@@ -234,7 +242,8 @@ impl<'l> Case<'l> {
             minor: AtomicU32::new(100),
             fido_needs_pin: Mutex::new(false),
             dump: Mutex::new(Dump::Plain),
-            key_stubs: !lab.tcti.is_empty(),
+            key_stubs: lab.key_stubs.is_some(),
+            loops: std::sync::Arc::clone(&lab.loops),
         };
         Case {
             _lab: lab,
@@ -300,7 +309,7 @@ impl<'l> Case<'l> {
         console: &LinesConsole,
         body: impl FnOnce(&mut Unlocker<'_>, &Context<'_>) -> T,
     ) -> T {
-        let files = RealFiles;
+        let files = LabFiles;
         let clock = SystemClock::new();
         let processes = SystemProcesses;
         let system = System {
