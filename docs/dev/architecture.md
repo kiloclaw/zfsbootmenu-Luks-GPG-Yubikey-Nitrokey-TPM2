@@ -58,10 +58,10 @@ Third-party crates:
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`
 - `zbm-host`: `object`, `yaml-rust2`
-- `zbm-crypt`: `argon2`, `serde`, `serde_json`, `sha1`, `sha2`, `thiserror`, `tracing`
+- `zbm-crypt`: `argon2`, `blake2`, `serde`, `serde_json`, `sha1`, `sha2`, `thiserror`, `tracing`
 - `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `serde`, `swash`, `thiserror`
 - `zbm-testkit`: `serde`, `serde_json`
-- `zbm-luks`: `base64`, `pbkdf2`, `sha2`, `thiserror`, `tracing`, `tracing-subscriber`
+- `zbm-luks`: `argon2`, `base64`, `pbkdf2`, `sha2`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-pool`: `thiserror`
 - `zbm-startup`: `thiserror`
 - `zbm-sys`: `rustix`

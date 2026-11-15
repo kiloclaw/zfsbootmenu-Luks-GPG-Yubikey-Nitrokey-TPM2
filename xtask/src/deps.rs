@@ -146,6 +146,9 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
         "zbm-crypt",
         &[
             "argon2",
+            // Only to turn on its `zeroize` feature, for argon2's BLAKE2b
+            // states.
+            "blake2",
             "serde",
             "serde_json",
             "sha1",
@@ -162,6 +165,9 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     (
         "zbm-luks",
         &[
+            // Argon2id for systemd 262's TPM2 PINs, in the keyholder (ADR
+            // 0010 approved the crate for it).
+            "argon2",
             "base64",
             "pbkdf2",
             "sha2",

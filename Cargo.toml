@@ -88,6 +88,9 @@ base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
 # The PIN of the locked menu (ROADMAP.md SE9, ADR 0010): its Argon2id hash in the image, in the PHC string format,
 # checked by the keyholder and written by `generate-zbm --lock-hash`.
 argon2 = { version = "=0.6.0", default-features = false, features = ["alloc", "password-hash", "zeroize"] }
+# The BLAKE2b inside Argon2, only for its `zeroize` feature: the hash states that absorbed a PIN are wiped when
+# dropped (ROADMAP.md SB21). `argon2` brings the crate; this entry only turns the feature on.
+blake2 = { version = "=0.11.0", default-features = false, features = ["zeroize"] }
 
 # `org.zfsbootmenu:kernel` (zbm-types, ROADMAP.md DM4), and the VM tests' console patterns.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }

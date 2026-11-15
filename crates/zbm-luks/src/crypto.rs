@@ -8,18 +8,24 @@
 //! - PBKDF2-HMAC-SHA256 (RFC 8018, RFC 2104), for the salted PINs of
 //!   systemd's TPM2 tokens;
 //! - base64 (RFC 4648), the encoding of TPM2 secrets and token metadata;
-//! - lower-case hexadecimal.
+//! - lower-case hexadecimal;
+//! - Argon2id and HKDF-SHA256, for the PINs of systemd 262's TPM2 tokens
+//!   ([`kdf`]).
 //!
-//! The algorithms are the `sha2` and `pbkdf2` crates of the `RustCrypto`
-//! project, and the `base64` crate (ROADMAP.md SE7): audited, widely used
-//! code, in place of our own.
-//! Their hash states are wiped when dropped (`sha2`'s `zeroize` feature), and
-//! so is every buffer here that held secret material.
+//! The algorithms are the `sha2`, `pbkdf2` and `argon2` crates of the
+//! `RustCrypto` project, and the `base64` crate (ROADMAP.md SE7): audited,
+//! widely used code, in place of our own.
+//! Their hash states are wiped when dropped (the `zeroize` features of `sha2`
+//! and of `blake2`, inside `argon2`), and so are the buffers here that held
+//! secret material. The copies those crates leave on the stack are not, such
+//! as HMAC's padded key and Argon2's first blocks (see [`kdf`]).
 
 use base64::Engine as _;
 use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use sha2::Digest as _;
 use zbm_platform::secret::Secret;
+
+pub mod kdf;
 
 /// A SHA-256 result, wiped when dropped: the digests here are of secrets (a
 /// TPM2 PIN, a YubiKey passphrase), and the start-up program that computes

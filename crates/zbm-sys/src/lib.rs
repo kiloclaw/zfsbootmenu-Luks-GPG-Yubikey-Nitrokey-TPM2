@@ -266,12 +266,21 @@ pub fn wipe_vec(vec: &mut Vec<u8>) {
 /// its length included, and empties it: for vectors of values that tell a
 /// secret, such as the keys typed at a passphrase prompt.
 pub fn wipe_values<T: Copy>(vec: &mut Vec<T>, blank: T) {
+    // Filling the spare capacity first gives every place a value to wipe;
+    // within the capacity, `resize` does not move the allocation.
+    vec.resize(vec.capacity(), blank);
+    wipe_slice(vec, blank);
     vec.clear();
-    for slot in vec.spare_capacity_mut() {
-        // SAFETY: `slot` is a valid, aligned place for a `T` in the vector's
-        // allocation; a volatile write is not optimised away, and the vector's
-        // length stays 0, so no value it holds changes.
-        unsafe { std::ptr::write_volatile(slot.as_mut_ptr(), blank) }
+}
+
+/// Overwrites every value of `values` with `blank`, in a way the compiler
+/// cannot optimise away, and keeps them in place: for memory that holds
+/// secret state between uses, such as Argon2's work memory.
+pub fn wipe_slice<T: Copy>(values: &mut [T], blank: T) {
+    for value in values {
+        // SAFETY: `value` is a valid, aligned and initialised `T`, and `blank`
+        // is one too; a volatile write is not optimised away.
+        unsafe { std::ptr::write_volatile(std::ptr::from_mut(value), blank) }
     }
 }
 
@@ -316,6 +325,15 @@ mod tests {
         // SAFETY (test): the capacity holds 3 values written above.
         let all = unsafe { std::slice::from_raw_parts(values.as_ptr(), 3) };
         assert_eq!(all, [0, 0, 0]);
+    }
+
+    #[test]
+    fn values_are_wiped_in_place() {
+        let mut values = [[7_u64, 8], [9, 10]];
+        wipe_slice(&mut values, [0, 0]);
+        assert_eq!(values, [[0, 0], [0, 0]]);
+        let mut none: [u8; 0] = [];
+        wipe_slice(&mut none, 0);
     }
     use std::time::{Duration, Instant};
 

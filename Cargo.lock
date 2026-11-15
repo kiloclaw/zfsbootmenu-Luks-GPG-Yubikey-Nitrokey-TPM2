@@ -4069,6 +4069,7 @@ name = "zbm-crypt"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "blake2",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -4120,6 +4121,7 @@ dependencies = [
 name = "zbm-luks"
 version = "0.1.0"
 dependencies = [
+ "argon2",
  "base64",
  "pbkdf2",
  "pretty_assertions",
