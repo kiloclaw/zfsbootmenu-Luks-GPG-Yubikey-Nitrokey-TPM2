@@ -795,6 +795,10 @@ the work directory); their rows are of the run of 27 October, with an image that
 on Ubuntu 24.04 (Linux 6.8.0-147, OpenZFS 2.2.2). Durations are with KVM, which is several times faster than the
 software emulation of the table above.
 
+The last full run, on 15 November 2026 at ``18a4ef01``, on a Fedora 45 host (systemd 262) with KVM and rebuilt images,
+passed every test: 1,388 checks, none failed, the two ``oldzfs`` tests skipped; the device suites passed their 269
+checks on that host. The table below is of the run of 1 to 3 November.
+
 ================================  ======  ======  ========
 Test                              Passed  Failed  Duration
 ================================  ======  ======  ========
