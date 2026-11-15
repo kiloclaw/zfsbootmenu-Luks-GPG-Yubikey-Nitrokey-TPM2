@@ -129,15 +129,18 @@ fn answer(
     handle: &mut ServiceHandle,
     message: ToSession,
 ) -> io::Result<bool> {
+    let refused = match &message {
+        ToSession::Send { action } | ToSession::Console { action } => refusal(served, action),
+        _ => None,
+    };
+    if let Some(reason) = refused {
+        fail(connection, &reason)?;
+        return Ok(true);
+    }
     match message {
         ToSession::Attach => refuse(connection, "already attached")?,
         ToSession::Read => {
             ToMenu::Snapshot(served.service.read().map(Box::new)).send(connection)?;
-        }
-        ToSession::Send { action } | ToSession::Console { action }
-            if let Some(reason) = refusal(served, &action) =>
-        {
-            fail(connection, &reason)?;
         }
         ToSession::Send { action } => {
             if handle.send(action).is_err() {

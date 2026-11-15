@@ -498,6 +498,7 @@ proptest! {
         prop_assert_eq!(wrong, Vec::<String>::new());
         let lines = ran(&fake);
         let last = lines.iter().rev().find(|line| line.starts_with("umount"));
-        prop_assert_eq!(last, Some(&format!("umount -R {MP}")));
+        let expected = format!("umount -R {MP}");
+        prop_assert_eq!(last, Some(&expected));
     }
 }
