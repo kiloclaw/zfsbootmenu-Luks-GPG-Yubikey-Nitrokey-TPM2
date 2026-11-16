@@ -163,3 +163,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
   `zfsbootmenu-luks(7)` documents.
   **Rust:** done (package B); they are captured with `Stream::CaptureSecret` and passed with `--key-file=-`, and the
   unit suites check that nothing is left below `/run` or `/tmp`.
+- [x] `3335d62`: mkinitcpio builds every entry of its hook list, and `generate-zbm` adds `zfsbootmenu` after the
+  configuration's own (`-A zfsbootmenu`), so the install hook ran at each entry and its run hook started ZFSBootMenu at
+  the first one, which never returns: a hook listed after it (`net`, `rclocal`, `dropbear` and `tailscale`, as the docs
+  add them) never ran. `install/zfsbootmenu` now installs the plan and the run hook only at the last `zfsbootmenu`
+  entry of mkinitcpio's `_hooks`, counting its builds per `$BUILDROOT` and never from the environment, and warns of
+  the hooks with a run hook (`run_hook` in their run script) listed after it; the run hook is unchanged. The shim
+  tests in `crates/zbm/tests/image_shims.rs` check it under mkinitcpio's ERR trap.
+  **Rust:** nothing to port; packaging shared by both runtimes.
