@@ -28,6 +28,7 @@ pub mod error;
 pub mod front;
 pub mod graphics;
 pub mod import;
+pub mod lease;
 pub mod preinit;
 pub mod program;
 pub mod shell;

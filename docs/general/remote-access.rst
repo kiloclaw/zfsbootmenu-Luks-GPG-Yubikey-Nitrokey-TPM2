@@ -160,8 +160,9 @@ Enabling Network Access
 
   **Names in a chroot.** In images with the Rust runtime, where the ZFSBootMenu image has an ``/etc/resolv.conf``, a
   chroot of a boot environment mounts it read-only over the environment's own, so that names resolve there with the
-  name servers ZFSBootMenu's network uses. Nothing is written to the boot environment. With mkinitcpio, a hook that
-  runs before the ``zfsbootmenu`` hook must write ``/etc/resolv.conf``.
+  name servers ZFSBootMenu's network uses. Nothing is written to the boot environment. With mkinitcpio's ``net`` hook,
+  which writes no ``/etc/resolv.conf``, ZFSBootMenu writes one from the name servers of the hook's DHCP lease when the
+  image has none or an empty one. With the ``rclocal`` hook, ``rc.local`` writes the file itself, as above.
 
 Unless you've taken steps not described here, the network-enabled ZFSBootMenu image will not advertise itself via
 dynamic DNS or mDNS. You will need to know the IP address of the ZFSBootMenu host to connect. Thus, you should either

@@ -255,7 +255,8 @@ The dracut and mkinitcpio hooks stay shell scripts, as the roadmap requires, bec
   runtime starts, hooks included. The supervisor starts the programs on the console's terminal in sessions of their
   own with it as their controlling terminal (`setsid -c`) the same way, without the `setsid` program.
 - **mkinitcpio:** the run hook (`packaging/initcpio/hooks/zfsbootmenu`) runs the two applets the same way, in
-  busybox's shell, without Bash (SB8).
+  busybox's shell, without Bash (SB8). The `net` hook writes no `/etc/resolv.conf`, so `zfsbootmenu-preinit` writes one
+  from its DHCP leases, `/tmp/net-*.conf`, when the image has none or an empty one (`zbm_startup::lease`, SB17).
 - The dracut `initqueue` checks (`zfsbootmenu-ready-set.sh`, `zfsbootmenu-ready-chk.sh`) stay as they are.
 - `zfsbootmenu_runtime=rust` selects these hooks (`packaging/dracut/zfsbootmenu-rust-*.sh` and the mkinitcpio run
   hook without the legacy entry point) and leaves the legacy start-up program and `init.d` out of the image.

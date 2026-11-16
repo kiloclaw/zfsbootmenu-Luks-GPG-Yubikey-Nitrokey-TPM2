@@ -10,6 +10,8 @@
 //! argument, so hooks and later applets find them. See "Start-up hooks" in
 //! `crates/DESIGN.md`.
 
+use std::fmt::Write as _;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use zbm_config::args::{ZbmArgs, cmdline_files};
@@ -17,14 +19,26 @@ use zbm_config::conf::{self, Conf};
 use zbm_config::options::ZbmOptions;
 use zbm_platform::console::Size;
 use zbm_platform::error::{Error, Result};
+use zbm_platform::files::FileKind;
 use zbm_platform::{Files, KernelLog, System};
 use zbm_types::KernelCommandLine;
+
+use crate::lease;
 
 /// The state directory when the configuration names none.
 pub const DEFAULT_BASE: &str = "/zfsbootmenu";
 
 /// Where an embedded command line goes.
 const EMBEDDED_KCL: &str = "etc/cmdline.d/zfsbootmenu.conf";
+
+/// The image's name servers.
+const RESOLV_CONF: &str = "etc/resolv.conf";
+
+/// Where mkinitcpio's `net` hook leaves its leases, `net-<device>.conf`.
+const LEASES: &str = "tmp";
+
+/// The most of a lease that is read, in bytes.
+const LEASE_LIMIT: u64 = 64 * 1024;
 
 /// Reads `/etc/zfsbootmenu.conf` below `root`; a line it cannot read is
 /// skipped with a warning.
@@ -171,7 +185,9 @@ pub fn is_virtual_console(control_term: &str) -> bool {
 /// turns kernel messages on the console off, sets the size of a serial
 /// terminal (on standard input, as `stty` did), and names the host. The
 /// options come from the command line again, for `zbm.lines` and
-/// `zbm.columns`, which the configuration does not hold.
+/// `zbm.columns`, which the configuration does not hold. It also writes the
+/// name servers of mkinitcpio's `net` hook, which the legacy hook did not:
+/// see [`lease`].
 pub fn prepare(system: &System<'_>, root: &Path, options: &ZbmOptions) {
     let files = system.files;
     let _ = files.write(&root.join("proc/sys/kernel/printk"), b"0\n");
@@ -190,6 +206,67 @@ pub fn prepare(system: &System<'_>, root: &Path, options: &ZbmOptions) {
         }
     }
     let _ = files.write(&root.join("proc/sys/kernel/hostname"), b"ZFSBootMenu\n");
+    write_name_servers(files, root);
+}
+
+/// Writes `/etc/resolv.conf` below `root` from the leases that mkinitcpio's
+/// `net` hook leaves, `/tmp/net-*.conf` in name order, when the image has
+/// none or an empty one: a `nameserver` line for each server
+/// ([`lease::name_servers`]), replaced whole, mode 0644. A file or link that
+/// an earlier hook made is kept, and nothing is written without a server.
+fn write_name_servers(files: &dyn Files, root: &Path) {
+    let path = root.join(RESOLV_CONF);
+    if !needs_name_servers(files, &path) {
+        return;
+    }
+    let servers = lease::name_servers(&leases(files, root));
+    if servers.is_empty() {
+        return;
+    }
+    let text = servers.iter().fold(String::new(), |mut text, server| {
+        let _ = writeln!(text, "nameserver {server}");
+        text
+    });
+    if let Err(error) = files
+        .replace(&path, text.as_bytes())
+        .and_then(|()| files.set_mode(&path, 0o644))
+    {
+        zbm_trace::warn!(
+            "unable to write the name servers of the DHCP lease to {path}: {error}";
+            path = %path.display(), %error
+        );
+    }
+}
+
+/// Whether the image's `resolv.conf` at `path` is missing, or an empty file
+/// that is no link.
+fn needs_name_servers(files: &dyn Files, path: &Path) -> bool {
+    if files.read_link(path).is_ok() {
+        return false;
+    }
+    match files.metadata(path) {
+        Ok(metadata) => metadata.kind == FileKind::File && metadata.len == 0,
+        Err(error) => error.kind() == io::ErrorKind::NotFound,
+    }
+}
+
+/// The text of the leases below `root`, `tmp/net-*.conf` in name order, one
+/// after the other; a lease that is no regular file, or is larger than
+/// [`LEASE_LIMIT`], is skipped.
+fn leases(files: &dyn Files, root: &Path) -> String {
+    let dir = root.join(LEASES);
+    let mut text = String::new();
+    for name in files.read_dir(&dir).unwrap_or_default() {
+        let bytes = name.as_encoded_bytes();
+        if !bytes.starts_with(b"net-") || !bytes.ends_with(b".conf") {
+            continue;
+        }
+        if let Ok(lease) = files.read_regular(&dir.join(&name), LEASE_LIMIT) {
+            text.push_str(&String::from_utf8_lossy(&lease));
+            text.push('\n');
+        }
+    }
+    text
 }
 
 /// The command line that [`parse_commandline`] saved in `zbm.cmdline`, in
@@ -239,7 +316,8 @@ pub fn shell(system: &System<'_>, root: &Path, conf: &Conf) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testkit::fakes::FakeSystem;
+    use crate::testing::QEMU_LEASE;
+    use zbm_testkit::fakes::{FakeSystem, FileOperation};
 
     const IMAGE_CONF: &str = "\
 [ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return
@@ -353,5 +431,144 @@ export embedded_kcl=\"rd.hostonly=0\"
         let conf = read_conf(&system, Path::new("/")).unwrap();
         parse_commandline(&system, Path::new("/")).unwrap();
         assert_eq!(shell(&system, Path::new("/"), &conf), "/bin/bash");
+    }
+
+    /// An image after mkinitcpio's `net` hook: no `/etc/resolv.conf`, and
+    /// `leases` in `/tmp` by name.
+    fn after_net(leases: &[(&str, &str)]) -> FakeSystem {
+        let fake = setup("quiet");
+        fake.files.dir("/etc").dir("/tmp");
+        for (name, lease) in leases {
+            fake.files.file(Path::new("/tmp").join(name), lease);
+        }
+        fake
+    }
+
+    /// The image's `/etc/resolv.conf` after [`prepare`].
+    fn prepared(fake: &FakeSystem) -> Option<String> {
+        let system = fake.system();
+        prepare(
+            &system,
+            Path::new("/"),
+            &saved_options(&system, Path::new("/"), &Conf::default()),
+        );
+        fake.files.text("/etc/resolv.conf")
+    }
+
+    #[test]
+    fn the_name_servers_of_net_s_lease_become_resolv_conf() {
+        let fake = after_net(&[("net-eth0.conf", QEMU_LEASE)]);
+
+        assert_eq!(prepared(&fake).as_deref(), Some("nameserver 10.0.2.3\n"));
+        let in_etc: Vec<FileOperation> = fake
+            .files
+            .operations()
+            .into_iter()
+            .filter(|operation| match operation {
+                FileOperation::Write(path, _) | FileOperation::SetMode(path, _) => {
+                    !path.starts_with("/proc")
+                }
+                _ => true,
+            })
+            .collect();
+        let temporary = format!("/etc/.resolv.conf.{}.tmp", std::process::id());
+        assert_eq!(
+            in_etc,
+            [
+                FileOperation::Write(temporary.clone().into(), b"nameserver 10.0.2.3\n".to_vec()),
+                FileOperation::Rename(temporary.into(), "/etc/resolv.conf".into()),
+                FileOperation::SetMode("/etc/resolv.conf".into(), 0o644),
+            ]
+        );
+    }
+
+    #[test]
+    fn unquoted_name_servers_from_an_older_ipconfig_become_resolv_conf() {
+        let fake = after_net(&[("net-eth0.conf", "IPV4DNS0=10.0.2.3\nIPV4DNS1=0.0.0.0\n")]);
+
+        assert_eq!(prepared(&fake).as_deref(), Some("nameserver 10.0.2.3\n"));
+    }
+
+    #[test]
+    fn a_resolv_conf_that_is_not_empty_is_kept() {
+        let empty = after_net(&[("net-eth0.conf", QEMU_LEASE)]);
+        empty.files.file("/etc/resolv.conf", "");
+        assert_eq!(prepared(&empty).as_deref(), Some("nameserver 10.0.2.3\n"));
+
+        let fake = after_net(&[("net-eth0.conf", QEMU_LEASE)]);
+        fake.files.file("/etc/resolv.conf", "nameserver 1.1.1.1\n");
+        assert_eq!(prepared(&fake).as_deref(), Some("nameserver 1.1.1.1\n"));
+
+        let linked = after_net(&[("net-eth0.conf", QEMU_LEASE)]);
+        linked.files.symlink("/etc/resolv.conf", "/run/resolv.conf");
+        assert_eq!(prepared(&linked), None);
+        assert_eq!(
+            linked.files.read_link(Path::new("/etc/resolv.conf")).ok(),
+            Some(PathBuf::from("/run/resolv.conf"))
+        );
+
+        let directory = after_net(&[("net-eth0.conf", QEMU_LEASE)]);
+        directory.files.dir("/etc/resolv.conf");
+        assert_eq!(prepared(&directory), None);
+        assert!(directory.files.is_dir(Path::new("/etc/resolv.conf")));
+    }
+
+    #[test]
+    fn no_lease_writes_no_resolv_conf() {
+        let without = after_net(&[]);
+        assert_eq!(prepared(&without), None);
+
+        let other_files = after_net(&[
+            ("dhcp.conf", "IPV4DNS0='192.0.2.1'\n"),
+            ("net-eth0.leases", "IPV4DNS0='192.0.2.1'\n"),
+        ]);
+        assert_eq!(prepared(&other_files), None);
+
+        let unset = after_net(&[(
+            "net-eth0.conf",
+            "IPV4DNS0='0.0.0.0'\nHOSTNAME='$(reboot)'\n",
+        )]);
+        assert_eq!(prepared(&unset), None);
+
+        let linked = after_net(&[]);
+        linked.files.file("/etc/lease", "IPV4DNS0='192.0.2.1'\n");
+        linked.files.symlink("/tmp/net-eth0.conf", "/etc/lease");
+        linked.files.fifo("/tmp/net-eth1.conf");
+        linked.files.sized("/tmp/net-eth2.conf", LEASE_LIMIT + 1);
+        assert_eq!(prepared(&linked), None);
+
+        // The lease that follows them is read.
+        linked.files.file("/tmp/net-eth3.conf", QEMU_LEASE);
+        assert_eq!(prepared(&linked).as_deref(), Some("nameserver 10.0.2.3\n"));
+    }
+
+    #[test]
+    fn at_most_three_servers_in_file_order() {
+        let fake = after_net(&[
+            (
+                "net-eth1.conf",
+                "IPV4DNS0='192.0.2.2'\nIPV4DNS1='192.0.2.3'\n",
+            ),
+            (
+                "net-eth0.conf",
+                "IPV4DNS0='192.0.2.1'\nIPV4DNS1='192.0.2.2'",
+            ),
+            ("net-eth2.conf", "IPV4DNS0='192.0.2.4'\n"),
+        ]);
+
+        assert_eq!(
+            prepared(&fake).as_deref(),
+            Some("nameserver 192.0.2.1\nnameserver 192.0.2.2\nnameserver 192.0.2.3\n")
+        );
+    }
+
+    #[test]
+    fn a_resolv_conf_that_cannot_be_written_is_left_alone() {
+        let fake = after_net(&[("net-eth0.conf", QEMU_LEASE)]);
+        let temporary = format!("/etc/.resolv.conf.{}.tmp", std::process::id());
+        fake.files
+            .fail(&temporary, io::ErrorKind::ReadOnlyFilesystem);
+
+        assert_eq!(prepared(&fake), None);
     }
 }

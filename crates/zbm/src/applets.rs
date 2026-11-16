@@ -94,11 +94,12 @@ pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
         return give_up(io, zbm_config::conf::PATH);
     };
     let options = preinit::saved_options(&system, Path::new("/"), &conf);
-    preinit::prepare(&system, Path::new("/"), &options);
-    // The graphics drivers, before the console on the display and anything
-    // that asks (ROADMAP.md #17), with what they did in the kernel log
+    // The console, the host name and `resolv.conf`, then the graphics
+    // drivers, before the console on the display and anything that asks
+    // (ROADMAP.md #17), with what they did in the kernel log
     {
         let _log = system.kernel_log(&options.loglevel.to_string(), &preinit::base(&conf));
+        preinit::prepare(&system, Path::new("/"), &options);
         let kcl = preinit::saved_commandline(&system, Path::new("/"), &conf);
         let gpu = zbm_startup::graphics::option(&kcl);
         let untested = zbm_startup::graphics::is_untested_allowed(&kcl);

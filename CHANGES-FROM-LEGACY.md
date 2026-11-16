@@ -718,7 +718,9 @@ same commands. The menu also restores files from a snapshot, which the legacy me
   notices name, with the link's target made there. Nothing is written to the environment. Where the environment's side
   leads elsewhere, as into `/tmp` or `/dev`, which are ZFSBootMenu's in the chroot, nothing is mounted and a notice
   says why. In a read/write chroot, `resolv.conf` cannot be changed: a package script that rewrites it fails until the
-  chroot ends.
+  chroot ends. With mkinitcpio's `net` hook, which writes no `/etc/resolv.conf`, the start-up writes it from the hook's
+  DHCP leases (`/tmp/net-*.conf`) when the image has none or an empty one: a `nameserver` line for each name server
+  they give, at most three. A file that an earlier hook wrote is kept.
 - **Why:** a chroot is where packages are repaired, which needs names.
 
 ### A chroot mounts nothing on a link

@@ -57,3 +57,21 @@ impl Front for Recording {
         self.recovery.import(system, state, settings)
     }
 }
+
+/// The lease that mkinitcpio's `net` hook left in `/tmp/net-eth0.conf` on
+/// QEMU's user network, as lane 1 of SB17 found it on a real image.
+pub const QEMU_LEASE: &str = "\
+DEVICE='eth0'
+IPV4ADDR='10.0.2.15'
+IPV4BROADCAST='10.0.2.255'
+IPV4NETMASK='255.255.255.0'
+IPV4GATEWAY='10.0.2.2'
+IPV4DNS0='10.0.2.3'
+IPV4DNS1='0.0.0.0'
+HOSTNAME=''
+DNSDOMAIN=''
+NISDOMAIN=''
+ROOTSERVER='10.0.2.2'
+ROOTPATH=''
+filename=''
+";

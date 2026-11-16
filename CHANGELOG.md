@@ -563,6 +563,11 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   wait for a reply before the menu shows. `tailscale` waits for `/dev/net/tun`, and each offline boot waits up to its
   `tailscale up` time-out (20 seconds). `dropbear` starts its SSH server, which the Rust runtime's process 1 reaps
   when it ends. A hook such as `encrypt` listed after `zfsbootmenu` now runs too.
+- In mkinitcpio images with the Rust runtime, the start-up writes `/etc/resolv.conf` from the DHCP lease of the `net`
+  hook, which writes none, when the image has none or an empty one: a `nameserver` line for each name server of
+  `/tmp/net-*.conf`, at most three. Only the `IPV4DNS0` and `IPV4DNS1` values that are IPv4 addresses are read, quoted
+  or not; the lease is never sourced. The shell's `curl` and a chroot then resolve names, as in dracut images. A file
+  that an earlier hook wrote, such as the `rclocal` hook's `rc.local`, is kept. The legacy runtime is unchanged.
 
 ### The new menu's keys (phase 0)
 

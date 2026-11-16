@@ -145,3 +145,10 @@ path = "fuzz_targets/mount_table.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "dhcp_lease"
+path = "fuzz_targets/dhcp_lease.rs"
+test = false
+doc = false
+bench = false
