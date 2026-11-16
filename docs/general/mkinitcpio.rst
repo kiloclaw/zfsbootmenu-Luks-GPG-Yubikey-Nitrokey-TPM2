@@ -34,11 +34,12 @@ ZFSBootMenu still expects to use Dracut by default. To override this behavior an
 
 Without further changes, running ``generate-zbm`` should now produce a ZBM image based on mkinitcpio rather than Dracut.
 
-Whenever ``generate-zbm`` is run to generate images based on mkinitcpio, it forcefully adds the the required
-``zfsbootmenu`` hook after any hooks defined in the ``HOOKS`` array of ``/etc/zfsbootmenu/mkinitcpio.conf``. The default
+Whenever ``generate-zbm`` is run to generate images based on mkinitcpio, it forcefully adds the required
+``zfsbootmenu`` hook after any hooks defined in the ``HOOKS`` array of ``/etc/zfsbootmenu/mkinitcpio.conf``. Because
+the ``zfsbootmenu`` hook completely takes over execution of its initramfs image, it is installed only at its **last**
+entry in the hook list, and the run hook of every other hook in ``HOOKS`` runs before it, wherever it stands in the
+array (late and cleanup hooks never run, as ZFSBootMenu never returns to mkinitcpio's ``init``). The default
 configuration file explicitly includes the ``zfsbootmenu`` hook in the array as a visual reminder that it will be
-included (strictly speaking, this will cause mkinitcpio to add the hook **twice**, but because the ``zfsbootmenu`` hook
-completely takes over execution of its initramfs image, it will only ever run once). If any custom configuration requires
-additional hooks be added to the ZFSBootMenu initramfs image, make sure that these hooks are included **before** any
-occurrence of ``zfsbootmenu`` in ``HOOKS``. Better still, just remove the ``zfsbootmenu`` hook from
-``/etc/zfsbootmenu/mkinitcpio.conf`` when making any edits to ``HOOKS`` to minimize the chance of configuration errors.
+included; mkinitcpio then lists the hook twice, and the earlier entry installs nothing. When running mkinitcpio
+directly, without ``generate-zbm``, keep ``zfsbootmenu`` last in ``HOOKS``: the run hooks of hooks listed after it
+never run, and the build warns of those hooks (``hooks after zfsbootmenu never run``).

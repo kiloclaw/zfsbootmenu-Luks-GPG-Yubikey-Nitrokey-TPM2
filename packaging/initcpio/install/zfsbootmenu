@@ -88,8 +88,69 @@ zbm_install_line() {
     return 0
 }
 
+# Where this build stands in mkinitcpio's hook list (_hooks), which builds
+# every entry, a duplicate too, and which init runs in order. The run hook
+# never returns, so ZFSBootMenu is installed only at the last entry that
+# names it, after every other hook (generate-zbm adds that entry with -A).
+# Sets zbm_hook_skip to yes before that entry, and zbm_hook_after to the
+# hooks listed after it. A list without the hook installs at every entry.
+# The count of builds is kept for this image ($BUILDROOT) only, never taken
+# from the environment (mkinitcpio -d names $BUILDROOT), and its names do
+# not start with zfsbootmenu_, so the plan does not see them.
+zbm_hook_position() {
+    local i entries=0
+
+    zbm_hook_skip=no
+    zbm_hook_after=()
+    # shellcheck disable=SC2154
+    for i in "${!_hooks[@]}"; do
+        if [ "${_hooks[i]}" = zfsbootmenu ]; then
+            entries=$(( entries + 1 ))
+            zbm_hook_after=( "${_hooks[@]:i+1}" )
+        fi
+    done
+
+    # The hook never exports its count
+    if [[ "${zbm_build_root@a}${zbm_build_entry@a}" == *x* ]]; then
+        unset zbm_build_root zbm_build_entry
+    fi
+    if [ "${zbm_build_root-}" != "${BUILDROOT}" ]; then
+        zbm_build_root="${BUILDROOT}"
+        zbm_build_entry=0
+    fi
+    case "${zbm_build_entry-}" in
+        '' | *[!0-9]* | 0?*) zbm_build_entry=0 ;;
+    esac
+    zbm_build_entry=$(( zbm_build_entry + 1 ))
+
+    if [ "${zbm_build_entry}" -lt "${entries}" ]; then
+        zbm_hook_skip=yes
+    fi
+    return 0
+}
+
+# Whether the run script of hook $1 has a run hook, found as add_runscript
+# finds it. Only run hooks run in the order of the hook list: early hooks
+# run before every run hook, and no late or cleanup hook ever runs, as
+# ZFSBootMenu never returns to init.
+zbm_has_run_hook() {
+    local script fn
+    # shellcheck disable=SC2154
+    script="$( PATH="${_d_hooks}" type -P "${1}" )" || return 1
+    while read -r fn; do
+        [ "${fn}" = run_hook ] && return 0
+    done < <( funcgrep '^run_[[:alnum:]_]+' "${script}" )
+    return 1
+}
+
 build() {
-    local plan kind one two three
+    local plan kind one two three hook late
+
+    zbm_hook_position
+    if [ "${zbm_hook_skip}" = yes ]; then
+        msg2 'zfsbootmenu is listed again; it is installed at its last entry, after every other hook'
+        return 0
+    fi
 
     : "${zfsbootmenu_zbm:=/usr/libexec/zfsbootmenu/zbm}"
     if [ ! -x "${zfsbootmenu_zbm}" ]; then
@@ -112,6 +173,16 @@ build() {
     rm -rf "${plan}"
 
     add_runscript
+    late=''
+    for hook in "${zbm_hook_after[@]}"; do
+        if zbm_has_run_hook "${hook}"; then
+            late="${late:+${late} }${hook}"
+        fi
+    done
+    if [ -n "${late}" ]; then
+        warning 'hooks after zfsbootmenu never run: %s; list them before it' "${late}"
+    fi
+    return 0
 }
 
 help() {

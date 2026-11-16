@@ -549,6 +549,21 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The component tarballs (`zfsbootmenu-<style>-<arch>-v<version>*.tar.gz`) no longer contain `debug/`.
 - Image builds keep `brush`'s debug information too: `build/debug` holds the files of `zbm` and `brush`.
 
+### mkinitcpio images run the run hook of every hook in `HOOKS`
+
+- mkinitcpio images run the run hook of every hook listed in `HOOKS` before ZFSBootMenu, in both runtimes.
+  `generate-zbm` adds `zfsbootmenu` after the hooks of `HOOKS` (`-A zfsbootmenu`), so with the default configuration
+  the hook was listed twice, and its first entry, which never returns, started ZFSBootMenu: the run hook of a hook
+  listed after it never ran. The docs' `net`, `rclocal`, `dropbear` and `tailscale` were all added after it, so none
+  of their run hooks ran. The mkinitcpio hook is now installed only at its last entry, after every other hook, and
+  `mkinitcpio` run by hand warns of the hooks with a run hook listed after it (`hooks after zfsbootmenu never run`).
+  Images without such hooks boot as before, and the image is planned once instead of twice. Late and cleanup hooks
+  still never run, as ZFSBootMenu never returns to mkinitcpio's `init`.
+- Hooks that never ran now run, with their costs. With `net` and `ip=...:dhcp` but no DHCP server, `ipconfig` may
+  wait for a reply before the menu shows. `tailscale` waits for `/dev/net/tun`, and each offline boot waits up to its
+  `tailscale up` time-out (20 seconds). `dropbear` starts its SSH server, which the Rust runtime's process 1 reaps
+  when it ends. A hook such as `encrypt` listed after `zfsbootmenu` now runs too.
+
 ### The new menu's keys (phase 0)
 
 - The unlock dialog translates what is typed with the image's own XKB keymaps, so every layout of

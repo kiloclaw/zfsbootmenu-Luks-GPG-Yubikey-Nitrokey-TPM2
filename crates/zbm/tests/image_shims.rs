@@ -82,7 +82,8 @@ dwarning() { log "dwarning: $*"; }
 dfatal() { log "dfatal: $*"; }
 "#;
 
-/// Stubs for mkinitcpio's functions.
+/// Stubs for mkinitcpio's functions; messages are formats, as there, and
+/// `funcgrep` is mkinitcpio's own.
 const MKINITCPIO: &str = r#"
 log() { echo "$*" >> "$LOG"; }
 add_file() {
@@ -94,10 +95,20 @@ add_binary() { log "add_binary $*"; }
 add_module() { log "add_module $*"; }
 add_udev_rule() { log "add_udev_rule $*"; }
 add_runscript() { log "add_runscript"; }
-msg2() { log "msg2: $*"; }
-warning() { log "warning: $*"; }
-error() { log "error: $*"; }
+msg2() { local mesg="$1"; shift; log "msg2: $(printf "${mesg}" "$@")"; }
+warning() { local mesg="$1"; shift; log "warning: $(printf "${mesg}" "$@")"; }
+error() { local mesg="$1"; shift; log "error: $(printf "${mesg}" "$@")"; }
+funcgrep() {
+  awk -v funcmatch="$1" '
+    /^[[:space:]]*[[:alnum:]_]+[[:space:]]*\([[:space:]]*\)/ {
+      match($1, funcmatch)
+      print substr($1, RSTART, RLENGTH)
+    }' "$2"
+}
 "#;
+
+/// The mkinitcpio hook.
+const INITCPIO: &str = "packaging/initcpio/install/zfsbootmenu";
 
 /// A build: the stub host, the image's root and the log of the calls.
 struct Build {
@@ -265,7 +276,7 @@ fn the_mkinitcpio_hook_installs_the_plan() {
     let build = Build::new();
     let (ok, log) = build.run(
         MKINITCPIO,
-        "packaging/initcpio/install/zfsbootmenu",
+        INITCPIO,
         &settings("zfsbootmenu_runtime=rust\n"),
         "build",
     );
@@ -297,18 +308,150 @@ fn the_mkinitcpio_hook_installs_the_plan() {
     );
 
     let legacy = Build::new();
-    let (ok, log) = legacy.run(
-        MKINITCPIO,
-        "packaging/initcpio/install/zfsbootmenu",
-        &settings(""),
-        "build",
-    );
+    let (ok, log) = legacy.run(MKINITCPIO, INITCPIO, &settings(""), "build");
     assert!(ok, "{log}");
     assert!(
         legacy
             .read("libexec/zfsbootmenu-initcpio")
             .starts_with("#!/bin/bash\n")
     );
+}
+
+/// A script that builds the mkinitcpio hook `times` times, under
+/// mkinitcpio's ERR trap, sourcing the hook before each build as
+/// mkinitcpio does for each entry of its hook list.
+fn initcpio_builds(times: usize) -> String {
+    let shim = checkout().join(INITCPIO);
+    let build = format!("unset -f build; source {}; build\n", shim.display());
+    format!(
+        "set -E\ntrap 'log \"ERR: $BASH_COMMAND\"' ERR\n{}",
+        build.repeat(times)
+    )
+}
+
+/// The settings of a Rust image whose hook list is `hooks`.
+fn initcpio_settings(hooks: &str, extra: &str) -> String {
+    settings(&format!(
+        "zfsbootmenu_runtime=rust\n_hooks=({hooks})\n{extra}"
+    ))
+}
+
+/// The number of times the log shows the plan installed.
+fn plans_installed(log: &str) -> usize {
+    let zbm = env!("CARGO_BIN_EXE_zbm");
+    log.matches(&format!("add_binary {zbm} /libexec/zbm\n"))
+        .count()
+}
+
+#[test]
+fn a_hook_listed_after_zfsbootmenu_runs_before_it() {
+    let build = Build::new();
+    let (ok, log) = build.run(
+        MKINITCPIO,
+        INITCPIO,
+        &initcpio_settings("base udev zfsbootmenu net zfsbootmenu", ""),
+        &initcpio_builds(2),
+    );
+
+    assert!(ok, "{log}");
+    // The first entry is skipped; the last one installs the plan and the
+    // run hook, so init runs net first.
+    assert!(
+        log.starts_with(
+            "msg2: zfsbootmenu is listed again; it is installed at its last entry, \
+             after every other hook\n"
+        ),
+        "{log}"
+    );
+    assert_eq!(plans_installed(&log), 1, "{log}");
+    assert_eq!(log.matches("add_runscript\n").count(), 1, "{log}");
+    assert!(log.ends_with("add_runscript\n"), "{log}");
+    assert!(!log.contains("ERR: "), "{log}");
+    assert!(!log.contains("never run"), "{log}");
+}
+
+#[test]
+fn a_single_entry_installs_as_before() {
+    let build = Build::new();
+    let (ok, log) = build.run(
+        MKINITCPIO,
+        INITCPIO,
+        &initcpio_settings("udev net zfsbootmenu", ""),
+        &initcpio_builds(1),
+    );
+
+    assert!(ok, "{log}");
+    assert_eq!(plans_installed(&log), 1, "{log}");
+    assert!(log.ends_with("add_runscript\n"), "{log}");
+    assert!(!log.contains("listed again"), "{log}");
+    assert!(!log.contains("ERR: "), "{log}");
+    assert!(!log.contains("never run"), "{log}");
+}
+
+#[test]
+fn a_run_hook_after_the_last_entry_is_warned_of() {
+    let build = Build::new();
+    // mkinitcpio's run scripts: net and dropbear have run hooks, early
+    // has only an early hook, and autodetect has no run script.
+    build
+        .dir
+        .write_executable("hooks/net", "#!/usr/bin/ash\nrun_hook() {\n  :\n}\n");
+    build.dir.write_executable(
+        "hooks/dropbear",
+        "#!/usr/bin/ash\nrun_hook ()\n{\n  :\n}\nrun_cleanuphook () {\n  :\n}\n",
+    );
+    build
+        .dir
+        .write_executable("hooks/early", "#!/usr/bin/ash\nrun_earlyhook() {\n  :\n}\n");
+    let hooks = format!("_d_hooks={}\n", build.dir.join("hooks").display());
+    let (ok, log) = build.run(
+        MKINITCPIO,
+        INITCPIO,
+        &initcpio_settings("udev zfsbootmenu net autodetect early dropbear", &hooks),
+        &initcpio_builds(1),
+    );
+
+    assert!(ok, "{log}");
+    assert_eq!(plans_installed(&log), 1, "{log}");
+    // Only the hooks whose run hooks never run are named.
+    assert!(
+        log.ends_with(
+            "add_runscript\nwarning: hooks after zfsbootmenu never run: net dropbear; \
+             list them before it\n"
+        ),
+        "{log}"
+    );
+    assert!(!log.contains("ERR: "), "{log}");
+}
+
+#[test]
+fn an_entry_count_from_the_environment_does_not_move_the_install() {
+    for preset in [
+        "zbm_build_root=/elsewhere zbm_build_entry=99",
+        "zbm_build_root=/elsewhere zbm_build_entry=1x",
+        "zbm_build_root=\"${BUILDROOT}\" zbm_build_entry=1x",
+        "zbm_build_root=\"${BUILDROOT}\" zbm_build_entry=08",
+        // mkinitcpio -d DIR makes $BUILDROOT known beforehand.
+        "zbm_build_root=\"${BUILDROOT}\" zbm_build_entry=1",
+    ] {
+        let build = Build::new();
+        let (ok, log) = build.run(
+            MKINITCPIO,
+            INITCPIO,
+            &initcpio_settings("zfsbootmenu net zfsbootmenu", &format!("export {preset}\n")),
+            &initcpio_builds(2),
+        );
+
+        assert!(ok, "{preset}: {log}");
+        assert!(
+            log.starts_with("msg2: zfsbootmenu is listed again"),
+            "{preset}: {log}"
+        );
+        assert_eq!(plans_installed(&log), 1, "{preset}: {log}");
+        assert_eq!(log.matches("add_runscript\n").count(), 1, "{preset}: {log}");
+        assert!(log.ends_with("add_runscript\n"), "{preset}: {log}");
+        assert!(!log.contains("ERR: "), "{preset}: {log}");
+    }
 }
 
 #[test]
@@ -320,11 +463,7 @@ fn a_hard_link_to_a_file_the_image_lacks_stops_the_build() {
             "packaging/dracut/module-setup.sh",
             "dfatal: failed to link",
         ),
-        (
-            MKINITCPIO,
-            "packaging/initcpio/install/zfsbootmenu",
-            "error: failed to link",
-        ),
+        (MKINITCPIO, INITCPIO, "error: failed to link"),
     ] {
         let build = Build::new();
         let (ok, log) = build.run(stubs, shim, "", &format!("zbm_install_line {line}"));
