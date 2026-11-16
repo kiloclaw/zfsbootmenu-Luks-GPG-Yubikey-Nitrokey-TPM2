@@ -915,12 +915,15 @@ November 2026, with KVM on a Fedora host: ``runtime`` 119 checks (``runtime-rust
 them), ``integrity`` 33 and ``menu`` 121, none failed. The ``keys``, ``secrets`` and ``firmware`` tests did not run
 then: their images could not be built, as the compiler crashed at random on that host's faulty memory.
 
-SB20 adds a step to ``runtime-rust-recovery``, not run yet: the search and the refused boot of ``tplain/crafted``,
-about a minute and a half more (``zkexec``'s search, its boot's mount, the prompt answered at once, and six
-commands), so about 11 minutes in all, and 10 checks more, 71 in all. ``runtime-setup`` gives ``tplain/crafted`` its
+SB20 adds a step to ``runtime-rust-recovery``: the search and the refused boot of ``tplain/crafted``, 10 checks
+more, 71 in all. With KVM it took 70 seconds. ``runtime-setup`` gives ``tplain/crafted`` its
 ``/boot`` and its own ``/etc/zfsbootmenu.conf``, a few seconds more, and must run again before the ``runtime``
 group. The kernel search runs on the menu's snapshots and the boot resolves its files since SB20, so the ``menu``
-group's ``menu-snapshots`` and ``menu-boot`` run with the ``runtime`` and ``integrity`` groups after it again.
+group's ``menu-snapshots`` and ``menu-boot`` run with the ``runtime`` and ``integrity`` groups after it again. They
+passed on 16 November 2026 at ``953201f9``, on a Fedora 45 host with KVM and rebuilt images, 298 checks, none failed:
+``runtime-setup``, ``runtime-rust-recovery`` (71), ``runtime-rust``, ``-keysource``, ``-hooks`` and ``-saved`` (157 in
+all); ``integrity-setup``, ``-measured`` (14) and ``-lockdown`` (20); ``menu-setup``, ``-snapshots`` (77) and ``-boot``
+(43), 121, as on 14 November.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to
