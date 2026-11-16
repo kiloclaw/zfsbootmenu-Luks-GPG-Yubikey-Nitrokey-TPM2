@@ -142,21 +142,24 @@ fn load_and_mount(
     Some((filesystem, mnt))
 }
 
-/// Boots `selected`: mounts it, runs the `boot-sel.d` hooks, loads the kernel
-/// with its command line, unmounts it, exports the pools imported read-write,
-/// runs the `teardown.d` hooks, has the console on the display hand the
-/// display back, and executes the kernel. Returns only if that fails, after
-/// telling the user through `interaction`, which also asks for a key. The
-/// screen is the caller's: the plain console clears it before a boot.
+/// Boots `selected`, a kernel of `environment`: mounts it, runs the
+/// `boot-sel.d` hooks, loads the kernel with its command line, unmounts it,
+/// exports the pools imported read-write, runs the `teardown.d` hooks, has
+/// the console on the display hand the display back, and executes the
+/// kernel. A kernel of another dataset is not booted: nothing is asked,
+/// mounted or run. Returns only if the boot fails, after telling the user
+/// through `interaction`, which also asks for a key. The screen is the
+/// caller's: the plain console clears it before a boot.
 pub fn kexec_kernel(
     context: &Context<'_>,
     interaction: &dyn Interaction,
     state: &State<'_>,
     settings: &BootSettings,
+    environment: &FilesystemName,
     selected: &Kernel,
     recovery: &dyn Recovery,
 ) {
-    if !names_a_kernel(selected) {
+    if !names_a_kernel(selected, environment) {
         return;
     }
     let (fs, kernel, initramfs) = (&selected.dataset, &selected.kernel, &selected.initramfs);
@@ -205,9 +208,11 @@ pub fn kexec_kernel(
     execute(context, interaction, state, (fs, kernel), saved.as_ref());
 }
 
-/// Whether `selected` names anything to boot, as the legacy code checks;
-/// logs what it names, or an error when it names nothing.
-fn names_a_kernel(selected: &Kernel) -> bool {
+/// Whether `selected` names a kernel of `environment` to boot: anything at
+/// all, as the legacy code checks, then a kernel of no other dataset, which
+/// is not booted, whatever its line in a kernel list said. Logs what it
+/// names, or an error when it names nothing or another dataset.
+fn names_a_kernel(selected: &Kernel, environment: &FilesystemName) -> bool {
     let Kernel {
         dataset: fs,
         kernel,
@@ -216,6 +221,14 @@ fn names_a_kernel(selected: &Kernel) -> bool {
     } = selected;
     if fs.is_empty() && kernel.is_empty() && initramfs.is_empty() {
         zbm_trace::error!("fs, kernel, initramfs undefined");
+        return false;
+    }
+    let environment = environment.to_string();
+    if *fs != environment {
+        zbm_trace::error!(
+            "the selected kernel is of {fs}, not of {environment}: not booted";
+            fs = %Printable(fs), environment = %Printable(&environment)
+        );
         return false;
     }
     zbm_trace::debug!(

@@ -140,11 +140,12 @@ fn nothing_selected_is_an_error_and_boots_nothing() {
         zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
             .install();
 
+    let environment = "zroot/ROOT/void".parse().unwrap();
     let nothing = Kernel::new("", "", "");
-    assert!(!names_a_kernel(&nothing));
+    assert!(!names_a_kernel(&nothing, &environment));
     assert!(fake.kmsg().contains("fs, kernel, initramfs undefined"));
     let selected = Kernel::new("zroot/ROOT/void", "/boot/vmlinuz", "/boot/initramfs.img");
-    assert!(names_a_kernel(&selected));
+    assert!(names_a_kernel(&selected, &environment));
     assert!(
         fake.kmsg()
             .contains("fs: zroot/ROOT/void, kernel: /boot/vmlinuz, initramfs: /boot/initramfs.img"),

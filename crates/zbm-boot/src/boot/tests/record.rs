@@ -55,6 +55,7 @@ fn boot_with(settings: &BootSettings, prepare: impl FnOnce(&FakeSystem)) -> Fake
         &ConsoleInteraction::new(fake.system()),
         &state,
         settings,
+        &name(FS),
         &selected,
         &Shells::default(),
     );

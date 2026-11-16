@@ -9,7 +9,7 @@ xtask                      0           0               0            0           
 zbm                        0           0               0            0              0             0             0              0             0              0            0           103           0
 zbm-app                    0           0               0            0              0             1             0              0             0              0            0           191           0
 zbm-boot                   0           0               0            0              0             0             0              0             0              5            0            55           0
-zbm-bootenv                0           0               0            0              0             0             0              0             0              8            0            41           0
+zbm-bootenv                0           0               0            0              0             0             0              0             0              8            0            42           0
 zbm-brush                  0           0               0            0              0             0             0              0             0              0            0             6           0
 zbm-config                 0           0               0            0              0             0             0              0             0              0            0           220           0
 zbm-console                0           0               0            0              0             0             0              0             0              0            0           102           0

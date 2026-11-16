@@ -446,7 +446,15 @@ fn boot(machine: &Machine, parity: &mut Parity) {
             typed: std::sync::atomic::AtomicBool::new(false),
         };
         let context = Context::new(*system);
-        kexec_kernel(&context, &interaction, state, &settings, &selected, shells);
+        kexec_kernel(
+            &context,
+            &interaction,
+            state,
+            &settings,
+            &name(FS),
+            &selected,
+            shells,
+        );
         String::new()
     });
     // Measured boot is the Rust boot's alone (ROADMAP.md SE10)

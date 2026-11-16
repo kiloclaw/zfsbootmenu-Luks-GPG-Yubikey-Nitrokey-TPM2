@@ -563,7 +563,8 @@ The boot environments and their kernels: the main view and the kernels of the cl
   in ZFSBootMenu's own file system, so `vmlinuz-6.1.kcl -> /etc/zfs/key` made the image's key a command line, and an
   absolute link inside the boot environment, such as `vmlinuz -> /boot/vmlinuz-6.1`, dangled. It took any kind of
   file: a directory named like a kernel, a pipe, which hung the search, or a device. It listed names with a tab or an
-  escape character, split a name with a newline into pieces that did not exist, and took any number of kernels.
+  escape character, split a name with a newline into pieces that did not exist, and took any number of kernels. The
+  readers of the kernel list took every line of it, one that named another dataset too.
 - **Now:**
   - links are followed inside the boot environment, as its own programs follow them: an absolute one from its root,
     and `..` no higher than its root;
@@ -575,7 +576,14 @@ The boot environments and their kernels: the main view and the kernels of the cl
   - at most the 64 newest kernels of a `/boot` are listed, with a warning for those left out; every name of `/boot`
     is still read and sorted, as before, but only those 64 have their files looked up;
   - names with a control character are skipped with a warning, and names that are not UTF-8 are skipped, which has
-    been the case since the Rust port.
+    been the case since the Rust port;
+  - and a line of the kernel list that names another dataset is ignored, by the selection, the menu and the boot:
+    the menu warns of it, and a boot of a kernel of another dataset stops before any key, mount or hook. A list whose
+    last line is empty or names another dataset, which only a hand or a hook writes, now selects its last line of the
+    boot environment, where the legacy selection failed (an empty last line) or took the other dataset's line. Spaces
+    and tabs before a line's dataset are not part of its name for any reader; the legacy boot of the last line or of
+    the menu's choice kept leading spaces in the name, and only the selection by `org.zfsbootmenu:kernel` dropped
+    them.
 
   So a kernel that only an absolute link inside the boot environment names is now listed; `vmlinuz` sorts before
   `vmlinuz-6.1`, so the kernel that boots by default is the same.

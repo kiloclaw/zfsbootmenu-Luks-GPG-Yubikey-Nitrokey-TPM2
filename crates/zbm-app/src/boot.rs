@@ -130,17 +130,13 @@ impl<'a> Boot<'_, 'a> {
         if zbm_bootenv::find_kernels(&self.context(), self.state, &fs).is_err() {
             return Vec::new();
         }
-        let list = self
-            .system
-            .files
-            .read_to_string(&self.state.kernels(environment.as_str()))
-            .unwrap_or_default();
         let context = self.context();
+        let listed = zbm_bootenv::listed_kernels(&context, self.state, &fs);
         let named = zbm_bootenv::kernel_property(&context, &fs).is_some();
         let chosen = zbm_bootenv::select_kernel(&context, self.state, &fs);
-        list.lines()
+        listed
+            .into_iter()
             .rev()
-            .map(Kernel::parse)
             .map(|kernel| model::Kernel {
                 version: Untrusted::new(kernel_version(&kernel.kernel)),
                 is_default: named && chosen.as_ref() == Some(&kernel),
@@ -249,6 +245,7 @@ impl<'a> Boot<'_, 'a> {
             interaction,
             self.state,
             settings,
+            &FilesystemName::from(environment.clone()),
             selected,
             recovery,
         );
@@ -287,14 +284,9 @@ impl<'a> Boot<'_, 'a> {
         let Some(version) = version else {
             return zbm_bootenv::select_kernel(&self.context(), self.state, fs);
         };
-        let list = self
-            .system
-            .files
-            .read_to_string(&self.state.kernels(&fs.to_string()))
-            .unwrap_or_default();
-        list.lines()
+        zbm_bootenv::listed_kernels(&self.context(), self.state, fs)
+            .into_iter()
             .rev()
-            .map(Kernel::parse)
             .find(|kernel| kernel_version(&kernel.kernel) == version)
     }
 }

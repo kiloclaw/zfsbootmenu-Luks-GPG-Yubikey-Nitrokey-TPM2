@@ -24,7 +24,15 @@ fn a_root_prefix_cannot_add_kernel_arguments() {
         };
         let interaction = ConsoleInteraction::new(*system);
         let context = Context::new(*system);
-        kexec_kernel(&context, &interaction, state, &settings, &selected, shells);
+        kexec_kernel(
+            &context,
+            &interaction,
+            state,
+            &settings,
+            &name(FS),
+            &selected,
+            shells,
+        );
         String::new()
     });
     let load = outcome

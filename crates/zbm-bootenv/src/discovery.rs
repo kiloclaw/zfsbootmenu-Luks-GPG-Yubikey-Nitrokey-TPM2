@@ -121,8 +121,45 @@ pub fn kernel_property(context: &Context<'_>, fs: &FilesystemName) -> Option<Str
     zfs_value(context.runner(), KERNEL.name, fs).filter(|value| !value.is_empty() && value != "-")
 }
 
-/// The kernel to boot from the kernel list of `fs`: the last one, or the last
-/// one `org.zfsbootmenu:kernel` matches.
+/// The kernels in the kernel list of `fs`, oldest first: its lines whose
+/// dataset is `fs`, without their leading spaces and tabs. Each other line
+/// is ignored with a warning, and an empty line, which names nothing, is
+/// passed over.
+pub fn listed_kernels(
+    context: &Context<'_>,
+    state: &State<'_>,
+    filesystem: &FilesystemName,
+) -> Vec<Kernel> {
+    let fs = &filesystem.to_string();
+    let text = context
+        .files()
+        .read_to_string(&state.kernels(fs))
+        .unwrap_or_default();
+    let mut kernels = Vec::new();
+    for line in text.lines().filter(|line| !line.is_empty()) {
+        if let Some(own) = own_line(line, fs) {
+            kernels.push(Kernel::parse(own));
+        } else {
+            zbm_trace::warn!(
+                "the kernel list of {fs} has a line of another dataset, ignored: {line}";
+                fs = %Printable(fs), line = %Printable(line)
+            );
+        }
+    }
+    kernels
+}
+
+/// The kernel list `line` without its leading spaces and tabs, when its
+/// dataset is `fs`: the blanks before a name are not part of it, so every
+/// reader of the list takes the same lines of `fs`.
+fn own_line<'t>(line: &'t str, fs: &str) -> Option<&'t str> {
+    let line = line.trim_start_matches([' ', '\t']);
+    (Kernel::parse(line).dataset == fs).then_some(line)
+}
+
+/// The kernel to boot from the kernel list of `fs`: the last of its lines
+/// whose dataset is `fs`, or the last of those `org.zfsbootmenu:kernel`
+/// matches. Other lines are ignored.
 pub fn select_kernel(
     context: &Context<'_>,
     state: &State<'_>,
@@ -139,29 +176,13 @@ pub fn select_kernel(
         zbm_trace::error!("kernel list '{list}' missing or empty"; list = %list.display());
         return None;
     }
-    // tail -1
-    let mut chosen = text
-        .strip_suffix('\n')
-        .unwrap_or(&text)
-        .rsplit('\n')
-        .next()
-        .unwrap_or_default()
-        .to_owned();
+    let mut chosen = last_own_line(&text, fs);
 
     let property = zfs_value(context.runner(), KERNEL.name, filesystem).unwrap_or_default();
     if property != "-" {
         zbm_trace::debug!("{name} set to {property}"; name = %KERNEL.name, %property);
         if let Ok(selector) = property.parse::<KernelSelector>() {
-            for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
-                let kernel = Kernel::parse(line);
-                if selector.matches(&kernel.kernel) {
-                    zbm_trace::debug!(
-                        "matched {kernel} to {property}";
-                        kernel = %kernel.kernel, %property
-                    );
-                    line.clone_into(&mut chosen);
-                }
-            }
+            chosen = selected_by(&text, fs, &selector, &property).or(chosen);
         } else {
             // Bash matched nothing with a pattern that is not valid; a
             // back-reference, which it took, is refused here.
@@ -170,12 +191,56 @@ pub fn select_kernel(
             );
         }
     }
-    if chosen.is_empty() {
+    let Some(chosen) = chosen else {
         zbm_trace::error!("failed to identify kexec arguments for {fs}"; %fs);
         return None;
-    }
+    };
     zbm_trace::debug!("using kexec args: {chosen}"; %chosen);
-    Some(Kernel::parse(&chosen))
+    Some(Kernel::parse(chosen))
+}
+
+/// The last line of `text` whose dataset is `fs`, as it is past its
+/// leading blanks (`tail -1` of those lines); each other line is logged, at
+/// debug level, as ignored.
+fn last_own_line<'t>(text: &'t str, fs: &str) -> Option<&'t str> {
+    let mut last = None;
+    for line in text.split('\n').filter(|line| !line.is_empty()) {
+        if let Some(own) = own_line(line, fs) {
+            last = Some(own);
+        } else {
+            zbm_trace::debug!(
+                "a line of another dataset is ignored: {line}";
+                line = %Printable(line)
+            );
+        }
+    }
+    last
+}
+
+/// The last line of `text` whose dataset is `fs` and whose kernel
+/// `selector`, the value `property`, matches: each line trimmed of spaces
+/// and tabs, as the legacy `read` trims it.
+fn selected_by<'t>(
+    text: &'t str,
+    fs: &str,
+    selector: &KernelSelector,
+    property: &str,
+) -> Option<&'t str> {
+    let mut matched = None;
+    for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
+        let Some(line) = own_line(line, fs) else {
+            continue;
+        };
+        let kernel = Kernel::parse(line);
+        if selector.matches(&kernel.kernel) {
+            zbm_trace::debug!(
+                "matched {kernel} to {property}";
+                kernel = %kernel.kernel, %property
+            );
+            matched = Some(line);
+        }
+    }
+    matched
 }
 
 #[cfg(test)]

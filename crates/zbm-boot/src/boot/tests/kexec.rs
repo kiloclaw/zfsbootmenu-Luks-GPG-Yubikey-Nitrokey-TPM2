@@ -27,6 +27,7 @@ fn the_kernel_loads_the_boot_environment_s_kernel_and_kexec_starts_it_when_it_ca
         &ConsoleInteraction::new(fake.system()),
         &state,
         &BootSettings::default(),
+        &name(FS),
         &selected,
         &shells,
     );
@@ -83,6 +84,7 @@ fn under_lockdown_a_kernel_the_call_refuses_is_not_loaded_by_kexec() {
         &ConsoleInteraction::new(fake.system()),
         &state,
         &BootSettings::default(),
+        &name(FS),
         &selected,
         &shells,
     );
@@ -140,6 +142,7 @@ fn a_measured_boot_loads_the_copies_and_removes_them_after() {
         &ConsoleInteraction::new(fake.system()),
         &state,
         &BootSettings::default(),
+        &name(FS),
         &selected,
         &Shells::default(),
     );
@@ -208,6 +211,7 @@ fn the_teardown_hooks_learn_what_was_loaded_and_by_what() {
             &ConsoleInteraction::new(fake.system()),
             &state,
             &BootSettings::default(),
+            &name(FS),
             &selected,
             &Shells::default(),
         );
@@ -250,6 +254,7 @@ fn a_boot_whose_state_path_runs_through_a_link_opens_the_emergency_shell_and_run
         &ConsoleInteraction::new(fake.system()),
         &state,
         &BootSettings::default(),
+        &name(FS),
         &selected,
         &shells,
     );
@@ -266,4 +271,122 @@ fn a_boot_whose_state_path_runs_through_a_link_opens_the_emergency_shell_and_run
     assert!(messages.contains("unable to mount"), "{messages}");
     let why = "tank/ROOT/void is not mounted: /zfsbootmenu/environments/tank is a link to /etc";
     assert!(fake.kmsg().contains(why), "{}", fake.kmsg());
+}
+
+/// The person at the console, who answers nothing and records what each
+/// request was.
+#[derive(Default)]
+struct Recorded(std::sync::Mutex<Vec<&'static str>>);
+
+impl Recorded {
+    fn record(&self, request: &'static str) {
+        self.0.lock().unwrap().push(request);
+    }
+
+    fn requests(&self) -> Vec<&'static str> {
+        self.0.lock().unwrap().clone()
+    }
+}
+
+impl Interaction for Recorded {
+    fn ask(&self, _: &PromptRequest) -> zbm_types::Answer {
+        self.record("ask");
+        zbm_types::Answer::Escape
+    }
+
+    fn secret(&self, _: &SecretRequest<'_>) -> Asked {
+        self.record("secret");
+        Asked::Ended
+    }
+
+    fn wait(&self, _: &WaitRequest<'_>) -> Wait {
+        self.record("wait");
+        Wait::TimedOut
+    }
+
+    fn notify(&self, _: Tell<'_>) {
+        self.record("notify");
+    }
+}
+
+/// A machine where the pool `q` is locked, its key asked for at the
+/// console, and a `boot-sel.d` hook is installed.
+fn with_locked_pool_q() -> FakeSystem {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu").file_with_mode(
+        "/libexec/hooks/boot-sel.d/10-look",
+        "#!/bin/sh\n",
+        0o755,
+    );
+    fake.kernel.answer(Loads::Accepted);
+    let runner = &fake.runner;
+    runner.respond("zpool list -H -o feature@encryption q", 0, "active\n");
+    runner.respond("zfs get -H -o value encryptionroot q", 0, "q\n");
+    runner.respond("zfs get -H -o value keystatus q", 0, "unavailable\n");
+    runner.respond("zfs get -H -o value keylocation q", 0, "prompt\n");
+    runner.respond("zfs get -H -o value keyformat q", 0, "passphrase\n");
+    runner.respond_program("zpool", 0, "");
+    runner.respond_program("zfs", 0, "-\n");
+    runner.respond_program("mount", 0, "");
+    runner.respond_program("umount", 0, "");
+    fake
+}
+
+#[test]
+fn a_kernel_of_another_dataset_is_not_booted_and_nothing_is_mounted_or_asked() {
+    // A line `q⇥x⇥y` of the kernel list of `tank/ROOT/be` (SB20).
+    let _secrets = crate::testing::booting();
+    let fake = with_locked_pool_q();
+    let _log = fake_log(&fake);
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let interaction = Recorded::default();
+    let shells = Shells::default();
+
+    kexec_kernel(
+        &fake.context(),
+        &interaction,
+        &state,
+        &BootSettings::default().hooks("/libexec/hooks"),
+        &name("tank/ROOT/be"),
+        &Kernel::new("q", "x", "y"),
+        &shells,
+    );
+
+    assert_eq!(interaction.requests(), Vec::<&str>::new());
+    let lines = fake.runner.lines();
+    assert!(
+        !lines.iter().any(|line| line.starts_with("mount")
+            || line.contains("load-key")
+            || line.contains("hooks")),
+        "{lines:#?}"
+    );
+    assert!(fake.files.mounts_made().is_empty());
+    assert!(fake.kernel.loaded().is_empty());
+    assert!(shells.messages.lock().unwrap().is_empty());
+    let why = "the selected kernel is of q, not of tank/ROOT/be: not booted";
+    assert!(fake.kmsg().contains(why), "{}", fake.kmsg());
+}
+
+#[test]
+fn an_empty_selection_still_says_undefined() {
+    // The countdown boots `Kernel::parse("")` when nothing is selected.
+    let _secrets = crate::testing::booting();
+    let fake = with_locked_pool_q();
+    let _log = fake_log(&fake);
+    let state = State::new(&fake.files, "/zfsbootmenu");
+
+    kexec_kernel(
+        &fake.context(),
+        &Recorded::default(),
+        &state,
+        &BootSettings::default(),
+        &name("tank/ROOT/be"),
+        &Kernel::parse(""),
+        &Shells::default(),
+    );
+
+    let kmsg = fake.kmsg();
+    assert!(kmsg.contains("fs, kernel, initramfs undefined"), "{kmsg}");
+    assert!(!kmsg.contains("not booted"), "{kmsg}");
+    assert!(fake.runner.lines().is_empty(), "{:?}", fake.runner.lines());
 }

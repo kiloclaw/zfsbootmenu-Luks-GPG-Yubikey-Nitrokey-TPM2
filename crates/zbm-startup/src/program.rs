@@ -395,6 +395,7 @@ impl<'a> Startup<'a> {
                 &interaction,
                 &self.state,
                 &settings,
+                &filesystem,
                 &selected,
                 &shell,
             );

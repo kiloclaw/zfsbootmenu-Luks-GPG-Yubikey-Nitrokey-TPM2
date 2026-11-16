@@ -559,4 +559,5 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
 }
 
 mod files;
+mod kernels;
 mod mounts;

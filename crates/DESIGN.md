@@ -326,7 +326,7 @@ short-lived callback processes need no server to ask.
 | `zbm.cmdline`, `cmdline.d/<key>` | command line parsing | option lookups | tokenized command line; one value per key |
 | `cmdline` | command line editor, `zbm.kcl_override` | command line assembly, main screen header | tokenized command line |
 | `bootenvs` | the legacy menu (not the Rust runtime) | its `fzf` | one boot environment per line |
-| `environments/<dataset>/kernels` (`<dataset>` with its pieces `mnt`, `kernels` and `kcl` escaped, as above, here and in the next two rows) | kernel discovery | kernel selection, kernel screen, previews | `dataset<TAB>kernel<TAB>initramfs` lines |
+| `environments/<dataset>/kernels` (`<dataset>` with its pieces `mnt`, `kernels` and `kcl` escaped, as above, here and in the next two rows) | kernel discovery | kernel selection, kernel screen, previews | `dataset<TAB>kernel<TAB>initramfs` lines; lines whose dataset is the environment's own are read; names with a control character are never written |
 | `environments/<dataset>/kcl/<kernel>.kcl` | kernel discovery, command line cache | command line assembly | command line |
 | `environments/<dataset>/mnt` | mounting a boot environment, only where no link or mount point is on the way from `BASE` down, `BASE` included, and no other filesystem is on it (SB19) | users | mount point |
 | `.keys/<key source>/<path>` | key caching | key loading | copies of ZFS key files, mode 0600; removed before `kexec` |
