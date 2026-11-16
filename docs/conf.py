@@ -27,6 +27,7 @@ templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '*env', '**/_include', 'README.md',
                     # Markdown guides read on GitHub, not part of the rendered site
                     'guides/gentoo/*.md',
+                    'guides/arch/*.md',
                     # Developer documentation, read on GitHub
                     'dev/**']
 

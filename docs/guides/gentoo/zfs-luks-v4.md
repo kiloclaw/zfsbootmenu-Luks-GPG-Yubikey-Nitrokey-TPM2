@@ -354,8 +354,8 @@ root # zfs set org.zfsbootmenu:commandline="quiet luks.crypttab=no luks.uuid=${L
 | `luks.uuid=<UUID>` | unlock the container with this LUKS UUID, as `luks-<UUID>` |
 | `luks.key=<UUID>=<path>` | use this key file for it |
 
-ZFSBootMenu adds `root=zfs:zroot/ROOT/gentoo` itself. The property is set on `zroot/ROOT`, so every future boot
-environment inherits it.
+ZFSBootMenu adds `root=ZFS=zroot/ROOT/gentoo` itself (its root prefix for Gentoo), which dracut accepts. The
+property is set on `zroot/ROOT`, so every future boot environment inherits it.
 
 Re-import the pool below `/mnt/gentoo` and mount it:
 
@@ -768,7 +768,7 @@ the installed ZFS version does not ship them; see [Usage](#scrubbing-and-trimmin
 This repository's build is required: upstream ZFSBootMenu cannot unlock LUKS volumes.
 
 ```
-(chroot) root # ZBM_BRANCH=claude/modest-volta-qv7ugi
+(chroot) root # ZBM_BRANCH=claude/zbm-refactor
 (chroot) root # git clone --branch "${ZBM_BRANCH}" \
   https://github.com/kiloclaw/zfsbootmenu-Luks-GPG-Yubikey-Nitrokey-TPM2.git \
   /usr/local/src/zfsbootmenu
