@@ -419,7 +419,7 @@ fn the_searches_of_a_child_named_mnt_stay_in_its_own_directory() {
             "ok   - mount_zfs tplain/crafted mounts it and prints \
              /zfsbootmenu/environments/tplain/crafted/mnt (0)",
             "ok   - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (1)",
-            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at a missing x",
             "ok   - zkexec tplain/crafted/mnt ends with 1 (1)",
             "ok   - no kernel list went through tplain/crafted's kernels: \
              /tmp/crafted-kernels is absent (1)",
@@ -451,7 +451,7 @@ fn searches_that_follow_the_parent_s_links_fail() {
             "ok   - mount_zfs tplain/crafted mounts it and prints \
              /zfsbootmenu/environments/tplain/crafted/mnt (0)",
             "ok   - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (1)",
-            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at a missing x",
             "ok   - zkexec tplain/crafted/mnt ends with 1 (1)",
             "FAIL - no kernel list went through tplain/crafted's kernels: \
              /tmp/crafted-kernels is absent (0)",
@@ -483,7 +483,7 @@ fn a_parent_not_mounted_kernels_found_or_a_boot_refused_before_loading_fails() {
             "FAIL - mount_zfs tplain/crafted mounts it and prints \
              /zfsbootmenu/environments/tplain/crafted/mnt (1)",
             "FAIL - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (0)",
-            "FAIL - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+            "FAIL - zkexec mounts tplain/crafted/mnt for its boot and fails only at a missing x",
             "FAIL - zkexec tplain/crafted/mnt ends with 1 (2)",
             "ok   - no kernel list went through tplain/crafted's kernels: \
              /tmp/crafted-kernels is absent (1)",
@@ -524,7 +524,7 @@ fn a_zkexec_that_does_not_end_after_its_prompt_ends_the_run() {
             "ok   - mount_zfs tplain/crafted mounts it and prints \
              /zfsbootmenu/environments/tplain/crafted/mnt (0)",
             "ok   - find_be_kernels tplain/crafted/mnt finds no kernel and ends with 1 (1)",
-            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at loading x",
+            "ok   - zkexec mounts tplain/crafted/mnt for its boot and fails only at a missing x",
         ]
     );
     cleanup(&settings);

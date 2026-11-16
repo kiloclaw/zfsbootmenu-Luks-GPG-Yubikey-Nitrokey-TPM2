@@ -26,8 +26,8 @@
 //! - the library's kernel search of the child ([`FIND_MNT`]) finds no
 //!   kernel, and ends with 1;
 //! - `zkexec` of the child by files it does not have searches it, mounts
-//!   it for its boot and fails at loading them: Enter answers the failed
-//!   boot's prompt, and it ends with 1;
+//!   it for its boot and fails at them, which the boot finds missing in
+//!   the child: Enter answers the failed boot's prompt, and it ends with 1;
 //! - [`KERNELS_LINK`] does not exist, the child has a directory of its
 //!   own, its name's `mnt` escaped, nothing is mounted on the image's
 //!   `/etc`, and once [`CRAFTED`] is unmounted, nothing is mounted below
@@ -76,7 +76,7 @@ pub(super) const SHELL_CMDLINE: &str = r"busybox tr '\0' ' ' < /proc/$$/cmdline"
 const OVERMOUNT: &str = "busybox mount -t tmpfs x /";
 
 /// Where ZFSBootMenu's state puts [`CRAFTED`], its mount point below it.
-const CRAFTED_STATE: &str = "/zfsbootmenu/environments/tplain/crafted";
+pub(super) const CRAFTED_STATE: &str = "/zfsbootmenu/environments/tplain/crafted";
 
 /// The recovery shell's chroot of [`CRAFTED`]: the notices, the checks in
 /// its shell, which then mounts over its own `/`, and what is left once
@@ -215,12 +215,13 @@ const FIND_MNT: &str = "find_be_kernels tplain/crafted/mnt";
 /// exit status once it ended.
 const ZKEXEC_MNT: &str = "zkexec tplain/crafted/mnt x x; echo ZKEXEC-RC=$?";
 
-/// What the prompt of a failed boot says when the kernel was not loaded.
-const NOT_LOADED: &str = "Unable to load kernel or initramfs into memory";
+/// What the prompt of a failed boot says when the kernel was not loaded,
+/// a load that failed or files refused before it.
+pub(super) const NOT_LOADED: &str = "Unable to load kernel or initramfs into memory";
 
-/// [`ZKEXEC_MNT`]'s exit status, its first group, whole: only its line's
-/// end ends it. Its command line, which names `$?`, does not match.
-const ZKEXEC_ENDED: &str = r"ZKEXEC-RC=([0-9]+)\r*\n";
+/// `zkexec`'s exit status, its first group, whole: only its line's end
+/// ends it. Its command line, which names `$?`, does not match.
+pub(super) const ZKEXEC_ENDED: &str = r"ZKEXEC-RC=([0-9]+)\r*\n";
 
 /// [`CRAFTED_MNT`]'s own directory in ZFSBootMenu's state: its name's
 /// `mnt` escaped, beside [`CRAFTED`]'s mount point.
@@ -231,7 +232,7 @@ const ON_IMAGE_ETC: &str = "grep -c ' /etc ' /proc/self/mounts";
 
 /// The kernel searches of [`CRAFTED_MNT`] while [`CRAFTED`], whose `mnt`
 /// and `kernels` link out of it, is mounted: the library's, then
-/// `zkexec`'s, whose boot fails at loading the files it names; then what
+/// `zkexec`'s, whose boot finds the files it names missing; then what
 /// they left, and [`CRAFTED`] unmounted.
 ///
 /// # Errors
@@ -253,19 +254,20 @@ pub(super) fn crafted_mnt(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     after_the_searches(test, vm)
 }
 
-/// `zkexec` of [`CRAFTED_MNT`]: its boot mounts it and fails at loading
-/// the files it names, whose prompt Enter answers; then it ends with 1.
+/// `zkexec` of [`CRAFTED_MNT`]: its boot mounts it and fails at the files
+/// it names, missing in the child, whose prompt Enter answers; then it
+/// ends with 1.
 ///
 /// # Errors
 ///
 /// When a key cannot be sent, or `zkexec` does not end.
 fn boot_of_crafted_mnt(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
-    test.step("zkexec tplain/crafted/mnt x x: its search, then a boot that cannot load x");
+    test.step("zkexec tplain/crafted/mnt x x: its search, then a boot that finds no x");
     vm.sendline(ZKEXEC_MNT)?;
     let prompted = vm.expect(&[NOT_LOADED, ZKEXEC_ENDED], 300)? == 0;
     test.check(
         prompted,
-        &format!("zkexec mounts {CRAFTED_MNT} for its boot and fails only at loading x"),
+        &format!("zkexec mounts {CRAFTED_MNT} for its boot and fails only at a missing x"),
     );
     if prompted {
         test.step("Enter: the failed boot's prompt");

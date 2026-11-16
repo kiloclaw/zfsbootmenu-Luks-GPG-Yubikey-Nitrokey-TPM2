@@ -7,9 +7,11 @@
 //! [`CRAFTED`], a filesystem that is no boot environment, with the
 //! payload's static busybox, copied in, as its `/bin/sh` and its `tmp` and
 //! `dev` links out of it ([`TMP_LINK`], [`DEV_LINK`], for `recovery`'s
-//! chroot of it), and its `mnt` and `kernels` links out of it
-//! ([`MNT_LINK`], [`KERNELS_LINK`]) beside its child [`CRAFTED_MNT`], for
-//! `recovery`'s kernel searches of that child.
+//! chroot of it), its `mnt` and `kernels` links out of it ([`MNT_LINK`],
+//! [`KERNELS_LINK`]) beside its child [`CRAFTED_MNT`], for `recovery`'s
+//! kernel searches of that child, and a `/boot` ([`crafted_boot`]) whose
+//! files link out of it, a FIFO and a kernel name with a newline among
+//! them, for `recovery`'s search and boot of it.
 
 use std::fmt::Write as _;
 
@@ -39,9 +41,16 @@ pub(crate) const RESOLV_LINK: &str = "../run/systemd/resolve/stub-resolv.conf";
 /// A filesystem of `tplain` that is no boot environment, whose mount
 /// point `/crafted` is never mounted by itself (`canmount=noauto`): it
 /// holds `bin/busybox`, `bin/sh`, its link to it, the directories `proc`,
-/// `sys` and `etc`, and the links `tmp` ([`TMP_LINK`]), `dev`
-/// ([`DEV_LINK`]), `mnt` ([`MNT_LINK`]) and `kernels` ([`KERNELS_LINK`]).
+/// `sys` and `etc`, the links `tmp` ([`TMP_LINK`]), `dev`
+/// ([`DEV_LINK`]), `mnt` ([`MNT_LINK`]) and `kernels` ([`KERNELS_LINK`]),
+/// its own `/etc/zfsbootmenu.conf` ([`CRAFTED_OWN`]) and a `/boot`
+/// ([`crafted_boot`]).
 pub(crate) const CRAFTED: &str = "tplain/crafted";
+
+/// What [`CRAFTED`]'s own `/etc/zfsbootmenu.conf` holds, a line: its
+/// `/boot/vmlinuz-3.kcl` is an absolute link to that file, whose name in
+/// the image is ZFSBootMenu's configuration.
+pub(crate) const CRAFTED_OWN: &str = "crafted-own";
 
 /// The child of [`CRAFTED`] named `mnt`, no boot environment either, with
 /// no `/boot`, never mounted by itself (`canmount=noauto`): its name puts
@@ -146,17 +155,45 @@ fn resolver_link() -> String {
 
 /// The command that makes [`CRAFTED`] on `tplain`, mounted on `/c`
 /// meanwhile, with the busybox of the payload, which is static, while the
-/// payload is mounted on `/pl`, then its child [`CRAFTED_MNT`]; it fails
-/// when a part cannot be made.
+/// payload is mounted on `/pl`, and its `/boot` ([`crafted_boot`]), then
+/// its child [`CRAFTED_MNT`]; it fails when a part cannot be made.
 fn crafted() -> String {
     format!(
         "zfs create -o mountpoint=/crafted -o canmount=noauto {CRAFTED} && mkdir -p /c && \
          mount -t zfs -o zfsutil {CRAFTED} /c && \
          {{ mkdir -p /c/bin /c/proc /c/sys /c/etc && cp /pl/rootfs/bin/busybox /c/bin/ && \
          ln -s /bin/busybox /c/bin/sh && ln -s {TMP_LINK} /c/tmp && ln -s {DEV_LINK} /c/dev && \
-         ln -s {MNT_LINK} /c/mnt && ln -s {KERNELS_LINK} /c/kernels; \
+         ln -s {MNT_LINK} /c/mnt && ln -s {KERNELS_LINK} /c/kernels && {}; \
          made=$?; umount /c && [ $made -eq 0 ]; }} && \
-         zfs create -o canmount=noauto {CRAFTED_MNT}"
+         zfs create -o canmount=noauto {CRAFTED_MNT}",
+        crafted_boot()
+    )
+}
+
+/// The command that makes [`CRAFTED`]'s `/boot`, mounted on `/c`, whose
+/// files are empty but for the links (ROADMAP.md SB20):
+///
+/// - `vmlinuz-3` and `initramfs-3.img`, with `vmlinuz-3.kcl` an absolute
+///   link to `/etc/zfsbootmenu.conf`, which [`CRAFTED`] has, holding
+///   [`CRAFTED_OWN`];
+/// - `vmlinuz-4`, with `initramfs-4.img` an absolute link to `/etc/hostid`,
+///   which [`CRAFTED`] does not have;
+/// - `vmlinuz-6` and `initramfs-6.img`, with `vmlinuz-6.kcl` a FIFO, which
+///   nothing writes to;
+/// - `vmlinuz-9`, a newline, then `tplain`, `x` and `y` after tabs, and its
+///   initramfs of that name: a line of a kernel list naming `tplain`'s
+///   root dataset, if the name were written raw. It sorts last.
+///
+/// The shell's `$'…'` makes the newline and the tabs, so none is typed.
+fn crafted_boot() -> String {
+    format!(
+        "mkdir -p /c/boot && : > /c/boot/vmlinuz-3 && : > /c/boot/initramfs-3.img && \
+         printf '%s\\n' {CRAFTED_OWN} > /c/etc/zfsbootmenu.conf && \
+         ln -s /etc/zfsbootmenu.conf /c/boot/vmlinuz-3.kcl && \
+         : > /c/boot/vmlinuz-4 && ln -s /etc/hostid /c/boot/initramfs-4.img && \
+         : > /c/boot/vmlinuz-6 && : > /c/boot/initramfs-6.img && mkfifo /c/boot/vmlinuz-6.kcl && \
+         : > $'/c/boot/vmlinuz-9\\ntplain\\tx\\ty' && \
+         : > $'/c/boot/initramfs-9\\ntplain\\tx\\ty.img'"
     )
 }
 
@@ -185,17 +222,36 @@ mod tests {
     }
 
     #[test]
-    fn tplain_s_crafted_filesystem_links_out_of_it_made_while_mounted_then_its_child_mnt() {
+    fn tplain_s_crafted_filesystem_links_out_of_it_has_a_boot_made_mounted_then_its_child_mnt() {
         assert_eq!(
             crafted(),
             "zfs create -o mountpoint=/crafted -o canmount=noauto tplain/crafted && \
              mkdir -p /c && mount -t zfs -o zfsutil tplain/crafted /c && { mkdir -p /c/bin \
              /c/proc /c/sys /c/etc && cp /pl/rootfs/bin/busybox /c/bin/ && ln -s /bin/busybox \
              /c/bin/sh && ln -s /etc /c/tmp && ln -s ../../../../../../../etc/zfs /c/dev && \
-             ln -s /etc /c/mnt && ln -s /tmp/crafted-kernels /c/kernels; \
+             ln -s /etc /c/mnt && ln -s /tmp/crafted-kernels /c/kernels && mkdir -p /c/boot && \
+             : > /c/boot/vmlinuz-3 && : > /c/boot/initramfs-3.img && \
+             printf '%s\\n' crafted-own > /c/etc/zfsbootmenu.conf && \
+             ln -s /etc/zfsbootmenu.conf /c/boot/vmlinuz-3.kcl && : > /c/boot/vmlinuz-4 && \
+             ln -s /etc/hostid /c/boot/initramfs-4.img && : > /c/boot/vmlinuz-6 && \
+             : > /c/boot/initramfs-6.img && mkfifo /c/boot/vmlinuz-6.kcl && \
+             : > $'/c/boot/vmlinuz-9\\ntplain\\tx\\ty' && \
+             : > $'/c/boot/initramfs-9\\ntplain\\tx\\ty.img'; \
              made=$?; umount /c && [ $made -eq 0 ]; } && \
              zfs create -o canmount=noauto tplain/crafted/mnt"
         );
+    }
+
+    #[test]
+    fn tplain_s_crafted_boot_is_typed_without_a_newline_or_tab_and_made_below_c() {
+        let boot = crafted_boot();
+
+        assert!(!boot.contains(['\n', '\t']), "{boot}");
+        for part in boot.split(" && ") {
+            let made = part.rsplit(' ').next().unwrap_or_default();
+            let made = made.trim_start_matches("$'");
+            assert!(made.starts_with("/c/"), "{part}");
+        }
     }
 
     #[test]

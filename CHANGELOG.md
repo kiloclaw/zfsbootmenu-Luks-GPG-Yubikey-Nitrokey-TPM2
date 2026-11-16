@@ -504,6 +504,11 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   padding is still taken; base64 whose last character carries stray bits no longer is.
 - Rust images with LUKS support leave out `openssl`, `sha256sum` and `base64`, which only the legacy runtime's LUKS
   and TPM2 code runs; `cut`, `tr` and `wc` stay, for the recovery shell's legacy commands. Legacy images are unchanged.
+- In Rust images, a boot environment's `/boot` is read inside it: its links are followed in its own root, never in
+  ZFSBootMenu's, only regular files of bounded size are read, kernel names with control characters are skipped, and
+  kernel-list lines of another dataset are ignored (SB20). A crafted environment can no longer make a file of the image,
+  such as a key, its kernel command line or initramfs, hang the menu with a FIFO, or have another pool's dataset
+  mounted and asked for its key.
 
 ### Process plumbing (phase 0)
 

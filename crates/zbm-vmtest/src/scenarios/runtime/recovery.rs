@@ -48,10 +48,17 @@
 //!   leaves nothing mounted once it ended ([`links`]);
 //! - the kernel searches of its child `tplain/crafted/mnt` while the
 //!   hook library's mount of it is up: the library's search and `zkexec`'s,
-//!   whose boot fails at loading the files it names and whose prompt Enter
+//!   whose boot finds the files it names missing and whose prompt Enter
 //!   answers, mount the child on a directory of its own, and neither
 //!   mounts on the image's `/etc` nor writes a kernel list through the
 //!   parent's `kernels` link ([`links`]);
+//! - `zkexec`'s search and boot of `tplain/crafted`, unmounted, whose
+//!   `/boot` links out of it, holds a FIFO and a kernel name with a
+//!   newline: its boot is refused at the initramfs, a link to
+//!   `/etc/hostid`, which it does not have, and its search caches the
+//!   environment's own command line and writes a kernel list of its own
+//!   lines alone, which the library's kernel selection reads
+//!   ([`boot_files`]);
 //! - the shell's `mount_esp /dev/disk/by-id/virtio-esp`, which is `zbm`'s:
 //!   it mounts the machine's FAT disk `esp` read/write at
 //!   `/mnt/virtio-esp`, prints that, and leaves it mounted; asked again, it
@@ -73,6 +80,7 @@ use crate::record::Test;
 use crate::settings::ZbmRuntime;
 use crate::vm::Vm;
 
+mod boot_files;
 mod links;
 
 /// The title of the menu's Recovery Tools.
@@ -139,6 +147,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     in_the_shell_s_chroot(test, &mut vm)?;
     links::crafted_chroot(test, &mut vm)?;
     links::crafted_mnt(test, &mut vm)?;
+    boot_files::crafted_boot(test, &mut vm)?;
     mount_esp(test, &mut vm)?;
     boot_by_files(test, &mut vm, &kver)?;
     vm.kill();

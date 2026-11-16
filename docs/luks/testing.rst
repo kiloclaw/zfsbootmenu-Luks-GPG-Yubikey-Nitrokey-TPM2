@@ -357,7 +357,13 @@ Following a boot
     the directories ``/proc``, ``/sys`` and ``/etc``, and four links out of it, ``tmp -> /etc``,
     ``dev -> ../../../../../../../etc/zfs``, ``mnt -> /etc`` and ``kernels -> /tmp/crafted-kernels``; and its child
     ``tplain/crafted/mnt`` (``canmount=noauto``, no ``/boot``), whose name, in the legacy layout of ZFSBootMenu's
-    state, puts its mount point and kernel list on those last two links.
+    state, puts its mount point and kernel list on those last two links. ``tplain/crafted`` also gets its own
+    ``/etc/zfsbootmenu.conf``, holding ``crafted-own``, and a ``/boot`` whose kernels and initramfs images are
+    empty files (ROADMAP.md SB20): ``vmlinuz-3`` and ``initramfs-3.img`` with
+    ``vmlinuz-3.kcl -> /etc/zfsbootmenu.conf``; ``vmlinuz-4`` with ``initramfs-4.img -> /etc/hostid``, a file it
+    does not have; ``vmlinuz-6`` and ``initramfs-6.img`` with a FIFO as ``vmlinuz-6.kcl``; and a kernel and its
+    initramfs named ``vmlinuz-9``, a newline, then ``tplain``, ``x`` and ``y`` separated by tabs
+    (``initramfs-9…y.img``), which sort last.
   * ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
     start-up program (the Rust supervisor), and hooks see ``BOOTFS``.
   * ``-hostid``: ``tforeign`` alone: host ID matching imports it, and the boot environment gets ``spl_hostid``.
@@ -573,10 +579,23 @@ Following a boot
   * the kernel searches of ``tplain/crafted/mnt`` while ``tplain/crafted`` is mounted (ROADMAP.md SB19):
     ``mount_zfs tplain/crafted`` prints ``/zfsbootmenu/environments/tplain/crafted/mnt``;
     ``find_be_kernels tplain/crafted/mnt`` (the library's, on the native ``be_location``) finds no kernel and ends
-    with 1; ``zkexec tplain/crafted/mnt x x`` searches the child, mounts it for its boot and fails at loading ``x``:
-    Enter answers the failed boot's prompt, and it ends with 1. Then ``/tmp/crafted-kernels`` does not exist,
-    ``/zfsbootmenu/environments/tplain/crafted/+mnt`` is a directory, nothing is mounted on ``/etc``, and once
-    ``tplain/crafted`` is unmounted nothing is left below its path in the state;
+    with 1; ``zkexec tplain/crafted/mnt x x`` searches the child, mounts it for its boot and fails at ``x``, which
+    the boot finds missing in the child since SB20: Enter answers the failed boot's prompt, and it ends with 1. Then
+    ``/tmp/crafted-kernels`` does not exist, ``/zfsbootmenu/environments/tplain/crafted/+mnt`` is a directory,
+    nothing is mounted on ``/etc``, and once ``tplain/crafted`` is unmounted nothing is left below its path in the
+    state;
+  * the kernel search and the boot of ``tplain/crafted``, whose ``/boot`` links out of it (ROADMAP.md SB20):
+    ``zkexec tplain/crafted vmlinuz-4 initramfs-4.img`` searches it, which the FIFO does not hold up (300 s at
+    most), mounts it for its boot and is refused at the initramfs, missing inside it: Enter answers the failed
+    boot's prompt (``Unable to load kernel or initramfs into memory``), it ends with 1, and ``dmesg`` holds the
+    reason, ``initramfs-4.img`` and ``is missing in the environment``. The prompt and the status alone would not
+    tell this from a load that fails. Then, through ``cat -A``, every line of the kernel list
+    ``/zfsbootmenu/environments/tplain/crafted/kernels`` starts with ``tplain/crafted`` and a tab, and the lines
+    are those of ``vmlinuz-3`` and ``vmlinuz-6`` alone; the library's ``select_kernel tplain/crafted`` prints the
+    line of ``vmlinuz-6``, not ``tplain``, ``x`` and ``y.img`` (the newline name's last piece); the cached
+    ``kcl/boot:vmlinuz-3.kcl`` holds ``crafted-own``, the environment's own file, not the image's
+    configuration, and no ``boot:vmlinuz-6.kcl`` is cached. Last, a guard that held before SB20 too: nothing is
+    mounted on ``/zfsbootmenu/environments/tplain/mnt`` or below ``tplain/crafted``'s path in the state;
   * ``mount_esp /dev/disk/by-id/virtio-esp`` mounts the FAT disk read/write at ``/mnt/virtio-esp`` and prints that,
     and run again prints where it is mounted already;
   * last, ``zkexec tplain/ROOT/be vmlinuz-KVER initramfs-KVER.img`` boots the environment by its kernel's files,
@@ -895,6 +914,13 @@ boot of a clone) run with the ``runtime`` and ``integrity`` groups after it. The
 November 2026, with KVM on a Fedora host: ``runtime`` 119 checks (``runtime-rust-recovery`` 61, the new step among
 them), ``integrity`` 33 and ``menu`` 121, none failed. The ``keys``, ``secrets`` and ``firmware`` tests did not run
 then: their images could not be built, as the compiler crashed at random on that host's faulty memory.
+
+SB20 adds a step to ``runtime-rust-recovery``, not run yet: the search and the refused boot of ``tplain/crafted``,
+about a minute and a half more (``zkexec``'s search, its boot's mount, the prompt answered at once, and six
+commands), so about 11 minutes in all, and 10 checks more, 71 in all. ``runtime-setup`` gives ``tplain/crafted`` its
+``/boot`` and its own ``/etc/zfsbootmenu.conf``, a few seconds more, and must run again before the ``runtime``
+group. The kernel search runs on the menu's snapshots and the boot resolves its files since SB20, so the ``menu``
+group's ``menu-snapshots`` and ``menu-boot`` run with the ``runtime`` and ``integrity`` groups after it again.
 
 Every test of the table but the ``oldzfs`` ones and the ``menu`` group passed again on 3 November 2026, after DM7c of
 ADR 0015 (``zbm-boot`` without the console: ZFSBootMenu asks for a ZFS key, three times at most, and gives it to
