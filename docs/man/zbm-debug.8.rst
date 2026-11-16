@@ -87,7 +87,8 @@ SUBCOMMANDS
 **crash** [**--list**]
 
   Print the latest crash report of the runtime, or with **--list** list them, oldest first. A developer turns a
-  report into function names and lines with the debug file of the image's build.
+  report into function names and lines with the debug file of the image's build, which for a release image is in the
+  release's **zfsbootmenu-debug-**\ *arch*\ **-v**\ *version*\ **.tar.xz**.
 
 **saved**
 

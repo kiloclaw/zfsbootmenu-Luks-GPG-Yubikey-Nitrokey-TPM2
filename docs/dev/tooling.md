@@ -20,7 +20,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 | `cargo xtask check-links [<binary>]` | Builds the release `zbm`, or takes `<binary>`, and fails when `readelf -d` lists a library other than glibc's and GCC's unwinder (`libgcc_s`): the boot runtime links no C library ([dependencies.md](dependencies.md)). A CI job runs it |
 | `cargo xtask check-deps [--bless]` | Checks the dependencies between crates against the layers ([architecture.md](architecture.md)); `--bless` regenerates the tables on that page |
 | `cargo xtask metrics [--check \| --bless]` | Prints code metrics per crate (below) |
-| `cargo xtask split-debug <binary> [<dir>]` | Moves the debug information of a release binary to `<dir>/<build-id>.debug` (default `target/debug-files`) with `objcopy` and strips the binary; image builds do this to `zbm` (below) |
+| `cargo xtask split-debug <binary> [<dir>]` | Moves the debug information of a release binary to `<dir>/<build-id>.debug` (default `target/debug-files`) with `objcopy` and strips the binary; image builds do this to `zbm` and `brush` (below) |
 | `cargo xtask symbolize <report> [--debug-dir <dir>]...` | Prints a crash report of the runtime with the function, file and line of each frame of the crashed binary, from the debug file with the report's build ID, with `addr2line` (below) |
 | `cargo xtask widths` | Checks the line widths of The Rust Style Guide that `rustfmt` leaves alone: at most 100 characters, comment lines at most 80 without their indentation |
 

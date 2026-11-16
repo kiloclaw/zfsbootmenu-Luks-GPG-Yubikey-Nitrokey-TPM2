@@ -175,6 +175,11 @@ for style in release recovery; do
   done
 done
 
+# The debug files of the binaries in every image, for "cargo xtask symbolize"
+f="${asset_dir}/zfsbootmenu-debug-${arch}-v${release}.tar.xz"
+[ -f "${f}" ] || error "ERROR: missing debug asset"
+asset_files+=( "${f}" )
+
 for f in sha256.{txt,sig}; do
   [ -f "${asset_dir}/${f}" ] || error "ERROR: missing sum file ${asset_dir}/${f}"
   asset_files+=( "${asset_dir}/${f}" )

@@ -14,6 +14,8 @@ on:
       - '.cargo/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      # The image build splits the debug files with cargo xtask split-debug
+      - 'xtask/**'
       - 'tests/luks/vm/**'
       # The VM test harness
       - 'rust-toolchain.toml'
@@ -30,6 +32,8 @@ on:
       - '.cargo/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      # The image build splits the debug files with cargo xtask split-debug
+      - 'xtask/**'
       - 'tests/luks/vm/**'
       # The VM test harness
       - 'rust-toolchain.toml'
@@ -67,6 +71,12 @@ jobs:
           docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" localhost/zbm-builder -- --debug
           sudo chown -R "$(id -u):$(id -g)" "${BUILD_DIR}"
 
+      # The build container has lsinitrd, objcopy and readelf
+      - name: Every binary of the release image has its debug file
+        run: >-
+          docker run --rm -v "${PWD}:/zbm:ro" -v "${BUILD_DIR}/build:/out:ro" --entrypoint /bin/bash
+          localhost/zbm-builder /zbm/scripts/release/debug-files.sh /out
+
       - name: Archive release EFI
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -80,6 +90,14 @@ jobs:
           path: |
             /tmp/zbm-build/build/*
             !/tmp/zbm-build/build/*.EFI
+            !/tmp/zbm-build/build/debug
+
+      - name: Archive release debug files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Release-Debug
+          path: /tmp/zbm-build/build/debug/*.debug
+          if-no-files-found: error
 
       - name: Build recovery artifacts
         run: |
@@ -88,6 +106,12 @@ jobs:
           cp config/zfsbootmenu/recovery.conf.d/*.conf "${BUILD_DIR}/dracut.conf.d/"
           docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" localhost/zbm-builder -- --debug
           sudo chown -R "$(id -u):$(id -g)" "${BUILD_DIR}"
+
+      # The build container has lsinitrd, objcopy and readelf
+      - name: Every binary of the recovery image has its debug file
+        run: >-
+          docker run --rm -v "${PWD}:/zbm:ro" -v "${BUILD_DIR}/build:/out:ro" --entrypoint /bin/bash
+          localhost/zbm-builder /zbm/scripts/release/debug-files.sh /out
 
       - name: Archive recovery EFI
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -102,6 +126,14 @@ jobs:
           path: |
             /tmp/zbm-build/build/*
             !/tmp/zbm-build/build/*.EFI
+            !/tmp/zbm-build/build/debug
+
+      - name: Archive recovery debug files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Recovery-Debug
+          path: /tmp/zbm-build/build/debug/*.debug
+          if-no-files-found: error
 
   reproducible:
     name: Reproducible release image
@@ -147,6 +179,23 @@ jobs:
               status=1
             fi
           done
+          # Equal images carry equal build IDs; comparing the debug files of
+          # those IDs, the ones a release publishes, guards that objcopy splits
+          # them the same way each time. The build also splits brush, which
+          # release images do not carry yet, so its debug file is left out
+          if ids="$( docker run --rm -v "${PWD}/first:/zbm:ro" -v "${RUNNER_TEMP}/first/build:/out:ro" \
+              --entrypoint /bin/bash localhost/zbm-builder /zbm/scripts/release/debug-files.sh /out )"; then
+            for id in ${ids}; do
+              if cmp "${RUNNER_TEMP}/first/build/debug/${id}.debug" \
+                  "${RUNNER_TEMP}/second/build/debug/${id}.debug"; then
+                echo "identical: debug/${id}.debug"
+              else
+                status=1
+              fi
+            done
+          else
+            status=1
+          fi
           # On a difference, say whether the contents differ too, or only the archives
           if [ "${status}" -ne 0 ]; then
             sudo apt-get update && sudo apt-get install -y --no-install-recommends dracut-core
@@ -187,6 +236,20 @@ jobs:
         run: >-
           sudo -E target/release/zbm-vmtest run runtime-setup
           runtime-rust runtime-rust-hostid runtime-rust-strict runtime-rust-force runtime-rust-prefer runtime-rust-late runtime-rust-waitfor runtime-rust-hooks runtime-rust-signals
+
+      # Rust-runtime images carry brush as well as zbm
+      - name: Every binary of the test images has its debug file
+        run: |
+          checked=0 status=0
+          for build in $( sudo find "${ZBMTEST_WORK}/zbm" -mindepth 2 -maxdepth 2 -name build -type d ); do
+            sudo test -e "${build}/initramfs-bootmenu.img" || sudo test -e "${build}/vmlinuz.EFI" || continue
+            echo "${build}:"
+            docker run --rm -v "${PWD}:/zbm:ro" -v "${build}:/out:ro" --entrypoint /bin/bash \
+              localhost/zbm-builder /zbm/scripts/release/debug-files.sh /out || status=1
+            checked=$(( checked + 1 ))
+          done
+          [ "${checked}" -gt 0 ] || { echo "ERROR: no test image found"; status=1; }
+          exit "${status}"
 
       - name: Archive the test logs
         if: always()

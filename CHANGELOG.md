@@ -540,6 +540,15 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The threat model (`docs/dev/threat-model.md`) gains a diagram of the zone and its data flows, attackers on the
   network (SSH, Tailscale) and in the supply chain, and the logs and reports saved on the ESP.
 
+### Debug files of release images
+
+- Each release publishes `zfsbootmenu-debug-x86_64-v<version>.tar.xz`, signed with the other assets: a directory of
+  `<build ID>.debug` files, one for each binary in the release's images (`zbm` today), with which
+  `cargo xtask symbolize` turns a crash report of a release image into functions, files and lines
+  (`docs/dev/tooling.md`). The release build fails when a binary of an image has no debug file.
+- The component tarballs (`zfsbootmenu-<style>-<arch>-v<version>*.tar.gz`) no longer contain `debug/`.
+- Image builds keep `brush`'s debug information too: `build/debug` holds the files of `zbm` and `brush`.
+
 ### The new menu's keys (phase 0)
 
 - The unlock dialog translates what is typed with the image's own XKB keymaps, so every layout of

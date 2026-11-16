@@ -5,7 +5,8 @@ Several high-level operations comprise the ZFSBootMenu release process:
 1. Ensure that the repository is consistent and suitable for tagging
 2. Render all dynamic content (including version information) included in the repository for convenience
 3. Produce an updated build-container image configured to build the release by default
-4. Use the new image to create all release images, then sign all assets
+4. Use the new image to create all release images and the archive of their debug files
+   (`zfsbootmenu-debug-<arch>-v<version>.tar.xz`, checked by `debug-files.sh`), then sign all assets
 5. Extract changelog information to use as the body of a release announcement
 6. Use the `gh` utility to publish the release, which also tags the repository
 7. Render new version information to reflect the post-release development state on the branch head
@@ -32,6 +33,7 @@ The release-engineering scripts require several helpers:
 - Both `podman` and `buildah` are required to produce the Ubuntu-based build-container image
   (`packaging/container/image-build.sh`) and prepare release assets
 - The `signify` utility is necessary to sign assets for the release
+- GNU `tar` (1.28 or later, for `--sort=name`) and `xz` pack the debug archive reproducibly
 
 When `jq` is available, `tag-release.sh` will attempt to verify the authentication status of `gh` before the local
 repository is modified.

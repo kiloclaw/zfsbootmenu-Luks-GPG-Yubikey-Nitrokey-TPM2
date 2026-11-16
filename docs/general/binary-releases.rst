@@ -9,6 +9,12 @@ include the built-in EFI stub and may be directly bootable (provided the UEFI im
 arguments, including the path to the associated initramfs image, to the kernel) or loaded by a boot manager. In
 addition, the separate components may be booted by any standard BIOS boot loader (*e.g.*, syslinux) on legacy hardware.
 
+Each release also carries ``zfsbootmenu-debug-x86_64-v<version>.tar.xz``, the debug files of the project's own
+programs in its images (``zbm`` today), named by their build IDs; the other programs of an image, from the build
+container's distribution, have none in it. Booting needs none of it: a developer uses it to turn a crash report of a
+release image (``zbm debug crash``) into functions, files and lines. Like every asset, it is listed in ``sha256.txt``
+and signed.
+
 Release images
 ~~~~~~~~~~~~~~
 

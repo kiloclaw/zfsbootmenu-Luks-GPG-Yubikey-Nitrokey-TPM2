@@ -208,7 +208,8 @@ With the default configuration, the images are in ``/root/zbm-build/build``:
 
 * ``vmlinuz.EFI``, the EFI bundle;
 * ``vmlinuz-bootmenu`` and ``initramfs-bootmenu.img``, the components;
-* ``debug/``, the debug information of ``zbm``, used to read its crash reports.
+* ``debug/``, the debug information of ``zbm`` and ``brush`` (the shell of the Rust runtime), one
+  ``<build ID>.debug`` file each, used to read crash reports.
 
 On the next build, the previous images are renamed with ``-backup`` (``vmlinuz-backup.EFI``,
 ``vmlinuz-bootmenu-backup``, ``initramfs-bootmenu-backup.img``). Continue with `Install and boot`_.

@@ -311,29 +311,29 @@ convenient way to modify the embedded ZFSBootMenu command line without requiring
 Signature Verification and Prebuilt EFI Executables
 ---------------------------------------------------
 
-All release assets, including EFI executables and kernel/initramfs pairs, are signed with
+All release assets, including EFI executables, kernel/initramfs pairs and the archive of debug files, are signed with
 `signify <https://flak.tedunangst.com/post/signify>`_, which provides a simple method for verifying that the contents of
 the file are as this project intended. Once you've installed ``signify`` (that's left as an exercise, although Void
 Linux provides the ``signify`` package for this purpose), just download the desired assets from the
 `ZFSBootMenu release page <https://github.com/zbm-dev/zfsbootmenu/releases>`_, download the file ``sha256.sig``
-alongside it, and run::
+alongside them, and run ``signify`` with the names of the files you downloaded::
 
-  signify -C -x sha256.sig
+  signify -C -p zfsbootmenu.pub -x sha256.sig <file>...
+
+``sha256.sig`` lists every asset of the release. Naming the files checks only those; without names, ``signify`` checks
+every listed asset and fails on each one that was not downloaded. Most people skip the archive of debug files,
+``zfsbootmenu-debug-x86_64-v<version>.tar.xz``, which developers use to read crash reports of the release's images.
 
 You will need the public key used to sign ZFSBootMenu executables. The key is available at
-:zbm:`releng/keys/zfsbootmenu.pub`. Install this file as ``/etc/signify/zfsbootmenu.pub`` if you like; this key can be
-used for all subsequent verifications. Otherwise, look at the ``-p`` command-line option for ``signify`` to provide a
-path to the key.
-
-The signature file ``sha256.sig`` also includes a signature for the source tarball corresponding to the release. If this
-file is not present alongside the EFI bundle and the signature file, ``signify`` will complain about its signature. This
-error message is OK to ignore; alternatively, tell ``signify`` to verify only the EFI bundle, or download the source
-tarball alongside the other files.
+:zbm:`scripts/release/keys/zfsbootmenu.pub`. Install this file as ``/etc/signify/zfsbootmenu.pub`` if you like; this key
+can be used for all subsequent verifications. Otherwise, the ``-p`` command-line option of ``signify`` gives the path to
+the key, as above.
 
 The signify key ``zfsbootmenu.pub`` may itself be verified; alongside the public key is the GPG signature
-:zbm:`releng/keys/zfsbootmenu.pub.gpg`, produced with a `personal key from @ahesford <https://github.com/ahesford.gpg>`_,
-one of the members of the ZFSBootMenu project. This personal key is also available on public key servers. To verify the
-``signify`` key, download the key ``zfsbootmenu.pub`` and its signature file ``zfsbootmenu.pub.gpg``, then run::
+:zbm:`scripts/release/keys/zfsbootmenu.pub.gpg`, produced with a
+`personal key from @ahesford <https://github.com/ahesford.gpg>`_, one of the members of the ZFSBootMenu project. This
+personal key is also available on public key servers. To verify the ``signify`` key, download the key
+``zfsbootmenu.pub`` and its signature file ``zfsbootmenu.pub.gpg``, then run::
 
   gpg --recv-key 0x312485BE75E3D7AC
   gpg --verify zfsbootmenu.pub.gpg

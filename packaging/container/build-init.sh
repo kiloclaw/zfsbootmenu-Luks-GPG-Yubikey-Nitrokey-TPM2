@@ -417,25 +417,30 @@ elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
     FEATURES=( --features "${ZBM_CARGO_FEATURES}" )
   fi
   # The binaries name no path of this run's random work directory, so that
-  # images are reproducible (ROADMAP.md #5); the sources are always at /zbm
+  # images are reproducible (ROADMAP.md #5); the sources are always at /zbm.
+  # Nor do their debug files name Cargo's home, should a dependency ever come
+  # from it rather than from /zbm/vendor
   RUSTFLAGS="${RUSTFLAGS:+${RUSTFLAGS} }--remap-path-prefix=${CARGO_TARGET_DIR}=/target"
+  RUSTFLAGS+=" --remap-path-prefix=${CARGO_HOME:-${HOME}/.cargo}=/cargo"
   export RUSTFLAGS
   ( cd /zbm && cargo build --release --locked --offline "${FEATURES[@]}" \
       --bin zbm --bin brush --bin generate-zbm ) || error "failed to build the Rust programs"
 
-  # Images carry zbm without its debug information, which goes to
-  # ${ZBMOUTPUT}/debug/<build ID>.debug, where "cargo xtask symbolize" finds it
-  # to read crash reports
-  cp "${CARGO_TARGET_DIR}/release/zbm" "${ZBMWORKDIR}/zbm" || error "unable to copy zbm"
-  if ! ( cd /zbm && cargo xtask split-debug "${ZBMWORKDIR}/zbm" "${ZBMOUTPUT}/debug" ); then
-    echo "WARNING: unable to keep the debug information of zbm; crash reports cannot be resolved" >&2
-    strip "${ZBMWORKDIR}/zbm" || error "unable to strip zbm"
-  fi
-  install -m 0755 -D "${ZBMWORKDIR}/zbm" /usr/libexec/zfsbootmenu/zbm \
-    || error "unable to install zbm"
-  # brush, the shell of the Rust runtime, which crash reports do not name
-  install -m 0755 -s -D "${CARGO_TARGET_DIR}/release/brush" /usr/libexec/zfsbootmenu/brush \
-    || error "unable to install brush"
+  # Images carry zbm, and brush, the shell of the Rust runtime, without their
+  # debug information, which goes to ${ZBMOUTPUT}/debug/<build ID>.debug, where
+  # "cargo xtask symbolize" finds it to read crash reports. A binary that
+  # cannot be split is stripped with a warning; scripts/release/debug-files.sh
+  # fails the builds that need every debug file (releases and CI)
+  for bin in zbm brush; do
+    cp "${CARGO_TARGET_DIR}/release/${bin}" "${ZBMWORKDIR}/${bin}" || error "unable to copy ${bin}"
+    if ! ( cd /zbm && cargo xtask split-debug "${ZBMWORKDIR}/${bin}" "${ZBMOUTPUT}/debug" ); then
+      echo "WARNING: unable to keep the debug information of ${bin};" \
+        "its crashes cannot be resolved to source lines" >&2
+      strip "${ZBMWORKDIR}/${bin}" || error "unable to strip ${bin}"
+    fi
+    install -m 0755 -D "${ZBMWORKDIR}/${bin}" "/usr/libexec/zfsbootmenu/${bin}" \
+      || error "unable to install ${bin}"
+  done
 
   genzbm="${CARGO_TARGET_DIR}/release/generate-zbm"
 fi
