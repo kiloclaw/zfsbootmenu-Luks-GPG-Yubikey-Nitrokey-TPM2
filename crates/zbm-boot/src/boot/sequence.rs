@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use zbm_types::code::{Coded as _, chain};
 
-use zbm_config::spec::properties::DEVICETREE;
 use zbm_platform::Context;
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject};
 use zbm_platform::kernel::KernelLoader;
@@ -16,7 +15,7 @@ use zbm_trace::Level;
 use zbm_types::{
     DatasetName, FilesystemName, ImportPolicy, KernelCommandLine, Printable, RetryDelay,
 };
-use zbm_zfs::{Stderr, ZfsText};
+use zbm_zfs::ZfsText;
 
 use zbm_bootenv::hooks::{self, BootSteps, HookEnv, Loaded, StageEnv, Variables};
 use zbm_bootenv::kernels::Kernel;
@@ -25,6 +24,7 @@ use zbm_bootenv::{Noise, commandline, mount_zfs, recursive_umount, umount};
 
 use super::measured;
 use super::record::{self, HowLoaded, save_logs};
+use super::resolved::{find_devicetree, refused, resolved};
 use super::zfs::{export_writable_pools, substituted};
 use crate::graphics;
 use crate::load::KexecLoad;
@@ -192,6 +192,7 @@ pub fn kexec_kernel(
         dtb: dtb.as_deref(),
         root: &root,
         args: &cli_args,
+        files: None,
         copies: None,
     };
     let Some((output, how)) = load_measured(context, interaction, state, &load, &mnt) else {
@@ -292,47 +293,14 @@ fn command_line(
     cli_args
 }
 
-/// The device tree file that `org.zfsbootmenu:devicetree` of `fs` names for
-/// `kernel` in the boot environment mounted at `mnt`, if the property is set
-/// and the file exists.
-fn find_devicetree(
-    context: &Context<'_>,
-    fs: &FilesystemName,
-    kernel: &str,
-    mnt: &Path,
-) -> Option<PathBuf> {
-    let dtb_property = ZfsText::new(context.runner()).value(fs, DEVICETREE.name, Stderr::Hidden);
-    match dtb_property.as_deref() {
-        Some(property) if !property.is_empty() && property != "-" => {
-            zbm_trace::debug!("devicetree property set to '{property}'"; %property);
-            let candidate = commandline::devicetree_candidate(property, kernel, mnt)?;
-            if context.files().is_file(&candidate) {
-                zbm_trace::debug!(
-                    "devicetree file exists: '{candidate}'";
-                    candidate = %candidate.display()
-                );
-                Some(candidate)
-            } else {
-                zbm_trace::debug!(
-                    "devicetree file missing: '{candidate}'";
-                    candidate = %candidate.display()
-                );
-                None
-            }
-        }
-        _ => {
-            zbm_trace::debug!("no devicetree property set");
-            None
-        }
-    }
-}
-
-/// Measures `load` into the TPM, if there is one (ROADMAP.md SE10), and
-/// loads the copies that went into it, or the boot environment's files
-/// when nothing was measured, as [`load_kernel`] does; the copies go once
-/// they are loaded, or failed to load. What `kexec` printed and how the
-/// kernel was loaded: measured when the copies were loaded, whatever the
-/// TPM took of their events, which the event log says.
+/// Finds the kernel and initramfs of `load` inside the boot environment
+/// mounted at `mnt`, measures them into the TPM, if there is one
+/// (ROADMAP.md SE10), and loads the copies that went into it, or the files
+/// found when nothing was measured, as [`load_kernel`] does; the copies go
+/// once they are loaded, or failed to load. What `kexec` printed and how
+/// the kernel was loaded: measured when the copies were loaded, whatever
+/// the TPM took of their events, which the event log says. A file that is
+/// not found inside the boot environment fails the boot unloaded.
 fn load_measured(
     context: &Context<'_>,
     interaction: &dyn Interaction,
@@ -340,10 +308,21 @@ fn load_measured(
     load: &KexecLoad<'_>,
     mnt: &Path,
 ) -> Option<(String, HowLoaded)> {
-    let copies = measured::measure(context, state, load);
+    let (kernel, initramfs) = match resolved(context, load, mnt) {
+        Ok(files) => files,
+        Err((inside, why)) => {
+            refused(context, (interaction, state), load, mnt, (inside, &why));
+            return None;
+        }
+    };
+    let opened = KexecLoad {
+        files: Some((&kernel, &initramfs)),
+        ..*load
+    };
+    let copies = measured::measure(context, state, &opened);
     let measured = KexecLoad {
         copies: copies.as_ref(),
-        ..*load
+        ..opened
     };
     let loaded = load_kernel(context, interaction, &measured, mnt);
     if let Some(copies) = &copies {
@@ -417,6 +396,25 @@ fn load_kernel(
         %mnt_text, %kernel, %initramfs
     );
     zbm_trace::error!("{output}"; %output);
+    failed_load(context, interaction, load, mnt);
+    None
+}
+
+/// The end of a boot whose kernel and initramfs, those of `load`, did not
+/// load: unmounts the boot environment mounted at `mnt` and tells the user
+/// through `interaction`.
+pub(super) fn failed_load(
+    context: &Context<'_>,
+    interaction: &dyn Interaction,
+    load: &KexecLoad<'_>,
+    mnt: &Path,
+) {
+    let KexecLoad {
+        mnt: mnt_text,
+        kernel,
+        initramfs,
+        ..
+    } = load;
     let _ = recursive_umount(context, mnt);
     let _ = interaction.ask(&failed_boot(
         Subject::LoadFailed {
@@ -425,7 +423,6 @@ fn load_kernel(
         },
         "Unable to load kernel or initramfs into memory".to_owned(),
     ));
-    None
 }
 
 /// Logs what `load` loaded and the `output` of `kexec`, when debugging.

@@ -1,7 +1,8 @@
 //! The files of a boot environment as the kernel search opens them:
 //! resolved inside the environment's root, as its own programs would find
 //! them, never in ZFSBootMenu's namespace; with a UTF-8 path that has no
-//! link on it; and only regular files of bounded size.
+//! link and no control character on it; and only regular files of bounded
+//! size.
 //!
 //! An absolute link starts again at the environment's root and `..` stops
 //! there, so no link leads out of it; a path into the environment's
@@ -52,12 +53,18 @@ pub enum Refused {
     /// The path, its links followed, is not UTF-8, so it could not be
     /// handed on as it is.
     NotUtf8(PathBuf),
+    /// The path, its links followed, has a control character, which the
+    /// log lines and programs it is handed to would act on, as a kernel's
+    /// name with one is no kernel.
+    ControlCharacter(PathBuf),
 }
 
 impl Refused {
     /// Whether the file is simply not there: a missing name, a name that
-    /// is no directory, or a name too long to exist.
-    pub(crate) fn is_absent(&self) -> bool {
+    /// is no directory, or a name too long to exist. Nothing is said of
+    /// such a file, as nothing was of one that did not exist.
+    #[must_use]
+    pub fn is_absent(&self) -> bool {
         match self {
             Refused::Unresolved(Unresolved::Missing { .. } | Unresolved::NotADirectory(_)) => true,
             Refused::Unresolved(Unresolved::Io(error)) => matches!(
@@ -118,14 +125,19 @@ impl fmt::Display for Refused {
             Refused::NotUtf8(path) => {
                 write!(formatter, "{} is not a UTF-8 path", path.display())
             }
+            Refused::ControlCharacter(path) => write!(
+                formatter,
+                "{} has a control character in its path",
+                path.display()
+            ),
         }
     }
 }
 
 /// The kernel, initramfs or device tree `inside` (absolute, as the
 /// environment names it) of the boot environment mounted at `mnt`: its
-/// path with no link on it, below `mnt`, as text, when it is a regular file
-/// of at most 1 GiB.
+/// path with no link on it, below `mnt`, as text with no control
+/// character, when it is a regular file of at most 1 GiB.
 ///
 /// # Errors
 ///
@@ -143,7 +155,8 @@ pub(crate) fn small_file(files: &dyn Files, mnt: &Path, inside: &Path) -> Result
 
 /// The file `inside` of the boot environment mounted at `mnt`, resolved
 /// inside its root, when it is a regular file of at most `limit` bytes
-/// with a UTF-8 path: that path, with no link on it, below `mnt`.
+/// with a UTF-8 path that has no control character: that path, with no
+/// link on it, below `mnt`.
 fn boot_file(files: &dyn Files, mnt: &Path, inside: &Path, limit: u64) -> Result<String, Refused> {
     let found = inside::resolve(files, mnt, inside).map_err(refused)?;
     let named = found.path.in_chroot();
@@ -156,6 +169,9 @@ fn boot_file(files: &dyn Files, mnt: &Path, inside: &Path, limit: u64) -> Result
         .map_err(|error| Refused::Unresolved(Unresolved::Io(error)))?;
     if metadata.kind != FileKind::File {
         return Err(Refused::NotAFile(named, metadata.kind));
+    }
+    if text.contains(char::is_control) {
+        return Err(Refused::ControlCharacter(named));
     }
     if metadata.len > limit {
         return Err(Refused::TooLarge(named, metadata.len));

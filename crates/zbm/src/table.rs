@@ -362,8 +362,9 @@ Usage: zkexec FILESYSTEM KERNEL INITRAMFS
 Boots /boot/KERNEL and /boot/INITRAMFS of FILESYSTEM, a boot environment
 (not a snapshot), as the menu boots a kernel: it loads the key of a locked
 encryption root first, runs the hooks and the built-in steps, and executes
-the kernel. It returns only when the boot failed, saying why, with the exit
-status 1.
+the kernel. The two names are resolved inside the boot environment, as its
+own programs resolve them: links from its root, and .. no higher than it.
+It returns only when the boot failed, saying why, with the exit status 1.
 ",
     run: kexec::run,
 };

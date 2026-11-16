@@ -25,7 +25,8 @@ use zbm_crypt::tpm2::Tpm2;
 use zbm_platform::{Context, Files};
 use zbm_state::State;
 
-use zbm_bootenv::kernels::Kernel;
+use zbm_bootenv::kernels::{Kernel, boot_image};
+use zbm_types::Printable;
 
 use crate::load::KexecLoad;
 
@@ -114,7 +115,9 @@ pub fn extend_events(context: &Context<'_>, state: &State<'_>, events: &[Event])
 /// Measures what `load` loads into the TPM, if there is one, and records
 /// it in the event log of `state`; the copies the kernel loads instead of
 /// the boot environment's files, or `None` when nothing was measured, as
-/// without a TPM.
+/// without a TPM. The files are read as they are opened (`load.files`),
+/// and only when they fit in the memory available: otherwise they load
+/// unmeasured, after the separator.
 pub fn measure(context: &Context<'_>, state: &State<'_>, load: &KexecLoad<'_>) -> Option<Copies> {
     if tpm_device(context).is_none() {
         zbm_trace::debug!("no TPM: the boot is not measured");
@@ -145,52 +148,124 @@ pub fn measure(context: &Context<'_>, state: &State<'_>, load: &KexecLoad<'_>) -
 /// A measured file: its event, and its bytes.
 type File = (Event, Vec<u8>);
 
-/// The digests and the bytes of the file `inside` the boot environment
-/// mounted at `mnt`, read once.
-fn measured_file(files: &dyn Files, mnt: &str, inside: &str) -> io::Result<(Digests, Vec<u8>)> {
-    let bytes = files.read(&PathBuf::from(format!("{mnt}{inside}")))?;
+/// The kernel's estimate of the memory available, in `/proc/meminfo`.
+const MEMINFO: &str = "/proc/meminfo";
+
+/// How many times the size of the kernel and the initramfs a measured boot
+/// holds at its peak, in this process and the state's tmpfs: the two
+/// files read, the initramfs again behind the log, and the two copies.
+const PEAK: u64 = 3;
+
+/// The digests and the bytes of the regular file `path`, of at most `len`
+/// bytes, read once.
+fn measured_file(files: &dyn Files, path: &str, len: u64) -> io::Result<(Digests, Vec<u8>)> {
+    let bytes = files.read_regular(Path::new(path), len)?;
     Ok((Digests::of_bytes(&bytes), bytes))
 }
 
-/// The kernel and the initramfs of `load`, read once, and their events.
+/// The size of the regular file `path`, in bytes.
+fn size(files: &dyn Files, path: &str) -> io::Result<u64> {
+    Ok(files.metadata(Path::new(path))?.len)
+}
+
+/// `MemAvailable` of `/proc/meminfo`, in bytes, if it can be read.
+fn available_memory(files: &dyn Files) -> Option<u64> {
+    let text = files.read_to_string(Path::new(MEMINFO)).ok()?;
+    let line = text
+        .lines()
+        .find_map(|line| line.strip_prefix("MemAvailable:"))?;
+    let kib = line.trim().strip_suffix("kB")?.trim_end();
+    kib.parse::<u64>().ok()?.checked_mul(1024)
+}
+
+/// Whether `len` bytes of files can be measured: [`PEAK`] times them fit
+/// in the memory available, or that memory is not known. Warns when they
+/// do not fit.
+fn fits_in_memory(files: &dyn Files, len: u64) -> bool {
+    let Some(available) = available_memory(files) else {
+        return true;
+    };
+    let needed = len.saturating_mul(PEAK);
+    if needed <= available {
+        return true;
+    }
+    zbm_trace::warn!(
+        "the kernel and initramfs ({len} bytes) are too large to measure in the \
+         {available} bytes of memory available: they load unmeasured";
+        %len, %available
+    );
+    false
+}
+
+/// The kernel and the initramfs of `load`, as they are opened, read once
+/// when they fit in memory, and their events.
 fn read_files(context: &Context<'_>, load: &KexecLoad<'_>) -> Option<(File, File)> {
-    let read = |inside: &str, measured: fn(String) -> Measured| match measured_file(
-        context.files(),
-        load.mnt,
-        inside,
-    ) {
-        Ok((digests, bytes)) => {
-            let measured = measured(inside.to_owned());
-            Some((Event { measured, digests }, bytes))
-        }
-        Err(error) => {
-            let path = format!("{}{inside}", load.mnt);
-            zbm_trace::warn!("unable to read {path} to measure it: {error}"; %path, %error);
-            None
+    let files = context.files();
+    let (kernel, initramfs) = load.opened();
+    let unread = |inside: &str, error: io::Error| {
+        let path = format!("{}{inside}", load.mnt);
+        zbm_trace::warn!(
+            "unable to read {path} to measure it: {error}";
+            path = %Printable(&path), %error
+        );
+    };
+    let kernel_len = size(files, &kernel)
+        .map_err(|error| unread(load.kernel, error))
+        .ok()?;
+    let initramfs_len = size(files, &initramfs)
+        .map_err(|error| unread(load.initramfs, error))
+        .ok()?;
+    if !fits_in_memory(files, kernel_len.saturating_add(initramfs_len)) {
+        return None;
+    }
+    let read = |(path, len): (&str, u64), inside: &str, measured: fn(String) -> Measured| {
+        match measured_file(files, path, len) {
+            Ok((digests, bytes)) => {
+                let measured = measured(inside.to_owned());
+                Some((Event { measured, digests }, bytes))
+            }
+            Err(error) => {
+                unread(inside, error);
+                None
+            }
         }
     };
-    let kernel = read(load.kernel, Measured::Kernel)?;
-    let initramfs = read(load.initramfs, Measured::Initramfs)?;
+    let kernel = read((&kernel, kernel_len), load.kernel, Measured::Kernel)?;
+    let initramfs = read(
+        (&initramfs, initramfs_len),
+        load.initramfs,
+        Measured::Initramfs,
+    )?;
     Some((kernel, initramfs))
+}
+
+/// The digests of the file `inside` the boot environment mounted at
+/// `root`, found as the boot finds it, inside the boot environment.
+fn predicted_file(files: &dyn Files, root: &Path, inside: &str) -> io::Result<Digests> {
+    let path = boot_image(files, root, Path::new(inside)).map_err(|why| {
+        let why = Printable(&why.to_string()).to_string();
+        io::Error::new(io::ErrorKind::InvalidInput, why)
+    })?;
+    let (digests, _) = measured_file(files, &path, size(files, &path)?)?;
+    Ok(digests)
 }
 
 /// The events a boot of `kernel`, from the boot environment mounted at
 /// `root`, with the event of its command line, extends, in order: what
-/// `zbm measure predict` replays.
+/// `zbm measure predict` replays. The files are found and read as the boot
+/// finds and reads them.
 ///
 /// # Errors
 ///
-/// When the kernel or the initramfs cannot be read.
+/// When the kernel or the initramfs cannot be found or read.
 pub fn predicted(
     files: &dyn Files,
     root: &Path,
     kernel: &Kernel,
     command_line: Event,
 ) -> io::Result<Vec<Event>> {
-    let root = root.to_string_lossy();
-    let mnt = root.strip_suffix('/').unwrap_or(&root);
-    let (kernel_digests, _) = measured_file(files, mnt, &kernel.kernel)?;
-    let (initramfs_digests, _) = measured_file(files, mnt, &kernel.initramfs)?;
+    let kernel_digests = predicted_file(files, root, &kernel.kernel)?;
+    let initramfs_digests = predicted_file(files, root, &kernel.initramfs)?;
     Ok(vec![
         Event {
             measured: Measured::Kernel(kernel.kernel.clone()),

@@ -13,8 +13,9 @@ use zbm_platform::Context;
 use zbm_platform::files::Files;
 use zbm_state::State;
 use zbm_trace::Message;
-use zbm_types::{FilesystemName, KernelArg, KernelCommandLine};
+use zbm_types::{FilesystemName, KernelArg, KernelCommandLine, Printable};
 
+use crate::kernels::{SMALL_LIMIT, small_file};
 use crate::zfs::zfs_value;
 
 pub(crate) use zbm_pool::hostid::apparent_hostid as spl_hostid;
@@ -369,12 +370,15 @@ pub(crate) fn root_argument(prefix: &str, fs: &str) -> Option<KernelArg> {
 /// The prefix of the `root=` argument for the distribution named in `ID` or
 /// `ID_LIKE` of the `os-release` of the boot environment mounted at `mnt`, if
 /// it is one with a known prefix: Void, Ubuntu, Debian, Devuan, Chimera, Arch,
-/// Artix, CachyOS, Gentoo or Alpine.
+/// Artix, CachyOS, Gentoo or Alpine. Each file is found as the kernel
+/// search finds a command line file, inside the boot environment's root,
+/// and read only when it is a regular file of UTF-8 text; any other is
+/// passed over, as a missing one is.
 pub(crate) fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String> {
     let mut id = String::new();
     let mut id_like = String::new();
-    for file in ["usr/lib/os-release", "etc/os-release"] {
-        let Ok(text) = files.read_to_string(&mnt.join(file)) else {
+    for file in ["/usr/lib/os-release", "/etc/os-release"] {
+        let Some(text) = os_release_text(files, mnt, file) else {
             continue;
         };
         for (name, value) in os_release(&text) {
@@ -399,10 +403,21 @@ pub(crate) fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String>
     None
 }
 
+/// The text of the `os-release` file `inside` the boot environment mounted
+/// at `mnt`, resolved inside its root: `None` unless it is a regular file
+/// of at most 64 KiB of UTF-8 text.
+fn os_release_text(files: &dyn Files, mnt: &Path, inside: &str) -> Option<String> {
+    let path = small_file(files, mnt, Path::new(inside)).ok()?;
+    let bytes = files.read_regular(Path::new(&path), SMALL_LIMIT).ok()?;
+    String::from_utf8(bytes).ok()
+}
+
 /// The file to try as the device tree of `kernel` for the value of
-/// `org.zfsbootmenu:devicetree`, or `None` when the property is unset or
-/// its path leaves the boot environment through `..`.
-pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<PathBuf> {
+/// `org.zfsbootmenu:devicetree`, as the boot environment names it from its
+/// root, or `None` when the property is unset or its path leaves the boot
+/// environment through `..`. The boot resolves it inside the boot
+/// environment.
+pub fn devicetree_candidate(property: &str, kernel: &str) -> Option<PathBuf> {
     if property.is_empty() || property == "-" {
         return None;
     }
@@ -423,11 +438,11 @@ pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<
     {
         zbm_trace::warn!(
             "ignoring the device tree {inside}: it leaves the boot environment";
-            %inside
+            inside = %Printable(&inside)
         );
         return None;
     }
-    Some(PathBuf::from(format!("{}{inside}", mnt.to_string_lossy())))
+    Some(PathBuf::from(inside))
 }
 
 /// The spaces between the root argument and the rest of the command line: the

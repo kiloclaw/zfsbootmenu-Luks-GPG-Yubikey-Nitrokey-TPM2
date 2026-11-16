@@ -170,6 +170,56 @@ fn a_prediction_takes_the_kernel_the_root_the_command_line_and_the_bank_given() 
 }
 
 #[test]
+fn a_prediction_resolves_links_as_the_boot_does() {
+    let fake = machine();
+    // A link followed in this system's namespace would read its own file.
+    fake.files
+        .file("/boot/real-vmlinuz", b"IMAGE")
+        .file("/mnt/be/boot/real-vmlinuz", b"NEW")
+        .symlink("/mnt/be/boot/vmlinuz-6.2", "/boot/real-vmlinuz")
+        .file("/mnt/be/boot/initramfs-6.2.img", b"NEWRD");
+    let args = [
+        "predict",
+        "--root",
+        "/mnt/be",
+        "--command-line",
+        "root=zfs:tank/ROOT/new",
+        "tank/ROOT/new",
+        "/boot/vmlinuz-6.2",
+    ];
+
+    let (code, out, err) = call(&fake, &args);
+
+    assert_eq!((code, err.as_str()), (0, ""));
+    let file = |measured, bytes: &[u8]| Event {
+        measured,
+        digests: Digests::of_bytes(bytes),
+    };
+    let events = [
+        file(Measured::Kernel("/boot/vmlinuz-6.2".into()), b"NEW"),
+        file(
+            Measured::Initramfs("/boot/initramfs-6.2.img".into()),
+            b"NEWRD",
+        ),
+        Event::command_line("root=zfs:tank/ROOT/new"),
+        Event::unsealed(),
+    ];
+    assert!(out.ends_with(&expected(&events, Bank::Sha256)), "{out}");
+    // A file the boot would not load is not predicted either.
+    let kernel = Kernel::new("tank/ROOT/new", "/boot/vmlinuz-6.2", "/boot/real.img");
+    fake.files
+        .symlink("/mnt/be/boot/real.img", "/proc/1/environ");
+    let refused = zbm_boot::measured::predicted(
+        &fake.files,
+        Path::new("/mnt/be"),
+        &kernel,
+        Event::unsealed(),
+    );
+    let error = refused.unwrap_err().to_string();
+    assert!(error.contains("environment's /proc"), "{error}");
+}
+
+#[test]
 fn a_prediction_without_its_files_or_a_command_line_is_refused() {
     let fake = machine();
     let refused = |args: &[&str]| {
@@ -231,6 +281,7 @@ fn a_prediction_gives_what_a_measured_boot_extends() {
         dtb: None,
         root: &root,
         args: &args,
+        files: None,
         copies: None,
     };
     let _ = measure(&fake.context(), &state, &load);

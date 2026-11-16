@@ -2,6 +2,7 @@
 //! tree and the command line of a boot environment, or the copies measured
 //! boot made of them.
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use zbm_bootenv::commandline::SEPARATOR;
@@ -22,12 +23,17 @@ pub struct KexecLoad<'a> {
     pub kernel: &'a str,
     /// The initramfs, relative to the boot environment's root.
     pub initramfs: &'a str,
-    /// The device tree, a full path, if any.
+    /// The device tree, as it is loaded: resolved inside the boot
+    /// environment, a full path with no link on it; if any.
     pub dtb: Option<&'a Path>,
     /// The root argument, such as `root=zfs:zroot/ROOT/void`.
     pub root: &'a KernelArg,
     /// The rest of the command line.
     pub args: &'a KernelCommandLine,
+    /// The kernel and initramfs as they are opened: resolved inside the
+    /// boot environment, full paths with no link on them (threat model
+    /// I5); `None` before that, when their names below `mnt` stand in.
+    pub files: Option<(&'a str, &'a str)>,
     /// The measured copies to load in place of the kernel and initramfs
     /// of the boot environment, after measured boot (ROADMAP.md SE10).
     pub copies: Option<&'a Copies>,
@@ -39,17 +45,26 @@ impl KexecLoad<'_> {
         format!("{}{SEPARATOR}{}", self.root, self.args)
     }
 
+    /// The boot environment's kernel and initramfs: as they are opened,
+    /// or their names below `mnt` before they are resolved.
+    pub(crate) fn opened(&self) -> (Cow<'_, str>, Cow<'_, str>) {
+        match self.files {
+            Some((kernel, initramfs)) => (Cow::Borrowed(kernel), Cow::Borrowed(initramfs)),
+            None => (
+                Cow::Owned(format!("{}{}", self.mnt, self.kernel)),
+                Cow::Owned(format!("{}{}", self.mnt, self.initramfs)),
+            ),
+        }
+    }
+
     /// Calls `with` with what `kexec -l` loads.
     fn with_image<T>(&self, with: impl FnOnce(&kexec::Image<'_>) -> T) -> T {
         let (kernel, initrd) = match self.copies {
             Some(copies) => (
-                copies.kernel.to_string_lossy().into_owned(),
-                copies.initramfs.to_string_lossy().into_owned(),
+                copies.kernel.to_string_lossy(),
+                copies.initramfs.to_string_lossy(),
             ),
-            None => (
-                format!("{}{}", self.mnt, self.kernel),
-                format!("{}{}", self.mnt, self.initramfs),
-            ),
+            None => self.opened(),
         };
         let command_line = self.command_line();
         with(&kexec::Image {
@@ -101,6 +116,7 @@ mod tests {
             dtb: Some(&dtb),
             root: &root,
             args: &"ro quiet".parse().unwrap(),
+            files: None,
             copies: None,
         };
         let runner = zbm_testkit::FakeRunner::new();

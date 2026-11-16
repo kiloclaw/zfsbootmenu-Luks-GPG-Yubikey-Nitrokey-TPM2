@@ -151,6 +151,36 @@ fn a_kernel_name_with_a_newline_adds_no_line_to_the_kernel_list() {
 }
 
 #[test]
+fn a_file_whose_resolved_path_has_a_control_character_is_no_kernel() {
+    let (fake, _log) = machine();
+    let forged = "/boot/a\n<7>ZBM:[1]|x|forged";
+    fake.files
+        .symlink(format!("{MNT}/boot/vmlinuz-3"), forged)
+        .file(format!("{MNT}{forged}"), "")
+        .file(format!("{MNT}/boot/initramfs-3.img"), "")
+        .file(format!("{MNT}/boot/vmlinuz-2"), "")
+        .symlink(format!("{MNT}/boot/initramfs-2.img"), "/boot/\x1b[2Ji")
+        .file(format!("{MNT}/boot/\x1b[2Ji"), "");
+
+    search(&fake, "tank/a").unwrap();
+
+    let line = "tank/a\t/boot/vmlinuz-1\t/boot/initramfs-1.img\n";
+    let list = fake.files.text(format!("{E}/tank/a/kernels"));
+    assert_eq!(list.as_deref(), Some(line));
+    let warnings = warnings(&fake);
+    assert_eq!(warnings.len(), 2, "{warnings:#?}");
+    assert!(
+        warnings
+            .iter()
+            .all(|line| line.contains("has a control character in its path")),
+        "{warnings:#?}"
+    );
+    let kmsg = fake.kmsg();
+    assert!(!kmsg.contains('\x1b'), "{kmsg}");
+    assert!(!kmsg.contains("\n<7>ZBM:[1]|x|forged"), "{kmsg}");
+}
+
+#[test]
 fn the_search_warns_once_for_each_refused_kernel_and_names_it_escaped() {
     let (fake, _log) = machine();
     // A command line file is also named like a kernel, which it may be

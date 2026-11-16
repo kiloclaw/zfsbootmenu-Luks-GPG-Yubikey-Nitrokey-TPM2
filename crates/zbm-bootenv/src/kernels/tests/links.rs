@@ -2,8 +2,8 @@
 //! links are followed from the environment's root, never in the image's
 //! namespace, where the image's `/etc/zfs/key` holds `SECRET` and its key
 //! cache `/zfsbootmenu/.keys/tank/k` holds `CACHED`; only regular files of
-//! bounded size with a UTF-8 path count, names with a control character
-//! are no kernels, and a `/boot` gives at most 64.
+//! bounded size with a UTF-8 path and no control character count, names
+//! with a control character are no kernels, and a `/boot` gives at most 64.
 
 use std::ffi::OsStr;
 use std::io;

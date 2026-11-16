@@ -564,13 +564,15 @@ The boot environments and their kernels: the main view and the kernels of the cl
   absolute link inside the boot environment, such as `vmlinuz -> /boot/vmlinuz-6.1`, dangled. It took any kind of
   file: a directory named like a kernel, a pipe, which hung the search, or a device. It listed names with a tab or an
   escape character, split a name with a newline into pieces that did not exist, and took any number of kernels. The
-  readers of the kernel list took every line of it, one that named another dataset too.
+  readers of the kernel list took every line of it, one that named another dataset too. The boot loaded, and measured
+  boot read whole and measured, the files the kernel list named as they were found in ZFSBootMenu's own file system,
+  and read the device tree and the boot environment's `os-release` the same way.
 - **Now:**
   - links are followed inside the boot environment, as its own programs follow them: an absolute one from its root,
     and `..` no higher than its root;
-  - a path into its `/tmp`, `/proc`, `/sys`, `/dev` or `.zfs` is not read, nor one that is not UTF-8 once its links
-    are followed, nor one with more than 40 links or 128 names to look up, its links' included, as each name is
-    looked up again from the root;
+  - a path into its `/tmp`, `/proc`, `/sys`, `/dev` or `.zfs` is not read, nor a file whose path is not UTF-8 or
+    has a control character once its links are followed, nor one with more than 40 links or 128 names to look up,
+    its links' included, as each name is looked up again from the root;
   - only regular files are read: a `.kcl` of at most 64 KiB, a kernel or initramfs of at most 1 GiB; a file that is
     refused is passed over as a missing one is, and one warning a kernel says why;
   - at most the 64 newest kernels of a `/boot` are listed, with a warning for those left out; every name of `/boot`
@@ -583,12 +585,22 @@ The boot environments and their kernels: the main view and the kernels of the cl
     boot environment, where the legacy selection failed (an empty last line) or took the other dataset's line. Spaces
     and tabs before a line's dataset are not part of its name for any reader; the legacy boot of the last line or of
     the menu's choice kept leading spaces in the name, and only the selection by `org.zfsbootmenu:kernel` dropped
-    them.
+    them;
+  - the boot loads, and measured boot measures, the files found that way; a kernel or initramfs that is not found
+    that way is not loaded: the error says why, and the failed-boot prompt shows, as for a load that fails. Measured
+    boot leaves files too large for the memory available unmeasured (three times their size must fit in the kernel's
+    `MemAvailable`), with a warning, and they load unmeasured after the separator. `zbm measure predict` reads the
+    files as the boot does;
+  - the device tree and the boot environment's `os-release` are read the same way: a device tree that is not found
+    that way is missing, with a warning when it exists, and the boot record names the device tree loaded, its links
+    followed; an `os-release` that is not found that way, or is not UTF-8 text, is passed over. So NixOS's absolute
+    `/etc/os-release -> /etc/static/os-release` is the boot environment's own.
 
   So a kernel that only an absolute link inside the boot environment names is now listed; `vmlinuz` sorts before
   `vmlinuz-6.1`, so the kernel that boots by default is the same.
-- **Why:** a crafted pool, once imported, could make a key file of the image a kernel's command line or its initramfs,
-  hang the menu with a pipe, and fill memory, with no action by the person.
+- **Why:** a crafted pool, once imported, could make a key file of the image a kernel's command line, its initramfs
+  or its device tree, put a key's digest in the TPM's event log, hang the menu or the boot with a pipe, and fill
+  memory, with no action by the person.
 
 ## The menu's Snapshots tab
 

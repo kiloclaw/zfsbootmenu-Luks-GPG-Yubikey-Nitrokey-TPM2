@@ -24,6 +24,7 @@ fn a_root_prefix_cannot_add_kernel_arguments() {
         };
         let interaction = ConsoleInteraction::new(*system);
         let context = Context::new(*system);
+        kernel_files(system.files, state, FS);
         kexec_kernel(
             &context,
             &interaction,

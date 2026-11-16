@@ -30,3 +30,26 @@ where
     text.parse()
         .unwrap_or_else(|error| panic!("{text} is not a valid name: {error}"))
 }
+
+/// Writes the kernel 6.1.10 and its initramfs into the boot environment
+/// `fs` of `state`, where the boot finds them, through `files`. The legacy
+/// function never looks at them, so a parity case gives them to the Rust
+/// boot alone.
+pub(crate) fn kernel_files(
+    files: &dyn zbm_platform::Files,
+    state: &zbm_state::State<'_>,
+    fs: &str,
+) {
+    let boot = state
+        .environment(fs)
+        .unwrap_or_else(|error| panic!("the state of {fs}: {error}"))
+        .join("mnt/boot");
+    let write = |name: &str, contents: &[u8]| {
+        files
+            .create_dir_all(&boot)
+            .and_then(|()| files.write(&boot.join(name), contents))
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+    };
+    write("vmlinuz-6.1.10", b"KERNEL");
+    write("initramfs-6.1.10.img", b"INITRD");
+}

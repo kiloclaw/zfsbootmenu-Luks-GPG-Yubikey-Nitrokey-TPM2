@@ -655,7 +655,8 @@ The following properties can be set at any level of the boot-environment hierarc
   paths.
 
   Whether relative or absolute, the device-tree path is always interpreted within the environment to
-  be booted.
+  be booted. In the Rust runtime, its links are followed inside the environment too, from its root,
+  and only a regular file is loaded.
 
   **/templated/path/to/%{kernel}/platform.dtb**
 
@@ -944,7 +945,7 @@ will provide arguments for the kernel
 
 if that kernel exists and is usable by ZFSBootMenu. Within the command-line file, the special keyword *%{parent}* will be substituted with the command line derived from the **org.zfsbootmenu:commandline** property on the dataset containing the file, recursively expanded as described above.
 
-The Rust runtime reads the command-line file, the kernels and their initramfs images inside the boot environment: a symbolic link in */boot*, or */boot* itself, is followed as the boot environment's own programs follow it, an absolute one from its root and *..* no higher than its root. A path into its */tmp*, */proc*, */sys*, */dev* or *.zfs*, one that is not UTF-8, or one with more than 40 links or 128 names to look up is not read, and only regular files are: a command-line file of at most 64 KiB, a kernel or initramfs of at most 1 GiB. A kernel name with a control character is skipped, and at most the 64 newest kernels of a */boot* are listed; each refusal is in the kernel log.
+The Rust runtime reads the command-line file, the kernels and their initramfs images inside the boot environment: a symbolic link in */boot*, or */boot* itself, is followed as the boot environment's own programs follow it, an absolute one from its root and *..* no higher than its root. A path into its */tmp*, */proc*, */sys*, */dev* or *.zfs*, one that is not UTF-8, a file's path with a control character, or one with more than 40 links or 128 names to look up is not read, and only regular files are: a command-line file of at most 64 KiB, a kernel or initramfs of at most 1 GiB. A kernel name with a control character is skipped, and at most the 64 newest kernels of a */boot* are listed; each refusal is in the kernel log.
 
 **NOTE**: Never set the *root=* argument in any argument list; ZFSBootMenu always sets this option based on the selected boot environment.
 
@@ -2072,8 +2073,9 @@ The recovery shell offers the commands below. In images built with the Rust runt
     Boots /boot/KERNEL and /boot/INITRAMFS of FILESYSTEM, a boot environment
     (not a snapshot), as the menu boots a kernel: it loads the key of a locked
     encryption root first, runs the hooks and the built-in steps, and executes
-    the kernel. It returns only when the boot failed, saying why, with the exit
-    status 1.
+    the kernel. The two names are resolved inside the boot environment, as its
+    own programs resolve them: links from its root, and .. no higher than it.
+    It returns only when the boot failed, saying why, with the exit status 1.
 
 **mount_esp**
 

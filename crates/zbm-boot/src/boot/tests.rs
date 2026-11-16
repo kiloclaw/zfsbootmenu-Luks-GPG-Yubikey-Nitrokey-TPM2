@@ -21,7 +21,7 @@ use zbm_testkit::{TempDir, parity};
 use super::zfs::is_writable;
 use crate::error::BootError;
 use crate::recovery::Recovery;
-use crate::testing::{LINE_LOG_STUBS, Redirect, name, stub_lines};
+use crate::testing::{LINE_LOG_STUBS, Redirect, kernel_files, name, stub_lines};
 use zbm_bootenv::commandline::{ETC_HOSTID, SPL_HOSTID};
 use zbm_bootenv::hooks::Variables;
 use zbm_bootenv::kernels::Kernel;
@@ -446,6 +446,7 @@ fn boot(machine: &Machine, parity: &mut Parity) {
             typed: std::sync::atomic::AtomicBool::new(false),
         };
         let context = Context::new(*system);
+        kernel_files(system.files, state, FS);
         kexec_kernel(
             &context,
             &interaction,
@@ -577,6 +578,7 @@ fn failed_exports_and_missing_kernels_are_errors() {
 }
 
 mod kexec;
+mod links;
 mod locked;
 use locked::OneKey;
 mod record;

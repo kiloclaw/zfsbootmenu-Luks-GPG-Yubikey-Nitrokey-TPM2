@@ -58,6 +58,7 @@ fn with_load<T>(with: impl FnOnce(&KexecLoad<'_>) -> T) -> T {
         dtb: None,
         root: &root,
         args: &args,
+        files: None,
         copies: None,
     })
 }
@@ -231,6 +232,23 @@ fn files_that_cannot_be_read_leave_the_separator_alone() {
 }
 
 #[test]
+fn a_file_that_is_no_regular_file_is_not_read_to_be_measured() {
+    // A pipe swapped in for the kernel once it was found: it is not
+    // waited on.
+    let fake = machine();
+    let _log = log(&fake);
+    fake.files.fifo(format!("{MNT}/boot/vmlinuz"));
+    let state = State::new(&fake.files, "/zfsbootmenu");
+
+    let copies = with_load(|load| measure(&fake.context(), &state, load));
+
+    assert_eq!(copies, None);
+    assert_eq!(extended(&fake), ["9"]);
+    let unread = format!("unable to read {MNT}/boot/vmlinuz to measure it: not a regular file");
+    assert!(fake.kmsg().contains(&unread), "{}", fake.kmsg());
+}
+
+#[test]
 fn a_second_boot_continues_the_log() {
     let fake = machine();
     let state = State::new(&fake.files, "/zfsbootmenu");
@@ -332,4 +350,16 @@ fn events_are_extended_after_the_start_and_continue_the_log() {
     let none = machine_with(None, BANKS);
     let state = State::new(&none.files, "/zfsbootmenu");
     assert_eq!(extend_events(&none.context(), &state, &[]), Extended::NoTpm);
+}
+
+#[test]
+fn files_are_measured_when_three_times_their_size_fits_in_the_memory_available() {
+    let files = zbm_testkit::fakes::FakeFiles::new();
+    // Without the kernel's estimate, nothing is checked.
+    assert!(fits_in_memory(&files, u64::MAX));
+    files.file(MEMINFO, "MemTotal: 8 kB\nMemAvailable:       3 kB\n");
+    assert!(fits_in_memory(&files, 1024));
+    assert!(!fits_in_memory(&files, 1025));
+    files.file(MEMINFO, "MemAvailable: lots\n");
+    assert!(fits_in_memory(&files, u64::MAX));
 }

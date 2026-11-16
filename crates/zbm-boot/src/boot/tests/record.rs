@@ -48,6 +48,7 @@ fn boot_with(settings: &BootSettings, prepare: impl FnOnce(&FakeSystem)) -> Fake
     fake.runner.respond_program("umount", 0, "");
     fake.runner.respond("kexec -e -i", 1, "");
     let state = State::new(&fake.files, "/zfsbootmenu");
+    kernel_files(&fake.files, &state, FS);
     let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
 
     kexec_kernel(
@@ -212,6 +213,7 @@ fn the_record_says_what_was_booted_and_how() {
         dtb: Some(&dtb),
         root: &root,
         args: &args,
+        files: None,
         copies: None,
     };
     let edited = BootSettings {

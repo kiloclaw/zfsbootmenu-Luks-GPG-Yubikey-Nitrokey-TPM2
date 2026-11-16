@@ -255,7 +255,8 @@ placeholder in an absolute path. An explicit template placeholder is not support
 paths.
 
 Whether relative or absolute, the device-tree path is always interpreted within the environment to
-be booted.
+be booted. In the Rust runtime, its links are followed inside the environment too, from its root,
+and only a regular file is loaded.
 
 **/templated/path/to/%{kernel}/platform.dtb**
 

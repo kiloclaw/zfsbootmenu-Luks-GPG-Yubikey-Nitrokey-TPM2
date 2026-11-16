@@ -99,14 +99,17 @@ fn a_kernel_by_its_files_boots_with_the_command_line_of_a_menu_boot() {
     assert!(load.contains("fresh=1"), "{load}");
     assert!(!load.contains("stale=1"), "{load}");
 
-    // A boot environment without kernels of its own still boots the files
-    // named.
+    // A boot environment whose `/boot` has no kernels still boots the
+    // files named, which it has elsewhere.
     let bare = FakeSystem::new();
     bare.runner
         .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
-    let _ = with_boot(&bare, |boot| {
-        boot.boot_files(&by_files(), &Shells::default())
-    });
+    let elsewhere = mnt.parent().unwrap().join("opt");
+    bare.files
+        .file(elsewhere.join("vmlinuz"), "kernel")
+        .file(elsewhere.join("initrd"), "initramfs");
+    let named = Kernel::new(BE, "/opt/vmlinuz", "/opt/initrd");
+    let _ = with_boot(&bare, |boot| boot.boot_files(&named, &Shells::default()));
     assert!(
         lines(&bare)
             .iter()

@@ -20,6 +20,7 @@ use std::io;
 use std::path::Path;
 
 use zbm_platform::{Command, Files, KernelLoader, Output, Runner, Status};
+use zbm_types::Printable;
 
 /// The kernel's lockdown state: `none [integrity] confidentiality`, the
 /// mode in brackets.
@@ -140,18 +141,19 @@ pub fn load(
         if image.dtb.is_some() {
             return Ok(refused(&format!(
                 "{checked} is on: kexec_file_load takes no device tree, so {} is not loaded",
-                image.kernel
+                Printable(image.kernel)
             )));
         }
         let kernel = (Path::new(image.kernel), Path::new(image.initrd));
         return Ok(match loader.load(kernel.0, kernel.1, image.command_line) {
             Ok(()) => {
-                zbm_trace::debug!("kexec_file_load loaded {kernel}"; kernel = image.kernel);
+                let kernel = Printable(image.kernel);
+                zbm_trace::debug!("kexec_file_load loaded {kernel}"; %kernel);
                 Output::new(Status::exited(0), Vec::new())
             }
             Err(error) => refused(&format!(
                 "{checked} is on: the kernel refused {}, which kexec would load unchecked: {error}",
-                image.kernel
+                Printable(image.kernel)
             )),
         });
     }
@@ -159,7 +161,8 @@ pub fn load(
         let kernel = (Path::new(image.kernel), Path::new(image.initrd));
         match loader.load(kernel.0, kernel.1, image.command_line) {
             Ok(()) => {
-                zbm_trace::debug!("kexec_file_load loaded {kernel}"; kernel = image.kernel);
+                let kernel = Printable(image.kernel);
+                zbm_trace::debug!("kexec_file_load loaded {kernel}"; %kernel);
                 return Ok(Output::new(Status::exited(0), Vec::new()));
             }
             Err(error) => log_fallback("kexec_file_load", &error),
@@ -331,5 +334,31 @@ mod tests {
             tree.stdout_text()
         );
         assert!(runner.lines().is_empty());
+    }
+
+    #[test]
+    fn a_refusal_names_the_kernel_escaped() {
+        let runner = FakeRunner::new();
+        let loader = FakeKernelLoader::default();
+        loader.answer(Loads::Refused(129));
+        let image = Image {
+            kernel: "/mnt/boot/a\n<7>ZBM:[1]|x|\x1b[2J",
+            initrd: "/mnt/boot/initramfs.img",
+            dtb: None,
+            command_line: "quiet",
+        };
+
+        let refused = load(&loader, &runner, &image, Some(CheckedBoot::Lockdown)).unwrap();
+        let tree = Image {
+            dtb: Some(Path::new("/mnt/boot/board.dtb")),
+            ..image
+        };
+        let tree = load(&loader, &runner, &tree, Some(CheckedBoot::SecureBoot)).unwrap();
+
+        for output in [refused.stdout_text(), tree.stdout_text()] {
+            assert_eq!(output.lines().count(), 1, "{output}");
+            assert!(!output.contains('\x1b'), "{output}");
+            assert!(output.contains("/mnt/boot/a"), "{output}");
+        }
     }
 }

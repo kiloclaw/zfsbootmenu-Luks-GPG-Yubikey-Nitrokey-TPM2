@@ -19,6 +19,7 @@ fn the_kernel_loads_the_boot_environment_s_kernel_and_kexec_starts_it_when_it_ca
     fake.runner
         .respond("kexec -e -i", 1, "kexec: no kernel loaded\n");
     let state = State::new(&fake.files, "/zfsbootmenu");
+    kernel_files(&fake.files, &state, FS);
     let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
     let shells = Shells::default();
 
@@ -76,6 +77,7 @@ fn under_lockdown_a_kernel_the_call_refuses_is_not_loaded_by_kexec() {
     fake.runner.respond_program("mount", 0, "");
     fake.runner.respond_program("umount", 0, "");
     let state = State::new(&fake.files, "/zfsbootmenu");
+    kernel_files(&fake.files, &state, FS);
     let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
     let shells = Shells::default();
 
@@ -204,6 +206,7 @@ fn the_teardown_hooks_learn_what_was_loaded_and_by_what() {
             .respond("kexec -e -i", 1, "kexec: no kernel loaded\n");
         fake.runner.respond_program("kexec", 0, "");
         let state = State::new(&fake.files, "/zfsbootmenu");
+        kernel_files(&fake.files, &state, FS);
         let selected = Kernel::new(FS, "/boot/vmlinuz-6.1.10", "/boot/initramfs-6.1.10.img");
 
         kexec_kernel(

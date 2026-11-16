@@ -74,3 +74,52 @@ fn root_prefixes() {
         ]
     );
 }
+
+#[test]
+fn os_release_that_links_to_the_image_is_the_environment_s_own() {
+    // NixOS links `/etc/os-release` absolutely, which leads to the image's
+    // own file when the link is followed in its namespace (SB20).
+    let files = FakeFiles::new();
+    let mnt = Path::new("/mnt");
+    files
+        .file("/etc/static/os-release", "ID=arch\n")
+        .file("/zfsbootmenu/.keys/tank/k", "ID=void\n")
+        .file("/mnt/etc/static/os-release", "ID=gentoo\n")
+        .symlink("/mnt/etc/os-release", "/etc/static/os-release");
+    assert_eq!(root_prefix(&files, None, mnt), "root=ZFS=");
+
+    files
+        .file("/mnt/etc/static/os-release", "ID=other\n")
+        .symlink("/mnt/usr/lib/os-release", "/zfsbootmenu/.keys/tank/k");
+    assert_eq!(root_prefix(&files, None, mnt), "root=zfs:");
+}
+
+#[test]
+fn os_release_that_is_a_fifo_is_not_read() {
+    let files = FakeFiles::new();
+    let mnt = Path::new("/mnt");
+    files
+        .file("/mnt/usr/lib/os-release", "ID=arch\n")
+        .fifo("/mnt/etc/os-release");
+    // What a writer would give a reader that waited.
+    files
+        .write(Path::new("/mnt/etc/os-release"), b"ID=gentoo\n")
+        .unwrap();
+    assert_eq!(root_prefix(&files, None, mnt), "zfs=");
+
+    files.device("/mnt/usr/lib/os-release");
+    files
+        .write(Path::new("/mnt/usr/lib/os-release"), b"ID=gentoo\n")
+        .unwrap();
+    assert_eq!(root_prefix(&files, None, mnt), "root=zfs:");
+}
+
+#[test]
+fn os_release_that_is_not_utf8_is_skipped() {
+    let files = FakeFiles::new();
+    let mnt = Path::new("/mnt");
+    files
+        .file("/mnt/usr/lib/os-release", "ID=arch\n")
+        .file("/mnt/etc/os-release", b"ID=gentoo\n\xff\n");
+    assert_eq!(root_prefix(&files, None, mnt), "zfs=");
+}
