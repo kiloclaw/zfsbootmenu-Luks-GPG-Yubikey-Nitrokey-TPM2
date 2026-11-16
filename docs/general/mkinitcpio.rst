@@ -38,8 +38,14 @@ Whenever ``generate-zbm`` is run to generate images based on mkinitcpio, it forc
 ``zfsbootmenu`` hook after any hooks defined in the ``HOOKS`` array of ``/etc/zfsbootmenu/mkinitcpio.conf``. Because
 the ``zfsbootmenu`` hook completely takes over execution of its initramfs image, it is installed only at its **last**
 entry in the hook list, and the run hook of every other hook in ``HOOKS`` runs before it, wherever it stands in the
-array (late and cleanup hooks never run, as ZFSBootMenu never returns to mkinitcpio's ``init``). The default
-configuration file explicitly includes the ``zfsbootmenu`` hook in the array as a visual reminder that it will be
-included; mkinitcpio then lists the hook twice, and the earlier entry installs nothing. When running mkinitcpio
-directly, without ``generate-zbm``, keep ``zfsbootmenu`` last in ``HOOKS``: the run hooks of hooks listed after it
-never run, and the build warns of those hooks (``hooks after zfsbootmenu never run``).
+array. The default configuration file explicitly includes the ``zfsbootmenu`` hook in the array as a visual reminder
+that it will be included; mkinitcpio then lists the hook twice, and the earlier entry installs nothing. When running
+mkinitcpio directly, without ``generate-zbm``, keep ``zfsbootmenu`` last in ``HOOKS``: the run hooks of hooks listed
+after it never run, and the build warns of those hooks (``hooks after zfsbootmenu never run``).
+
+mkinitcpio's ``init`` runs hooks in stages, and a hook may have a function for each. The early hooks of every hook in
+``HOOKS`` run first, before the modules of ``MODULES`` are loaded and before the ``udev`` hook loads the drivers of the
+devices it finds, so a network card whose driver is a module does not exist yet. The run hooks then run one after
+another, in the order of ``HOOKS``, and the ``zfsbootmenu`` run hook, installed last, starts ZFSBootMenu. ZFSBootMenu
+never returns to ``init``, so late and cleanup hooks never run: whatever ZFSBootMenu needs, such as a network
+(:doc:`remote-access`), must be set up by a run hook.

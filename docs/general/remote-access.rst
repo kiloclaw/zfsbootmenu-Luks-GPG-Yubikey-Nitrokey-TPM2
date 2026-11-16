@@ -79,6 +79,16 @@ Enabling Network Access
     module, which allows user scripts to be injected at several points in the initramfs boot process, provides a simple
     mechanism for configuring a network interface.
 
+    .. note::
+
+      **Hook order.** The steps below add each hook with a ``HOOKS+=(...)`` line appended to the end of
+      ``/etc/zfsbootmenu/mkinitcpio.conf``, so that the hooks run in the order they are added: the network hook first,
+      then ``dropbear`` and, for :doc:`Tailscale <tailscale>`, ``tailscale``. Images built by ``generate-zbm`` install
+      ZFSBootMenu's own ``zfsbootmenu`` hook after every hook in ``HOOKS``, so where ``zfsbootmenu`` stands in the array
+      no longer matters; earlier versions of ZFSBootMenu never ran a hook listed after it. When running ``mkinitcpio``
+      by hand, list these hooks before ``zfsbootmenu``: the build warns of hooks listed after it
+      (``hooks after zfsbootmenu never run``), and they do not run. See :doc:`mkinitcpio` for the stages hooks run in.
+
     .. tabs::
 
       .. group-tab:: mkinitcpio-nfs-utils
@@ -88,7 +98,7 @@ Enabling Network Access
         Then, to ensure that the ``net`` module is installed and run in the ZBM image, either append ``net`` to the array
         defined on the ``HOOKS`` line in ``/etc/zfsbootmenu/mkinitcpio.conf`` or run::
 
-          sed -e '/HOOKS=/a HOOKS+=(net)' -i /etc/zfsbootmenu/mkinitcpio.conf
+          echo 'HOOKS+=(net)' >> /etc/zfsbootmenu/mkinitcpio.conf
 
         Next, add an ``ip=`` parameter to ZFSBootMenu's kernel command-line. If you use another boot loader to start
         ZFSBootMenu, *e.g.* rEFInd or syslinux, this can be accomplished by configuring that loader. If booting the EFI
@@ -102,6 +112,24 @@ Enabling Network Access
         .. note::
           For more details about the possible values for the ``ip=`` parameter, see the `net module documentation
           <https://wiki.archlinux.org/title/Mkinitcpio#Using_net>`_.
+
+        .. _remote-mkinitcpio-dhcp:
+
+        .. warning::
+
+          With ``dhcp`` in ``ip=``, the ``net`` hook waits for a DHCP reply with no time-out: it runs ``ipconfig``
+          without one. If no DHCP server answers, the boot stops in the ``net`` hook and never reaches ZFSBootMenu, so
+          the machine can be neither booted nor reached remotely. Where a DHCP server is not certain to answer, use one
+          of these instead:
+
+          - A static configuration in ``ip=``, which asks no DHCP server: the client address, an empty server field,
+            the gateway, the netmask, an empty host name, the interface and ``none``, for example
+            ``ip=192.168.1.2::192.168.1.1:255.255.255.0::eth0:none``. It gives the ``net`` hook no name servers, so
+            names resolve neither in ZFSBootMenu nor in a chroot unless another hook writes ``/etc/resolv.conf``.
+          - The ``rclocal`` module of the next tab, whose own ``rc.local`` script decides whether and how long to wait.
+
+          If a boot loader starts ZFSBootMenu and lets you edit its command line, adding ``disablehooks=net`` skips the
+          ``net`` hook for that boot.
 
       .. group-tab:: mkinitcpio-rclocal
 
@@ -145,11 +173,28 @@ Enabling Network Access
         To ensure that the ``rclocal`` module is installed and run in the ZBM image, either append ``rclocal`` to the array
         defined on the ``HOOKS`` line in ``/etc/zfsbootmenu/mkinitcpio.conf`` or run::
 
-          sed -e '/HOOKS=/a HOOKS+=(rclocal)' -i /etc/zfsbootmenu/mkinitcpio.conf
+          echo 'HOOKS+=(rclocal)' >> /etc/zfsbootmenu/mkinitcpio.conf
 
         The ``rclocal`` module should be told where it can find the ``rc.local`` script to install and run by running::
 
           echo 'rclocal_hook=/etc/zfsbootmenu/initcpio/rc.local' >> /etc/zfsbootmenu/mkinitcpio.conf
+
+        Use ``rclocal_hook``, which the module runs from its run hook, and not ``rclocal_earlyhook``: early hooks run
+        before modules are loaded, so a network card whose driver is a module does not exist yet.
+
+        The ``rclocal`` module adds no network driver to the image, as the ``net`` and ``dropbear`` modules do. Without
+        the driver, ``rc.local`` runs but finds no ``eth0`` and configures nothing, so add the driver of the network
+        card to the ``MODULES`` array. The running system often gives the card another name, such as ``enp3s0`` or
+        ``eno1``; find it with ``ip link``. Then the last part of::
+
+          readlink /sys/class/net/enp3s0/device/driver/module
+
+        with that name in place of ``enp3s0`` names the driver, for example ``e1000e`` or ``r8169``. If ``readlink``
+        prints nothing, the interface name is wrong. Then run, with the driver's name::
+
+          echo 'MODULES+=(e1000e)' >> /etc/zfsbootmenu/mkinitcpio.conf
+
+        A driver built into the kernel needs no entry, but one does no harm: mkinitcpio skips built-in modules.
 
         Finally, make sure to include the ``ip`` executable in your initramfs image by manually adding ``ip`` to the
         ``BINARIES`` array in ``/etc/zfsbootmenu/mkinitcpio.conf`` or by running::
@@ -262,9 +307,9 @@ realized by symlinking your user's ``authorized_keys`` file::
       rm -r /tmp/mkinitcpio-dropbear-master
 
     Then, enable the ``dropbear`` module in ``/etc/zfsbootmenu/mkinitcpio.conf`` by manually appending ``dropbear`` to
-    the ``HOOKS`` array, or by running::
+    the ``HOOKS`` array, after the network hook, or by running::
 
-      sed -e '/HOOKS.*rclocal/a HOOKS+=(dropbear)' -i /etc/zfsbootmenu/mkinitcpio.conf
+      echo 'HOOKS+=(dropbear)' >> /etc/zfsbootmenu/mkinitcpio.conf
 
     .. note::
 

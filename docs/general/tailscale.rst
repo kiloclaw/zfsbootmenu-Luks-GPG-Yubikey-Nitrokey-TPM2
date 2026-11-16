@@ -69,9 +69,15 @@ Once it runs successfully, you should see a machine in the
 and the ACL tag ``tag:zfsbootmenu``.
 
 Then, enable the ``tailscale`` module in ``/etc/zfsbootmenu/mkinitcpio.conf`` by manually appending ``tailscale`` to
-the ``HOOKS`` array, or by running::
+the ``HOOKS`` array, after the network hook (``net`` or ``rclocal``) of :doc:`remote-access`, or by running::
 
-  sed -e '/HOOKS.*dropbear/a HOOKS+=(tailscale)' -i /etc/zfsbootmenu/mkinitcpio.conf
+  echo 'HOOKS+=(tailscale)' >> /etc/zfsbootmenu/mkinitcpio.conf
+
+The ``tailscale`` hook runs ``tailscale up``, which needs the network. Listed before the network hook, or on a boot
+without a network, it waits up to its time-out before ZFSBootMenu starts: 20 seconds, unless
+``/etc/tailscale/tailscaled.conf`` sets another, such as ``tailscale_timeout=10s``. With the ``net`` hook and no DHCP
+reply, the boot stops in the ``net`` hook and never gets this far (see
+:ref:`the net module's warning <remote-mkinitcpio-dhcp>`).
 
 If using Tailscale SSH instead of Dropbear, add the necessary flags to ``/etc/tailscale/tailscaled.conf``::
 

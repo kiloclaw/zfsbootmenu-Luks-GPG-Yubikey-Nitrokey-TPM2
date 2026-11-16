@@ -559,15 +559,21 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   `mkinitcpio` run by hand warns of the hooks with a run hook listed after it (`hooks after zfsbootmenu never run`).
   Images without such hooks boot as before, and the image is planned once instead of twice. Late and cleanup hooks
   still never run, as ZFSBootMenu never returns to mkinitcpio's `init`.
-- Hooks that never ran now run, with their costs. With `net` and `ip=...:dhcp` but no DHCP server, `ipconfig` may
-  wait for a reply before the menu shows. `tailscale` waits for `/dev/net/tun`, and each offline boot waits up to its
-  `tailscale up` time-out (20 seconds). `dropbear` starts its SSH server, which the Rust runtime's process 1 reaps
-  when it ends. A hook such as `encrypt` listed after `zfsbootmenu` now runs too.
+- Hooks that never ran now run, with their costs. With `net` and `ip=...:dhcp` but no DHCP reply, the boot never
+  reaches ZFSBootMenu: the hook runs `ipconfig` with no time-out. `tailscale` waits for `/dev/net/tun`, and each
+  offline boot waits up to its `tailscale up` time-out (20 seconds). `dropbear` starts its SSH server, which the Rust
+  runtime's process 1 reaps when it ends. A hook such as `encrypt` listed after `zfsbootmenu` now runs too.
 - In mkinitcpio images with the Rust runtime, the start-up writes `/etc/resolv.conf` from the DHCP lease of the `net`
   hook, which writes none, when the image has none or an empty one: a `nameserver` line for each name server of
   `/tmp/net-*.conf`, at most three. Only the `IPV4DNS0` and `IPV4DNS1` values that are IPv4 addresses are read, quoted
   or not; the lease is never sourced. The shell's `curl` and a chroot then resolve names, as in dracut images. A file
   that an earlier hook wrote, such as the `rclocal` hook's `rc.local`, is kept. The legacy runtime is unchanged.
+- `docs/general/remote-access.rst` and `tailscale.rst` add hooks with `HOOKS+=(...)` lines appended to the end of
+  `/etc/zfsbootmenu/mkinitcpio.conf`, in the order they run (the network, `dropbear`, `tailscale`); their `sed` lines
+  inserted each line right after `HOOKS=`, or after a line that might not exist. The `net` tab warns that without a
+  DHCP reply the boot never reaches ZFSBootMenu and gives the ways around it (a static `ip=`, the `rclocal` hook,
+  `disablehooks=net`). The `rclocal` tab says to use `rclocal_hook`, not `rclocal_earlyhook`, and to add the network
+  card's driver to `MODULES`, which `rclocal` does not add. `mkinitcpio.rst` describes the stages hooks run in.
 
 ### The new menu's keys (phase 0)
 

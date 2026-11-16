@@ -1165,7 +1165,13 @@ Not Covered
   YubiKey protocol (``hidraw``) is tested against a fake key in the unit tests; on a real key, ``zbm debug yubikey``
   lists it with its serial number, and ``zbm debug yubikey SLOT CHALLENGE`` compares the slot's response with
   ``ykchalresp``'s.
-* Images built with mkinitcpio: the build container has no mkinitcpio.
+* Images built with mkinitcpio: the build container has no mkinitcpio, so no VM test builds one. One check by hand
+  covered their hook order: lane 1 of ROADMAP's SB17, on the maintainer's Fedora 45 host at ``3335d62d``, built images
+  with Arch's mkinitcpio, the ``net`` hook of mkinitcpio-nfs-utils, ahesford's ``rclocal`` and ``dropbear`` hooks, the
+  ``zfsbootmenu`` install and run hooks and a stand-in for ``zbm``, and booted them under QEMU. In the images built
+  with ``generate-zbm``'s ``-A zfsbootmenu`` and the new install hook, the run hooks of ``HOOKS`` ran before
+  ZFSBootMenu (where a DHCP server answered), and an SSH login to ``dropbear`` worked. A complete ZFSBootMenu image
+  built with mkinitcpio has not been booted.
 * Secure Boot.
 * Clevis tang policies, which need a network server.
 * Boot environments whose initramfs is not built by dracut (for example mkinitcpio or initramfs-tools).
