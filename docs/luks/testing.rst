@@ -816,8 +816,9 @@ software emulation of the table above.
 
 The last full run, on 15 November 2026 at ``18a4ef01``, on a Fedora 45 host (systemd 262) with KVM and rebuilt images,
 passed every test: 1,388 checks, none failed, the two ``oldzfs`` tests skipped; the device suites passed their 269
-checks on that host, and the legacy runtime's ``keys`` tests their 52. The table below is of the run of 1 to 3
-November.
+checks on that host, and the legacy runtime's ``keys`` tests their 52. After SB20 every test ran again on that host:
+its own lanes at ``953201f9`` (298 checks) and all the others at ``14b37f50`` (1,161 checks, the legacy ``keys``
+tests among them), none failed. The table below is of the run of 1 to 3 November.
 
 ================================  ======  ======  ========
 Test                              Passed  Failed  Duration
