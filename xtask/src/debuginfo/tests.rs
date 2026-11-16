@@ -185,3 +185,26 @@ fn a_missing_debug_file_says_where_it_looked() {
             .contains("no debug file abcd.debug in /nonexistent")
     );
 }
+
+#[test]
+fn a_build_id_that_is_not_hex_is_refused() {
+    let report = REPORT.replace("build-id: 5b60ff28", "build-id: ../x");
+
+    let error = parse_report(&report).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "the report's build ID \"../x\" is not hexadecimal"
+    );
+    assert!(parse_report("ZFSBootMenu crash report\nbuild-id: \n").is_err());
+    assert!(parse_report("ZFSBootMenu crash report\nbuild-id: 5B60\n").is_err());
+}
+
+#[test]
+fn a_build_id_line_in_the_panic_message_gives_way_to_the_real_one() {
+    let report = REPORT.replace("boom\n", "boom\nbuild-id: xyz\n");
+
+    let report = parse_report(&report).unwrap();
+
+    assert_eq!(report.build_id.as_deref(), Some("5b60ff28"));
+}

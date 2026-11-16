@@ -95,3 +95,44 @@ fn files_that_build_releases_may_not_turn_features_on() {
     );
     assert!(text_problems(Path::new("x"), "cargo build --release --locked\n").is_empty());
 }
+
+#[test]
+fn every_directory_that_builds_releases_exists() {
+    let root = crate::workspace_root();
+
+    for dir in RELEASE_DIRS {
+        assert!(
+            root.join(dir).is_dir(),
+            "{dir} is gone: update RELEASE_DIRS"
+        );
+    }
+    for built in BUILT_DIRS {
+        assert!(
+            RELEASE_DIRS
+                .iter()
+                .any(|dir| Path::new(built).starts_with(dir)),
+            "{built} is below no directory of RELEASE_DIRS"
+        );
+    }
+}
+
+#[test]
+fn release_assets_are_not_scanned_for_features() {
+    let root = std::env::temp_dir().join(format!("xtask-release-{}", std::process::id()));
+    let release = root.join("scripts/release");
+    std::fs::create_dir_all(release.join("assets")).unwrap();
+    std::fs::write(
+        release.join("assets/x"),
+        "cargo build --features zbm/crash-test\n",
+    )
+    .unwrap();
+    std::fs::write(release.join("build.sh"), "cargo build --all-features\n").unwrap();
+
+    let problems = build_file_problems(&root, &release);
+    let _ = std::fs::remove_dir_all(&root);
+
+    assert_eq!(
+        problems,
+        ["scripts/release/build.sh:1: turns features on in a file that builds releases"]
+    );
+}

@@ -91,6 +91,7 @@ fn parse_report(text: &str) -> Result<Report> {
         header: vec!["ZFSBootMenu crash report".to_owned()],
         ..Report::default()
     };
+    let mut id = None;
     for line in lines {
         if let Some(frame) = line.trim_start().strip_prefix('#') {
             let mut parts = frame.splitn(3, ' ');
@@ -107,14 +108,35 @@ fn parse_report(text: &str) -> Result<Report> {
         if let Some(binary) = line.strip_prefix("binary: ") {
             binary.clone_into(&mut report.binary);
         }
-        if let Some(id) = line.strip_prefix("build-id: ") {
-            report.build_id = Some(id.to_owned()).filter(|id| id != "unknown");
+        if let Some(line_id) = line.strip_prefix("build-id: ") {
+            id = Some(line_id);
         }
         if line != "frames:" {
             report.header.push(line.to_owned());
         }
     }
+    // The last line wins: a panic message can hold a line of its own.
+    report.build_id = id.map(build_id).transpose()?.flatten();
     Ok(report)
+}
+
+/// The build ID of a report's `build-id:` line, none for `unknown`.
+///
+/// # Errors
+///
+/// When the ID is not lowercase hexadecimal: it becomes part of the debug
+/// file's path, so a report could otherwise name a file anywhere.
+fn build_id(id: &str) -> Result<Option<String>> {
+    if id == "unknown" {
+        return Ok(None);
+    }
+    let hex = |c: char| c.is_ascii_digit() || ('a'..='f').contains(&c);
+    if id.is_empty() || !id.chars().all(hex) {
+        return Err(Error::Format(format!(
+            "the report's build ID {id:?} is not hexadecimal"
+        )));
+    }
+    Ok(Some(id.to_owned()))
 }
 
 /// Groups the output of `addr2line -a -p` by address: each group is the

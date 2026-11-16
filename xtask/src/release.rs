@@ -37,7 +37,11 @@ const FEATURES_FROM_TESTS: &str = "packaging/container/build-init.sh";
 const FEATURE_WORDS: &[&str] = &["--features", "--all-features", "ZBM_CARGO_FEATURES"];
 
 /// The directories whose files build releases.
-const RELEASE_DIRS: &[&str] = &[".github/workflows", "packaging", "releng"];
+const RELEASE_DIRS: &[&str] = &[".github/workflows", "packaging", "scripts/release"];
+
+/// The directories below [`RELEASE_DIRS`] that hold what a release built,
+/// not what builds it: they are not read.
+const BUILT_DIRS: &[&str] = &["scripts/release/assets"];
 
 /// Runs the check over the workspace at `root`.
 ///
@@ -199,7 +203,8 @@ pub fn feature_problems(all: &BTreeMap<String, Features>) -> Vec<String> {
     problems
 }
 
-/// The problems of the files below `dir`, which build releases.
+/// The problems of the files below `dir`, which build releases, but for
+/// those of [`BUILT_DIRS`].
 fn build_file_problems(root: &Path, dir: &Path) -> Vec<String> {
     let mut problems = Vec::new();
     let mut pending: Vec<PathBuf> = vec![dir.to_owned()];
@@ -209,11 +214,13 @@ fn build_file_problems(root: &Path, dir: &Path) -> Vec<String> {
         };
         for entry in entries.flatten() {
             let path = entry.path();
+            let relative = path.strip_prefix(root).unwrap_or(&path);
             if path.is_dir() {
-                pending.push(path);
+                if !BUILT_DIRS.iter().any(|built| relative == Path::new(built)) {
+                    pending.push(path);
+                }
                 continue;
             }
-            let relative = path.strip_prefix(root).unwrap_or(&path);
             if relative == Path::new(FEATURES_FROM_TESTS) {
                 continue;
             }

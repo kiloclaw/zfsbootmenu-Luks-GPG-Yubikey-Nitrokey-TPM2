@@ -60,6 +60,22 @@ prints each frame of the binary as its function, file and line, with the calls i
 `make install` strips the programs it installs unless `INSTALL_STRIP` is empty, for packages that keep debug files
 of their own.
 
+A release image's debug files are published with the release, one `zfsbootmenu-debug-<arch>-v<version>.tar.xz` per
+release, holding a directory of `<build-id>.debug` files: one for each build ID of a binary in the release's images
+(`zbm` today, `brush` too once release images boot the Rust runtime). The release is the one that `report.txt` of
+`zbm report` names, from `/etc/zbm-release`. Download the archive and `sha256.sig` from the release page, or with
+`gh release download v<version> -R <owner>/<repo> -p 'zfsbootmenu-debug-*' -p 'sha256.*'`; check that one file
+by name, so that the assets not downloaded do not fail the check; then unpack it and pass its directory:
+
+```sh
+signify -C -p zfsbootmenu.pub -x sha256.sig zfsbootmenu-debug-x86_64-v<version>.tar.xz
+tar -xJf zfsbootmenu-debug-x86_64-v<version>.tar.xz
+cargo xtask symbolize crash-report.txt --debug-dir zfsbootmenu-debug-x86_64-v<version>
+```
+
+The key `zfsbootmenu.pub` is `scripts/release/keys/zfsbootmenu.pub`. `symbolize` takes the report's build ID only
+when it is lowercase hexadecimal, since it becomes part of the debug file's path.
+
 ## Saved logs and bug reports
 
 The runtime journal and the crash reports live in `/zfsbootmenu`, in memory, and are lost at `kexec` or a restart.
