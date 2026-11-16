@@ -62,6 +62,11 @@ common compression suffixes: ``gz``, ``bz2``, ``xz``, ``lzma``, ``lz4``, ``lzo``
 
 ZFSBootMenu prefers the more specific label (the full kernel name) when it exists.
 
+The Rust runtime looks for kernels inside the boot environment: symbolic links in ``/boot``, and ``/boot`` itself, are
+followed inside the boot environment, an absolute link from its root, so that ``vmlinuz -> /boot/vmlinuz-6.1`` names
+the boot environment's own file. Only regular files count, a kernel or initramfs of at most 1 GiB, and at most the 64
+newest kernels of a ``/boot`` are listed. Names with control characters, such as a tab or a newline, are ignored.
+
 Boot Environments
 -----------------
 

@@ -22,9 +22,20 @@ use super::table::mounts;
 /// does.
 const MAX_LINKS: usize = 40;
 
+/// The names looked up in one walk before it gives up: far more than any
+/// real path and its links hold. Each name is looked up again from this
+/// system's root, through every name before it, so a walk of `n` names
+/// costs about `n * n / 2` steps of the kernel's; without a bound, links
+/// with targets of thousands of names would make one walk last seconds.
+const MAX_NAMES: usize = 128;
+
 /// The directories that the chroot covers with this system's: what is
 /// below them in the root is hidden there.
 const COVERED: [&str; 4] = ["tmp", "proc", "sys", "dev"];
+
+/// The directory of a ZFS filesystem's root through which its snapshots
+/// are mounted when a name below it is looked up.
+const SNAPSHOTS: &str = ".zfs";
 
 /// A path inside a chroot's root, held as its names below the root: no
 /// root directory, no `.` and no `..`, so that it never replaces the root
@@ -147,6 +158,12 @@ impl InRoot {
             .is_some_and(|first| COVERED.iter().any(|covered| first == covered))
     }
 
+    /// Whether the path is the snapshots' directory [`SNAPSHOTS`] of the
+    /// root, or below it: a walk through it would mount a snapshot.
+    fn is_in_snapshots(&self) -> bool {
+        self.0.first().is_some_and(|first| first == SNAPSHOTS)
+    }
+
     /// The path with `name` added.
     fn with(&self, name: OsString) -> InRoot {
         let mut names = self.0.clone();
@@ -179,10 +196,15 @@ pub enum Unresolved {
     /// The path reaches `/tmp`, `/proc`, `/sys` or `/dev`, which the
     /// chroot covers with this system's.
     Covered(InRoot),
+    /// The path reaches the snapshots' directory `.zfs` of the root, which
+    /// is not looked at, so that no snapshot is mounted below the root.
+    Snapshots(InRoot),
     /// A name on the way is no directory.
     NotADirectory(InRoot),
     /// More than 40 links on the way, as Linux allows.
     TooManyLinks,
+    /// More than 128 names to look up on the way, the links' included.
+    TooManyNames,
     /// A link could not be read.
     Io(io::Error),
 }
@@ -204,11 +226,15 @@ impl fmt::Display for Unresolved {
                 let top = path.top().in_chroot();
                 write!(formatter, "it leads into this system's {}", top.display())
             }
+            Unresolved::Snapshots(_) => {
+                formatter.write_str("it leads into the snapshots' directory .zfs")
+            }
             Unresolved::NotADirectory(path) => {
                 let path = path.in_chroot();
                 write!(formatter, "{} is not a directory", path.display())
             }
             Unresolved::TooManyLinks => formatter.write_str("too many symbolic links"),
+            Unresolved::TooManyNames => formatter.write_str("too many names on the way"),
             Unresolved::Io(error) => write!(formatter, "{error}"),
         }
     }
@@ -277,13 +303,13 @@ fn parts(path: &Path) -> Vec<Part> {
 ///
 /// # Errors
 ///
-/// [`Unresolved`]: a name that is missing, covered by this system's, or no
-/// directory where names follow; too many links; or a link that could not
-/// be read.
+/// [`Unresolved`]: a name that is missing, covered by this system's, the
+/// root's `.zfs`, or no directory where names follow; too many links or
+/// names; or a link that could not be read.
 pub fn resolve(files: &dyn Files, root: &Path, path: &Path) -> Result<Inside, Unresolved> {
     let mut pending: VecDeque<Part> = parts(path).into();
     let mut resolved = InRoot::default();
-    let (mut links, mut followed) = (0, false);
+    let (mut links, mut names, mut followed) = (0, 0, false);
     while let Some(part) = pending.pop_front() {
         let name = match part {
             Part::Root => {
@@ -299,6 +325,13 @@ pub fn resolve(files: &dyn Files, root: &Path, path: &Path) -> Result<Inside, Un
         let candidate = resolved.with(name);
         if candidate.is_covered() {
             return Err(Unresolved::Covered(candidate));
+        }
+        if candidate.is_in_snapshots() {
+            return Err(Unresolved::Snapshots(candidate));
+        }
+        names += 1;
+        if names > MAX_NAMES {
+            return Err(Unresolved::TooManyNames);
         }
         match files.read_link(&candidate.under(root)) {
             Ok(target) => {

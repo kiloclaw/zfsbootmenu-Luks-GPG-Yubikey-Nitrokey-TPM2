@@ -944,6 +944,8 @@ will provide arguments for the kernel
 
 if that kernel exists and is usable by ZFSBootMenu. Within the command-line file, the special keyword *%{parent}* will be substituted with the command line derived from the **org.zfsbootmenu:commandline** property on the dataset containing the file, recursively expanded as described above.
 
+The Rust runtime reads the command-line file, the kernels and their initramfs images inside the boot environment: a symbolic link in */boot*, or */boot* itself, is followed as the boot environment's own programs follow it, an absolute one from its root and *..* no higher than its root. A path into its */tmp*, */proc*, */sys*, */dev* or *.zfs*, one that is not UTF-8, or one with more than 40 links or 128 names to look up is not read, and only regular files are: a command-line file of at most 64 KiB, a kernel or initramfs of at most 1 GiB. A kernel name with a control character is skipped, and at most the 64 newest kernels of a */boot* are listed; each refusal is in the kernel log.
+
 **NOTE**: Never set the *root=* argument in any argument list; ZFSBootMenu always sets this option based on the selected boot environment.
 
 .. _menu-keys:

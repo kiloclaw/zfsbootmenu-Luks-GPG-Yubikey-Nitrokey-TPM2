@@ -20,6 +20,9 @@ enum Node {
         kind: FileKind,
         mode: u32,
         modified: SystemTime,
+        /// The size reported in place of the contents' length, from
+        /// [`FakeFiles::sized`]; a write of the file drops it.
+        size: Option<u64>,
     },
     Directory {
         mode: u32,
@@ -254,8 +257,23 @@ impl FakeFiles {
                 kind: FileKind::File,
                 mode,
                 modified: SystemTime::UNIX_EPOCH + EPOCH,
+                size: None,
             },
         );
+        self
+    }
+
+    /// Adds an empty regular file whose size, as
+    /// [`Files::metadata`](zbm_platform::Files::metadata) reports it, is
+    /// `len`, such as a file too large to make, or a sparse one. The size
+    /// stays with the file when it is renamed, and goes when it is written
+    /// or replaced.
+    pub fn sized(&self, path: impl AsRef<Path>, len: u64) -> &FakeFiles {
+        let path = path.as_ref();
+        self.file(path, "");
+        if let Some(Node::File { size, .. }) = self.nodes().get_mut(path) {
+            *size = Some(len);
+        }
         self
     }
 
@@ -289,6 +307,7 @@ impl FakeFiles {
                 kind,
                 mode: 0o600,
                 modified: SystemTime::UNIX_EPOCH + EPOCH,
+                size: None,
             },
         );
         self
@@ -424,6 +443,7 @@ impl FakeFiles {
             Some(Node::File {
                 contents: existing,
                 modified: time,
+                size,
                 ..
             }) => {
                 if !append {
@@ -431,6 +451,7 @@ impl FakeFiles {
                 }
                 existing.extend_from_slice(contents);
                 *time = modified;
+                *size = None;
             }
             Some(Node::Symlink(_)) => unreachable!("links are resolved"),
             None => {
@@ -441,6 +462,7 @@ impl FakeFiles {
                         kind: FileKind::File,
                         mode: 0o644,
                         modified,
+                        size: None,
                     },
                 );
             }

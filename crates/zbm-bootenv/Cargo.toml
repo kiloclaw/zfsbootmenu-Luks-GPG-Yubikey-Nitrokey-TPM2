@@ -22,6 +22,7 @@ zbm-tools.workspace = true
 zbm-zfs.workspace = true
 
 [dev-dependencies]
+proptest.workspace = true
 serde.workspace = true
 zbm-testkit.workspace = true
 

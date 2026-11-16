@@ -2,12 +2,12 @@
 //! command line files, recording them in its kernel list, and choosing the
 //! one to boot.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use zbm_config::spec::properties::KERNEL;
 use zbm_platform::Context;
 use zbm_state::State;
-use zbm_types::{FilesystemName, KernelSelector};
+use zbm_types::{FilesystemName, KernelSelector, Printable};
 
 use crate::error::BootEnvError;
 use crate::kernels::{self, Kernel};
@@ -70,58 +70,48 @@ fn clear_kcl_cache(context: &Context<'_>, state: &State<'_>, fs: &str) {
 /// an initramfs. Copies the command line file of each kernel that has one into
 /// the command line cache.
 fn kernel_list(context: &Context<'_>, state: &State<'_>, fs: &str, mnt: &Path) -> Vec<u8> {
-    let mnt_text = mnt.to_string_lossy();
+    let mnt = mnt.to_string_lossy();
     let mut list = Vec::new();
-    for path in kernels::kernel_files(context.files(), mnt) {
-        let kpath = in_environment(&path, &mnt_text);
-        if let Some(kernel) = paired_kernel(context, fs, &mnt_text, &path, &kpath) {
+    for found in kernels::walk(context.files(), fs, Path::new(&*mnt)) {
+        let kpath = &found.kernel;
+        if let Some(initramfs) = &found.initramfs {
+            // The legacy line names the mount point twice: its `ipath` is
+            // still the full path there.
+            let ipath = format!("{mnt}{initramfs}");
+            zbm_trace::debug!(
+                "found kernel: {mnt}{kpath}, initramfs {mnt}{ipath}";
+                %mnt, %kpath, %ipath
+            );
+            let kernel = Kernel::new(fs, kpath, initramfs);
             list.extend_from_slice(kernel.line().as_bytes());
+        } else {
+            zbm_trace::debug!("kernel {mnt}{kpath} has no initramfs"; %mnt, %kpath);
         }
-        cache_kernel_kcl(context, state, fs, &mnt_text, &kpath);
+        if let Some(kcl) = &found.kcl {
+            cache_kernel_kcl(context, state, fs, kpath, Path::new(kcl));
+        }
     }
     list
 }
 
-/// `path`, a file of the boot environment mounted at `mnt`, as an absolute
-/// path inside the boot environment.
-fn in_environment(path: &str, mnt: &str) -> String {
-    let rest = path.strip_prefix(mnt).unwrap_or(path);
-    format!("/{}", rest.strip_prefix('/').unwrap_or(rest))
-}
-
-/// The kernel `kpath` of `fs`, found at `path` below `mnt`, with its
-/// initramfs, or `None` when it has none.
-fn paired_kernel(
-    context: &Context<'_>,
-    fs: &str,
-    mnt: &str,
-    path: &str,
-    kpath: &str,
-) -> Option<Kernel> {
-    let Some(initramfs) = kernels::find_initramfs(context.files(), Path::new(path)) else {
-        zbm_trace::debug!("kernel {mnt}{kpath} has no initramfs"; %mnt, %kpath);
-        return None;
+/// Copies the command line file `kcl` of the kernel `kpath` of `fs`, as it
+/// is opened, into the command line cache: a regular file of at most 64
+/// KiB, read without following a link at its last name.
+fn cache_kernel_kcl(context: &Context<'_>, state: &State<'_>, fs: &str, kpath: &str, kcl: &Path) {
+    be_location(state, fs);
+    let Some(cache) = state.kcl_cache(fs, kpath) else {
+        return;
     };
-    let initramfs = initramfs.to_string_lossy();
-    zbm_trace::debug!(
-        "found kernel: {mnt}{kpath}, initramfs {mnt}{initramfs}";
-        %mnt, %kpath, %initramfs
-    );
-    Some(Kernel {
-        dataset: fs.to_owned(),
-        kernel: kpath.to_owned(),
-        initramfs: in_environment(&initramfs, mnt),
-    })
-}
-
-/// Copies the command line file of the kernel `kpath` of `fs`, mounted at
-/// `mnt`, into the command line cache, if the kernel has one.
-fn cache_kernel_kcl(context: &Context<'_>, state: &State<'_>, fs: &str, mnt: &str, kpath: &str) {
-    let kcl = PathBuf::from(format!("{mnt}/{kpath}.kcl"));
-    if context.files().exists(&kcl) {
-        be_location(state, fs);
-        if let Some(cache) = state.kcl_cache(fs, kpath) {
-            let _ = context.files().copy(&kcl, &cache);
+    match context.files().read_regular(kcl, kernels::SMALL_LIMIT) {
+        Ok(contents) => {
+            let _ = context.files().write(&cache, &contents);
+        }
+        Err(error) => {
+            let why = error.to_string();
+            zbm_trace::warn!(
+                "the command line file of {kernel} in {fs} is not read: {why}";
+                kernel = %Printable(kpath), fs = %Printable(fs), why = %Printable(&why)
+            );
         }
     }
 }

@@ -120,6 +120,23 @@ pub trait Files: Send + Sync {
     /// The error of the operation, such as `NotFound` for a missing path.
     fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>>;
 
+    /// Reads a whole regular file of at most `limit` bytes: never through a
+    /// symbolic link at its last name, and never from a pipe, device or
+    /// socket, which are refused without waiting for them. The real files
+    /// open the last name with `O_NOFOLLOW | O_NONBLOCK` and check the file
+    /// they opened, so that one swapped in after a check is refused too; at
+    /// most `limit + 1` bytes are read, so a file that grew past the limit
+    /// is refused.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a file that is no regular file, `FileTooLarge` for
+    /// one over the limit, the `ELOOP` of a link at the last name, or the
+    /// error of the operation, such as `NotFound` for a missing path.
+    fn read_regular(&self, path: &Path, limit: u64) -> io::Result<Vec<u8>> {
+        regular::through(self, path, limit)
+    }
+
     /// Reads what a device such as `/dev/kmsg` holds now, at most `limit`
     /// bytes: a read of it waits once it reached the end, which this does
     /// not. A plain file is read whole, as [`Files::read`] does.
@@ -397,6 +414,10 @@ impl Files for RealFiles {
         Ok(data)
     }
 
+    fn read_regular(&self, path: &Path, limit: u64) -> io::Result<Vec<u8>> {
+        regular::opened(path, limit)
+    }
+
     fn read_available(&self, path: &Path, limit: usize) -> io::Result<Vec<u8>> {
         use std::io::Read;
         use std::os::unix::fs::OpenOptionsExt as _;
@@ -536,6 +557,8 @@ impl Files for RealFiles {
         std::fs::read_link(path)
     }
 }
+
+mod regular;
 
 #[cfg(test)]
 mod tests;

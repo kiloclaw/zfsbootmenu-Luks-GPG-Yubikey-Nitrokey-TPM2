@@ -186,3 +186,52 @@ fn the_mount_system_calls_report_their_errors() {
     let nul = Path::new("/nonexistent/a\0b");
     assert!(RealFiles.mount_zfs("tank", nul, true).is_err());
 }
+
+#[test]
+fn read_regular_refuses_a_link_a_fifo_and_a_file_over_the_limit() {
+    let dir = TempDir::new("zbm-files");
+    let files = RealFiles;
+    let read = |name: &str, limit: u64| files.read_regular(&dir.join(name), limit);
+    dir.write("exact", "12345678");
+    dir.write("over", "123456789");
+    std::os::unix::fs::symlink(dir.join("exact"), dir.join("link")).unwrap();
+    std::os::unix::fs::symlink("exact", dir.join("relative")).unwrap();
+    let fifo = std::process::Command::new("mkfifo")
+        .arg(dir.join("fifo"))
+        .status()
+        .unwrap();
+    assert!(fifo.success());
+
+    assert_eq!(read("exact", 8).unwrap(), b"12345678");
+    assert_eq!(
+        read("over", 8).unwrap_err().kind(),
+        io::ErrorKind::FileTooLarge
+    );
+    // A link at the last name is not followed, wherever it leads.
+    for link in ["link", "relative"] {
+        let error = read(link, 8).unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(40), "{link}: {error}");
+    }
+    // A pipe without a writer is refused at once, not waited on.
+    let started = std::time::Instant::now();
+    assert_eq!(
+        read("fifo", 8).unwrap_err().kind(),
+        io::ErrorKind::InvalidInput
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    assert_eq!(
+        files
+            .read_regular(Path::new("/dev/zero"), 8)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        files.read_regular(dir.path(), 8).unwrap_err().kind(),
+        io::ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        read("missing", 8).unwrap_err().kind(),
+        io::ErrorKind::NotFound
+    );
+}

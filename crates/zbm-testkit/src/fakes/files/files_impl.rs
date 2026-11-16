@@ -106,6 +106,7 @@ impl Files for FakeFiles {
                 kind: FileKind::File,
                 mode: 0o600,
                 modified,
+                size: None,
             },
         );
         self.record(FileOperation::Write(resolved, contents.to_vec()));
@@ -123,6 +124,7 @@ impl Files for FakeFiles {
                     kind: FileKind::File,
                     mode: 0o600,
                     modified,
+                    size: None,
                 },
             );
         }
@@ -273,10 +275,11 @@ impl Files for FakeFiles {
                 kind,
                 mode,
                 modified,
+                size,
             }) => Ok(Metadata {
                 kind: *kind,
                 mode: *mode,
-                len: contents.len() as u64,
+                len: size.unwrap_or(contents.len() as u64),
                 modified: *modified,
             }),
             Some(Node::Directory { mode, modified }) => Ok(Metadata {

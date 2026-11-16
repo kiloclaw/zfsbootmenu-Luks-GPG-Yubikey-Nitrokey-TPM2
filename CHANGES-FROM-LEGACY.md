@@ -557,6 +557,31 @@ The boot environments and their kernels: the main view and the kernels of the cl
   `=~` reads it the same way, so the legacy runtime boots the same kernel from it.
 - **Why:** the kernel chosen is the one that boots, whatever its version holds.
 
+### A boot environment's /boot is read inside it
+
+- **Before:** the search for kernels followed every link of `/boot`, its kernels, initramfs images and `.kcl` files
+  in ZFSBootMenu's own file system, so `vmlinuz-6.1.kcl -> /etc/zfs/key` made the image's key a command line, and an
+  absolute link inside the boot environment, such as `vmlinuz -> /boot/vmlinuz-6.1`, dangled. It took any kind of
+  file: a directory named like a kernel, a pipe, which hung the search, or a device. It listed names with a tab or an
+  escape character, split a name with a newline into pieces that did not exist, and took any number of kernels.
+- **Now:**
+  - links are followed inside the boot environment, as its own programs follow them: an absolute one from its root,
+    and `..` no higher than its root;
+  - a path into its `/tmp`, `/proc`, `/sys`, `/dev` or `.zfs` is not read, nor one that is not UTF-8 once its links
+    are followed, nor one with more than 40 links or 128 names to look up, its links' included, as each name is
+    looked up again from the root;
+  - only regular files are read: a `.kcl` of at most 64 KiB, a kernel or initramfs of at most 1 GiB; a file that is
+    refused is passed over as a missing one is, and one warning a kernel says why;
+  - at most the 64 newest kernels of a `/boot` are listed, with a warning for those left out; every name of `/boot`
+    is still read and sorted, as before, but only those 64 have their files looked up;
+  - names with a control character are skipped with a warning, and names that are not UTF-8 are skipped, which has
+    been the case since the Rust port.
+
+  So a kernel that only an absolute link inside the boot environment names is now listed; `vmlinuz` sorts before
+  `vmlinuz-6.1`, so the kernel that boots by default is the same.
+- **Why:** a crafted pool, once imported, could make a key file of the image a kernel's command line or its initramfs,
+  hang the menu with a pipe, and fill memory, with no action by the person.
+
 ## The menu's Snapshots tab
 
 The snapshots view and the main view make the changes of the legacy menu: a new default and a default kernel (in the

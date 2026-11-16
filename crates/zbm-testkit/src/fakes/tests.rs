@@ -230,6 +230,46 @@ fn metadata_modes_and_times() {
 }
 
 #[test]
+fn sized_files_and_regular_reads() {
+    let files = FakeFiles::new();
+    files
+        .sized("/boot/huge.img", 2 << 30)
+        .file("/boot/small.kcl", "quiet\n")
+        .symlink("/boot/link.kcl", "small.kcl")
+        .fifo("/boot/fifo.kcl");
+    let metadata = files.metadata(&path("/boot/huge.img")).unwrap();
+    assert_eq!((metadata.kind, metadata.len), (FileKind::File, 2 << 30));
+    let read = |name: &str, limit: u64| files.read_regular(&path(name), limit);
+    assert_eq!(read("/boot/small.kcl", 6).unwrap(), b"quiet\n");
+    let kind = |name: &str, limit: u64| read(name, limit).unwrap_err().kind();
+    assert_eq!(kind("/boot/small.kcl", 5), io::ErrorKind::FileTooLarge);
+    assert_eq!(kind("/boot/huge.img", 1 << 30), io::ErrorKind::FileTooLarge);
+    assert_eq!(kind("/boot/fifo.kcl", 6), io::ErrorKind::InvalidInput);
+    assert_eq!(kind("/boot", 6), io::ErrorKind::InvalidInput);
+    assert_eq!(kind("/boot/missing", 6), io::ErrorKind::NotFound);
+    // A link at the last name is not followed: ELOOP, as O_NOFOLLOW gives.
+    let error = read("/boot/link.kcl", 6).unwrap_err();
+    assert_eq!(error.raw_os_error(), Some(40), "{error}");
+}
+
+#[test]
+fn a_given_size_moves_with_its_file_and_goes_when_it_is_rewritten() {
+    let files = FakeFiles::new();
+    let len = |name: &str| files.metadata(&path(name)).unwrap().len;
+    files
+        .sized("/a", 2 << 30)
+        .sized("/b", 2 << 30)
+        .sized("/c", 2 << 30);
+    files.file("/a", "x");
+    files.write(&path("/b"), b"yz").unwrap();
+    files.rename(&path("/c"), &path("/d")).unwrap();
+    assert_eq!((len("/a"), len("/b"), len("/d")), (1, 2, 2 << 30));
+    files.remove_file(&path("/d")).unwrap();
+    files.write(&path("/d"), b"new").unwrap();
+    assert_eq!(len("/d"), 3);
+}
+
+#[test]
 fn renames_move_whole_trees_and_replace_files() {
     let files = FakeFiles::new();
     files.file("/a/dir/file", "x");

@@ -336,6 +336,16 @@ fn kernels_are_found_as_the_legacy_function_finds_them() {
     let mut unmountable = kernels_machine();
     unmountable.answers.push((32, "mount *", "mount failed\\n"));
     machines.push(unmountable);
+    // A name with a newline and tabs, which legacy reads as two missing
+    // kernels and Rust skips: neither lists a line for `q`.
+    let mut newline = kernels_machine();
+    newline.files = vec![
+        ("boot/vmlinuz-1", ""),
+        ("boot/initramfs-1.img", ""),
+        ("boot/vmlinuz-9\nq\tx\ty", ""),
+        ("boot/initramfs-9\nq\tx\ty.img", ""),
+    ];
+    machines.push(newline);
 
     let mut parity = parity!("kernels_are_found_as_the_legacy_function_finds_them");
     for machine in machines {
@@ -353,11 +363,34 @@ fn kernels_are_found_as_the_legacy_function_finds_them() {
                 .unwrap_or_default()
         });
         let legacy = Outcome {
-            log: without_initramfs_search(&legacy.log),
+            log: without_split_names(&without_initramfs_search(&legacy.log)),
             ..legacy
+        };
+        let rust = Outcome {
+            log: without_split_names(&rust.log),
+            ..rust
         };
         assert_eq!(rust, legacy);
     }
+}
+
+/// The lines about the name with a newline, which each runtime logs its
+/// own way: legacy looks for the two pieces it splits the name into, and
+/// Rust warns that it skips the name.
+fn without_split_names(log: &str) -> String {
+    const MNT: &str = "$Z/base/environments/tank/ROOT/void/mnt";
+    let split = [
+        "ERROR: specified kernel does not exist".to_owned(),
+        format!("DEBUG: kernel {MNT}/q\tx\ty has no initramfs"),
+        format!("DEBUG: kernel {MNT}/boot/vmlinuz-9 has no initramfs"),
+        "WARN: kernel names in tank/ROOT/void skipped for a control character: 1, \
+         such as 'vmlinuz-9\\x0aq\\x09x\\x09y'"
+            .to_owned(),
+    ];
+    log.lines()
+        .filter(|line| !split.iter().any(|text| line == text))
+        .flat_map(|line| [line, "\n"])
+        .collect()
 }
 
 fn boot_machine() -> Machine {

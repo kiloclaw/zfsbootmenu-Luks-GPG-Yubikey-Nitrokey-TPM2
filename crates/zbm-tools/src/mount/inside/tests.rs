@@ -189,6 +189,28 @@ fn a_path_through_tmp_proc_sys_or_dev_is_covered() {
 }
 
 #[test]
+fn a_path_through_zfs_is_refused() {
+    for target in ["/.zfs/snapshot/s/etc/resolv.conf", "../.zfs", "/.zfs"] {
+        let files = files();
+        files
+            .symlink(below("etc/resolv.conf"), target)
+            .fail(below(".zfs"), io::ErrorKind::PermissionDenied);
+        let found = resolved(&files, "/etc/resolv.conf");
+        let Err(Unresolved::Snapshots(path)) = found else {
+            panic!("{target}: {found:?}");
+        };
+        assert_eq!(path, in_root("/.zfs"));
+    }
+    // Below the root's first name, `.zfs` is an ordinary name.
+    let files = files();
+    files.file(below("etc/.zfs"), "");
+    assert_eq!(
+        resolved(&files, "/etc/.zfs").unwrap(),
+        inside("/etc/.zfs", false)
+    );
+}
+
+#[test]
 fn a_path_named_like_a_covered_one_is_not_covered() {
     let files = files();
     files.file(below("devices/x"), "").file(below("tmpfoo"), "");
@@ -217,6 +239,32 @@ fn a_link_loop_stops_after_forty_links() {
     }
     files.symlink(below("etc/39"), "x").file(below("etc/x"), "");
     assert_eq!(resolved(&files, "/etc/0").unwrap(), inside("/etc/x", true));
+}
+
+#[test]
+fn a_walk_stops_after_128_names() {
+    // One link whose target goes 100 names down and back up, twice: 200
+    // names to look up, beyond the bound, with only two links.
+    let looped = files();
+    let down = "d/".repeat(100);
+    looped.dir(below(&down));
+    let up = "../".repeat(100);
+    looped
+        .symlink(below("etc/a"), format!("/{down}{up}etc/b"))
+        .symlink(below("etc/b"), format!("/{down}{up}etc/x"))
+        .file(below("etc/x"), "");
+    let found = resolved(&looped, "/etc/a");
+    assert!(matches!(found, Err(Unresolved::TooManyNames)), "{found:?}");
+    // 128 names are still looked up, and a 129th is not.
+    let files = files();
+    let deep = format!("etc/{}", "d/".repeat(126));
+    files
+        .file(below(&format!("{deep}x")), "")
+        .dir(below(&format!("{deep}d")));
+    let at = |path: &str| resolved(&files, &format!("/{deep}{path}"));
+    assert_eq!(at("x").unwrap(), inside(&format!("/{deep}x"), false));
+    let found = at("d/x");
+    assert!(matches!(found, Err(Unresolved::TooManyNames)), "{found:?}");
 }
 
 #[test]
@@ -257,10 +305,15 @@ fn why_a_path_leads_nowhere_reads_as_plain_words() {
             "it leads into this system's /dev",
         ),
         (
+            Unresolved::Snapshots(in_root("/.zfs/snapshot")),
+            "it leads into the snapshots' directory .zfs",
+        ),
+        (
             Unresolved::NotADirectory(in_root("/etc/file")),
             "/etc/file is not a directory",
         ),
         (Unresolved::TooManyLinks, "too many symbolic links"),
+        (Unresolved::TooManyNames, "too many names on the way"),
         (Unresolved::Io(denied), "permission denied"),
     ];
     for (unresolved, said) in cases {
@@ -382,8 +435,8 @@ fn a_real_link_is_found_with_the_real_files() {
 }
 
 /// The names of the random trees: a few, among them those the chroot
-/// covers, so that walks meet them.
-const NAMES: [&str; 6] = ["a", "b", "etc", "run", "tmp", "devices"];
+/// covers and the snapshots' directory, so that walks meet them.
+const NAMES: [&str; 7] = ["a", "b", "etc", "run", "tmp", "devices", ".zfs"];
 
 /// A name of [`NAMES`].
 fn name() -> impl Strategy<Value = String> {
@@ -478,10 +531,14 @@ proptest! {
             Err(Unresolved::Missing { path, .. } | Unresolved::NotADirectory(path)) => {
                 Some((path, true))
             }
-            Err(Unresolved::Covered(path)) => Some((path, false)),
-            Err(Unresolved::TooManyLinks | Unresolved::Io(_)) => None,
+            Err(Unresolved::Covered(path) | Unresolved::Snapshots(path)) => Some((path, false)),
+            Err(Unresolved::TooManyLinks | Unresolved::TooManyNames | Unresolved::Io(_)) => {
+                None
+            }
         };
         if let Some((found, read)) = found {
+            // No path that was looked at runs through the root's `.zfs`.
+            prop_assert!(!read || !found.is_in_snapshots(), "{found:?}");
             let under = found.under(Path::new(ROOT));
             prop_assert!(under.starts_with(ROOT), "{}", under.display());
             prop_assert!(
