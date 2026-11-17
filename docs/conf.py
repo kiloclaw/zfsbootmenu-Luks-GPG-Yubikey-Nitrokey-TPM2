@@ -28,6 +28,10 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '*env', '**/_include', '
                     # Markdown guides read on GitHub, not part of the rendered site
                     'guides/gentoo/*.md',
                     'guides/arch/*.md',
+                    'guides/debian/*.md',
+                    'guides/fedora/*.md',
+                    'guides/opensuse/*.md',
+                    'guides/ubuntu/*.md',
                     # Developer documentation, read on GitHub
                     'dev/**']
 
